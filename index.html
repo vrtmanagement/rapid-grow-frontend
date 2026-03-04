@@ -1,0 +1,104 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapid Grow Performance Hub</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>RG</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                red: '#E61C21',
+                navy: '#1E2B82',
+                grey: '#5F5F5F',
+                blue: '#2E70A5',
+                cyan: '#35ADDD',
+                green: '#139951',
+                orange: '#FA9113',
+                brown: '#63391F'
+              }
+            },
+            backgroundImage: {
+              'brand-gradient': 'linear-gradient(to bottom right, #E61C21, #1E2B82)',
+              'brand-glow': 'radial-gradient(circle, rgba(230, 28, 33, 0.15) 0%, rgba(30, 43, 130, 0.05) 100%)'
+            },
+            borderRadius: {
+              '4xl': '2rem',
+              '5xl': '3rem'
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+        /* Force browser default font and disable text-transform to ensure sentence/title case visuals */
+        body, #root {
+          background-color: #f8fafc;
+        }
+        /* Override any utility classes that force uppercase or custom fonts so the app uses the browser default */
+        body, body * {
+          /* font-family: initial !important;
+          font-weight: normal !important;
+          font-style: normal !important;
+          text-transform: none !important; */
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .text-glow-red {
+            text-shadow: 0 0 15px rgba(230, 28, 33, 0.3);
+        }
+        .animate-pulse-slow {
+            animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .7; }
+        }
+        
+        ::-webkit-scrollbar {
+          width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+
+        /* Datalist styling helpers */
+        input[list]::-webkit-calendar-picker-indicator {
+          display: none !important;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-slate-50 text-brand-grey overflow-hidden selection:bg-brand-red/10 selection:text-brand-red">
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

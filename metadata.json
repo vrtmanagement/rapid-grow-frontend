@@ -1,0 +1,9 @@
+{
+  "name": "Rapid grow performance hub",
+  "description": "A high-performance productivity tool for entrepreneurs focusing on hierarchical goal setting, daily time-boxing, and structured reflection.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
