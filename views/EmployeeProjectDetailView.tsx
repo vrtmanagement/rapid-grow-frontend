@@ -30,7 +30,9 @@ const EmployeeProjectDetailView: React.FC = () => {
     if (!projectId) return;
     const fetchProject = async () => {
       try {
-        const res = await fetch(`${API_BASE}/project-charters/${projectId}`);
+        const res = await fetch(`${API_BASE}/project-charters/${projectId}`, {
+          headers: getAuthHeaders(),
+        });
         if (res.ok) {
           const data = await res.json();
           setProject(data);

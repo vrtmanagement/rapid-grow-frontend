@@ -56,7 +56,9 @@ const WorkspaceP1Detail: React.FC<Props> = ({ state, updateState }) => {
 
     const loadProject = async () => {
       try {
-        const res = await fetch(`${API_BASE}/project-charters/${projectId}`);
+        const res = await fetch(`${API_BASE}/project-charters/${projectId}`, {
+          headers: getAuthHeaders(),
+        });
         if (!res.ok) return;
         const item = await res.json();
 
@@ -113,7 +115,9 @@ const WorkspaceP1Detail: React.FC<Props> = ({ state, updateState }) => {
 
     const syncTasksFromBackend = async () => {
       try {
-        const res = await fetch(`${API_BASE}/project-charters/${projectId}`);
+        const res = await fetch(`${API_BASE}/project-charters/${projectId}`, {
+          headers: getAuthHeaders(),
+        });
         if (!res.ok) return;
         const item = await res.json();
         const backendTasks: WorkspaceTask[] = item.tasks || [];
