@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   PlanningState,
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
 import { PROJECT_ROLES } from '../constants';
+import { API_BASE, getAuthHeaders } from '../config/api';
 
 interface Props {
   state: PlanningState;
@@ -40,11 +41,43 @@ const ProjectCharterDetail: React.FC<Props> = ({ state, updateState }) => {
   const [isAiConfigModalOpen, setIsAiConfigModalOpen] = useState(false);
   const [aiTaskCount, setAiTaskCount] = useState('5');
   const [aiStatus, setAiStatus] = useState<TaskStatus>('todo');
+  const [employeeRoleMap, setEmployeeRoleMap] = useState<Record<string, string>>({});
 
   const activeProject = useMemo(
     () => state.workspaces.flatMap(w => w.projects).find(p => p.id === projectId),
     [state.workspaces, projectId]
   );
+
+  useEffect(() => {
+    const loadEmployeeRoles = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => []);
+        const list = Array.isArray(data) ? data : [];
+        const map: Record<string, string> = {};
+        list.forEach((e: any) => {
+          const role = String(e.role || '').toUpperCase();
+          if (e.empId) map[String(e.empId)] = role;
+          if (e._id) map[String(e._id)] = role;
+        });
+        setEmployeeRoleMap(map);
+      } catch (e) {
+        console.error('Failed to load employee roles', e);
+      }
+    };
+    loadEmployeeRoles();
+  }, []);
+
+  const isPrivilegedCreator = (createdBy: unknown, createdByRole: unknown) => {
+    const direct = createdByRole ? String(createdByRole).toUpperCase() : '';
+    if (direct === 'SUPER_ADMIN' || direct === 'ADMIN' || direct === 'TEAM_LEAD' || direct === 'LEADER') {
+      return true;
+    }
+    const key = createdBy ? String(createdBy) : '';
+    const role = employeeRoleMap[key] || '';
+    return role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'TEAM_LEAD';
+  };
 
   if (!activeProject) {
     return <div className="p-12 text-center text-slate-800">Charter Frame Not Found.</div>;
@@ -75,6 +108,7 @@ const ProjectCharterDetail: React.FC<Props> = ({ state, updateState }) => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       createdBy: state.currentUser.id,
+      createdByRole: state.currentUser.role,
       assigneeId: state.currentUser.id,
     };
     updateProject({ tasks: [...activeProject.tasks, newTask] });
@@ -660,11 +694,14 @@ const ProjectCharterDetail: React.FC<Props> = ({ state, updateState }) => {
                   new Date(b.createdAt || '').getTime() -
                   new Date(a.createdAt || '').getTime()
               );
+              const highlightGreen = isPrivilegedCreator((task as any).createdBy, (task as any).createdByRole);
 
               return (
               <div
                 key={task.id}
-                className="bg-white p-10 rounded-5xl border-2 border-slate-100 group hover:border-brand-red transition-all relative shadow-sm hover:shadow-3xl flex flex-col"
+                className={`p-10 rounded-5xl border-2 group hover:border-brand-red transition-all relative shadow-sm hover:shadow-3xl flex flex-col ${
+                  highlightGreen ? 'bg-green-50 border-green-200' : 'bg-white border-slate-100'
+                }`}
               >
                 <button
                   onClick={() => removeTask(task.id)}

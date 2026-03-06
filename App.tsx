@@ -23,6 +23,7 @@ import LoginView from './views/LoginView';
 import EmployeeDashboardView from './views/EmployeeDashboardView';
 import EmployeeProfileView from './views/EmployeeProfileView';
 import EmployeeProjectDetailView from './views/EmployeeProjectDetailView';
+import SpacesView from './views/SpacesView';
 
 const SUPER_ADMIN_EMAIL = 'superadmin@example.com';
 
@@ -271,6 +272,7 @@ const App: React.FC = () => {
             </div>
             <nav className="flex-1 min-h-0 py-6 space-y-2 overflow-y-auto overflow-x-hidden px-4">
               <SidebarLink to="/" icon={<LayoutDashboard size={20} />} label="Dashboard" collapsed={false} />
+              <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={false} />
               <div className="h-px bg-white/5 mx-4 my-6" />
               <SidebarLink to="/profile" icon={<UserCircle size={20} />} label="My Profile" collapsed={false} />
             </nav>
@@ -312,6 +314,7 @@ const App: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-16 bg-slate-100/30">
               <Routes>
                 <Route path="/" element={<EmployeeDashboardView />} />
+                <Route path="/spaces" element={<SpacesView mode="employee" />} />
                 <Route path="/profile" element={<EmployeeProfileView />} />
                 <Route path="/project/:projectId" element={<EmployeeProjectDetailView />} />
               </Routes>
@@ -349,6 +352,7 @@ const App: React.FC = () => {
             {!isSuperAdmin && (
               <>
                 <SidebarLink to="/workspaces" icon={<Briefcase size={20}/>} label={state.uiConfig.operationsTitle} collapsed={!isSidebarOpen} />
+                <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={!isSidebarOpen} />
                 <div className="h-px bg-white/5 mx-4 my-6"></div>
                 <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={!isSidebarOpen} />
                 <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={!isSidebarOpen} />
@@ -401,6 +405,7 @@ const App: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-16 bg-slate-100/30 no-scrollbar">
             <Routes>
               <Route path="/" element={<DashboardView state={state} />} />
+              <Route path="/spaces" element={<SpacesView mode="manager" state={state} updateState={updateState} />} />
               <Route path="/employees/add" element={<AddEmployeeView state={state} />} />
               <Route path="/profile" element={<ProfileView state={state} updateState={updateState} />} />
               <Route path="/workspaces/*" element={<WorkspacesView state={state} updateState={updateState} />} />
