@@ -79,6 +79,22 @@ const ProjectCharterDetail: React.FC<Props> = ({ state, updateState }) => {
     return role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'TEAM_LEAD';
   };
 
+  const isEmployeeViewer =
+    String(state.currentUser.role || '').toUpperCase() === 'EMPLOYEE';
+
+  const sortedTasks = useMemo(() => {
+    if (!activeProject) return [] as WorkspaceTask[];
+    if (!isEmployeeViewer) return activeProject.tasks;
+    const tasks = activeProject.tasks || [];
+    if (!tasks.length) return tasks;
+    return [...tasks].sort((a, b) => {
+      const aPriv = isPrivilegedCreator((a as any).createdBy, (a as any).createdByRole);
+      const bPriv = isPrivilegedCreator((b as any).createdBy, (b as any).createdByRole);
+      if (aPriv === bPriv) return 0;
+      return aPriv ? -1 : 1;
+    });
+  }, [activeProject, isEmployeeViewer, employeeRoleMap]);
+
   if (!activeProject) {
     return <div className="p-12 text-center text-slate-800">Charter Frame Not Found.</div>;
   }
@@ -687,7 +703,7 @@ const ProjectCharterDetail: React.FC<Props> = ({ state, updateState }) => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-            {activeProject.tasks.map(task => {
+          {sortedTasks.map(task => {
               const taskMessages = Array.isArray(task.messages) ? task.messages : [];
               const sortedMessages = [...taskMessages].sort(
                 (a, b) =>
@@ -813,7 +829,7 @@ const ProjectCharterDetail: React.FC<Props> = ({ state, updateState }) => {
                 </div>
               </div>
             )})}
-            {activeProject.tasks.length === 0 && (
+            {sortedTasks.length === 0 && (
               <div className="col-span-full py-40 text-center bg-slate-50/30 border-4 border-dashed border-slate-100 rounded-5xl">
                 <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-8 shadow-sm">
                   <Clock size={48} className="text-slate-400" />

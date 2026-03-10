@@ -127,6 +127,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const [activeColumnMenuId, setActiveColumnMenuId] = useState<string | null>(null);
   const [isRenamingColumnId, setIsRenamingColumnId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
+  const [columnToDelete, setColumnToDelete] = useState<SpacesColumn | null>(null);
   const [deleteTaskModal, setDeleteTaskModal] = useState<SpacesTask | null>(null);
 
   const projectNameById = useMemo(() => {
@@ -616,21 +617,9 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                           </button>
                           <button
                             type="button"
-                            onClick={async () => {
-                              if (!window.confirm('Remove this field from all tasks?')) return;
-                              try {
-                                const updated = columns.filter((col) => col.id !== c.id);
-                                setColumns(updated);
-                                const newTasks = sortedTasks.map((t) => {
-                                  const { [c.id]: _omit, ...rest } = t.customFields || {};
-                                  return { ...t, customFields: rest };
-                                });
-                                setTasks(newTasks);
-                              } catch (e: any) {
-                                setError(e?.message || 'Failed to remove field');
-                              } finally {
-                                setActiveColumnMenuId(null);
-                              }
+                            onClick={() => {
+                              setColumnToDelete(c);
+                              setActiveColumnMenuId(null);
                             }}
                             className="w-full text-left px-3 py-2 text-[13px] text-red-600 hover:bg-red-50"
                           >
@@ -974,6 +963,59 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                 }`}
               >
                 Send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete column modal */}
+      {columnToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm border border-slate-200 p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Remove field</h3>
+            <p className="text-[14px] text-slate-600 mb-6">
+              Are you sure you want to remove &quot;{columnToDelete.name}&quot; from all tasks?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setColumnToDelete(null)}
+                className="px-4 py-2 rounded-full border border-slate-200 text-[13px] text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!columnToDelete) return;
+                  try {
+                    const res = await fetch(
+                      `${API_BASE}/spaces/columns/${columnToDelete.id}`,
+                      {
+                        method: 'DELETE',
+                        headers: getAuthHeaders(),
+                      },
+                    );
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                      throw new Error(data.message || 'Failed to remove field');
+                    }
+                    setColumns(Array.isArray(data.columns) ? data.columns : []);
+                    const newTasks = sortedTasks.map((t) => {
+                      const { [columnToDelete.id]: _omit, ...rest } = t.customFields || {};
+                      return { ...t, customFields: rest };
+                    });
+                    setTasks(newTasks);
+                  } catch (e: any) {
+                    setError(e?.message || 'Failed to remove field');
+                  } finally {
+                    setColumnToDelete(null);
+                  }
+                }}
+                className="px-5 py-2 rounded-full bg-brand-red text-white text-[13px] font-semibold hover:bg-brand-navy"
+              >
+                Remove
               </button>
             </div>
           </div>
