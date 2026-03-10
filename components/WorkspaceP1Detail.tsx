@@ -17,6 +17,7 @@ interface Employee {
   department: string;
   email?: string;
   phone?: string;
+  role?: string;
 }
 
 const WorkspaceP1Detail: React.FC<Props> = ({ state, updateState }) => {
@@ -46,6 +47,26 @@ const WorkspaceP1Detail: React.FC<Props> = ({ state, updateState }) => {
     };
     loadEmployees();
   }, []);
+
+  const employeeRoleMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    employees.forEach((e) => {
+      const role = String((e as any).role || '').toUpperCase();
+      if (e.empId) map[String(e.empId)] = role;
+      if (e._id) map[String(e._id)] = role;
+    });
+    return map;
+  }, [employees]);
+
+  const isPrivilegedCreator = (createdBy: unknown, createdByRole: unknown) => {
+    const direct = createdByRole ? String(createdByRole).toUpperCase() : '';
+    if (direct === 'SUPER_ADMIN' || direct === 'ADMIN' || direct === 'TEAM_LEAD' || direct === 'LEADER') {
+      return true;
+    }
+    const key = createdBy ? String(createdBy) : '';
+    const role = employeeRoleMap[key] || '';
+    return role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'TEAM_LEAD';
+  };
 
   // If project is opened directly by URL, fetch its data from backend
   useEffect(() => {
@@ -241,6 +262,7 @@ const WorkspaceP1Detail: React.FC<Props> = ({ state, updateState }) => {
       assigneeId: newTaskAssignee || undefined,
       dueDate: newTaskDueDate || undefined,
       createdBy: state.currentUser.id,
+      createdByRole: state.currentUser.role,
       createdAt: now,
       updatedAt: now,
     };
@@ -723,7 +745,11 @@ const WorkspaceP1Detail: React.FC<Props> = ({ state, updateState }) => {
               {(activeProject.tasks || []).map(task => (
                 <div
                   key={task.id}
-                  className="grid grid-cols-1 md:grid-cols-6 gap-4 bg-white p-4 rounded-3xl border border-slate-100 items-center"
+                  className={`grid grid-cols-1 md:grid-cols-6 gap-4 p-4 rounded-3xl border items-center ${
+                    isPrivilegedCreator((task as any).createdBy, (task as any).createdByRole)
+                      ? 'bg-green-50 border-green-200'
+                      : 'bg-white border-slate-100'
+                  }`}
                 >
                   <div>
                     <div className="text-[11px] text-slate-400 uppercase tracking-[0.15em] mb-1">

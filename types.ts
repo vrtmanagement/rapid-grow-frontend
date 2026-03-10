@@ -80,6 +80,7 @@ export interface WorkspaceTask {
   prerequisiteId?: string;
   dueDate?: string;
   createdBy?: string;
+  createdByRole?: UserRole | string;
   createdAt: string;
   updatedAt: string;
 }

@@ -23,6 +23,8 @@ import LoginView from './views/LoginView';
 import EmployeeDashboardView from './views/EmployeeDashboardView';
 import EmployeeProfileView from './views/EmployeeProfileView';
 import EmployeeProjectDetailView from './views/EmployeeProjectDetailView';
+import SpacesView from './views/SpacesView';
+import FeedbackView from './views/FeedbackView';
 
 const SUPER_ADMIN_EMAIL = 'superadmin@example.com';
 
@@ -246,6 +248,7 @@ const App: React.FC = () => {
   }, []);
 
   const isSuperAdmin = state.currentUser.role === 'Admin' && state.currentUser.powers?.includes('EDIT_STRATEGY');
+  const isAdmin = state.currentUser.role === 'Admin';
 
   if (isAuthenticated === null) {
     return null;
@@ -271,8 +274,7 @@ const App: React.FC = () => {
             </div>
             <nav className="flex-1 min-h-0 py-6 space-y-2 overflow-y-auto overflow-x-hidden px-4">
               <SidebarLink to="/" icon={<LayoutDashboard size={20} />} label="Dashboard" collapsed={false} />
-              <div className="h-px bg-white/5 mx-4 my-6" />
-              <SidebarLink to="/profile" icon={<UserCircle size={20} />} label="My Profile" collapsed={false} />
+              <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={false} />
             </nav>
           </aside>
           <main className="flex-1 flex flex-col h-screen overflow-hidden">
@@ -294,7 +296,15 @@ const App: React.FC = () => {
                 {userMenuOpen && createPortal(
                   <>
                     <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setUserMenuOpen(false)} />
-                    <div className="fixed right-8 top-24 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-[9999]">
+                    <div className="fixed right-8 top-20 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-[9999]">
+                      <button
+                        type="button"
+                        onClick={() => { setUserMenuOpen(false); window.location.hash = '#/profile'; }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        <UserCircle size={18} className="text-slate-500" />
+                        Core Identity
+                      </button>
                       <button
                         type="button"
                         onClick={() => { setUserMenuOpen(false); handleLogout(); }}
@@ -312,6 +322,7 @@ const App: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-16 bg-slate-100/30">
               <Routes>
                 <Route path="/" element={<EmployeeDashboardView />} />
+                <Route path="/spaces" element={<SpacesView mode="employee" />} />
                 <Route path="/profile" element={<EmployeeProfileView />} />
                 <Route path="/project/:projectId" element={<EmployeeProjectDetailView />} />
               </Routes>
@@ -349,6 +360,7 @@ const App: React.FC = () => {
             {!isSuperAdmin && (
               <>
                 <SidebarLink to="/workspaces" icon={<Briefcase size={20}/>} label={state.uiConfig.operationsTitle} collapsed={!isSidebarOpen} />
+                <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={!isSidebarOpen} />
                 <div className="h-px bg-white/5 mx-4 my-6"></div>
                 <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={!isSidebarOpen} />
                 <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={!isSidebarOpen} />
@@ -360,47 +372,58 @@ const App: React.FC = () => {
               </>
             )}
             <SidebarLink to="/employees/add" icon={<UserPlus size={20}/>} label={isSuperAdmin ? 'Add Branch' : 'Add Employee'} collapsed={!isSidebarOpen} />
-            <SidebarLink to="/profile" icon={<UserCircle size={20}/>} label={state.uiConfig.profileTitle} collapsed={!isSidebarOpen} />
+            {isAdmin && (
+              <SidebarLink to="/feedback" icon={<Mail size={20}/>} label="Feedback" collapsed={!isSidebarOpen} />
+            )}
           </nav>
         </aside>
 
         <main className="flex-1 flex flex-col h-screen overflow-hidden">
-          <header className="h-20 bg-white/90 backdrop-blur-xl border-b border-slate-200 flex items-center justify-end px-8 shrink-0 z-40 relative">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setUserMenuOpen((v) => !v)}
-                className="flex items-center gap-4 rounded-xl py-1 pr-1 hover:bg-slate-50 transition-colors"
-                aria-expanded={userMenuOpen}
-                aria-haspopup="true"
-              >
-                <div className="text-right">
-                  <div className="text-sm font-medium text-slate-900 leading-tight">{state.currentUser.name}</div>
-                  <div className="text-xs text-brand-red mt-0.5">{state.currentUser.role}</div>
-                </div>
-                <img src={state.currentUser.avatar} className="w-11 h-11 rounded-full border-2 border-white shadow-md bg-slate-50 object-cover" alt="" />
-              </button>
-              {userMenuOpen && createPortal(
-                <>
-                  <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setUserMenuOpen(false)} />
-                  <div className="fixed right-8 top-24 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-[9999]">
-                    <button
-                      type="button"
-                      onClick={() => { setUserMenuOpen(false); handleLogout(); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-left text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      <LogOut size={18} className="text-slate-500" />
-                      Logout
-                    </button>
+            <header className="h-20 bg-white/90 backdrop-blur-xl border-b border-slate-200 flex items-center justify-end px-8 shrink-0 z-40 relative">
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setUserMenuOpen((v) => !v)}
+                  className="flex items-center gap-4 rounded-xl py-1 pr-1 hover:bg-slate-50 transition-colors"
+                  aria-expanded={userMenuOpen}
+                  aria-haspopup="true"
+                >
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-slate-900 leading-tight">{state.currentUser.name}</div>
+                    <div className="text-xs text-brand-red mt-0.5">{state.currentUser.role}</div>
                   </div>
-                </>,
-                document.body
-              )}
-            </div>
-          </header>
+                  <img src={state.currentUser.avatar} className="w-11 h-11 rounded-full border-2 border-white shadow-md bg-slate-50 object-cover" alt="" />
+                </button>
+                {userMenuOpen && createPortal(
+                  <>
+                    <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setUserMenuOpen(false)} />
+                    <div className="fixed right-8 top-20 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-[9999]">
+                      <button
+                        type="button"
+                        onClick={() => { setUserMenuOpen(false); window.location.hash = '#/profile'; }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        <UserCircle size={18} className="text-slate-500" />
+                        Core Identity
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setUserMenuOpen(false); handleLogout(); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        <LogOut size={18} className="text-slate-500" />
+                        Logout
+                      </button>
+                    </div>
+                  </>,
+                  document.body
+                )}
+              </div>
+            </header>
           <div className="flex-1 overflow-y-auto p-16 bg-slate-100/30 no-scrollbar">
             <Routes>
               <Route path="/" element={<DashboardView state={state} />} />
+              <Route path="/spaces" element={<SpacesView mode="manager" state={state} updateState={updateState} />} />
               <Route path="/employees/add" element={<AddEmployeeView state={state} />} />
               <Route path="/profile" element={<ProfileView state={state} updateState={updateState} />} />
               <Route path="/workspaces/*" element={<WorkspacesView state={state} updateState={updateState} />} />
@@ -410,6 +433,7 @@ const App: React.FC = () => {
               <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} />} />
               <Route path="/daily" element={<DailyView state={state} updateState={updateState} />} />
               <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} />} />
+              {isAdmin && <Route path="/feedback" element={<FeedbackView />} />}
             </Routes>
           </div>
         </main>

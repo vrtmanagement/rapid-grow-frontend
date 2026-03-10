@@ -8,6 +8,7 @@ const EmployeeProjectDetailView: React.FC = () => {
   const [project, setProject] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentEmpId, setCurrentEmpId] = useState<string | null>(null);
+  const [employeeRoleMap, setEmployeeRoleMap] = useState<Record<string, string>>({});
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [draftMessages, setDraftMessages] = useState<Record<string, string>>({});
@@ -24,6 +25,27 @@ const EmployeeProjectDetailView: React.FC = () => {
     } catch {
       setCurrentEmpId(null);
     }
+  }, []);
+
+  useEffect(() => {
+    const loadEmployeeRoles = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => []);
+        const list = Array.isArray(data) ? data : [];
+        const map: Record<string, string> = {};
+        list.forEach((e: any) => {
+          const role = String(e.role || '').toUpperCase();
+          if (e.empId) map[String(e.empId)] = role;
+          if (e._id) map[String(e._id)] = role;
+        });
+        setEmployeeRoleMap(map);
+      } catch (e) {
+        console.error('Failed to load employee roles', e);
+      }
+    };
+    loadEmployeeRoles();
   }, []);
 
   useEffect(() => {
@@ -77,6 +99,15 @@ const EmployeeProjectDetailView: React.FC = () => {
     ) : null;
 
   const proj = project as any;
+  const isPrivilegedCreator = (createdBy: unknown, createdByRole: unknown) => {
+    const direct = createdByRole ? String(createdByRole).toUpperCase() : '';
+    if (direct === 'SUPER_ADMIN' || direct === 'ADMIN' || direct === 'TEAM_LEAD' || direct === 'LEADER') {
+      return true;
+    }
+    const key = createdBy ? String(createdBy) : '';
+    const role = employeeRoleMap[key] || '';
+    return role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'TEAM_LEAD';
+  };
 
   const handleTaskChange = async (taskId: string, updates: Partial<any>) => {
     if (!project || !projectId) return;
@@ -222,12 +253,17 @@ const EmployeeProjectDetailView: React.FC = () => {
                       new Date(a.createdAt || '').getTime()
                   );
                   const draftText = draftMessages[t.id] ?? '';
+                  const highlightGreen = isPrivilegedCreator(t.createdBy, t.createdByRole);
 
                   if (isAssignedToMe) {
                     return (
                       <div
                         key={t.id || idx}
-                        className="p-4 bg-slate-50 rounded-xl flex flex-col gap-3 border border-slate-100"
+                        className={`p-4 rounded-xl flex flex-col gap-3 border ${
+                          highlightGreen
+                            ? 'bg-green-50 border-green-200'
+                            : 'bg-slate-50 border-slate-100'
+                        }`}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-sm font-semibold text-slate-900">
@@ -366,7 +402,11 @@ const EmployeeProjectDetailView: React.FC = () => {
                   return (
                     <div
                       key={t.id || idx}
-                      className="p-4 bg-slate-50 rounded-xl flex flex-col gap-3 border border-slate-100"
+                      className={`p-4 rounded-xl flex flex-col gap-3 border ${
+                        highlightGreen
+                          ? 'bg-green-50 border-green-200'
+                          : 'bg-slate-50 border-slate-100'
+                      }`}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-semibold text-slate-900">
