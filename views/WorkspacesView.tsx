@@ -17,6 +17,7 @@ const WorkspacesView: React.FC<Props> = (props) => {
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null);
 
   const canCreateProject = state.currentUser.role === 'Admin' || state.currentUser.role === 'Leader';
+  const canDeleteProject = state.currentUser.role === 'Admin';
 
   // Load existing project charters from backend (never show default "Rapid Grow execution framework")
   useEffect(() => {
@@ -180,7 +181,7 @@ const WorkspacesView: React.FC<Props> = (props) => {
             </div>
           )}
 
-        {pendingDeleteProjectId && (
+        {pendingDeleteProjectId && canDeleteProject && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-md">
               <div className="bg-white rounded-4xl shadow-2xl w-full max-w-lg p-8 border border-slate-100 relative">
                 <button 
@@ -253,16 +254,18 @@ const WorkspacesView: React.FC<Props> = (props) => {
                 key={p.id} 
                 className="bg-white rounded-5xl p-14 border-2 border-slate-100 shadow-sm hover:shadow-4xl hover:-translate-y-4 hover:border-brand-red transition-all group relative overflow-hidden flex flex-col min-h-[420px]"
               >
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setPendingDeleteProjectId(p.id);
-                  }}
-                  className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/80 text-slate-300 hover:text-brand-red hover:bg-red-50 shadow-sm transition-all"
-                >
-                  <Trash2 size={16} />
-                </button>
+                {canDeleteProject && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setPendingDeleteProjectId(p.id);
+                    }}
+                    className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/80 text-slate-300 hover:text-brand-red hover:bg-red-50 shadow-sm transition-all"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
                  <div className="absolute top-0 right-0 w-40 h-40 bg-brand-red/5 -mr-20 -mt-20 rounded-full group-hover:scale-150 transition-transform duration-1000"></div>
                  <div className="flex items-center justify-between mb-12">
                    <div className="w-15 h-15 bg-brand-navy rounded-[1.8rem] flex items-center justify-center p-5 shadow-2xl group-hover:bg-brand-red transition-colors shadow-brand-navy/20 group-hover:shadow-brand-red/20">
