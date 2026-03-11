@@ -21,6 +21,8 @@ const FeedbackView: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [toDelete, setToDelete] = useState<Feedback | null>(null);
+  const [currentEmpId, setCurrentEmpId] = useState<string | null>(null);
+  const [currentRole, setCurrentRole] = useState<string | null>(null);
 
   const loadFeedback = async () => {
     setLoading(true);
@@ -41,6 +43,22 @@ const FeedbackView: React.FC = () => {
 
   useEffect(() => {
     loadFeedback();
+  }, []);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('rapidgrow-admin');
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored);
+      const employee = parsed?.employee;
+      if (employee) {
+        setCurrentEmpId(employee.empId || employee._id || null);
+        setCurrentRole(employee.role || null);
+      }
+    } catch {
+      setCurrentEmpId(null);
+      setCurrentRole(null);
+    }
   }, []);
 
   const handleCreate = async () => {
@@ -178,6 +196,9 @@ const FeedbackView: React.FC = () => {
           <div className="space-y-4">
             {items.map((item) => {
               const isEditing = editingId === item.feedbackId;
+              const canModify =
+                currentRole === 'SUPER_ADMIN' ||
+                (!!currentEmpId && !!item.empId && currentEmpId === item.empId);
               return (
                 <div
                   key={item.feedbackId}
@@ -209,52 +230,53 @@ const FeedbackView: React.FC = () => {
                         {new Date(item.createdAt).toLocaleString()}
                       </span>
                       <div className="flex gap-1">
-                        {isEditing ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingId(null);
-                                setEditDraft('');
-                              }}
-                              className="px-3 py-1 rounded-full border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              disabled={!editDraft.trim()}
-                              onClick={() => handleUpdate(item)}
-                              className={`px-3 py-1 rounded-full bg-brand-red text-white text-[11px] font-semibold hover:bg-brand-navy ${
-                                !editDraft.trim() ? 'opacity-60 cursor-not-allowed' : ''
-                              }`}
-                            >
-                              Save
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingId(item.feedbackId);
-                                setEditDraft(item.content);
-                              }}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
-                              title="Edit"
-                            >
-                              <Pencil size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setToDelete(item)}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-red-100 bg-white text-red-500 hover:bg-red-50"
-                              title="Delete"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </>
-                        )}
+                        {canModify &&
+                          (isEditing ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingId(null);
+                                  setEditDraft('');
+                                }}
+                                className="px-3 py-1 rounded-full border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                disabled={!editDraft.trim()}
+                                onClick={() => handleUpdate(item)}
+                                className={`px-3 py-1 rounded-full bg-brand-red text-white text-[11px] font-semibold hover:bg-brand-navy ${
+                                  !editDraft.trim() ? 'opacity-60 cursor-not-allowed' : ''
+                                }`}
+                              >
+                                Save
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingId(item.feedbackId);
+                                  setEditDraft(item.content);
+                                }}
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                                title="Edit"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setToDelete(item)}
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-red-100 bg-white text-red-500 hover:bg-red-50"
+                                title="Delete"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          ))}
                       </div>
                     </div>
                   </div>

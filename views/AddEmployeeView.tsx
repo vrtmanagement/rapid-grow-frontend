@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { RotateCcw, UserPlus, Check } from 'lucide-react';
+import { RotateCcw, UserPlus, Check, Eye, EyeOff } from 'lucide-react';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { PlanningState } from '../types';
 
@@ -11,7 +11,8 @@ const BACKEND_ROLES = [
 ] as const;
 
 function getAllowedRoles(currentUser: PlanningState['currentUser']): { value: string; label: string }[] {
-  const isSuperAdmin = currentUser.role === 'Admin' && currentUser.powers?.includes('PROJECT_DELETE');
+  const isSuperAdmin =
+    currentUser.role === 'Admin' && currentUser.powers?.includes('EDIT_STRATEGY');
   if (isSuperAdmin) return [...BACKEND_ROLES];
   if (currentUser.role === 'Admin') return BACKEND_ROLES.filter((r) => r.value !== 'ADMIN');
   if (currentUser.role === 'Leader') return BACKEND_ROLES.filter((r) => r.value === 'EMPLOYEE');
@@ -24,6 +25,10 @@ interface AddEmployeeViewProps {
 
 const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
   const allowedRoles = useMemo(() => getAllowedRoles(state.currentUser), [state.currentUser]);
+  const isSuperAdmin =
+    state.currentUser.role === 'Admin' &&
+    Array.isArray(state.currentUser.powers) &&
+    state.currentUser.powers.includes('EDIT_STRATEGY');
   const defaultRole = allowedRoles[0]?.value ?? 'EMPLOYEE';
 
   const [form, setForm] = useState<{
@@ -37,6 +42,7 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
     phone: string;
     status: string;
     role: string;
+    parentAdminEmpId: string;
   }>({
     empId: '',
     empName: '',
@@ -48,6 +54,7 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
     phone: '',
     status: 'active',
     role: defaultRole,
+    parentAdminEmpId: '',
   });
 
   React.useEffect(() => {
@@ -59,7 +66,30 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [createdRole, setCreatedRole] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [adminOptions, setAdminOptions] = useState<{ empId: string; empName: string }[]>([]);
+
+  React.useEffect(() => {
+    if (!isSuperAdmin) return;
+    // Load admins list for "which admin team" selector
+    fetch(`${API_BASE}/employees`, {
+      headers: getAuthHeaders(),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!Array.isArray(data)) return;
+        const admins = data
+          .filter((e: any) => e.role === 'ADMIN')
+          .map((e: any) => ({ empId: e.empId, empName: e.empName || e.empId }));
+        setAdminOptions(admins);
+      })
+      .catch(() => {
+        // silent failure – form still works, just without selector options
+      });
+  }, [isSuperAdmin]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -81,6 +111,11 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
       return;
     }
 
+    if (isSuperAdmin && form.role !== 'ADMIN' && !form.parentAdminEmpId) {
+      setError('Please select which admin team this user belongs to');
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/employees`, {
@@ -96,6 +131,8 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
           email: form.email.trim() || undefined,
           phone: form.phone.trim() || undefined,
           status: form.status,
+          parentAdminEmpId:
+            isSuperAdmin && form.role !== 'ADMIN' ? form.parentAdminEmpId : undefined,
         }),
       });
 
@@ -105,6 +142,7 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
         throw new Error(data.message || 'Failed to add employee');
       }
 
+      setCreatedRole(form.role);
       setSuccess(true);
       setForm({
         empId: '',
@@ -117,30 +155,49 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
         phone: '',
         status: 'active',
         role: defaultRole,
+        parentAdminEmpId: '',
       });
-    } catch (err: any) {
-      setError(err.message || 'Failed to add employee');
+    } catch (_err: any) {
+      const roleLabel =
+        form.role === 'ADMIN'
+          ? 'admin'
+          : form.role === 'TEAM_LEAD'
+          ? 'team lead'
+          : 'employee';
+      setError(`Failed to create ${roleLabel}`);
     } finally {
       setLoading(false);
     }
   };
 
   if (success) {
+    const createdLabel =
+      createdRole === 'ADMIN'
+        ? 'Admin'
+        : createdRole === 'TEAM_LEAD'
+        ? 'Team Lead'
+        : 'Employee';
+    const createdLower = createdLabel.toLowerCase();
     return (
       <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-700">
         <div className="bg-white p-12 rounded-3xl shadow-2xl border border-slate-200 text-center">
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <Check size={40} className="text-green-600" />
           </div>
-          <h3 className="text-2xl font-black text-slate-900">Employee Added Successfully</h3>
-          <p className="text-slate-600 mt-2">The employee can now log in to the user portal with their credentials.</p>
+          <h3 className="text-2xl font-black text-slate-900">{createdLabel} Added Successfully</h3>
+          <p className="text-slate-600 mt-2">
+            The {createdLower} can now log in to the user portal with their credentials.
+          </p>
           <div className="mt-10 flex gap-4 justify-center">
             <Link
               to="/employees/add"
-              onClick={() => setSuccess(false)}
+              onClick={() => {
+                setSuccess(false);
+                setCreatedRole(null);
+              }}
               className="px-6 py-3 bg-brand-red text-white rounded-full font-bold hover:bg-brand-navy transition-colors"
             >
-              Add Another Employee
+              Add Another {createdLabel}
             </Link>
             <Link
               to="/"
@@ -234,27 +291,47 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Login Password *</label>
-            <input
-              type="password"
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              required
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
-              placeholder="Min 6 characters"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                value={form.password}
+                onChange={handleChange}
+                required
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 pr-11 text-[15px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                placeholder="Min 6 characters"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-slate-600"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
           <div>
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Confirm Password *</label>
-            <input
-              type="password"
-              name="confirmPassword"
-              value={form.confirmPassword}
-              onChange={handleChange}
-              required
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
-              placeholder="Re-enter password"
-            />
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                name="confirmPassword"
+                value={form.confirmPassword}
+                onChange={handleChange}
+                required
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 pr-11 text-[15px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                placeholder="Re-enter password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((prev) => !prev)}
+                className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-slate-600"
+                aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+              >
+                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -310,6 +387,29 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
           </div>
         </div>
 
+        {isSuperAdmin && form.role !== 'ADMIN' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-[13px] font-semibold text-slate-700 mb-2">
+                Which Admin Team *
+              </label>
+              <select
+                name="parentAdminEmpId"
+                value={form.parentAdminEmpId}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
+              >
+                <option value="">Select admin</option>
+                {adminOptions.map((a) => (
+                  <option key={a.empId} value={a.empId}>
+                    {a.empName} ({a.empId})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
         <div className="pt-4 flex gap-4">
           <button
             type="submit"
@@ -317,7 +417,13 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
             className="inline-flex items-center gap-2 px-8 py-3 rounded-full bg-brand-red text-white text-[15px] font-black shadow-lg hover:bg-brand-navy transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <UserPlus size={18} />
-            {loading ? 'Adding...' : 'Add Employee'}
+            {loading
+              ? 'Adding...'
+              : form.role === 'ADMIN'
+              ? 'Add Admin'
+              : form.role === 'TEAM_LEAD'
+              ? 'Add Team Lead'
+              : 'Add Employee'}
           </button>
           <Link
             to="/"
