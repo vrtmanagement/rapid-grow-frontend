@@ -26,6 +26,7 @@ import EmployeeProjectDetailView from './views/EmployeeProjectDetailView';
 import SpacesView from './views/SpacesView';
 import FeedbackView from './views/FeedbackView';
 import AttendanceView from './views/AttendanceView';
+import StaffView from './views/StaffView';
 
 const SUPER_ADMIN_EMAIL = 'superadmin@example.com';
 
@@ -39,11 +40,11 @@ const DEFAULT_UI_CONFIG: UIConfig = {
   commsSub: "Autonomous Log Management",
   yearlyTitle: "Yearly Vision",
   yearlySub: "Architecting The Core Legacy And Non-Negotiables.",
-  quarterlyTitle: "90-Day Sprints",
+  quarterlyTitle: "Quarterly Vision",
   quarterlySub: "Quarterly Tactical Objectives.",
-  monthlyTitle: "Monthly Base",
+  monthlyTitle: "Monthly Vision",
   monthlySub: "Strategic Monthly Focus Projects.",
-  weeklyTitle: "Weekly Focus",
+  weeklyTitle: "Weekly Base",
   weeklySub: "Bridge The Gap Between Strategy And Execution.",
   dailyTitle: "Daily Protocol",
   dailySub: "High-Performance Time Boxing.",
@@ -107,6 +108,7 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [isVisionsOpen, setIsVisionsOpen] = useState(true);
 
   useEffect(() => {
     const adminStored = localStorage.getItem('rapidgrow-admin');
@@ -236,7 +238,12 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('rapidgrow-os-v1', JSON.stringify(state));
+    try {
+      const serialized = JSON.stringify(state);
+      localStorage.setItem('rapidgrow-os-v1', serialized);
+    } catch (e) {
+      console.error('Failed to persist rapidgrow-os state', e);
+    }
   }, [state]);
 
   const updateState = useCallback((updater: (prev: PlanningState) => PlanningState) => {
@@ -274,9 +281,31 @@ const App: React.FC = () => {
               </div>
             </div>
             <nav className="flex-1 min-h-0 py-6 space-y-2 overflow-y-auto overflow-x-hidden px-4">
-              <SidebarLink to="/" icon={<LayoutDashboard size={20} />} label="Dashboard" collapsed={false} />
+              <SidebarLink to="/" icon={<LayoutDashboard size={20} />} label={state.uiConfig.dashboardTitle} collapsed={false} />
+              <SidebarLink to="/workspaces" icon={<Briefcase size={20}/>} label={state.uiConfig.operationsTitle} collapsed={false} />
               <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={false} />
               <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={false} />
+              <div className="h-px bg-white/5 mx-4 my-6"></div>
+              <button
+                type="button"
+                onClick={() => setIsVisionsOpen((v) => !v)}
+                className="w-full text-left px-7 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-black hover:text-brand-red hover:bg-brand-red/5 rounded-lg"
+              >
+                Visions
+              </button>
+              {isVisionsOpen && (
+                <>
+                  <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={false} />
+                  <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={false} />
+                  <SidebarLink to="/monthly" icon={<Calendar size={20}/>} label={state.uiConfig.monthlyTitle} collapsed={false} />
+                  <SidebarLink to="/weekly" icon={<CheckSquare size={20}/>} label={state.uiConfig.weeklyTitle} collapsed={false} />
+                </>
+              )}
+              <div className="h-px bg-white/5 mx-4 my-6"></div>
+              <SidebarLink to="/daily" icon={<Clock size={20}/>} label={state.uiConfig.dailyTitle} collapsed={false} />
+              <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={false} />
+              <div className="h-px bg-white/5 mx-4 my-6"></div>
+              <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={false} />
             </nav>
           </aside>
           <main className="flex-1 flex flex-col h-screen overflow-hidden">
@@ -293,7 +322,16 @@ const App: React.FC = () => {
                     <div className="text-sm font-medium text-slate-900 leading-tight">{state.currentUser.name}</div>
                     <div className="text-xs text-brand-red mt-0.5">{state.currentUser.role}</div>
                   </div>
-                  <img src={state.currentUser.avatar} className="w-11 h-11 rounded-full border-2 border-white shadow-md bg-slate-50 object-cover" alt="" />
+                  <img
+                    src={
+                      state.currentUser.avatar ||
+                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+                        (state.currentUser.name || 'User').replace(/\s/g, ''),
+                      )}`
+                    }
+                    className="w-11 h-11 rounded-full border-2 border-white shadow-md bg-slate-50 object-cover"
+                    alt=""
+                  />
                 </button>
                 {userMenuOpen && createPortal(
                   <>
@@ -326,8 +364,16 @@ const App: React.FC = () => {
                 <Route path="/" element={<EmployeeDashboardView />} />
                 <Route path="/spaces" element={<SpacesView mode="employee" />} />
                 <Route path="/attendance" element={<AttendanceView mode="employee" />} />
-                <Route path="/profile" element={<EmployeeProfileView />} />
+                <Route path="/profile" element={<EmployeeProfileView state={state} updateState={updateState} />} />
                 <Route path="/project/:projectId" element={<EmployeeProjectDetailView />} />
+                <Route path="/workspaces/*" element={<WorkspacesView state={state} updateState={updateState} />} />
+                <Route path="/yearly" element={<YearlyView state={state} updateState={updateState} />} />
+                <Route path="/quarterly" element={<QuarterlyView state={state} updateState={updateState} />} />
+                <Route path="/monthly" element={<MonthlyView state={state} updateState={updateState} />} />
+                <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} />} />
+                <Route path="/daily" element={<DailyView state={state} updateState={updateState} />} />
+                <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} />} />
+                <Route path="/staff" element={<StaffView />} />
               </Routes>
             </div>
           </main>
@@ -366,10 +412,23 @@ const App: React.FC = () => {
                 <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={!isSidebarOpen} />
                 <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />
                 <div className="h-px bg-white/5 mx-4 my-6"></div>
-                <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={!isSidebarOpen} />
-                <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={!isSidebarOpen} />
-                <SidebarLink to="/monthly" icon={<Calendar size={20}/>} label={state.uiConfig.monthlyTitle} collapsed={!isSidebarOpen} />
-                <SidebarLink to="/weekly" icon={<CheckSquare size={20}/>} label={state.uiConfig.weeklyTitle} collapsed={!isSidebarOpen} />
+                <button
+                  type="button"
+                  onClick={() => setIsVisionsOpen((v) => !v)}
+                  className={`w-full text-left px-7 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 hover:text-white/80 hover:bg-white/5 rounded-lg ${
+                    !isSidebarOpen ? 'hidden' : ''
+                  }`}
+                >
+                  Visions
+                </button>
+                {isVisionsOpen && (
+                  <>
+                    <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={!isSidebarOpen} />
+                    <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={!isSidebarOpen} />
+                    <SidebarLink to="/monthly" icon={<Calendar size={20}/>} label={state.uiConfig.monthlyTitle} collapsed={!isSidebarOpen} />
+                    <SidebarLink to="/weekly" icon={<CheckSquare size={20}/>} label={state.uiConfig.weeklyTitle} collapsed={!isSidebarOpen} />
+                  </>
+                )}
                 <SidebarLink to="/daily" icon={<Clock size={20}/>} label={state.uiConfig.dailyTitle} collapsed={!isSidebarOpen} />
                 <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={!isSidebarOpen} />
                 <div className="h-px bg-white/5 mx-4 my-6"></div>
@@ -379,6 +438,7 @@ const App: React.FC = () => {
             {isAdmin && (
               <SidebarLink to="/feedback" icon={<Mail size={20}/>} label="Feedback" collapsed={!isSidebarOpen} />
             )}
+            <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={!isSidebarOpen} />
           </nav>
         </aside>
 
@@ -396,7 +456,16 @@ const App: React.FC = () => {
                     <div className="text-sm font-medium text-slate-900 leading-tight">{state.currentUser.name}</div>
                     <div className="text-xs text-brand-red mt-0.5">{state.currentUser.role}</div>
                   </div>
-                  <img src={state.currentUser.avatar} className="w-11 h-11 rounded-full border-2 border-white shadow-md bg-slate-50 object-cover" alt="" />
+                  <img
+                    src={
+                      state.currentUser.avatar ||
+                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+                        (state.currentUser.name || 'User').replace(/\s/g, ''),
+                      )}`
+                    }
+                    className="w-11 h-11 rounded-full border-2 border-white shadow-md bg-slate-50 object-cover"
+                    alt=""
+                  />
                 </button>
                 {userMenuOpen && createPortal(
                   <>
@@ -439,6 +508,7 @@ const App: React.FC = () => {
               <Route path="/daily" element={<DailyView state={state} updateState={updateState} />} />
               <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} />} />
               {isAdmin && <Route path="/feedback" element={<FeedbackView />} />}
+              <Route path="/staff" element={<StaffView />} />
             </Routes>
           </div>
         </main>
