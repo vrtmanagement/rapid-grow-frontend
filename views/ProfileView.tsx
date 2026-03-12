@@ -59,6 +59,7 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
+      // File upload used only for preview in frontend; avoid sending large base64 to backend.
       handleUserRecordChange({ avatar: result });
     };
     reader.readAsDataURL(file);
@@ -72,6 +73,13 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
     }
     if (profilePassword.trim()) {
       body.password = profilePassword.trim();
+    }
+    const trimmedAvatar = (state.currentUser.avatar || '').trim();
+    const backendAvatar = (backendEmployee?.avatar || '').trim();
+    const isUrlAvatar =
+      trimmedAvatar.startsWith('http://') || trimmedAvatar.startsWith('https://');
+    if (isUrlAvatar && trimmedAvatar && trimmedAvatar !== backendAvatar) {
+      body.avatar = trimmedAvatar;
     }
     if (!backendEmployee || !backendEmployee._id || Object.keys(body).length === 0) {
       if (profileName.trim() && profileName.trim() !== state.currentUser.name) {
@@ -92,14 +100,25 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
       if (!res.ok) {
         throw new Error(data.message || 'Failed to update profile');
       }
+      const persistedAvatar =
+        (data as any).avatar && typeof (data as any).avatar === 'string'
+          ? (data as any).avatar
+          : isUrlAvatar
+          ? trimmedAvatar
+          : state.currentUser.avatar;
       handleUserRecordChange({
         name: data.empName || profileName.trim() || state.currentUser.name,
+        avatar: persistedAvatar || state.currentUser.avatar,
       });
       try {
         const raw = localStorage.getItem('rapidgrow-admin');
         if (raw) {
           const parsed = JSON.parse(raw);
-          parsed.employee = { ...(parsed.employee || {}), ...data };
+          parsed.employee = {
+            ...(parsed.employee || {}),
+            ...data,
+            avatar: persistedAvatar || parsed.employee?.avatar,
+          };
           localStorage.setItem('rapidgrow-admin', JSON.stringify(parsed));
         }
       } catch {

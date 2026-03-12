@@ -37,6 +37,7 @@ interface SpacesTask {
   title: string;
   description?: string;
   projectId?: string;
+  projectTaskId?: string;
   assigneeId?: string;
   dueDate?: string;
   priority: TaskPriority;
@@ -244,6 +245,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
 
   const patchTask = async (taskId: string, updates: Partial<SpacesTask>) => {
     setError(null);
+    const existing = tasks.find((t) => t.taskId === taskId) || null;
     setTasks((prev) =>
       prev.map((t) => (t.taskId === taskId ? ({ ...t, ...updates } as SpacesTask) : t)),
     );
@@ -259,6 +261,39 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       }
       const updated = await res.json();
       setTasks((prev) => prev.map((t) => (t.taskId === taskId ? updated : t)));
+
+      // If this task is linked to a project task, sync updates into the project charter as well
+      if (existing?.projectId && existing?.projectTaskId) {
+        try {
+          const resProj = await fetch(`${API_BASE}/project-charters/${existing.projectId}`, {
+            headers: getAuthHeaders(),
+          });
+          if (resProj.ok) {
+            const proj = await resProj.json();
+            const existingTasks: any[] = Array.isArray(proj?.tasks) ? proj.tasks : [];
+            const updatedTasks = existingTasks.map((pt: any) => {
+              if (pt.id !== existing.projectTaskId) return pt;
+              return {
+                ...pt,
+                title: updates.title ?? pt.title,
+                status: updates.status ?? pt.status,
+                priority: updates.priority ?? pt.priority,
+                assigneeId: updates.assigneeId ?? pt.assigneeId,
+                dueDate: updates.dueDate ?? pt.dueDate,
+                updatedAt: new Date().toISOString(),
+              };
+            });
+            const payload = projectCharterPayloadFromBackendProject(proj, updatedTasks);
+            await fetch(`${API_BASE}/project-charters`, {
+              method: 'POST',
+              headers: getAuthHeaders(),
+              body: JSON.stringify(payload),
+            });
+          }
+        } catch (e) {
+          console.error('Failed to sync Spaces task to project charter', e);
+        }
+      }
     } catch (e: any) {
       setError(e?.message || 'Failed to update task');
       loadSpaces();
@@ -341,6 +376,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
         body: JSON.stringify({
           title: t,
           projectId: project?.id || '',
+          projectTaskId: newWorkspaceTask.id,
           assigneeId,
           dueDate,
           priority,
@@ -519,7 +555,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       <div className="bg-white p-8 rounded-3xl shadow-2xl border border-slate-200 space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-6 gap-4">
           <div className="lg:col-span-2">
-            <label className="block text-[13px] font-semibold text-slate-700 mb-2">Name *</label>
+            <label className="block text-[13px] font-semibold text-slate-700 mb-2">Task *</label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
