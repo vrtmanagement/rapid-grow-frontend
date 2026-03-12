@@ -25,6 +25,7 @@ import EmployeeProfileView from './views/EmployeeProfileView';
 import EmployeeProjectDetailView from './views/EmployeeProjectDetailView';
 import SpacesView from './views/SpacesView';
 import FeedbackView from './views/FeedbackView';
+import AttendanceView from './views/AttendanceView';
 
 const SUPER_ADMIN_EMAIL = 'superadmin@example.com';
 
@@ -275,6 +276,7 @@ const App: React.FC = () => {
             <nav className="flex-1 min-h-0 py-6 space-y-2 overflow-y-auto overflow-x-hidden px-4">
               <SidebarLink to="/" icon={<LayoutDashboard size={20} />} label="Dashboard" collapsed={false} />
               <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={false} />
+              <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={false} />
             </nav>
           </aside>
           <main className="flex-1 flex flex-col h-screen overflow-hidden">
@@ -323,6 +325,7 @@ const App: React.FC = () => {
               <Routes>
                 <Route path="/" element={<EmployeeDashboardView />} />
                 <Route path="/spaces" element={<SpacesView mode="employee" />} />
+                <Route path="/attendance" element={<AttendanceView mode="employee" />} />
                 <Route path="/profile" element={<EmployeeProfileView />} />
                 <Route path="/project/:projectId" element={<EmployeeProjectDetailView />} />
               </Routes>
@@ -361,6 +364,7 @@ const App: React.FC = () => {
               <>
                 <SidebarLink to="/workspaces" icon={<Briefcase size={20}/>} label={state.uiConfig.operationsTitle} collapsed={!isSidebarOpen} />
                 <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={!isSidebarOpen} />
+                <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />
                 <div className="h-px bg-white/5 mx-4 my-6"></div>
                 <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={!isSidebarOpen} />
                 <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={!isSidebarOpen} />
@@ -424,6 +428,7 @@ const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<DashboardView state={state} />} />
               <Route path="/spaces" element={<SpacesView mode="manager" state={state} updateState={updateState} />} />
+              <Route path="/attendance" element={<AttendanceView mode="manager" />} />
               <Route path="/employees/add" element={<AddEmployeeView state={state} />} />
               <Route path="/profile" element={<ProfileView state={state} updateState={updateState} />} />
               <Route path="/workspaces/*" element={<WorkspacesView state={state} updateState={updateState} />} />
