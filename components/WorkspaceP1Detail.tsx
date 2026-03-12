@@ -249,7 +249,7 @@ const WorkspaceP1Detail: React.FC<Props> = ({ state, updateState }) => {
     return <div className="p-12 text-center text-slate-800">Project Brief Not Found.</div>;
   }
 
-  const handleAddSimpleTask = () => {
+  const handleAddSimpleTask = async () => {
     const title = newTaskTitle.trim();
     if (!title) return;
     const now = new Date().toISOString();
@@ -267,6 +267,24 @@ const WorkspaceP1Detail: React.FC<Props> = ({ state, updateState }) => {
       updatedAt: now,
     };
     updateProject({ tasks: [...(activeProject.tasks || []), task] });
+    try {
+      await fetch(`${API_BASE}/spaces/tasks`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          title,
+          projectId: activeProject.id,
+          projectTaskId: task.id,
+          assigneeId: newTaskAssignee || undefined,
+          dueDate: newTaskDueDate || undefined,
+          priority: newTaskPriority,
+          status: 'todo',
+        }),
+      });
+    } catch (e) {
+      // If Spaces sync fails, we still keep the project task; optional: log in console.
+      console.error('Failed to sync task to Spaces', e);
+    }
     setNewTaskTitle('');
     setNewTaskAssignee('');
     setNewTaskDueDate('');

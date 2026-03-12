@@ -60,19 +60,10 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
+      // Use file upload only for this session (preview). Do not push large base64 to backend.
       setAvatar(result);
       setHasChanges(true);
       syncCurrentUser({ avatar: result });
-      try {
-        const stored = localStorage.getItem('rapidgrow-admin');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          parsed.employee = { ...(parsed.employee || {}), avatar: result };
-          localStorage.setItem('rapidgrow-admin', JSON.stringify(parsed));
-        }
-      } catch {
-        // ignore
-      }
     };
     reader.readAsDataURL(file);
   };
@@ -88,6 +79,12 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
     }
     if (profilePassword.trim()) {
       body.password = profilePassword.trim();
+    }
+    const trimmedAvatar = avatar.trim();
+    const isUrlAvatar =
+      trimmedAvatar.startsWith('http://') || trimmedAvatar.startsWith('https://');
+    if (isUrlAvatar && trimmedAvatar !== (employee.avatar || '')) {
+      body.avatar = trimmedAvatar;
     }
     if (Object.keys(body).length === 0) {
       // Only image changed (name/password unchanged) – treat as successful local update
@@ -108,9 +105,21 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
         throw new Error(data.message || 'Failed to update profile');
       }
 
-      const nextEmployee = { ...employee, ...data, avatar, empName: data.empName || profileName };
+      const persistedAvatar =
+        (data as any).avatar && typeof (data as any).avatar === 'string'
+          ? (data as any).avatar
+          : isUrlAvatar
+          ? trimmedAvatar
+          : employee.avatar;
+      const nextEmployee = {
+        ...employee,
+        ...data,
+        avatar: persistedAvatar,
+        empName: data.empName || profileName,
+      };
       setEmployee(nextEmployee);
-      syncCurrentUser({ name: nextEmployee.empName, avatar });
+      setAvatar(persistedAvatar || '');
+      syncCurrentUser({ name: nextEmployee.empName, avatar: persistedAvatar || '' });
       setProfilePassword('');
       setHasChanges(false);
 

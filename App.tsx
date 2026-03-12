@@ -125,16 +125,19 @@ const App: React.FC = () => {
         };
         setState(prev => ({
           ...prev,
-          currentUser: {
-            id: employee._id || employee.empId,
-            name: employee.empName || 'Admin',
-            role: roleMap[employee.role as keyof typeof roleMap] || 'Employee',
-            email: employee.email || '',
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${(employee.empName || 'Admin').replace(/\s/g, '')}`,
-            status: 'Active',
-            isVerified: true,
-            powers: powersMap[employee.role as keyof typeof powersMap] || [],
-          },
+            currentUser: {
+              id: employee._id || employee.empId,
+              name: employee.empName || 'Admin',
+              role: roleMap[employee.role as keyof typeof roleMap] || 'Employee',
+              email: employee.email || '',
+              avatar:
+                employee.avatar && typeof employee.avatar === 'string' && employee.avatar.trim()
+                  ? employee.avatar
+                  : `https://api.dicebear.com/7.x/avataaars/svg?seed=${(employee.empName || 'Admin').replace(/\s/g, '')}`,
+              status: 'Active',
+              isVerified: true,
+              powers: powersMap[employee.role as keyof typeof powersMap] || [],
+            },
         }));
       } catch (_e) { /* ignore */ }
     }
@@ -223,7 +226,10 @@ const App: React.FC = () => {
               name: employee.empName || 'Admin',
               role: roleMap[employee.role as keyof typeof roleMap] || 'Employee',
               email: employee.email || '',
-              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${(employee.empName || 'Admin').replace(/\s/g, '')}`,
+              avatar:
+                employee.avatar && typeof employee.avatar === 'string' && employee.avatar.trim()
+                  ? employee.avatar
+                  : `https://api.dicebear.com/7.x/avataaars/svg?seed=${(employee.empName || 'Admin').replace(/\s/g, '')}`,
               status: 'Active',
               isVerified: true,
               powers: powersMap[employee.role as keyof typeof powersMap] || [],
@@ -282,7 +288,6 @@ const App: React.FC = () => {
             </div>
             <nav className="flex-1 min-h-0 py-6 space-y-2 overflow-y-auto overflow-x-hidden px-4">
               <SidebarLink to="/" icon={<LayoutDashboard size={20} />} label={state.uiConfig.dashboardTitle} collapsed={false} />
-              <SidebarLink to="/workspaces" icon={<Briefcase size={20}/>} label={state.uiConfig.operationsTitle} collapsed={false} />
               <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={false} />
               <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={false} />
               <div className="h-px bg-white/5 mx-4 my-6"></div>
