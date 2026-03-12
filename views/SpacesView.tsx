@@ -68,6 +68,10 @@ function getLoggedInEmployee() {
   return { id, name, role };
 }
 
+function normalizeRole(role?: BackendRole): BackendRole {
+  return (role || '').toUpperCase() as BackendRole;
+}
+
 function projectCharterPayloadFromBackendProject(proj: any, updatedTasks: any[]) {
   return {
     id: proj.clientProjectId,
@@ -123,6 +127,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editCommentDraft, setEditCommentDraft] = useState('');
   const [commentToDeleteId, setCommentToDeleteId] = useState<string | null>(null);
+  const [modalStatus, setModalStatus] = useState<TaskStatus>('todo');
 
   const [activeColumnMenuId, setActiveColumnMenuId] = useState<string | null>(null);
   const [isRenamingColumnId, setIsRenamingColumnId] = useState<string | null>(null);
@@ -361,9 +366,17 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     }
   };
 
+  const visibleTasks = useMemo(() => {
+    if (mode !== 'employee') return tasks;
+    if (!me.id) return [];
+    return tasks.filter(
+      (t) => t.assigneeId === me.id || (!t.assigneeId && t.createdByEmpId === me.id),
+    );
+  }, [tasks, mode, me.id]);
+
   const sortedTasks = useMemo(() => {
-    if (tasks.length === 0) return tasks;
-    const copy = [...tasks];
+    if (visibleTasks.length === 0) return visibleTasks;
+    const copy = [...visibleTasks];
     const managerRoles = new Set<BackendRole>(['SUPER_ADMIN', 'ADMIN', 'TEAM_LEAD']);
     copy.sort((a, b) => {
       if (mode === 'employee') {
@@ -374,7 +387,62 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
     return copy;
-  }, [tasks, mode]);
+  }, [visibleTasks, mode]);
+
+  const getTaskHighlightClass = (t: SpacesTask): string => {
+    const creatorRole = normalizeRole(t.createdByRole);
+    const viewerRole = normalizeRole(me.role);
+    const isSelf = t.createdByEmpId && t.createdByEmpId === me.id;
+
+    if (isSelf) return '';
+
+    if (mode === 'employee') {
+      // Employee: admin- and team-lead-created tasks are highlighted
+      if (
+        creatorRole === 'ADMIN' ||
+        creatorRole === 'SUPER_ADMIN' ||
+        creatorRole === 'TEAM_LEAD'
+      ) {
+        return 'bg-emerald-50';
+      }
+      return '';
+    }
+
+    if (mode === 'manager' && viewerRole === 'TEAM_LEAD') {
+      // Team lead: admin-created tasks are highlighted
+      if (creatorRole === 'ADMIN' || creatorRole === 'SUPER_ADMIN') {
+        return 'bg-emerald-50';
+      }
+    }
+
+    return '';
+  };
+
+  const getTaskRowClasses = (t: SpacesTask): string => {
+    const highlight = getTaskHighlightClass(t);
+    const base = 'border-b border-slate-100';
+    if (highlight) {
+      return `${base} ${highlight} hover:bg-emerald-100`;
+    }
+    return `${base} hover:bg-slate-50/50`;
+  };
+
+  const canEditTask = (t: SpacesTask): boolean => {
+    const role = (me.role || '').toUpperCase() as BackendRole;
+    if (mode === 'employee') {
+      return t.createdByEmpId === me.id;
+    }
+    if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
+      // Admins can edit all tasks in the group
+      return true;
+    }
+    if (role === 'TEAM_LEAD') {
+      // Team leads can edit tasks created by team leads or employees
+      const createdRole = (t.createdByRole || '').toUpperCase();
+      return createdRole === 'TEAM_LEAD' || createdRole === 'EMPLOYEE';
+    }
+    return false;
+  };
 
   const activeCommentTask = useMemo(
     () => sortedTasks.find((t) => t.taskId === commentTaskId) || null,
@@ -387,6 +455,11 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     if (!text) return;
     setError(null);
     try {
+      // If employee is viewing their portal, allow status change together with comment
+      if (mode === 'employee' && modalStatus && modalStatus !== activeCommentTask.status) {
+        await patchTask(activeCommentTask.taskId, { status: modalStatus });
+      }
+
       const res = await fetch(`${API_BASE}/spaces/tasks/${activeCommentTask.taskId}/comments`, {
         method: 'POST',
         headers: getAuthHeaders(),
@@ -658,9 +731,9 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                 </tr>
               ) : (
                 sortedTasks.map((t) => {
-                  const canEdit = t.createdByEmpId === me.id;
+                  const canEdit = canEditTask(t);
                   return (
-                  <tr key={t.taskId} className="border-b border-slate-100 hover:bg-slate-50/50">
+                  <tr key={t.taskId} className={getTaskRowClasses(t)}>
                     <td className="px-4 py-3">
                       <input
                         defaultValue={t.title}
@@ -745,7 +818,10 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                     <td className="px-4 py-3">
                       <button
                         type="button"
-                        onClick={() => setCommentTaskId(t.taskId)}
+                        onClick={() => {
+                          setCommentTaskId(t.taskId);
+                          setModalStatus(t.status);
+                        }}
                         className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
                         title="View comments"
                       >
@@ -944,26 +1020,46 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
               )}
             </div>
 
-            <div className="p-6 border-t border-slate-100 flex gap-3">
-              <input
-                value={commentDraft}
-                onChange={(e) => setCommentDraft(e.target.value)}
-                className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
-                placeholder="Add a comment..."
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddComment();
-                }}
-              />
-              <button
-                type="button"
-                onClick={handleAddComment}
-                disabled={!commentDraft.trim()}
-                className={`px-6 py-3 rounded-2xl bg-brand-red text-white font-bold hover:bg-brand-navy transition-colors ${
-                  !commentDraft.trim() ? 'opacity-60 cursor-not-allowed' : ''
-                }`}
-              >
-                Send
-              </button>
+            <div className="p-6 border-t border-slate-100 space-y-3">
+              {mode === 'employee' && (
+                <div className="flex items-center gap-3">
+                  <label className="text-[13px] font-semibold text-slate-700">
+                    Status
+                    <select
+                      value={modalStatus}
+                      onChange={(e) => setModalStatus(e.target.value as TaskStatus)}
+                      className="ml-2 rounded-xl border border-slate-200 px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
+                    >
+                      <option value="todo">To Do</option>
+                      <option value="doing">Doing</option>
+                      <option value="review">Review</option>
+                      <option value="done">Done</option>
+                      <option value="blocked">Blocked</option>
+                    </select>
+                  </label>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <input
+                  value={commentDraft}
+                  onChange={(e) => setCommentDraft(e.target.value)}
+                  className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                  placeholder="Add a comment or task update..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddComment();
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddComment}
+                  disabled={!commentDraft.trim()}
+                  className={`px-6 py-3 rounded-2xl bg-brand-red text-white font-bold hover:bg-brand-navy transition-colors ${
+                    !commentDraft.trim() ? 'opacity-60 cursor-not-allowed' : ''
+                  }`}
+                >
+                  Send
+                </button>
+              </div>
             </div>
           </div>
         </div>
