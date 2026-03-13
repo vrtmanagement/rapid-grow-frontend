@@ -13,6 +13,7 @@ interface ProjectOption {
 interface EmployeeOption {
   empId: string;
   empName: string;
+  role?: BackendRole;
 }
 
 interface SpacesColumn {
@@ -155,6 +156,25 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     return map;
   }, [employees]);
 
+  const canAssignTo = (emp: EmployeeOption | null): boolean => {
+    if (!emp) return true;
+    const viewerRole = normalizeRole(me.role);
+    const targetRole = normalizeRole(emp.role || 'EMPLOYEE');
+
+    if (viewerRole === 'EMPLOYEE') {
+      // Employee: cannot assign tasks to team leads or admins
+      return targetRole === 'EMPLOYEE';
+    }
+
+    if (viewerRole === 'TEAM_LEAD') {
+      // Team lead: cannot assign tasks to admins / super admins
+      return targetRole !== 'ADMIN' && targetRole !== 'SUPER_ADMIN';
+    }
+
+    // Admin / Super Admin: can assign to anyone
+    return true;
+  };
+
   const loadSpaces = async () => {
     setSpacesLoading(true);
     setError(null);
@@ -242,7 +262,11 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
         const list = Array.isArray(data) ? data : [];
         setEmployees(
           list
-            .map((e: any) => ({ empId: e.empId, empName: e.empName }))
+            .map((e: any) => ({
+              empId: e.empId,
+              empName: e.empName,
+              role: (e.role || 'EMPLOYEE') as BackendRole,
+            }))
             .filter((e: EmployeeOption) => e.empId && e.empName),
         );
       } catch (e) {
@@ -633,11 +657,13 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
               disabled={employeesLoading}
             >
               <option value="">Unassigned</option>
-              {employees.map((e) => (
-                <option key={e.empId} value={e.empId}>
-                  {e.empName}
-                </option>
-              ))}
+              {employees
+                .filter((e) => canAssignTo(e))
+                .map((e) => (
+                  <option key={e.empId} value={e.empId}>
+                    {e.empName}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -910,11 +936,13 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                         disabled={employeesLoading || !canEdit}
                       >
                         <option value="">Unassigned</option>
-                        {employees.map((e) => (
-                          <option key={e.empId} value={e.empId}>
-                            {e.empName}
-                          </option>
-                        ))}
+                        {employees
+                          .filter((e) => canAssignTo(e))
+                          .map((e) => (
+                            <option key={e.empId} value={e.empId}>
+                              {e.empName}
+                            </option>
+                          ))}
                       </select>
                     </td>
 
