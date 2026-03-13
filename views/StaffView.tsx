@@ -47,8 +47,24 @@ const StaffView: React.FC = () => {
 
   const canEditRow = (row: EmployeeRow) => {
     if (isAdmin) return true;
-    if (isTeamLead) return (row.role || '').toUpperCase() === 'EMPLOYEE';
+    if (isTeamLead) {
+      // Team lead can edit themselves and employees
+      if (backendEmpId && row.empId === backendEmpId) return true;
+      return (row.role || '').toUpperCase() === 'EMPLOYEE';
+    }
     // Employee can edit their own record (for password change)
+    if (backendEmpId && row.empId === backendEmpId) return true;
+    return false;
+  };
+
+  const canDeleteRow = (row: EmployeeRow) => {
+    if (isAdmin) return true;
+    if (isTeamLead) {
+      // Team lead can delete themselves and employees
+      if (backendEmpId && row.empId === backendEmpId) return true;
+      return (row.role || '').toUpperCase() === 'EMPLOYEE';
+    }
+    // Employee: allow deleting only themselves (if backend permits)
     if (backendEmpId && row.empId === backendEmpId) return true;
     return false;
   };
@@ -254,14 +270,16 @@ const StaffView: React.FC = () => {
                             >
                               <Pencil size={14} />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleting(row)}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-red-100 text-red-500 hover:bg-red-50"
-                              title="Delete"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                            {canDeleteRow(row) && (
+                              <button
+                                type="button"
+                                onClick={() => setDeleting(row)}
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-red-100 text-red-500 hover:bg-red-50"
+                                title="Delete"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <span className="text-[11px] text-slate-400">View only</span>

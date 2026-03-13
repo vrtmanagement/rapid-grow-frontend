@@ -113,11 +113,16 @@ const ProjectCharterDetail: React.FC<Props> = ({ state, updateState }) => {
     updateProject({ phases: { ...activeProject.phases, [key]: val } });
   };
 
+  const generateId = () =>
+    (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? (crypto.randomUUID() as string)
+      : Math.random().toString(36).slice(2));
+
   const handleAddTask = () => {
     const title = newTaskTitle.trim();
     if (!title) return;
     const newTask: WorkspaceTask = {
-      id: `t-${Date.now()}`,
+      id: `t-${generateId()}`,
       title,
       status: 'todo',
       priority: 'medium',
@@ -151,7 +156,7 @@ const ProjectCharterDetail: React.FC<Props> = ({ state, updateState }) => {
       );
 
       const newTasks: WorkspaceTask[] = suggestedTasks.map((t: any) => ({
-        id: `t-ai-${Math.random().toString(36).substr(2, 9)}`,
+        id: `t-${generateId()}`,
         title: t.title,
         description: t.description,
         status: t.status || status,

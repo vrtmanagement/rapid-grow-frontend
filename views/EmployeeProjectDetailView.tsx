@@ -335,7 +335,9 @@ const EmployeeProjectDetailView: React.FC = () => {
                                     ? t.messages
                                     : [];
                                   const newMessage = {
-                                    id: `m-${Date.now()}`,
+                                    id: (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                                      ? (crypto.randomUUID() as string)
+                                      : Math.random().toString(36).slice(2)),
                                     text,
                                     from: currentEmpId || 'employee',
                                     status: t.status || 'todo',

@@ -14,10 +14,15 @@ const MonthlyView: React.FC<Props> = ({ state, updateState }) => {
                         state.currentUser.role === 'Leader';
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
+  const generateId = () =>
+    (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? (crypto.randomUUID() as string)
+      : Math.random().toString(36).slice(2));
+
   const handleAddProject = () => {
     if (!hasAdminPower) return;
     const newProject: Goal = {
-      id: `m-${Date.now()}`,
+      id: `m-${generateId()}`,
       text: '',
       completed: false,
       level: 'month',
