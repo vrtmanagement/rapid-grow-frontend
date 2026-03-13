@@ -1,15 +1,83 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { PlanningState } from '../types';
 import { Clock, Star, ListCheck, Pin, Link2 } from 'lucide-react';
 import { PriorityStamp } from '../constants';
+import { API_BASE, getAuthHeaders } from '../config/api';
 
 interface Props {
   state: PlanningState;
   updateState: (updater: (prev: PlanningState) => PlanningState) => void;
 }
 
+interface SpacesTaskSummary {
+  taskId: string;
+  title: string;
+  assigneeId: string;
+  dueDate: string;
+  priority: string;
+  status: string;
+}
+
+function getLoggedInEmpId(): string {
+  try {
+    const raw = localStorage.getItem('rapidgrow-admin');
+    if (!raw) return '';
+    const parsed = JSON.parse(raw);
+    return parsed?.employee?.empId || '';
+  } catch {
+    return '';
+  }
+}
+
 const DailyView: React.FC<Props> = ({ state, updateState }) => {
+  const [topTasks, setTopTasks] = useState<SpacesTaskSummary[]>([]);
+
+  useEffect(() => {
+    const empId = getLoggedInEmpId();
+    if (!empId) return;
+
+    const loadTasks = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        const tasks: any[] = Array.isArray(data?.tasks) ? data.tasks : [];
+
+        const meTasks = tasks.filter(
+          (t) =>
+            t.assigneeId === empId &&
+            typeof t.dueDate === 'string' &&
+            t.dueDate.trim() &&
+            t.status !== 'done',
+        );
+
+        const parsed = meTasks
+          .map((t) => {
+            const dStr = String(t.dueDate).trim();
+            const d = new Date(`${dStr}T00:00:00`);
+            if (isNaN(d.getTime())) return null;
+            return {
+              taskId: t.taskId,
+              title: t.title || '',
+              assigneeId: t.assigneeId || '',
+              dueDate: dStr,
+              priority: t.priority || 'medium',
+              status: t.status || 'todo',
+              _due: d.getTime(),
+            } as any;
+          })
+          .filter(Boolean) as (SpacesTaskSummary & { _due: number })[];
+
+        parsed.sort((a, b) => a._due - b._due);
+        setTopTasks(parsed.slice(0, 5));
+      } catch {
+        // ignore errors for daily view
+      }
+    };
+
+    loadTasks();
+  }, []);
   const handlePriorityChange = (idx: number, val: string) => {
     updateState(prev => {
       const newP = [...prev.dailyPriorities];
@@ -38,23 +106,41 @@ const DailyView: React.FC<Props> = ({ state, updateState }) => {
             <h3 className="text-xl text-slate-800">Top 5 Priorities For Today</h3>
           </div>
           <div className="space-y-4">
-            {state.dailyPriorities.map((p, i) => (
-              <div key={i} className="flex flex-col gap-1 group/item">
-                <div className="flex items-center gap-4">
-                  <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center font-bold text-md shrink-0 group-focus-within/item:bg-brand-gradient group-focus-within/item:text-white transition-all">{i + 1}</span>
-                  <input 
-                    type="text" 
-                    value={p}
-                    onChange={(e) => handlePriorityChange(i, e.target.value)}
-                    className="flex-1 border-b-2 border-slate-100 py-2 focus:border-brand-indigo outline-none font-medium text-slate-700 transition-all bg-transparent"
-                    placeholder="Identify key output..."
-                  />
-                  <div className="opacity-0 group-hover/item:opacity-100 transition-opacity">
-                    <Link2 size={12} className="text-brand-indigo" />
+            {topTasks.length > 0
+              ? topTasks.map((t, i) => (
+                  <div key={t.taskId} className="flex flex-col gap-1 group/item">
+                    <div className="flex items-center gap-4">
+                      <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center font-bold text-md shrink-0 group-focus-within/item:bg-brand-gradient group-focus-within/item:text-white transition-all">
+                        {i + 1}
+                      </span>
+                      <div className="flex-1">
+                        <div className="font-medium text-slate-800">{t.title}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          Due: {t.dueDate || '—'} · Priority: {t.priority}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                ))
+              : state.dailyPriorities.map((p, i) => (
+                  <div key={i} className="flex flex-col gap-1 group/item">
+                    <div className="flex items-center gap-4">
+                      <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center font-bold text-md shrink-0 group-focus-within/item:bg-brand-gradient group-focus-within/item:text-white transition-all">
+                        {i + 1}
+                      </span>
+                      <input
+                        type="text"
+                        value={p}
+                        onChange={(e) => handlePriorityChange(i, e.target.value)}
+                        className="flex-1 border-b-2 border-slate-100 py-2 focus:border-brand-indigo outline-none font-medium text-slate-700 transition-all bg-transparent"
+                        placeholder="Identify key output..."
+                      />
+                      <div className="opacity-0 group-hover/item:opacity-100 transition-opacity">
+                        <Link2 size={12} className="text-brand-indigo" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
           </div>
           <div className="mt-6 pt-6 border-t border-slate-50 flex justify-between items-center">
              <span className="text-[15px] text-slate-800">Strategy Check</span>

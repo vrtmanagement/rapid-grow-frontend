@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { API_BASE, getAuthHeaders } from '../config/api';
-import { Plus, MessageSquareText, RefreshCw, MoreVertical, Pencil } from 'lucide-react';
+import { Plus, MessageSquareText, RefreshCw, MoreVertical, Pencil, Eye } from 'lucide-react';
 
 type SpacesMode = 'employee' | 'manager';
 type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | string;
@@ -1032,6 +1032,23 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                     <td className="px-3 py-3 text-right">
                       {(canEditTask(t) || canDeleteTask(t)) ? (
                         <div className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingTask(t);
+                              setEditingTaskDraft({
+                                title: t.title,
+                                assigneeId: t.assigneeId || '',
+                                dueDate: t.dueDate || '',
+                                priority: t.priority,
+                                status: t.status,
+                              });
+                            }}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-100"
+                            title="View task"
+                          >
+                            <Eye size={14} />
+                          </button>
                           {canEditTask(t) && (
                             <button
                               type="button"
