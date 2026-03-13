@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { API_BASE, getAuthHeaders } from '../config/api';
-import { Plus, MessageSquareText, RefreshCw, MoreVertical } from 'lucide-react';
+import { Plus, MessageSquareText, RefreshCw, MoreVertical, Pencil } from 'lucide-react';
 
 type SpacesMode = 'employee' | 'manager';
 type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | string;
@@ -143,6 +143,9 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
 
   const [taskFilterMode, setTaskFilterMode] = useState<'all' | 'me'>('all');
   const [taskSearch, setTaskSearch] = useState('');
+
+  const [editingTask, setEditingTask] = useState<SpacesTask | null>(null);
+  const [editingTaskDraft, setEditingTaskDraft] = useState<Partial<SpacesTask>>({});
 
   const projectNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -525,7 +528,8 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const canEditTask = (t: SpacesTask): boolean => {
     const role = (me.role || '').toUpperCase() as BackendRole;
     if (mode === 'employee') {
-      return t.assigneeId === me.id;
+      // Employee can edit tasks they are assigned to OR created
+      return t.assigneeId === me.id || t.createdByEmpId === me.id;
     }
     if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
       // Admins can edit all tasks in the group
@@ -533,9 +537,9 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     }
     if (role === 'TEAM_LEAD') {
       // Team leads can edit:
-      // - their own tasks (assignee)
+      // - their own tasks (assignee or creator)
       // - tasks created by team leads or employees
-      if (t.assigneeId === me.id) return true;
+      if (t.assigneeId === me.id || t.createdByEmpId === me.id) return true;
       const createdRole = (t.createdByRole || '').toUpperCase();
       return createdRole === 'TEAM_LEAD' || createdRole === 'EMPLOYEE';
     }
@@ -549,15 +553,16 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const canDeleteTask = (t: SpacesTask): boolean => {
     const role = (me.role || '').toUpperCase() as BackendRole;
     if (mode === 'employee') {
-      // Employee: can delete only tasks assigned to them
-      return t.assigneeId === me.id;
+      // Employee: can delete tasks they are assigned to OR created
+      return t.assigneeId === me.id || t.createdByEmpId === me.id;
     }
     if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
       // Admins: can delete all tasks
       return true;
     }
     if (role === 'TEAM_LEAD') {
-      // Team leads: can delete tasks created by team leads or employees
+      // Team leads: can delete tasks they are assigned to OR tasks created by team leads/employees
+      if (t.assigneeId === me.id || t.createdByEmpId === me.id) return true;
       const createdRole = (t.createdByRole || '').toUpperCase();
       return createdRole === 'TEAM_LEAD' || createdRole === 'EMPLOYEE';
     }
@@ -1025,16 +1030,40 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                     ))}
 
                     <td className="px-3 py-3 text-right">
-                      {canDeleteTask(t) && (
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTaskModal(t)}
-                          className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-red-100 text-red-500 hover:bg-red-50 text-[18px]"
-                          title="Delete task"
-                        >
-                          ×
-                        </button>
-                      )}
+                      {(canEditTask(t) || canDeleteTask(t)) ? (
+                        <div className="inline-flex items-center gap-2">
+                          {canEditTask(t) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!canEditTask(t)) return;
+                                setEditingTask(t);
+                                setEditingTaskDraft({
+                                  title: t.title,
+                                  assigneeId: t.assigneeId || '',
+                                  dueDate: t.dueDate || '',
+                                  priority: t.priority,
+                                  status: t.status,
+                                });
+                              }}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-100"
+                              title="Edit task"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          )}
+                          {canDeleteTask(t) && (
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTaskModal(t)}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-red-100 text-red-500 hover:bg-red-50 text-[18px]"
+                              title="Delete task"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      ) : null}
                     </td>
                   </tr>
                 )})
@@ -1385,6 +1414,142 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                 className="px-5 py-2 rounded-full bg-brand-red text-white text-[13px] font-semibold hover:bg-brand-navy"
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg border border-slate-200 p-6">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Edit task</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+                  Title
+                </label>
+                <input
+                  value={editingTaskDraft.title || ''}
+                  onChange={(e) =>
+                    setEditingTaskDraft((prev) => ({ ...prev, title: e.target.value }))
+                  }
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+                    Assignee
+                  </label>
+                  <select
+                    value={editingTaskDraft.assigneeId || ''}
+                    onChange={(e) =>
+                      setEditingTaskDraft((prev) => ({ ...prev, assigneeId: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
+                  >
+                    <option value="">Unassigned</option>
+                    {employees
+                      .filter((e) => canAssignTo(e))
+                      .map((e) => (
+                        <option key={e.empId} value={e.empId}>
+                          {e.empName}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+                    Due date
+                  </label>
+                  <input
+                    type="date"
+                    value={editingTaskDraft.dueDate || ''}
+                    onChange={(e) =>
+                      setEditingTaskDraft((prev) => ({ ...prev, dueDate: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+                    Priority
+                  </label>
+                  <select
+                    value={editingTaskDraft.priority || 'medium'}
+                    onChange={(e) =>
+                      setEditingTaskDraft((prev) => ({
+                        ...prev,
+                        priority: e.target.value as TaskPriority,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+                    Status
+                  </label>
+                  <select
+                    value={editingTaskDraft.status || 'todo'}
+                    onChange={(e) =>
+                      setEditingTaskDraft((prev) => ({
+                        ...prev,
+                        status: e.target.value as TaskStatus,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
+                  >
+                    <option value="todo">To Do</option>
+                    <option value="doing">Doing</option>
+                    <option value="review">Review</option>
+                    <option value="done">Done</option>
+                    <option value="blocked">Blocked</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingTask(null);
+                  setEditingTaskDraft({});
+                }}
+                className="px-4 py-2 rounded-full border border-slate-200 text-[13px] text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!editingTaskDraft.title || !editingTaskDraft.title.trim()}
+                onClick={async () => {
+                  if (!editingTask) return;
+                  const updates: Partial<SpacesTask> = {
+                    title: editingTaskDraft.title?.trim() || editingTask.title,
+                    assigneeId: editingTaskDraft.assigneeId || '',
+                    dueDate: editingTaskDraft.dueDate || '',
+                    priority: (editingTaskDraft.priority || editingTask.priority) as TaskPriority,
+                    status: (editingTaskDraft.status || editingTask.status) as TaskStatus,
+                  };
+                  await patchTask(editingTask.taskId, updates);
+                  setEditingTask(null);
+                  setEditingTaskDraft({});
+                }}
+                className={`px-5 py-2 rounded-full bg-brand-red text-white text-[13px] font-semibold hover:bg-brand-navy ${
+                  !editingTaskDraft.title || !editingTaskDraft.title.trim()
+                    ? 'opacity-60 cursor-not-allowed'
+                    : ''
+                }`}
+              >
+                Save
               </button>
             </div>
           </div>
