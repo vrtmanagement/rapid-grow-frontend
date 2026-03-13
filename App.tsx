@@ -291,21 +291,10 @@ const App: React.FC = () => {
               <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={false} />
               <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={false} />
               <div className="h-px bg-white/5 mx-4 my-6"></div>
-              <button
-                type="button"
-                onClick={() => setIsVisionsOpen((v) => !v)}
-                className="w-full text-left px-7 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-black hover:text-brand-red hover:bg-brand-red/5 rounded-lg"
-              >
-                Visions
-              </button>
-              {isVisionsOpen && (
-                <>
-                  <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={false} />
-                  <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={false} />
-                  <SidebarLink to="/monthly" icon={<Calendar size={20}/>} label={state.uiConfig.monthlyTitle} collapsed={false} />
-                  <SidebarLink to="/weekly" icon={<CheckSquare size={20}/>} label={state.uiConfig.weeklyTitle} collapsed={false} />
-                </>
-              )}
+              <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={false} />
+              <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={false} />
+              <SidebarLink to="/monthly" icon={<Calendar size={20}/>} label={state.uiConfig.monthlyTitle} collapsed={false} />
+              <SidebarLink to="/weekly" icon={<CheckSquare size={20}/>} label={state.uiConfig.weeklyTitle} collapsed={false} />
               <div className="h-px bg-white/5 mx-4 my-6"></div>
               <SidebarLink to="/daily" icon={<Clock size={20}/>} label={state.uiConfig.dailyTitle} collapsed={false} />
               <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={false} />
@@ -417,23 +406,10 @@ const App: React.FC = () => {
                 <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={!isSidebarOpen} />
                 <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />
                 <div className="h-px bg-white/5 mx-4 my-6"></div>
-                <button
-                  type="button"
-                  onClick={() => setIsVisionsOpen((v) => !v)}
-                  className={`w-full text-left px-7 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 hover:text-white/80 hover:bg-white/5 rounded-lg ${
-                    !isSidebarOpen ? 'hidden' : ''
-                  }`}
-                >
-                  Visions
-                </button>
-                {isVisionsOpen && (
-                  <>
-                    <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={!isSidebarOpen} />
-                    <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={!isSidebarOpen} />
-                    <SidebarLink to="/monthly" icon={<Calendar size={20}/>} label={state.uiConfig.monthlyTitle} collapsed={!isSidebarOpen} />
-                    <SidebarLink to="/weekly" icon={<CheckSquare size={20}/>} label={state.uiConfig.weeklyTitle} collapsed={!isSidebarOpen} />
-                  </>
-                )}
+                <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={!isSidebarOpen} />
+                <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={!isSidebarOpen} />
+                <SidebarLink to="/monthly" icon={<Calendar size={20}/>} label={state.uiConfig.monthlyTitle} collapsed={!isSidebarOpen} />
+                <SidebarLink to="/weekly" icon={<CheckSquare size={20}/>} label={state.uiConfig.weeklyTitle} collapsed={!isSidebarOpen} />
                 <SidebarLink to="/daily" icon={<Clock size={20}/>} label={state.uiConfig.dailyTitle} collapsed={!isSidebarOpen} />
                 <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={!isSidebarOpen} />
                 <div className="h-px bg-white/5 mx-4 my-6"></div>
