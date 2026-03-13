@@ -249,12 +249,18 @@ const WorkspaceP1Detail: React.FC<Props> = ({ state, updateState }) => {
     return <div className="p-12 text-center text-slate-800">Project Brief Not Found.</div>;
   }
 
+  const generateId = () =>
+    (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? (crypto.randomUUID() as string)
+      : Math.random().toString(36).slice(2));
+
   const handleAddSimpleTask = async () => {
     const title = newTaskTitle.trim();
     if (!title) return;
     const now = new Date().toISOString();
+    const taskId = `t-${generateId()}`;
     const task: WorkspaceTask = {
-      id: `t-${Date.now()}`,
+      id: taskId,
       title,
       description: '',
       status: 'todo',
@@ -274,7 +280,7 @@ const WorkspaceP1Detail: React.FC<Props> = ({ state, updateState }) => {
         body: JSON.stringify({
           title,
           projectId: activeProject.id,
-          projectTaskId: task.id,
+          projectTaskId: taskId,
           assigneeId: newTaskAssignee || undefined,
           dueDate: newTaskDueDate || undefined,
           priority: newTaskPriority,

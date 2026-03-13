@@ -101,6 +101,10 @@ interface Props {
 }
 
 const SpacesView: React.FC<Props> = ({ mode }) => {
+  const generateId = () =>
+    (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? (crypto.randomUUID() as string)
+      : Math.random().toString(36).slice(2));
   const me = useMemo(() => getLoggedInEmployee(), []);
 
   const [projects, setProjects] = useState<ProjectOption[]>([]);
@@ -136,11 +140,20 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const [columnToDelete, setColumnToDelete] = useState<SpacesColumn | null>(null);
   const [deleteTaskModal, setDeleteTaskModal] = useState<SpacesTask | null>(null);
 
+  const [taskFilterMode, setTaskFilterMode] = useState<'all' | 'me'>('all');
+  const [taskSearch, setTaskSearch] = useState('');
+
   const projectNameById = useMemo(() => {
     const map = new Map<string, string>();
     projects.forEach((p) => map.set(p.id, p.name));
     return map;
   }, [projects]);
+
+  const employeeNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    employees.forEach((e) => map.set(e.empId, e.empName));
+    return map;
+  }, [employees]);
 
   const loadSpaces = async () => {
     setSpacesLoading(true);
@@ -328,6 +341,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     setError(null);
 
     const now = new Date().toISOString();
+    const projectTaskId = `t-${generateId()}`;
     const project = selectedProjectId
       ? projects.find((p) => p.id === selectedProjectId) || null
       : null;
@@ -344,7 +358,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
         const proj = await resProj.json();
         const existingTasks: any[] = Array.isArray(proj?.tasks) ? proj.tasks : [];
         const newWorkspaceTask = {
-          id: `t-${Date.now()}`,
+          id: projectTaskId,
           title: t,
           description: '',
           status,
@@ -376,7 +390,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
         body: JSON.stringify({
           title: t,
           projectId: project?.id || '',
-          projectTaskId: newWorkspaceTask.id,
+          projectTaskId: project ? projectTaskId : undefined,
           assigneeId,
           dueDate,
           priority,
@@ -402,17 +416,38 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     }
   };
 
-  const visibleTasks = useMemo(() => {
-    if (mode !== 'employee') return tasks;
-    if (!me.id) return [];
-    return tasks.filter(
-      (t) => t.assigneeId === me.id || (!t.assigneeId && t.createdByEmpId === me.id),
-    );
-  }, [tasks, mode, me.id]);
+  const visibleTasks = useMemo(() => tasks, [tasks]);
+
+  const filteredTasks = useMemo(() => {
+    let list = visibleTasks;
+
+    if (taskFilterMode === 'me' && me.id) {
+      list = list.filter(
+        (t) => t.assigneeId === me.id,
+      );
+    }
+
+    const term = taskSearch.trim().toLowerCase();
+    if (!term) return list;
+
+    return list.filter((t) => {
+      const assigneeName = t.assigneeId ? employeeNameById.get(t.assigneeId) || '' : '';
+      const createdByName = t.createdByName || '';
+      const createdById = t.createdByEmpId || '';
+      const assigneeId = t.assigneeId || '';
+
+      return (
+        assigneeId.toLowerCase().includes(term) ||
+        assigneeName.toLowerCase().includes(term) ||
+        createdById.toLowerCase().includes(term) ||
+        createdByName.toLowerCase().includes(term)
+      );
+    });
+  }, [visibleTasks, taskFilterMode, taskSearch, me.id, employeeNameById]);
 
   const sortedTasks = useMemo(() => {
-    if (visibleTasks.length === 0) return visibleTasks;
-    const copy = [...visibleTasks];
+    if (filteredTasks.length === 0) return filteredTasks;
+    const copy = [...filteredTasks];
     const managerRoles = new Set<BackendRole>(['SUPER_ADMIN', 'ADMIN', 'TEAM_LEAD']);
     copy.sort((a, b) => {
       if (mode === 'employee') {
@@ -423,7 +458,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
     return copy;
-  }, [visibleTasks, mode]);
+  }, [filteredTasks, mode]);
 
   const getTaskHighlightClass = (t: SpacesTask): string => {
     const creatorRole = normalizeRole(t.createdByRole);
@@ -466,14 +501,39 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const canEditTask = (t: SpacesTask): boolean => {
     const role = (me.role || '').toUpperCase() as BackendRole;
     if (mode === 'employee') {
-      return t.createdByEmpId === me.id;
+      return t.assigneeId === me.id;
     }
     if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
       // Admins can edit all tasks in the group
       return true;
     }
     if (role === 'TEAM_LEAD') {
-      // Team leads can edit tasks created by team leads or employees
+      // Team leads can edit:
+      // - their own tasks (assignee)
+      // - tasks created by team leads or employees
+      if (t.assigneeId === me.id) return true;
+      const createdRole = (t.createdByRole || '').toUpperCase();
+      return createdRole === 'TEAM_LEAD' || createdRole === 'EMPLOYEE';
+    }
+    return false;
+  };
+
+  const canCommentOnTask = (t: SpacesTask): boolean => {
+    return canEditTask(t);
+  };
+
+  const canDeleteTask = (t: SpacesTask): boolean => {
+    const role = (me.role || '').toUpperCase() as BackendRole;
+    if (mode === 'employee') {
+      // Employee: can delete only tasks assigned to them
+      return t.assigneeId === me.id;
+    }
+    if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
+      // Admins: can delete all tasks
+      return true;
+    }
+    if (role === 'TEAM_LEAD') {
+      // Team leads: can delete tasks created by team leads or employees
       const createdRole = (t.createdByRole || '').toUpperCase();
       return createdRole === 'TEAM_LEAD' || createdRole === 'EMPLOYEE';
     }
@@ -486,7 +546,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   );
 
   const handleAddComment = async () => {
-    if (!activeCommentTask) return;
+    if (!activeCommentTask || !canCommentOnTask(activeCommentTask)) return;
     const text = commentDraft.trim();
     if (!text) return;
     setError(null);
@@ -651,6 +711,51 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
               {saving ? 'Creating...' : 'Create Task'}
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="inline-flex rounded-full border border-slate-200 bg-white p-1">
+          <button
+            type="button"
+            onClick={() => setTaskFilterMode('all')}
+            className={`px-4 py-1.5 text-[13px] rounded-full ${
+              taskFilterMode === 'all'
+                ? 'bg-slate-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => setTaskFilterMode('me')}
+            className={`px-4 py-1.5 text-[13px] rounded-full ${
+              taskFilterMode === 'me'
+                ? 'bg-slate-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Me
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            value={taskSearch}
+            onChange={(e) => setTaskSearch(e.target.value)}
+            placeholder="Search by employee ID or name..."
+            className="w-full md:w-80 rounded-full border border-slate-200 px-4 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+          />
+          {taskSearch.trim() && (
+            <button
+              type="button"
+              onClick={() => setTaskSearch('')}
+              className="text-[12px] text-slate-500 hover:text-brand-red"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -855,10 +960,16 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                       <button
                         type="button"
                         onClick={() => {
+                          if (!canCommentOnTask(t)) return;
                           setCommentTaskId(t.taskId);
                           setModalStatus(t.status);
                         }}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                        disabled={!canCommentOnTask(t)}
+                        className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border bg-white text-slate-700 ${
+                          canCommentOnTask(t)
+                            ? 'border-slate-200 hover:bg-slate-50'
+                            : 'border-slate-100 opacity-60 cursor-not-allowed'
+                        }`}
                         title="View comments"
                       >
                         <MessageSquareText size={16} />
@@ -886,7 +997,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                     ))}
 
                     <td className="px-3 py-3 text-right">
-                      {canEdit && (
+                      {canDeleteTask(t) && (
                         <button
                           type="button"
                           onClick={() => setDeleteTaskModal(t)}

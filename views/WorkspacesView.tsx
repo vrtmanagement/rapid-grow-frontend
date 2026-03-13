@@ -11,6 +11,10 @@ interface Props {
 }
 const WorkspacesView: React.FC<Props> = (props) => {
   const { state, updateState } = props;
+  const generateId = () =>
+    (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? (crypto.randomUUID() as string)
+      : Math.random().toString(36).slice(2));
   const navigate = useNavigate();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -75,7 +79,7 @@ const WorkspacesView: React.FC<Props> = (props) => {
     const name = newProjectName.trim();
     if (!name) return;
     const newProject: WorkspaceProject = {
-      id: `p-${Date.now()}`,
+      id: `p-${generateId()}`,
       name,
       status: 'draft',
       dateCreated: new Date().toISOString().split('T')[0],
