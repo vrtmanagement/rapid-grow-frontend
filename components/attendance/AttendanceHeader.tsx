@@ -55,14 +55,14 @@ const AttendanceHeader: React.FC<Props> = ({ range, onRangeChange, theme, onTogg
             <BarChart3 size={14} /> Month
           </button>
         </div>
-        <button
+        {/* <button
           type="button"
           onClick={onToggleTheme}
           className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-700 shadow-sm hover:bg-slate-50"
         >
           {theme === 'light' ? <Moon size={14} /> : <SunMedium size={14} />}
           {theme === 'light' ? 'Night mode' : 'Day mode'}
-        </button>
+        </button> */}
       </div>
     </div>
   );

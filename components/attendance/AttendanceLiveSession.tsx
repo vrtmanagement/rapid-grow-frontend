@@ -8,6 +8,9 @@ interface Props {
   onLocationChange: (value: string) => void;
   onLogin: () => void;
   onLogout: () => void;
+  loginLoading?: boolean;
+  logoutLoading?: boolean;
+  errorMessage?: string | null;
 }
 
 const AttendanceLiveSession: React.FC<Props> = ({
@@ -16,6 +19,9 @@ const AttendanceLiveSession: React.FC<Props> = ({
   onLocationChange,
   onLogin,
   onLogout,
+  loginLoading,
+  logoutLoading,
+  errorMessage,
 }) => {
   return (
     <div className="bg-slate-900 text-white rounded-[2rem] p-7 shadow-2xl flex flex-col gap-5">
@@ -48,30 +54,45 @@ const AttendanceLiveSession: React.FC<Props> = ({
         <button
           type="button"
           onClick={onLogin}
-          disabled={!!activeSession}
+          disabled={!!activeSession || !!loginLoading}
           className={`flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold shadow-lg ${
-            activeSession
+            activeSession || loginLoading
               ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
               : 'bg-emerald-500 text-white hover:bg-emerald-400'
           }`}
         >
-          <LogIn size={14} />
-          Login
+          {loginLoading ? (
+            <span className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <LogIn size={14} />
+          )}
+          {loginLoading ? 'Logging in...' : 'Login'}
         </button>
         <button
           type="button"
           onClick={onLogout}
-          disabled={!activeSession}
+          disabled={!activeSession || !!logoutLoading}
           className={`flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold shadow-lg ${
-            activeSession
+            activeSession && !logoutLoading
               ? 'bg-rose-500 text-white hover:bg-rose-400'
-              : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+              : !activeSession && !logoutLoading
+              ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+              : 'bg-slate-800 text-slate-200 cursor-wait'
           }`}
         >
-          <LogOut size={14} />
-          Logout
+          {logoutLoading ? (
+            <span className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <LogOut size={14} />
+          )}
+          {logoutLoading ? 'Logging out...' : 'Logout'}
         </button>
       </div>
+      {errorMessage && (
+        <p className="mt-2 text-[11px] text-rose-300">
+          {errorMessage}
+        </p>
+      )}
       {activeSession && (
         <div className="mt-3 rounded-xl bg-slate-800/80 border border-slate-700 px-4 py-3 text-[11px] text-slate-300 space-y-1">
           <div className="flex items-center justify-between">

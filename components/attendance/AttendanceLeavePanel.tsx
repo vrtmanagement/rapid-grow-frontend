@@ -50,9 +50,9 @@ const AttendanceLeavePanel: React.FC<Props> = ({
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-semibold text-slate-900">Apply for leave</h3>
-              <p className="text-[11px] text-slate-500">
+              {/* <p className="text-[11px] text-slate-500">
                 Employees ask Team Lead, Team Leads ask Admin.
-              </p>
+              </p> */}
             </div>
           </div>
           <div className="space-y-3">
