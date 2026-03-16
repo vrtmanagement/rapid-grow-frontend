@@ -528,8 +528,8 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const canEditTask = (t: SpacesTask): boolean => {
     const role = (me.role || '').toUpperCase() as BackendRole;
     if (mode === 'employee') {
-      // Employee can edit tasks they are assigned to OR created
-      return t.assigneeId === me.id || t.createdByEmpId === me.id;
+      // Employee can edit only tasks they created
+      return t.createdByEmpId === me.id;
     }
     if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
       // Admins can edit all tasks in the group
@@ -547,14 +547,18 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   };
 
   const canCommentOnTask = (t: SpacesTask): boolean => {
+    if (mode === 'employee') {
+      // Employee can comment on tasks they are assigned to or created
+      return t.assigneeId === me.id || t.createdByEmpId === me.id;
+    }
     return canEditTask(t);
   };
 
   const canDeleteTask = (t: SpacesTask): boolean => {
     const role = (me.role || '').toUpperCase() as BackendRole;
     if (mode === 'employee') {
-      // Employee: can delete tasks they are assigned to OR created
-      return t.assigneeId === me.id || t.createdByEmpId === me.id;
+      // Employee: can delete only tasks they created
+      return t.createdByEmpId === me.id;
     }
     if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
       // Admins: can delete all tasks
@@ -567,6 +571,14 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       return createdRole === 'TEAM_LEAD' || createdRole === 'EMPLOYEE';
     }
     return false;
+  };
+
+  const canChangeStatus = (t: SpacesTask): boolean => {
+    if (mode === 'employee') {
+      // Employee can change status for tasks they are assigned to or created
+      return t.assigneeId === me.id || t.createdByEmpId === me.id;
+    }
+    return canEditTask(t);
   };
 
   const activeCommentTask = useMemo(
@@ -977,9 +989,12 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                     <td className="px-4 py-3">
                       <select
                         value={t.status}
-                        onChange={(e) => canEdit && patchTask(t.taskId, { status: e.target.value as TaskStatus })}
+                        onChange={(e) =>
+                          canChangeStatus(t) &&
+                          patchTask(t.taskId, { status: e.target.value as TaskStatus })
+                        }
                         className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
-                        disabled={!canEdit}
+                        disabled={!canChangeStatus(t)}
                       >
                         <option value="todo">To Do</option>
                         <option value="doing">Doing</option>

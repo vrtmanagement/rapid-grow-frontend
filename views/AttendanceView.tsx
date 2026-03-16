@@ -35,6 +35,9 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const [approverLeaves, setApproverLeaves] = useState<LeaveRequest[]>([]);
   const [leaveLoading, setLeaveLoading] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
 
   const isEmployeePortal = mode === 'employee';
 
@@ -132,6 +135,8 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   };
 
   const handleLogin = async () => {
+    setLoginLoading(true);
+    setSessionError(null);
     try {
       let resolvedLocation = locationInput;
       try {
@@ -149,37 +154,51 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         headers: getAuthHeaders(),
         body: JSON.stringify({ location: resolvedLocation }),
       });
-      if (res.ok) {
-        const session = await res.json();
-        setActiveSession(session);
-        loadSummary(range);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSessionError(data.message || 'Failed to start attendance session');
+        return;
       }
+      const session = await res.json();
+      setActiveSession(session);
+      loadSummary(range);
     } catch (e) {
       console.error('Failed to start attendance session', e);
+      setSessionError('Failed to start attendance session');
+    } finally {
+      setLoginLoading(false);
     }
   };
 
   const handleLogout = async () => {
+    setLogoutLoading(true);
+    setSessionError(null);
     try {
       const res = await fetch(`${API_BASE}/attendance/logout`, {
         method: 'POST',
         headers: getAuthHeaders(),
       });
-      if (res.ok) {
-        const session = await res.json();
-        setActiveSession(null);
-        setSummary((prev) => {
-          if (!prev) return prev;
-          const updatedDays = prev.days.map((d) => ({
-            ...d,
-            sessions: d.sessions.map((s) => (s._id === session._id ? session : s)),
-          }));
-          return { ...prev, days: updatedDays };
-        });
-        loadSummary(range);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSessionError(data.message || 'Failed to stop attendance session');
+        return;
       }
+      const session = await res.json();
+      setActiveSession(null);
+      setSummary((prev) => {
+        if (!prev) return prev;
+        const updatedDays = prev.days.map((d) => ({
+          ...d,
+          sessions: d.sessions.map((s) => (s._id === session._id ? session : s)),
+        }));
+        return { ...prev, days: updatedDays };
+      });
+      loadSummary(range);
     } catch (e) {
       console.error('Failed to stop attendance session', e);
+      setSessionError('Failed to stop attendance session');
+    } finally {
+      setLogoutLoading(false);
     }
   };
 
@@ -266,6 +285,9 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
             onLocationChange={setLocationInput}
             onLogin={handleLogin}
             onLogout={handleLogout}
+            loginLoading={loginLoading}
+            logoutLoading={logoutLoading}
+            errorMessage={sessionError}
           />
           <AttendanceLeavePanel
             leaveStart={leaveStart}
