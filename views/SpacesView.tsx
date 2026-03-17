@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { Plus, MessageSquareText, RefreshCw, MoreVertical, Pencil, Eye } from 'lucide-react';
+import { getSocket } from '../realtime/socket';
 
 type SpacesMode = 'employee' | 'manager';
 type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | string;
@@ -199,6 +200,18 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
 
   useEffect(() => {
     loadSpaces();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const onTaskCreated = () => {
+      loadSpaces();
+    };
+    socket.on('spaces:task_created', onTaskCreated);
+    return () => {
+      socket.off('spaces:task_created', onTaskCreated);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

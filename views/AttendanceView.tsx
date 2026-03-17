@@ -6,6 +6,7 @@ import AttendancePresenceChart from '../components/attendance/AttendancePresence
 import AttendanceLiveSession from '../components/attendance/AttendanceLiveSession';
 import AttendanceLeavePanel from '../components/attendance/AttendanceLeavePanel';
 import AttendanceHistoryModal from '../components/attendance/AttendanceHistoryModal';
+import { getSocket } from '../realtime/socket';
 import {
   AttendanceSession,
   AttendanceSummaryResponse,
@@ -116,6 +117,20 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     loadSummary(range);
     loadLeaves();
   }, [range]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const onLeaveChanged = () => {
+      loadLeaves();
+    };
+    socket.on('leave:created', onLeaveChanged);
+    socket.on('leave:updated', onLeaveChanged);
+    return () => {
+      socket.off('leave:created', onLeaveChanged);
+      socket.off('leave:updated', onLeaveChanged);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getBrowserLocation = async (): Promise<string | null> => {
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return null;
