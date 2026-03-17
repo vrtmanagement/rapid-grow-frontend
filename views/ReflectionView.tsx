@@ -1,6 +1,7 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { PlanningState } from '../types';
+import { API_BASE, getAuthHeaders } from '../config/api';
 import { BrainCircuit, Zap, AlertCircle, Sparkles, Send, ShieldCheck } from 'lucide-react';
 
 interface Props {
@@ -8,7 +9,48 @@ interface Props {
   updateState: (updater: (prev: PlanningState) => PlanningState) => void;
 }
 
+interface ReflectionRecord {
+  _id: string;
+  empId: string;
+  empName: string;
+  role: string;
+  accomplishments: string;
+  challenges: string;
+  unfinished: string;
+  energyPeaks: string;
+  bigRocksTomorrow: string;
+  date: string;
+  createdAt: string;
+  updatedAt?: string;
+  lastEditedByName?: string;
+  lastEditedByEmpId?: string;
+}
+
 const ReflectionView: React.FC<Props> = ({ state, updateState }) => {
+  const [saving, setSaving] = useState(false);
+  const [records, setRecords] = useState<ReflectionRecord[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [scope, setScope] = useState<'me' | 'all' | 'team'>('me');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<ReflectionRecord | null>(null);
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const currentEmpId = (() => {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('rapidgrow-admin') : null;
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed?.employee?.empId || null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const myTodayRecord = currentEmpId
+    ? records.find(r => r.empId === currentEmpId && r.date === todayKey) || null
+    : null;
+
   const handleChange = (key: keyof typeof state.reflection, val: string) => {
     updateState(prev => ({
       ...prev,
@@ -16,11 +58,143 @@ const ReflectionView: React.FC<Props> = ({ state, updateState }) => {
     }));
   };
 
+  const loadReflections = async (scopeOverride?: 'me' | 'all' | 'team') => {
+    try {
+      setLoadingList(true);
+      setError(null);
+      const scopeToUse = scopeOverride || scope;
+      const params = new URLSearchParams();
+      params.set('scope', scopeToUse);
+      const res = await fetch(`${API_BASE}/reflections?${params.toString()}`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to load reflections');
+      }
+      const data = await res.json();
+      setRecords(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      console.error(e);
+      setError(e.message || 'Failed to load reflections');
+    } finally {
+      setLoadingList(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      if (!editingId && myTodayRecord) {
+        setError('You already submitted today’s report. Use Edit to update it.');
+        return;
+      }
+      const body = {
+        accomplishments: state.reflection.accomplishments,
+        mistakes: state.reflection.mistakes,
+        forgotten: state.reflection.forgotten,
+        energyPeaks: state.reflection.energyPeaks,
+        bigRocksTomorrow: state.reflection.bigRocksTomorrow,
+      };
+      const url = editingId
+        ? `${API_BASE}/reflections/${editingId}`
+        : `${API_BASE}/reflections`;
+      const method = editingId ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to save reflection');
+      }
+      // Clear form after save and reload list
+      updateState(prev => ({
+        ...prev,
+        reflection: {
+          ...prev.reflection,
+          accomplishments: '',
+          mistakes: '',
+          forgotten: '',
+          energyPeaks: '',
+          bigRocksTomorrow: '',
+        },
+      }));
+      setEditingId(null);
+      await loadReflections();
+    } catch (e: any) {
+      console.error(e);
+      setError(e.message || 'Failed to save reflection');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isAdmin = state.currentUser.role === 'Admin';
+  const isLeader = state.currentUser.role === 'Leader';
+  const isEmployee = state.currentUser.role === 'Employee';
+
+  const canEditOrDelete = (record: ReflectionRecord) => {
+    if (isAdmin) return true;
+    if (!isLeader && !isEmployee) return false;
+    if (record.date !== todayKey) return false;
+    // Team lead can view employees but cannot edit/delete employees (admin only).
+    if (isLeader && currentEmpId && record.empId !== currentEmpId) return false;
+    if (isEmployee && currentEmpId && record.empId !== currentEmpId) return false;
+    return true;
+  };
+
+  const handleEditClick = (record: ReflectionRecord) => {
+    if (!canEditOrDelete(record)) return;
+    setEditingId(record._id);
+    updateState(prev => ({
+      ...prev,
+      reflection: {
+        ...prev.reflection,
+        accomplishments: record.accomplishments || '',
+        mistakes: record.challenges || '',
+        forgotten: record.unfinished || '',
+        energyPeaks: record.energyPeaks || '',
+        bigRocksTomorrow: record.bigRocksTomorrow || '',
+      },
+    }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteClick = async (record: ReflectionRecord) => {
+    if (!canEditOrDelete(record)) return;
+    try {
+      setError(null);
+      const res = await fetch(`${API_BASE}/reflections/${record._id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to delete reflection');
+      }
+      if (editingId === record._id) {
+        setEditingId(null);
+      }
+      await loadReflections();
+    } catch (e: any) {
+      console.error(e);
+      setError(e.message || 'Failed to delete reflection');
+    }
+  };
+
+  useEffect(() => {
+    loadReflections();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="max-w-6xl mx-auto space-y-12 pb-24 animate-in fade-in duration-700">
       <div className="bg-slate-900 text-white p-8 rounded-2xl flex items-center justify-center gap-8 text-[12px] shadow-2xl border border-white/5 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-red"></div>
-        <span className="text-brand-red">VRT Review Protocol</span>
+        <span className="text-brand-red">Daily Reflection</span>
         <div className="h-1 w-16 bg-brand-red/20 rounded-full"></div>
         <span className="opacity-60">{state.uiConfig.reflectionSub}</span>
       </div>
@@ -29,34 +203,34 @@ const ReflectionView: React.FC<Props> = ({ state, updateState }) => {
         <div className="lg:col-span-8 space-y-8">
           <div className="bg-white p-16 rounded-[3rem] border border-slate-200 shadow-sm space-y-12 group hover:border-brand-red/30 transition-all">
             <h2 className="text-4xl text-slate-900 flex items-center gap-6">
-              Executive Debrief
+              End of Day Report
               <Sparkles className="text-brand-red" size={32} />
             </h2>
 
             <ReflectionField 
-              label="Mission Accomplishments + Strategy Validation"
-              helper="Quantifiable progress leads to momentum"
+              label="What did you accomplish today?"
+              helper="List the key tasks you completed or moved forward. Making progress is the single biggest motivator."
               value={state.reflection.accomplishments}
               onChange={(v) => handleChange('accomplishments', v)}
               icon={<Zap className="text-brand-red" size={24} />}
             />
 
             <ReflectionField 
-              label="Operational Errors + Learning Synthesis"
+              label="What didn’t go well? What did you learn?"
               value={state.reflection.mistakes}
               onChange={(v) => handleChange('mistakes', v)}
               icon={<AlertCircle className="text-brand-red" size={24} />}
             />
 
             <ReflectionField 
-              label="Deferred Tasks + System Failures"
+              label="What was left unfinished or deferred?"
               value={state.reflection.forgotten}
               onChange={(v) => handleChange('forgotten', v)}
               icon={<ShieldCheck className="text-slate-800" size={24} />}
             />
 
             <ReflectionField 
-              label="Peak Energy Analysis"
+              label="When did you feel most energized?"
               value={state.reflection.energyPeaks}
               onChange={(v) => handleChange('energyPeaks', v)}
               icon={<BrainCircuit className="text-brand-red" size={24} />}
@@ -65,13 +239,13 @@ const ReflectionView: React.FC<Props> = ({ state, updateState }) => {
             <div className="bg-red-50 p-10 rounded-[2.5rem] border-4 border-brand-red/10">
                <label className="flex items-center gap-3 text-md text-brand-red mb-6">
                  <Send className="text-brand-red -rotate-45" size={20} />
-                 Tactical Prioritization For Next Cycle
+                 Top priorities for tomorrow
                </label>
                <textarea 
                  value={state.reflection.bigRocksTomorrow}
                  onChange={(e) => handleChange('bigRocksTomorrow', e.target.value)}
                  className="w-full bg-white border-2 border-brand-red/10 rounded-2xl p-8 text-lg text-slate-800 focus:border-brand-red focus:ring-[16px] focus:ring-brand-red/5 outline-none h-48 transition-all shadow-sm"
-                 placeholder="Identify the high-value movers for the next 24 hours..."
+                 placeholder="List the most important tasks you will work on tomorrow so you can start the day with clarity."
                />
             </div>
           </div>
@@ -94,19 +268,203 @@ const ReflectionView: React.FC<Props> = ({ state, updateState }) => {
           </div>
 
           <div className="bg-white p-12 rounded-[2.5rem] border border-slate-200 shadow-sm space-y-10">
-            <h3 className="text-xl text-slate-900">Performance Habits</h3>
+            <h3 className="text-xl text-slate-900">Daily Reflection Habits</h3>
             <ul className="space-y-8">
-              <HabitItem text="Verify next day strategy twice before cycle close." />
-              <HabitItem text="Mentally simulate successful mission completion." />
-              <HabitItem text="Transmit gratitude alert to high-impact personnel." />
+              <HabitItem text="Write what you accomplished today so you end the day with a sense of completion." />
+              <HabitItem text="Note when you felt most energized so you can design more of those moments." />
+              <HabitItem text="Capture your top action items for tomorrow before you log off." />
+              <HabitItem text="Send a quick thank you message or email to someone (including yourself) who deserves it." />
             </ul>
-            <button className="w-full mt-6 flex items-center justify-center gap-4 bg-brand-red text-white py-6 rounded-2xl text-md shadow-2xl hover:bg-slate-900 transition-all active:scale-95">
+            {error && (
+              <p className="mt-3 text-xs text-red-500">
+                {error}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || (!!myTodayRecord && !editingId)}
+              className="w-full mt-6 flex items-center justify-center gap-4 bg-brand-red text-white py-6 rounded-2xl text-md shadow-2xl hover:bg-slate-900 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
               <Send size={24} className="-rotate-45" />
-              Transmit Report
+              {saving ? 'Saving...' : editingId ? 'Save Updates' : 'Save Daily Report'}
             </button>
           </div>
         </div>
       </div>
+
+      <div className="mt-12 bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-10 space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <h3 className="text-xl font-semibold text-slate-900">
+              Daily Reflection Log
+            </h3>
+            {(isAdmin || isLeader) && (
+              <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScope('me');
+                    loadReflections('me');
+                  }}
+                  className={`px-3 py-1 rounded-full ${scope === 'me' ? 'bg-slate-900 text-white' : 'text-slate-700'}`}
+                >
+                  Me
+                </button>
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScope('all');
+                      loadReflections('all');
+                    }}
+                    className={`px-3 py-1 rounded-full ${scope === 'all' ? 'bg-brand-red text-white' : 'text-slate-700'}`}
+                  >
+                    All logs
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScope('team');
+                      loadReflections('team');
+                    }}
+                    className={`px-3 py-1 rounded-full ${scope === 'team' ? 'bg-brand-red text-white' : 'text-slate-700'}`}
+                  >
+                    Employee logs
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          {loadingList && (
+            <span className="text-xs text-slate-500">Loading...</span>
+          )}
+        </div>
+        {records.length === 0 && !loadingList && (
+          <p className="text-sm text-slate-500">
+            No reflections logged yet. Save your first daily report above.
+          </p>
+        )}
+        <div className="space-y-4">
+          {records.map((r) => (
+            <div
+              key={r._id}
+              className="border border-slate-200 rounded-2xl p-6 bg-slate-50"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-slate-900">
+                    {r.empName} ({r.empId})
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {r.role} • {r.date}
+                  </span>
+                  {r.updatedAt && r.updatedAt !== r.createdAt && (
+                    <span className="mt-1 inline-flex items-center text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                      Edited{r.lastEditedByName ? ` by ${r.lastEditedByName}` : ''}
+                    </span>
+                  )}
+                </div>
+                {canEditOrDelete(r) && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => handleEditClick(r)}
+                      className="px-3 py-1 rounded-full border border-slate-300 text-slate-700 hover:bg-slate-100"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(r)}
+                      className="px-3 py-1 rounded-full border border-red-300 text-red-600 hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="grid md:grid-cols-2 gap-4 text-sm text-slate-700">
+                {r.accomplishments && (
+                  <div>
+                    <span className="font-semibold block mb-1">
+                      Today&apos;s accomplishments
+                    </span>
+                    <p className="whitespace-pre-line">{r.accomplishments}</p>
+                  </div>
+                )}
+                {r.challenges && (
+                  <div>
+                    <span className="font-semibold block mb-1">
+                      Challenges / learnings
+                    </span>
+                    <p className="whitespace-pre-line">{r.challenges}</p>
+                  </div>
+                )}
+                {r.unfinished && (
+                  <div>
+                    <span className="font-semibold block mb-1">
+                      Unfinished / deferred
+                    </span>
+                    <p className="whitespace-pre-line">{r.unfinished}</p>
+                  </div>
+                )}
+                {r.energyPeaks && (
+                  <div>
+                    <span className="font-semibold block mb-1">
+                      Energy peaks
+                    </span>
+                    <p className="whitespace-pre-line">{r.energyPeaks}</p>
+                  </div>
+                )}
+                {r.bigRocksTomorrow && (
+                  <div className="md:col-span-2">
+                    <span className="font-semibold block mb-1">
+                      Priorities for tomorrow
+                    </span>
+                    <p className="whitespace-pre-line">
+                      {r.bigRocksTomorrow}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-2xl p-6">
+            <h4 className="text-lg font-semibold text-slate-900">Delete reflection?</h4>
+            <p className="mt-2 text-sm text-slate-600">
+              Are you sure you want to delete this daily reflection log for{' '}
+              <span className="font-semibold text-slate-800">{confirmDelete.date}</span>?
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const toDelete = confirmDelete;
+                  setConfirmDelete(null);
+                  await handleDeleteClick(toDelete);
+                }}
+                className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700"
+              >
+                Yes, delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
