@@ -21,7 +21,7 @@ interface Props {
 }
 
 const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
-  const [range, setRange] = useState<Range>('day');
+  const [range, setRange] = useState<Range>(() => (mode === 'employee' ? 'month' : 'day'));
   const [summary, setSummary] = useState<AttendanceSummaryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -54,6 +54,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   }
 
   const isBackendAdminRole = backendRole === 'ADMIN' || backendRole === 'SUPER_ADMIN';
+  const isBackendApproverRole = isBackendAdminRole || backendRole === 'TEAM_LEAD';
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -94,17 +95,24 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         const data = await myRes.json();
         setMyLeaves(Array.isArray(data) ? data : []);
       }
-      const pendingRes = await fetch(`${API_BASE}/leaves/pending`, { headers });
-      if (pendingRes.ok) {
-        const data = await pendingRes.json();
-        setPendingLeaves(Array.isArray(data) ? data : []);
-      }
-      const approverRes = await fetch(`${API_BASE}/leaves/for-approver`, {
-        headers,
-      });
-      if (approverRes.ok) {
-        const data = await approverRes.json();
-        setApproverLeaves(Array.isArray(data) ? data : []);
+
+      // Approver-only endpoints (avoid 403 spam in employee portal)
+      if (isBackendApproverRole) {
+        const pendingRes = await fetch(`${API_BASE}/leaves/pending`, { headers });
+        if (pendingRes.ok) {
+          const data = await pendingRes.json();
+          setPendingLeaves(Array.isArray(data) ? data : []);
+        }
+        const approverRes = await fetch(`${API_BASE}/leaves/for-approver`, {
+          headers,
+        });
+        if (approverRes.ok) {
+          const data = await approverRes.json();
+          setApproverLeaves(Array.isArray(data) ? data : []);
+        }
+      } else {
+        setPendingLeaves([]);
+        setApproverLeaves([]);
       }
     } catch (e) {
       console.error('Failed to load leaves', e);

@@ -205,12 +205,65 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
 
   useEffect(() => {
     const socket = getSocket();
-    const onTaskCreated = () => {
-      loadSpaces();
+    const onSpacesChanged = (payload: any) => {
+      const action = payload?.action as string | undefined;
+
+      if (payload?.columns && (action === 'column_added' || action === 'column_deleted')) {
+        const cols = Array.isArray(payload.columns) ? payload.columns : [];
+        setColumns(cols);
+        if (action === 'column_deleted' && payload?.columnId) {
+          const deletedId = String(payload.columnId);
+          setTasks((prev) =>
+            prev.map((t) => {
+              const cf = t.customFields || {};
+              if (!(deletedId in cf)) return t;
+              const { [deletedId]: _omit, ...rest } = cf;
+              return { ...t, customFields: rest };
+            }),
+          );
+        }
+        return;
+      }
+
+      if (action === 'task_created' && payload?.task) {
+        const task = payload.task as SpacesTask;
+        setTasks((prev) => (prev.some((t) => t.taskId === task.taskId) ? prev : [task, ...prev]));
+        return;
+      }
+
+      if (action === 'task_updated' && payload?.task) {
+        const task = payload.task as SpacesTask;
+        setTasks((prev) => prev.map((t) => (t.taskId === task.taskId ? task : t)));
+        return;
+      }
+
+      if (action === 'task_deleted' && payload?.taskId) {
+        const taskId = String(payload.taskId);
+        setTasks((prev) => prev.filter((t) => t.taskId !== taskId));
+        return;
+      }
+
+      if (
+        (action === 'comment_added' || action === 'comment_updated' || action === 'comment_deleted') &&
+        payload?.taskId &&
+        payload?.comments
+      ) {
+        const taskId = String(payload.taskId);
+        const comments = Array.isArray(payload.comments) ? payload.comments : [];
+        setTasks((prev) =>
+          prev.map((t) => (t.taskId === taskId ? ({ ...t, comments } as SpacesTask) : t)),
+        );
+        return;
+      }
     };
-    socket.on('spaces:task_created', onTaskCreated);
+
+    // Keep legacy event (no payload) but no API refresh: we'll ignore it.
+    const noop = () => {};
+    socket.on('spaces:task_created', noop);
+    socket.on('spaces:changed', onSpacesChanged);
     return () => {
-      socket.off('spaces:task_created', onTaskCreated);
+      socket.off('spaces:task_created', noop);
+      socket.off('spaces:changed', onSpacesChanged);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
