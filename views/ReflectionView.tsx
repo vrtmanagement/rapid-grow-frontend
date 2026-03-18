@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { PlanningState } from '../types';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { BrainCircuit, Zap, AlertCircle, Sparkles, Send, ShieldCheck } from 'lucide-react';
+import { getSocket } from '../realtime/socket';
 
 interface Props {
   state: PlanningState;
@@ -32,10 +33,12 @@ const ReflectionView: React.FC<Props> = ({ state, updateState }) => {
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<'me' | 'all' | 'team'>('me');
+  const [logFilter, setLogFilter] = useState<'today' | 'yesterday' | 'all'>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ReflectionRecord | null>(null);
 
   const todayKey = new Date().toISOString().slice(0, 10);
+  const yesterdayKey = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const currentEmpId = (() => {
     const raw = typeof window !== 'undefined' ? localStorage.getItem('rapidgrow-admin') : null;
     if (!raw) return null;
@@ -50,6 +53,12 @@ const ReflectionView: React.FC<Props> = ({ state, updateState }) => {
   const myTodayRecord = currentEmpId
     ? records.find(r => r.empId === currentEmpId && r.date === todayKey) || null
     : null;
+
+  const displayedRecords = records.filter((r) => {
+    if (logFilter === 'today') return r.date === todayKey;
+    if (logFilter === 'yesterday') return r.date === yesterdayKey;
+    return true;
+  });
 
   const handleChange = (key: keyof typeof state.reflection, val: string) => {
     updateState(prev => ({
@@ -190,6 +199,49 @@ const ReflectionView: React.FC<Props> = ({ state, updateState }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const socket = getSocket();
+    const onChanged = (payload: any) => {
+      const action = payload?.action;
+      const reflection = payload?.reflection as ReflectionRecord | undefined;
+      const reflectionId = payload?.reflectionId as string | undefined;
+
+      const currentUserRole = (state.currentUser?.role || '').toString();
+      const scopeToUse = scope;
+
+      const isMeScope = scopeToUse === 'me';
+      const shouldInclude = (r: ReflectionRecord): boolean => {
+        if (!currentEmpId) return true;
+        if (isMeScope) return r.empId === currentEmpId;
+        // For team/all scopes we accept pushed updates and rely on server-side auth;
+        // keep a minimal guard to avoid showing other-employee logs to employees.
+        if (currentUserRole === 'Employee') return r.empId === currentEmpId;
+        return true;
+      };
+
+      setRecords((prev) => {
+        if (action === 'deleted') {
+          if (!reflectionId) return prev;
+          return prev.filter((r) => r._id !== reflectionId);
+        }
+
+        if (!reflection) return prev;
+        if (!shouldInclude(reflection)) return prev;
+
+        const idx = prev.findIndex((r) => r._id === reflection._id);
+        const next = idx === -1 ? [reflection, ...prev] : prev.map((r) => (r._id === reflection._id ? reflection : r));
+        // match list sorting (newest first)
+        return next.slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      });
+    };
+
+    socket.on('reflections:changed', onChanged);
+    return () => {
+      socket.off('reflections:changed', onChanged);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="max-w-6xl mx-auto space-y-12 pb-24 animate-in fade-in duration-700">
       <div className="bg-slate-900 text-white p-8 rounded-2xl flex items-center justify-center gap-8 text-[12px] shadow-2xl border border-white/5 relative overflow-hidden">
@@ -299,6 +351,29 @@ const ReflectionView: React.FC<Props> = ({ state, updateState }) => {
             <h3 className="text-xl font-semibold text-slate-900">
               Daily Reflection Log
             </h3>
+            <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setLogFilter('today')}
+                className={`px-3 py-1 rounded-full ${logFilter === 'today' ? 'bg-slate-900 text-white' : 'text-slate-700'}`}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogFilter('yesterday')}
+                className={`px-3 py-1 rounded-full ${logFilter === 'yesterday' ? 'bg-slate-900 text-white' : 'text-slate-700'}`}
+              >
+                Yesterday
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogFilter('all')}
+                className={`px-3 py-1 rounded-full ${logFilter === 'all' ? 'bg-slate-900 text-white' : 'text-slate-700'}`}
+              >
+                All logs
+              </button>
+            </div>
             {(isAdmin || isLeader) && (
               <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1 text-xs">
                 <button
@@ -341,13 +416,13 @@ const ReflectionView: React.FC<Props> = ({ state, updateState }) => {
             <span className="text-xs text-slate-500">Loading...</span>
           )}
         </div>
-        {records.length === 0 && !loadingList && (
+        {displayedRecords.length === 0 && !loadingList && (
           <p className="text-sm text-slate-500">
             No reflections logged yet. Save your first daily report above.
           </p>
         )}
         <div className="space-y-4">
-          {records.map((r) => (
+          {displayedRecords.map((r) => (
             <div
               key={r._id}
               className="border border-slate-200 rounded-2xl p-6 bg-slate-50"
