@@ -27,6 +27,7 @@ import SpacesView from './views/SpacesView';
 import FeedbackView from './views/FeedbackView';
 import AttendanceView from './views/AttendanceView';
 import StaffView from './views/StaffView';
+import CommunicationView from './communication/views/CommunicationView';
 
 const SUPER_ADMIN_EMAIL = 'superadmin@example.com';
 
@@ -288,7 +289,7 @@ const App: React.FC = () => {
             </div>
             <nav className="flex-1 min-h-0 py-6 space-y-2 overflow-y-auto overflow-x-hidden px-4">
               <SidebarLink to="/" icon={<LayoutDashboard size={20} />} label={state.uiConfig.dashboardTitle} collapsed={false} />
-              <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={false} />
+              <SidebarLink to="/spaces" icon={<Database size={20} />} label="TaskHub" collapsed={false} />
               <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={false} />
               <div className="h-px bg-white/5 mx-4 my-6"></div>
               <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={false} />
@@ -299,6 +300,7 @@ const App: React.FC = () => {
               <SidebarLink to="/daily" icon={<Clock size={20}/>} label={state.uiConfig.dailyTitle} collapsed={false} />
               <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={false} />
               <div className="h-px bg-white/5 mx-4 my-6"></div>
+              <SidebarLink to="/communication" icon={<Mail size={20}/>} label="Communication" collapsed={false} />
               <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={false} />
             </nav>
           </aside>
@@ -367,6 +369,7 @@ const App: React.FC = () => {
                 <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} />} />
                 <Route path="/daily" element={<DailyView state={state} updateState={updateState} />} />
                 <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} />} />
+                <Route path="/communication" element={<CommunicationView />} />
                 <Route path="/staff" element={<StaffView />} />
               </Routes>
             </div>
@@ -416,6 +419,7 @@ const App: React.FC = () => {
               </>
             )}
             <SidebarLink to="/employees/add" icon={<UserPlus size={20}/>} label={isSuperAdmin ? 'Add Branch' : 'Add Employee'} collapsed={!isSidebarOpen} />
+            <SidebarLink to="/communication" icon={<Mail size={20}/>} label="Communication" collapsed={!isSidebarOpen} />
             {isAdmin && (
               <SidebarLink to="/feedback" icon={<Mail size={20}/>} label="Feedback" collapsed={!isSidebarOpen} />
             )}
@@ -488,6 +492,7 @@ const App: React.FC = () => {
               <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} />} />
               <Route path="/daily" element={<DailyView state={state} updateState={updateState} />} />
               <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} />} />
+                <Route path="/communication" element={<CommunicationView />} />
               {isAdmin && <Route path="/feedback" element={<FeedbackView />} />}
               <Route path="/staff" element={<StaffView />} />
             </Routes>
