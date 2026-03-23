@@ -14,12 +14,24 @@ function getToken(): string | null {
 }
 
 export function getSocket(): Socket {
-  if (socket) return socket;
+  const latestToken = getToken();
+  if (socket) {
+    // Keep auth token in sync across tabs/sessions so DM join doesn't fail
+    socket.auth = { token: latestToken };
+    if (!socket.connected) socket.connect();
+    return socket;
+  }
 
-  const url = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5002';
+  const configuredSocketUrl = import.meta.env.VITE_SOCKET_URL;
+  const apiBase = import.meta.env.VITE_API_URL;
+  const derivedSocketUrl =
+    typeof apiBase === 'string' && apiBase.length > 0
+      ? apiBase.replace(/\/api\/?$/, '')
+      : '';
+  const url = configuredSocketUrl || derivedSocketUrl || 'http://localhost:5002';
   socket = io(url, {
     transports: ['websocket', 'polling'],
-    auth: { token: getToken() },
+    auth: { token: latestToken },
     autoConnect: true,
     reconnection: true,
   });

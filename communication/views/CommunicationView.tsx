@@ -47,6 +47,12 @@ function CommunicationLayout() {
         ) : null}
 
         <div className="flex-1 flex flex-col min-w-0">
+          {ctx.error ? (
+            <div className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {ctx.error}
+            </div>
+          ) : null}
+
           {/* Mobile pickers */}
           <div className="lg:hidden border-b border-slate-200 bg-white px-3 py-2">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Teams</div>
