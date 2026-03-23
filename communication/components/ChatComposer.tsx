@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FileUp, Image as ImageIcon, Loader2, Paperclip, Send } from 'lucide-react';
+import { ChatMessage } from '../types';
 
 export function ChatComposer({
   conversationKey,
@@ -7,12 +8,18 @@ export function ChatComposer({
   onSendFile,
   notifyTyping,
   disabled,
+  replyToMessage,
+  onCancelReply,
+  resolveUserName,
 }: {
   conversationKey: string;
-  onSendText: (content: string) => Promise<void>;
-  onSendFile: (file: File, content?: string) => Promise<void>;
+  onSendText: (content: string, replyToMessageId?: string | null) => Promise<void>;
+  onSendFile: (file: File, content?: string, replyToMessageId?: string | null) => Promise<void>;
   notifyTyping: () => void;
   disabled: boolean;
+  replyToMessage: ChatMessage | null;
+  onCancelReply: () => void;
+  resolveUserName: (userId: string) => string;
 }) {
   const [content, setContent] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -49,15 +56,17 @@ export function ChatComposer({
       setSending(true);
       setSendError(null);
       const trimmed = content.trim();
+      const replyToMessageId = replyToMessage?.id || null;
       if (file) {
         setUploadingFile(true);
-        await onSendFile(file, trimmed || undefined);
+        await onSendFile(file, trimmed || undefined, replyToMessageId);
       } else {
-        await onSendText(trimmed);
+        await onSendText(trimmed, replyToMessageId);
       }
       setContent("");
       setFile(null);
       setFilePreviewUrl(null);
+      onCancelReply();
     } catch (e: any) {
       setSendError(e?.message || 'Failed to send');
     } finally {
@@ -115,6 +124,31 @@ export function ChatComposer({
 
       <div className="flex items-end gap-3">
         <div className="flex-1 relative">
+          {replyToMessage ? (
+            <div className="mb-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-slate-700">
+                    Replying to {resolveUserName(replyToMessage.senderId)}
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-slate-600">
+                    {replyToMessage.deleted
+                      ? 'Message deleted'
+                      : replyToMessage.type === 'text'
+                        ? replyToMessage.content || 'Text message'
+                        : replyToMessage.attachment?.fileName || 'Attachment'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onCancelReply}
+                  className="rounded-md px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
           <textarea
             value={content}
             onChange={(e) => {
@@ -122,7 +156,7 @@ export function ChatComposer({
               notifyTyping();
             }}
             onKeyDown={(e) => {
-              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+              if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 void handleSend();
               }
@@ -157,7 +191,7 @@ export function ChatComposer({
               canSend ? 'bg-brand-red text-white border-brand-red/30 hover:opacity-95' : 'bg-white border-slate-200 text-slate-300'
             }`}
             aria-label="Send message"
-            title="Send (Ctrl/Cmd + Enter)"
+            title="Send (Enter)"
           >
             {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
           </button>

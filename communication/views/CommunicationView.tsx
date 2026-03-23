@@ -1,9 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CommunicationProvider, useCommunication } from '../context/CommunicationContext';
 import { ChatSidebar } from '../components/ChatSidebar';
 import { ChatMessages } from '../components/ChatMessages';
 import { ChatComposer } from '../components/ChatComposer';
 import { Mail } from 'lucide-react';
+import { ChatMessage } from '../types';
 
 function CommunicationLayout() {
   const ctx = useCommunication();
@@ -27,6 +28,12 @@ function CommunicationLayout() {
 
   const selectedTitle = selectedConversation?.title || 'Select a conversation';
   const canCompose = !!currentUser && !!selectedConversationKey;
+  const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
+  useEffect(() => {
+    setReplyToMessage(null);
+  }, [selectedConversationKey]);
+
+  const resolveUserName = (userId: string) => usersById.get(userId)?.name || 'User';
 
   return (
     <div className="h-[calc(100%+8rem)] w-[calc(100%+8rem)] -mx-16 -my-16 bg-white overflow-hidden">
@@ -170,6 +177,7 @@ function CommunicationLayout() {
               usersById={usersById}
               onEditMessage={(messageId, conversationKey, newContent) => ctx.editMessage(messageId, conversationKey, newContent)}
               onDeleteMessage={(messageId, conversationKey) => ctx.deleteMessage(messageId, conversationKey)}
+              onReplyMessage={(message) => setReplyToMessage(message)}
             />
           )}
 
@@ -179,8 +187,11 @@ function CommunicationLayout() {
               conversationKey={selectedConversationKey!}
               disabled={messagesLoading}
               notifyTyping={() => ctx.notifyTyping(selectedConversationKey!)}
-              onSendText={(content) => ctx.sendText(selectedConversationKey!, content)}
-              onSendFile={(file, content) => ctx.sendFile(selectedConversationKey!, file, content)}
+              onSendText={(content, replyId) => ctx.sendText(selectedConversationKey!, content, replyId)}
+              onSendFile={(file, content, replyId) => ctx.sendFile(selectedConversationKey!, file, content, replyId)}
+              replyToMessage={replyToMessage}
+              onCancelReply={() => setReplyToMessage(null)}
+              resolveUserName={resolveUserName}
             />
           ) : null}
         </div>
