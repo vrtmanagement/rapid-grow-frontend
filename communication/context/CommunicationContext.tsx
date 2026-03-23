@@ -60,10 +60,11 @@ function ensureSocketConnected(socket: any, timeoutMs = 5000): Promise<void> {
       socket.off('connect_error', onConnectError);
       resolve();
     };
-    const onConnectError = () => {
+    const onConnectError = (err?: any) => {
+      const reason = err?.message || err?.description || 'Socket connection failed';
       window.clearTimeout(timeout);
       socket.off('connect', onConnect);
-      reject(new Error('Socket connection failed'));
+      reject(new Error(reason));
     };
 
     socket.once('connect', onConnect);
