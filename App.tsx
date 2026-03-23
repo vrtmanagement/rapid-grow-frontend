@@ -28,8 +28,18 @@ import FeedbackView from './views/FeedbackView';
 import AttendanceView from './views/AttendanceView';
 import StaffView from './views/StaffView';
 import CommunicationView from './communication/views/CommunicationView';
+import PermissionsView from './views/PermissionsView';
+import { mapBackendRoleToUiRole } from './config/permissions';
+import { usePermissions } from './context/PermissionContext';
+import AccessDenied from './components/AccessDenied';
 
 const SUPER_ADMIN_EMAIL = 'superadmin@example.com';
+const DEFAULT_POWERS: Record<string, string[]> = {
+  SUPER_ADMIN: ['EMPLOYEE_CREATE', 'EMPLOYEE_UPDATE', 'EMPLOYEE_DELETE', 'EMPLOYEE_LIST', 'DASHBOARD_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'FEEDBACK_VIEW', 'STAFF_VIEW', 'PERMISSIONS_MANAGE'],
+  ADMIN: ['EMPLOYEE_CREATE', 'EMPLOYEE_UPDATE', 'EMPLOYEE_DELETE', 'EMPLOYEE_LIST', 'DASHBOARD_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'FEEDBACK_VIEW', 'STAFF_VIEW', 'PERMISSIONS_MANAGE'],
+  TEAM_LEAD: ['EMPLOYEE_CREATE', 'EMPLOYEE_UPDATE', 'EMPLOYEE_LIST', 'DASHBOARD_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'STAFF_VIEW'],
+  EMPLOYEE: ['DASHBOARD_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'STAFF_VIEW'],
+};
 
 const DEFAULT_UI_CONFIG: UIConfig = {
   sidebarLogoName: "Rapid Grow",
@@ -106,6 +116,7 @@ const EMPTY_PROFILE: ProfileData = {
 };
 
 const App: React.FC = () => {
+  const { permissions, hasPermission, loading: permissionsLoading } = usePermissions();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -117,19 +128,12 @@ const App: React.FC = () => {
     if (adminStored) {
       try {
         const { employee } = JSON.parse(adminStored);
-        const roleMap = { SUPER_ADMIN: 'Admin', ADMIN: 'Admin', TEAM_LEAD: 'Leader', EMPLOYEE: 'Employee' };
-        const powersMap: Record<string, string[]> = {
-          SUPER_ADMIN: ['PROJECT_CREATE', 'PROJECT_DELETE', 'PROJECT_LAUNCH', 'TASK_AI_GENERATE', 'UI_EDIT', 'TEAM_MANAGE', 'VIEW_REPORTS', 'EDIT_STRATEGY'],
-          ADMIN: ['PROJECT_CREATE', 'PROJECT_DELETE', 'PROJECT_LAUNCH', 'TASK_AI_GENERATE', 'TEAM_MANAGE'],
-          TEAM_LEAD: ['PROJECT_CREATE', 'PROJECT_LAUNCH', 'TASK_AI_GENERATE'],
-          EMPLOYEE: [],
-        };
         setState(prev => ({
           ...prev,
             currentUser: {
               id: employee._id || employee.empId,
               name: employee.empName || 'Admin',
-              role: roleMap[employee.role as keyof typeof roleMap] || 'Employee',
+              role: mapBackendRoleToUiRole(employee.role),
               email: employee.email || '',
               avatar:
                 employee.avatar && typeof employee.avatar === 'string' && employee.avatar.trim()
@@ -137,7 +141,7 @@ const App: React.FC = () => {
                   : `https://api.dicebear.com/7.x/avataaars/svg?seed=${(employee.empName || 'Admin').replace(/\s/g, '')}`,
               status: 'Active',
               isVerified: true,
-              powers: powersMap[employee.role as keyof typeof powersMap] || [],
+              powers: DEFAULT_POWERS[employee.role as keyof typeof DEFAULT_POWERS] || [],
             },
         }));
       } catch (_e) { /* ignore */ }
@@ -215,17 +219,10 @@ const App: React.FC = () => {
         if (adminStored) {
           try {
             const { employee } = JSON.parse(adminStored);
-            const roleMap = { SUPER_ADMIN: 'Admin', ADMIN: 'Admin', TEAM_LEAD: 'Leader', EMPLOYEE: 'Employee' };
-            const powersMap: Record<string, string[]> = {
-              SUPER_ADMIN: ['PROJECT_CREATE', 'PROJECT_DELETE', 'PROJECT_LAUNCH', 'TASK_AI_GENERATE', 'UI_EDIT', 'TEAM_MANAGE', 'VIEW_REPORTS', 'EDIT_STRATEGY'],
-              ADMIN: ['PROJECT_CREATE', 'PROJECT_DELETE', 'PROJECT_LAUNCH', 'TASK_AI_GENERATE', 'TEAM_MANAGE'],
-              TEAM_LEAD: ['PROJECT_CREATE', 'PROJECT_LAUNCH', 'TASK_AI_GENERATE'],
-              EMPLOYEE: [],
-            };
             currentUser = {
               id: employee._id || employee.empId,
               name: employee.empName || 'Admin',
-              role: roleMap[employee.role as keyof typeof roleMap] || 'Employee',
+              role: mapBackendRoleToUiRole(employee.role),
               email: employee.email || '',
               avatar:
                 employee.avatar && typeof employee.avatar === 'string' && employee.avatar.trim()
@@ -233,7 +230,7 @@ const App: React.FC = () => {
                   : `https://api.dicebear.com/7.x/avataaars/svg?seed=${(employee.empName || 'Admin').replace(/\s/g, '')}`,
               status: 'Active',
               isVerified: true,
-              powers: powersMap[employee.role as keyof typeof powersMap] || [],
+              powers: DEFAULT_POWERS[employee.role as keyof typeof DEFAULT_POWERS] || [],
             };
           } catch (_e) { /* ignore */ }
         }
@@ -243,6 +240,16 @@ const App: React.FC = () => {
       }
     }
   }, []);
+
+  useEffect(() => {
+    setState(prev => ({
+      ...prev,
+      currentUser: {
+        ...prev.currentUser,
+        powers: Array.isArray(permissions) ? permissions : [],
+      },
+    }));
+  }, [permissions]);
 
   useEffect(() => {
     try {
@@ -262,7 +269,8 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const isSuperAdmin = state.currentUser.role === 'Admin' && state.currentUser.powers?.includes('EDIT_STRATEGY');
+  const hasPower = (power: string) => hasPermission(power);
+  const isSuperAdmin = state.currentUser.email === SUPER_ADMIN_EMAIL;
   const isAdmin = state.currentUser.role === 'Admin';
 
   if (isAuthenticated === null) {
@@ -271,6 +279,10 @@ const App: React.FC = () => {
 
   if (!isAuthenticated) {
     return <LoginView onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  if (permissionsLoading && state.currentUser?.id) {
+    return null;
   }
 
   if (state.currentUser.role === 'Employee') {
@@ -288,20 +300,20 @@ const App: React.FC = () => {
               </div>
             </div>
             <nav className="flex-1 min-h-0 py-6 space-y-2 overflow-y-auto overflow-x-hidden px-4">
-              <SidebarLink to="/" icon={<LayoutDashboard size={20} />} label={state.uiConfig.dashboardTitle} collapsed={false} />
-              <SidebarLink to="/spaces" icon={<Database size={20} />} label="TaskHub" collapsed={false} />
-              <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={false} />
+              {hasPower('DASHBOARD_VIEW') && <SidebarLink to="/" icon={<LayoutDashboard size={20} />} label={state.uiConfig.dashboardTitle} collapsed={false} />}
+              {hasPower('SPACES_VIEW') && <SidebarLink to="/spaces" icon={<Database size={20} />} label="TaskHub" collapsed={false} />}
+              {hasPower('ATTENDANCE_VIEW') && <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={false} />}
               <div className="h-px bg-white/5 mx-4 my-6"></div>
-              <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={false} />
-              <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={false} />
-              <SidebarLink to="/monthly" icon={<Calendar size={20}/>} label={state.uiConfig.monthlyTitle} collapsed={false} />
-              <SidebarLink to="/weekly" icon={<CheckSquare size={20}/>} label={state.uiConfig.weeklyTitle} collapsed={false} />
+              {hasPower('YEARLY_VIEW') && <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={false} />}
+              {hasPower('QUARTERLY_VIEW') && <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={false} />}
+              {hasPower('MONTHLY_VIEW') && <SidebarLink to="/monthly" icon={<Calendar size={20}/>} label={state.uiConfig.monthlyTitle} collapsed={false} />}
+              {hasPower('WEEKLY_VIEW') && <SidebarLink to="/weekly" icon={<CheckSquare size={20}/>} label={state.uiConfig.weeklyTitle} collapsed={false} />}
               <div className="h-px bg-white/5 mx-4 my-6"></div>
-              <SidebarLink to="/daily" icon={<Clock size={20}/>} label={state.uiConfig.dailyTitle} collapsed={false} />
-              <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={false} />
+              {hasPower('DAILY_VIEW') && <SidebarLink to="/daily" icon={<Clock size={20}/>} label={state.uiConfig.dailyTitle} collapsed={false} />}
+              {hasPower('REFLECTION_VIEW') && <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={false} />}
               <div className="h-px bg-white/5 mx-4 my-6"></div>
-              <SidebarLink to="/communication" icon={<Mail size={20}/>} label="Communication" collapsed={false} />
-              <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={false} />
+              {hasPower('COMMUNICATION_VIEW') && <SidebarLink to="/communication" icon={<Mail size={20}/>} label="Communication" collapsed={false} />}
+              {hasPower('STAFF_VIEW') && <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={false} />}
             </nav>
           </aside>
           <main className="flex-1 flex flex-col h-screen overflow-hidden">
@@ -357,20 +369,21 @@ const App: React.FC = () => {
             </header>
             <div className="flex-1 overflow-y-auto p-16 bg-slate-100/30">
               <Routes>
-                <Route path="/" element={<EmployeeDashboardView />} />
-                <Route path="/spaces" element={<SpacesView mode="employee" />} />
-                <Route path="/attendance" element={<AttendanceView mode="employee" />} />
-                <Route path="/profile" element={<EmployeeProfileView state={state} updateState={updateState} />} />
-                <Route path="/project/:projectId" element={<EmployeeProjectDetailView />} />
-                <Route path="/workspaces/*" element={<WorkspacesView state={state} updateState={updateState} />} />
-                <Route path="/yearly" element={<YearlyView state={state} updateState={updateState} />} />
-                <Route path="/quarterly" element={<QuarterlyView state={state} updateState={updateState} />} />
-                <Route path="/monthly" element={<MonthlyView state={state} updateState={updateState} />} />
-                <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} />} />
-                <Route path="/daily" element={<DailyView state={state} updateState={updateState} />} />
-                <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} />} />
-                <Route path="/communication" element={<CommunicationView />} />
-                <Route path="/staff" element={<StaffView />} />
+                {hasPower('DASHBOARD_VIEW') && <Route path="/" element={<EmployeeDashboardView />} />}
+                {hasPower('SPACES_VIEW') && <Route path="/spaces" element={<SpacesView mode="employee" />} />}
+                {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance" element={<AttendanceView mode="employee" />} />}
+                {hasPower('PROFILE_VIEW') && <Route path="/profile" element={<EmployeeProfileView state={state} updateState={updateState} />} />}
+                {hasPower('WORKSPACES_VIEW') && <Route path="/project/:projectId" element={<EmployeeProjectDetailView />} />}
+                {hasPower('WORKSPACES_VIEW') && <Route path="/workspaces/*" element={<WorkspacesView state={state} updateState={updateState} />} />}
+                {hasPower('YEARLY_VIEW') && <Route path="/yearly" element={<YearlyView state={state} updateState={updateState} />} />}
+                {hasPower('QUARTERLY_VIEW') && <Route path="/quarterly" element={<QuarterlyView state={state} updateState={updateState} />} />}
+                {hasPower('MONTHLY_VIEW') && <Route path="/monthly" element={<MonthlyView state={state} updateState={updateState} />} />}
+                {hasPower('WEEKLY_VIEW') && <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} />} />}
+                {hasPower('DAILY_VIEW') && <Route path="/daily" element={<DailyView state={state} updateState={updateState} />} />}
+                {hasPower('REFLECTION_VIEW') && <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} />} />}
+                {hasPower('COMMUNICATION_VIEW') && <Route path="/communication" element={<CommunicationView />} />}
+                {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView />} />}
+                <Route path="*" element={<AccessDenied />} />
               </Routes>
             </div>
           </main>
@@ -402,28 +415,33 @@ const App: React.FC = () => {
             </button>
           </div>
           <nav className="flex-1 min-h-0 py-6 space-y-2 overflow-y-auto overflow-x-hidden px-4">
-            <SidebarLink to="/" icon={<LayoutDashboard size={20}/>} label={isSuperAdmin ? 'Dashboard' : state.uiConfig.dashboardTitle} collapsed={!isSidebarOpen} />
+            {hasPower('DASHBOARD_VIEW') && <SidebarLink to="/" icon={<LayoutDashboard size={20}/>} label={isSuperAdmin ? 'Dashboard' : state.uiConfig.dashboardTitle} collapsed={!isSidebarOpen} />}
             {!isSuperAdmin && (
               <>
-                <SidebarLink to="/workspaces" icon={<Briefcase size={20}/>} label={state.uiConfig.operationsTitle} collapsed={!isSidebarOpen} />
-                <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={!isSidebarOpen} />
-                <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />
+                {hasPower('WORKSPACES_VIEW') && <SidebarLink to="/workspaces" icon={<Briefcase size={20}/>} label={state.uiConfig.operationsTitle} collapsed={!isSidebarOpen} />}
+                {hasPower('SPACES_VIEW') && <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={!isSidebarOpen} />}
+                {hasPower('ATTENDANCE_VIEW') && <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />}
                 <div className="h-px bg-white/5 mx-4 my-6"></div>
-                <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={!isSidebarOpen} />
-                <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={!isSidebarOpen} />
-                <SidebarLink to="/monthly" icon={<Calendar size={20}/>} label={state.uiConfig.monthlyTitle} collapsed={!isSidebarOpen} />
-                <SidebarLink to="/weekly" icon={<CheckSquare size={20}/>} label={state.uiConfig.weeklyTitle} collapsed={!isSidebarOpen} />
-                <SidebarLink to="/daily" icon={<Clock size={20}/>} label={state.uiConfig.dailyTitle} collapsed={!isSidebarOpen} />
-                <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={!isSidebarOpen} />
+                {hasPower('YEARLY_VIEW') && <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={!isSidebarOpen} />}
+                {hasPower('QUARTERLY_VIEW') && <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={!isSidebarOpen} />}
+                {hasPower('MONTHLY_VIEW') && <SidebarLink to="/monthly" icon={<Calendar size={20}/>} label={state.uiConfig.monthlyTitle} collapsed={!isSidebarOpen} />}
+                {hasPower('WEEKLY_VIEW') && <SidebarLink to="/weekly" icon={<CheckSquare size={20}/>} label={state.uiConfig.weeklyTitle} collapsed={!isSidebarOpen} />}
+                {hasPower('DAILY_VIEW') && <SidebarLink to="/daily" icon={<Clock size={20}/>} label={state.uiConfig.dailyTitle} collapsed={!isSidebarOpen} />}
+                {hasPower('REFLECTION_VIEW') && <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={!isSidebarOpen} />}
                 <div className="h-px bg-white/5 mx-4 my-6"></div>
               </>
             )}
-            <SidebarLink to="/employees/add" icon={<UserPlus size={20}/>} label={isSuperAdmin ? 'Add Branch' : 'Add Employee'} collapsed={!isSidebarOpen} />
-            <SidebarLink to="/communication" icon={<Mail size={20}/>} label="Communication" collapsed={!isSidebarOpen} />
+            {hasPower('EMPLOYEE_CREATE') && (
+              <SidebarLink to="/employees/add" icon={<UserPlus size={20}/>} label={isSuperAdmin ? 'Add Branch' : 'Add Employee'} collapsed={!isSidebarOpen} />
+            )}
             {isAdmin && (
+              <SidebarLink to="/permissions" icon={<ShieldAlert size={20}/>} label="Permissions" collapsed={!isSidebarOpen} />
+            )}
+            {hasPower('COMMUNICATION_VIEW') && <SidebarLink to="/communication" icon={<Mail size={20}/>} label="Communication" collapsed={!isSidebarOpen} />}
+            {isAdmin && hasPower('FEEDBACK_VIEW') && (
               <SidebarLink to="/feedback" icon={<Mail size={20}/>} label="Feedback" collapsed={!isSidebarOpen} />
             )}
-            <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={!isSidebarOpen} />
+            {hasPower('STAFF_VIEW') && <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={!isSidebarOpen} />}
           </nav>
         </aside>
 
@@ -480,21 +498,28 @@ const App: React.FC = () => {
             </header>
           <div className="flex-1 overflow-y-auto p-16 bg-slate-100/30 no-scrollbar">
             <Routes>
-              <Route path="/" element={<DashboardView state={state} />} />
-              <Route path="/spaces" element={<SpacesView mode="manager" state={state} updateState={updateState} />} />
-              <Route path="/attendance" element={<AttendanceView mode="manager" />} />
-              <Route path="/employees/add" element={<AddEmployeeView state={state} />} />
-              <Route path="/profile" element={<ProfileView state={state} updateState={updateState} />} />
-              <Route path="/workspaces/*" element={<WorkspacesView state={state} updateState={updateState} />} />
-              <Route path="/yearly" element={<YearlyView state={state} updateState={updateState} />} />
-              <Route path="/quarterly" element={<QuarterlyView state={state} updateState={updateState} />} />
-              <Route path="/monthly" element={<MonthlyView state={state} updateState={updateState} />} />
-              <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} />} />
-              <Route path="/daily" element={<DailyView state={state} updateState={updateState} />} />
-              <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} />} />
-                <Route path="/communication" element={<CommunicationView />} />
-              {isAdmin && <Route path="/feedback" element={<FeedbackView />} />}
-              <Route path="/staff" element={<StaffView />} />
+              {hasPower('DASHBOARD_VIEW') && <Route path="/" element={<DashboardView state={state} />} />}
+              {hasPower('SPACES_VIEW') && <Route path="/spaces" element={<SpacesView mode="manager" state={state} updateState={updateState} />} />}
+              {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance" element={<AttendanceView mode="manager" />} />}
+              {hasPower('EMPLOYEE_CREATE') && <Route path="/employees/add" element={<AddEmployeeView state={state} />} />}
+              {hasPower('PROFILE_VIEW') && <Route path="/profile" element={<ProfileView state={state} updateState={updateState} />} />}
+              {hasPower('WORKSPACES_VIEW') && <Route path="/workspaces/*" element={<WorkspacesView state={state} updateState={updateState} />} />}
+              {hasPower('YEARLY_VIEW') && <Route path="/yearly" element={<YearlyView state={state} updateState={updateState} />} />}
+              {hasPower('QUARTERLY_VIEW') && <Route path="/quarterly" element={<QuarterlyView state={state} updateState={updateState} />} />}
+              {hasPower('MONTHLY_VIEW') && <Route path="/monthly" element={<MonthlyView state={state} updateState={updateState} />} />}
+              {hasPower('WEEKLY_VIEW') && <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} />} />}
+              {hasPower('DAILY_VIEW') && <Route path="/daily" element={<DailyView state={state} updateState={updateState} />} />}
+              {hasPower('REFLECTION_VIEW') && <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} />} />}
+              {hasPower('COMMUNICATION_VIEW') && <Route path="/communication" element={<CommunicationView />} />}
+              {isAdmin && hasPower('FEEDBACK_VIEW') && <Route path="/feedback" element={<FeedbackView />} />}
+              {isAdmin && (
+                <Route
+                  path="/permissions"
+                  element={<PermissionsView canEdit={true} />}
+                />
+              )}
+              {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView />} />}
+              <Route path="*" element={<AccessDenied />} />
             </Routes>
           </div>
         </main>

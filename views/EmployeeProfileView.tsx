@@ -15,6 +15,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
   const [avatar, setAvatar] = useState<string>('');
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
@@ -55,17 +56,32 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
       (employee.empName || 'User').replace(/\s/g, ''),
     )}`;
 
-  const handleAvatarFileChange = (file: File | null) => {
+  const handleAvatarFileChange = async (file: File | null) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      // Use file upload only for this session (preview). Do not push large base64 to backend.
-      setAvatar(result);
+    if (!employee?._id) return;
+    setUploadingAvatar(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const headers = getAuthHeaders();
+      delete (headers as any)['Content-Type'];
+      const res = await fetch(`${API_BASE}/employees/${employee._id}/avatar`, {
+        method: 'POST',
+        headers,
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Failed to upload profile image');
+      const nextAvatar = data.avatar || '';
+      setAvatar(nextAvatar);
       setHasChanges(true);
-      syncCurrentUser({ avatar: result });
-    };
-    reader.readAsDataURL(file);
+      syncCurrentUser({ avatar: nextAvatar });
+    } catch (e: any) {
+      setError(e?.message || 'Failed to upload profile image');
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   const handleSave = async () => {
@@ -279,9 +295,11 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
                 accept="image/*"
                 onChange={e => handleAvatarFileChange(e.target.files?.[0] || null)}
                 className="block w-full text-[13px] text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[13px] file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
+                disabled={uploadingAvatar}
               />
             </div>
           </div>
+          {uploadingAvatar && <div className="text-[13px] text-slate-600">Uploading profile image...</div>}
 
           {error && (
             <div className="text-[13px] text-red-600">

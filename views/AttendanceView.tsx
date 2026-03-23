@@ -225,6 +225,18 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     }
   };
 
+  useEffect(() => {
+    if (!activeSession?.loginTime) return;
+    const timer = window.setInterval(() => {
+      const loginDay = new Date(activeSession.loginTime).toISOString().slice(0, 10);
+      const today = new Date().toISOString().slice(0, 10);
+      if (loginDay !== today) {
+        void handleLogout();
+      }
+    }, 60000);
+    return () => window.clearInterval(timer);
+  }, [activeSession?.loginTime]);
+
   const handleApplyLeave = async () => {
     if (!leaveStart || !leaveEnd) return;
     try {

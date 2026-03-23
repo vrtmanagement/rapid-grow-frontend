@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { apiCreateTeam, apiDeleteTeam, apiHistory, apiListConversations, apiListUsers, apiUpdateTeam, apiUploadFile } from '../api';
-import { ChatConversationSummary, ChatMessage, ChatUser, ChatAttachment } from '../types';
+import { ChatConversationSummary, ChatMessage, ChatUser, ChatAttachment, ChatReplyRef } from '../types';
 import { getSocket } from '../../realtime/socket';
 
 type CommunicationContextValue = {
@@ -26,8 +26,8 @@ type CommunicationContextValue = {
   updateTeam: (conversationKey: string, payload: { name?: string; memberIds?: string[] }) => Promise<void>;
   deleteTeam: (conversationKey: string) => Promise<void>;
 
-  sendText: (conversationKey: string, content: string) => Promise<void>;
-  sendFile: (conversationKey: string, file: File, content?: string) => Promise<void>;
+  sendText: (conversationKey: string, content: string, replyToMessageId?: string | null) => Promise<void>;
+  sendFile: (conversationKey: string, file: File, content?: string, replyToMessageId?: string | null) => Promise<void>;
   notifyTyping: (conversationKey: string) => void;
 
   editMessage: (messageId: string, conversationKey: string, newContent: string) => Promise<void>;
@@ -120,6 +120,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
         phone: u.phone,
         designation: u.designation,
         department: u.department,
+        avatar: u.avatar,
         online: !!u.online,
         lastSeenAt: u.lastSeenAt ? String(u.lastSeenAt) : null,
       }));
@@ -170,7 +171,29 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     setError(null);
     try {
       const data = await apiHistory(conversationKey, 200);
-      const mapped: ChatMessage[] = (data.messages || []).map((m: any) => ({
+      const toAttachment = (attachment: any): ChatAttachment | null =>
+        attachment
+          ? ({
+              fileId: String(attachment.fileId || ''),
+              url: String(attachment.url || ''),
+              fileName: String(attachment.fileName || ''),
+              mimeType: String(attachment.mimeType || ''),
+              size: Number(attachment.size || 0),
+            } satisfies ChatAttachment)
+          : null;
+      const toReply = (reply: any): ChatReplyRef | null =>
+        reply
+          ? ({
+              id: String(reply.id || ''),
+              senderId: String(reply.senderId || ''),
+              type: reply.type as any,
+              content: String(reply.content || ''),
+              deleted: !!reply.deleted,
+              fileUrl: String(reply.fileUrl || reply.attachment?.url || ''),
+              attachment: toAttachment(reply.attachment),
+            } satisfies ChatReplyRef)
+          : null;
+      const mapMessage = (m: any): ChatMessage => ({
         id: String(m.id),
         conversationKey: String(m.conversationKey),
         type: m.type as any,
@@ -179,15 +202,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
         fileUrl: String(m.fileUrl || m.attachment?.url || ''),
         deleted: !!m.deleted,
         editedAt: m.editedAt ? String(m.editedAt) : null,
-        attachment: m.attachment
-          ? ({
-              fileId: String(m.attachment.fileId || ''),
-              url: String(m.attachment.url || ''),
-              fileName: String(m.attachment.fileName || ''),
-              mimeType: String(m.attachment.mimeType || ''),
-              size: Number(m.attachment.size || 0),
-            } satisfies ChatAttachment)
-          : null,
+        attachment: toAttachment(m.attachment),
         createdAt: String(m.createdAt),
         tick: m.tick
           ? ({
@@ -196,7 +211,11 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
               seenAt: m.tick.seenAt ? String(m.tick.seenAt) : undefined,
             } satisfies ChatMessage['tick'])
           : null,
-      })).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        replyTo: toReply(m.replyTo),
+      });
+      const mapped: ChatMessage[] = (data.messages || [])
+        .map(mapMessage)
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
       setMessages(mapped);
     } catch (e: any) {
       setError(e?.message || 'Failed to load messages');
@@ -295,6 +314,25 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
               deliveredAt: msg.tick.deliveredAt ? String(msg.tick.deliveredAt) : undefined,
               seenAt: msg.tick.seenAt ? String(msg.tick.seenAt) : undefined,
             } as any)
+          : null,
+        replyTo: msg.replyTo
+          ? ({
+              id: String(msg.replyTo.id || ''),
+              senderId: String(msg.replyTo.senderId || ''),
+              type: msg.replyTo.type as any,
+              content: String(msg.replyTo.content || ''),
+              deleted: !!msg.replyTo.deleted,
+              fileUrl: String(msg.replyTo.fileUrl || msg.replyTo.attachment?.url || ''),
+              attachment: msg.replyTo.attachment
+                ? {
+                    fileId: String(msg.replyTo.attachment.fileId || ''),
+                    url: String(msg.replyTo.attachment.url || ''),
+                    fileName: String(msg.replyTo.attachment.fileName || ''),
+                    mimeType: String(msg.replyTo.attachment.mimeType || ''),
+                    size: Number(msg.replyTo.attachment.size || 0),
+                  }
+                : null,
+            } as ChatReplyRef)
           : null,
       };
 
@@ -405,6 +443,25 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
           : null,
         createdAt: String(msg.createdAt),
         tick: msg.tick || null,
+        replyTo: msg.replyTo
+          ? ({
+              id: String(msg.replyTo.id || ''),
+              senderId: String(msg.replyTo.senderId || ''),
+              type: msg.replyTo.type as any,
+              content: String(msg.replyTo.content || ''),
+              deleted: !!msg.replyTo.deleted,
+              fileUrl: String(msg.replyTo.fileUrl || msg.replyTo.attachment?.url || ''),
+              attachment: msg.replyTo.attachment
+                ? {
+                    fileId: String(msg.replyTo.attachment.fileId || ''),
+                    url: String(msg.replyTo.attachment.url || ''),
+                    fileName: String(msg.replyTo.attachment.fileName || ''),
+                    mimeType: String(msg.replyTo.attachment.mimeType || ''),
+                    size: Number(msg.replyTo.attachment.size || 0),
+                  }
+                : null,
+            } as ChatReplyRef)
+          : null,
       };
 
       // Update sidebar preview ordering even when the chat isn't currently open.
@@ -465,6 +522,25 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
         createdAt: String(msg.createdAt || new Date().toISOString()),
         editedAt: msg.editedAt ? String(msg.editedAt) : null,
         tick: null,
+        replyTo: msg.replyTo
+          ? ({
+              id: String(msg.replyTo.id || ''),
+              senderId: String(msg.replyTo.senderId || ''),
+              type: msg.replyTo.type as any,
+              content: String(msg.replyTo.content || ''),
+              deleted: !!msg.replyTo.deleted,
+              fileUrl: String(msg.replyTo.fileUrl || msg.replyTo.attachment?.url || ''),
+              attachment: msg.replyTo.attachment
+                ? {
+                    fileId: String(msg.replyTo.attachment.fileId || ''),
+                    url: String(msg.replyTo.attachment.url || ''),
+                    fileName: String(msg.replyTo.attachment.fileName || ''),
+                    mimeType: String(msg.replyTo.attachment.mimeType || ''),
+                    size: Number(msg.replyTo.attachment.size || 0),
+                  }
+                : null,
+            } as ChatReplyRef)
+          : null,
       };
 
       setMessages((prev) =>
@@ -749,7 +825,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   );
 
   const sendText = useCallback(
-    async (conversationKey: string, content: string) => {
+    async (conversationKey: string, content: string, replyToMessageId?: string | null) => {
       const trimmed = content.trim();
       if (!trimmed) return;
       if (!conversationKey) return;
@@ -763,7 +839,13 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
         const timeout = window.setTimeout(() => reject(new Error('Message send timeout')), 8000);
         socket.emit(
           'comm:message:send',
-          { conversationKey, type: 'text', content: trimmed, clientMessageId },
+          {
+            conversationKey,
+            type: 'text',
+            content: trimmed,
+            clientMessageId,
+            replyToMessageId: replyToMessageId || undefined,
+          },
           (ack: any) => {
             window.clearTimeout(timeout);
             if (!ack?.ok) {
@@ -779,7 +861,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   );
 
   const sendFile = useCallback(
-    async (conversationKey: string, file: File, content?: string) => {
+    async (conversationKey: string, file: File, content?: string, replyToMessageId?: string | null) => {
       if (!file) return;
       if (!conversationKey) return;
 
@@ -808,6 +890,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
               mimeType: upload.mimeType,
               size: upload.size,
             },
+            replyToMessageId: replyToMessageId || undefined,
           },
           (ack: any) => {
             window.clearTimeout(timeout);

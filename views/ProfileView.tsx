@@ -18,6 +18,7 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
   const [profileName, setProfileName] = useState(state.currentUser.name);
   const [profilePassword, setProfilePassword] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [infoDialogMessage, setInfoDialogMessage] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
@@ -54,15 +55,33 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
     }
   };
 
-  const handleAvatarFileChange = (file: File | null) => {
+  const handleAvatarFileChange = async (file: File | null) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      // File upload used only for preview in frontend; avoid sending large base64 to backend.
-      handleUserRecordChange({ avatar: result });
-    };
-    reader.readAsDataURL(file);
+    if (!backendEmployee?._id) return;
+    setUploadingAvatar(true);
+    setProfileError(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const headers = getAuthHeaders();
+      delete (headers as any)['Content-Type'];
+      const res = await fetch(`${API_BASE}/employees/${backendEmployee._id}/avatar`, {
+        method: 'POST',
+        headers,
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to upload profile image');
+      }
+      const nextAvatar = data.avatar || '';
+      handleUserRecordChange({ avatar: nextAvatar });
+      setHasChanges(true);
+    } catch (e: any) {
+      setProfileError(e?.message || 'Failed to upload profile image');
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -186,6 +205,7 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
                     accept="image/*"
                     onChange={e => handleAvatarFileChange(e.target.files?.[0] || null)}
                     className="block w-full text-[13px] text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[13px] file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
+                    disabled={uploadingAvatar}
                   />
                 </div>
               </div>
@@ -294,6 +314,9 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
                 <div className="text-[13px] text-red-600 px-2">
                   {profileError}
                 </div>
+              )}
+              {uploadingAvatar && (
+                <div className="text-[13px] text-slate-600 px-2">Uploading profile image...</div>
               )}
 
               <div className="flex justify-end">

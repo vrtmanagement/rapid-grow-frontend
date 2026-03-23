@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { Pencil, Trash2, UserCircle } from 'lucide-react';
+import { usePermissions } from '../context/PermissionContext';
+import AccessDenied from '../components/AccessDenied';
 
 type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | string;
 
@@ -32,6 +34,7 @@ function getBackendInfo() {
 }
 
 const StaffView: React.FC = () => {
+  const { hasPermission } = usePermissions();
   const backendInfo = useMemo(() => getBackendInfo(), []);
   const backendRole = backendInfo.role;
   const backendEmpId = backendInfo.empId;
@@ -46,6 +49,7 @@ const StaffView: React.FC = () => {
   const isTeamLead = backendRole === 'TEAM_LEAD';
 
   const canEditRow = (row: EmployeeRow) => {
+    if (!hasPermission('EMPLOYEE_UPDATE')) return false;
     if (isAdmin) return true;
     if (isTeamLead) {
       // Team lead can edit themselves and employees
@@ -58,6 +62,7 @@ const StaffView: React.FC = () => {
   };
 
   const canDeleteRow = (row: EmployeeRow) => {
+    if (!hasPermission('EMPLOYEE_DELETE')) return false;
     if (isAdmin) return true;
     if (isTeamLead) {
       // Team lead can delete themselves and employees
@@ -70,6 +75,7 @@ const StaffView: React.FC = () => {
   };
 
   const load = async () => {
+    if (!hasPermission('EMPLOYEE_LIST')) return;
     setLoading(true);
     setError(null);
     try {
@@ -90,7 +96,11 @@ const StaffView: React.FC = () => {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [hasPermission]);
+
+  if (!hasPermission('STAFF_VIEW')) {
+    return <AccessDenied />;
+  }
 
   const handleStartEdit = (row: EmployeeRow) => {
     if (!canEditRow(row)) return;

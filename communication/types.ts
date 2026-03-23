@@ -14,6 +14,7 @@ export type ChatUser = {
   phone?: string;
   designation?: string;
   department?: string;
+  avatar?: string;
   online: boolean;
   lastSeenAt: string | null;
 };
@@ -47,6 +48,17 @@ export type ChatAttachment = {
   size: number;
 };
 
+export type ChatReplyRef = {
+  id: string;
+  senderId: string;
+  senderName?: string;
+  type: ChatMessageType;
+  content: string;
+  deleted?: boolean;
+  fileUrl?: string;
+  attachment: ChatAttachment | null;
+};
+
 export type ChatMessage = {
   id: string;
   conversationKey: string;
@@ -61,5 +73,6 @@ export type ChatMessage = {
   editedAt?: string | null;
 
   tick?: { state: ChatTickState; deliveredAt?: string; seenAt?: string } | null;
+  replyTo?: ChatReplyRef | null;
 };
 

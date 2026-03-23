@@ -183,7 +183,10 @@ export function ChatSidebar({
               <div className="flex items-center gap-3">
                 <div className="relative shrink-0">
                   <img
-                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent((currentUser?.name || 'you').replace(/\s/g, ''))}`}
+                    src={
+                      currentUser?.avatar ||
+                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent((currentUser?.name || 'you').replace(/\s/g, ''))}`
+                    }
                     alt=""
                     className="w-9 h-9 rounded-full border border-slate-200 bg-slate-50 object-cover"
                   />
@@ -214,7 +217,10 @@ export function ChatSidebar({
                 <div className="flex items-center gap-3">
                   <div className="relative shrink-0">
                     <img
-                      src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u.name.replace(/\s/g, ''))}`}
+                      src={
+                        u.avatar ||
+                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u.name.replace(/\s/g, ''))}`
+                      }
                       alt=""
                       className="w-9 h-9 rounded-full border border-slate-200 bg-slate-50 object-cover"
                     />

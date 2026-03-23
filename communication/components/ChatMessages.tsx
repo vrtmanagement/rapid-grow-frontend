@@ -12,6 +12,7 @@ export function ChatMessages({
   usersById,
   onEditMessage,
   onDeleteMessage,
+  onReplyMessage,
 }: {
   currentUserId: string;
   messages: ChatMessage[];
@@ -22,6 +23,7 @@ export function ChatMessages({
   usersById: Map<string, ChatUser>;
   onEditMessage: (messageId: string, conversationKey: string, newContent: string) => void;
   onDeleteMessage: (messageId: string, conversationKey: string) => void;
+  onReplyMessage: (message: ChatMessage) => void;
 }) {
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -65,6 +67,8 @@ export function ChatMessages({
                   showSenderName={isGroupChat}
                   onEdit={(newContent) => onEditMessage(m.id, m.conversationKey, newContent)}
                   onDelete={() => onDeleteMessage(m.id, m.conversationKey)}
+                  onReply={() => onReplyMessage(m)}
+                  resolveUserName={(userId) => usersById.get(userId)?.name || 'User'}
                 />
               );
             })}

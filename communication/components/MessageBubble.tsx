@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Download, Eye, ExternalLink, FileText, Loader2, MoreVertical, PencilLine, Trash2 } from 'lucide-react';
+import { CornerUpLeft, Download, Eye, ExternalLink, FileText, Loader2, MoreVertical, PencilLine, Trash2 } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
 import { MessageActionModal } from './MessageActionModal';
 import { API_BASE } from '../../config/api';
@@ -16,6 +16,8 @@ export function MessageBubble({
   showSenderName,
   onEdit,
   onDelete,
+  onReply,
+  resolveUserName,
 }: {
   message: ChatMessage;
   isOwn: boolean;
@@ -23,6 +25,8 @@ export function MessageBubble({
   showSenderName?: boolean;
   onEdit?: (newContent: string) => void;
   onDelete?: () => void;
+  onReply?: () => void;
+  resolveUserName?: (userId: string) => string;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPlacement, setMenuPlacement] = useState<'top' | 'bottom' | 'inside'>('top');
@@ -78,7 +82,9 @@ export function MessageBubble({
     };
   }, [menuOpen]);
 
-  const bubbleBase = isOwn
+  const bubbleBase = message.deleted
+    ? 'bg-red-300/30 text-slate-700 border-red-300 shadow-none'
+    : isOwn
     ? 'bg-brand-red text-white border-brand-red/20 shadow-[0_8px_24px_rgba(236,72,71,0.15)]'
     : 'bg-white text-slate-900 border-slate-200 shadow-[0_8px_24px_rgba(15,23,42,0.06)]';
 
@@ -116,30 +122,42 @@ export function MessageBubble({
         }`}
       >
         <div className="relative">
-          {isOwn ? (
-            <div className="absolute right-2 top-2 z-30" ref={menuRef}>
-              <button
-                type="button"
-                className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-all ${
-                  menuOpen
-                    ? 'opacity-100 border-white/30 text-white bg-black/20'
-                    : 'opacity-0 group-hover:opacity-100 border-white/30 text-white/90 bg-black/10 hover:bg-black/20'
+          <div className="absolute right-2 top-2 z-30" ref={menuRef}>
+            <button
+              type="button"
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-all ${
+                menuOpen
+                  ? 'opacity-100 border-white/30 text-white bg-black/20'
+                  : 'opacity-0 group-hover:opacity-100 border-white/30 text-white/90 bg-black/10 hover:bg-black/20'
+              } ${!isOwn ? 'border-slate-200 text-slate-600 bg-white/80 hover:bg-white' : ''}`}
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label="Message actions"
+            >
+              <MoreVertical size={14} />
+            </button>
+            {menuOpen ? (
+              <div
+                className={`absolute right-0 z-[90] w-[112px] rounded-xl border border-slate-200 bg-white py-1 shadow-xl transition-all duration-100 ${
+                  menuPlacement === 'top'
+                    ? 'bottom-full mb-1.5 origin-bottom-right'
+                    : menuPlacement === 'bottom'
+                      ? 'top-full mt-1.5 origin-top-right'
+                      : 'top-8 origin-top-right'
                 }`}
-                onClick={() => setMenuOpen((v) => !v)}
-                aria-label="Message actions"
               >
-                <MoreVertical size={14} />
-              </button>
-              {menuOpen ? (
-                <div
-                  className={`absolute right-0 z-[90] w-[104px] rounded-xl border border-slate-200 bg-white py-1 shadow-xl transition-all duration-100 ${
-                    menuPlacement === 'top'
-                      ? 'bottom-full mb-1.5 origin-bottom-right'
-                      : menuPlacement === 'bottom'
-                        ? 'top-full mt-1.5 origin-top-right'
-                        : 'top-8 origin-top-right'
-                  }`}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onReply?.();
+                  }}
+                  disabled={!!message.deleted}
+                  className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
+                  <CornerUpLeft size={13} />
+                  Reply
+                </button>
+                {isOwn ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -152,6 +170,8 @@ export function MessageBubble({
                     <PencilLine size={13} />
                     Edit
                   </button>
+                ) : null}
+                {isOwn ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -164,12 +184,26 @@ export function MessageBubble({
                     <Trash2 size={13} />
                     Delete
                   </button>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+                ) : null}
+              </div>
+            ) : null}
+          </div>
 
           <div ref={bubbleRef} className={`relative max-w-[78vw] rounded-3xl border ${bubbleBase} px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 ${isOwn ? 'pr-12' : ''}`}>
+          {!message.deleted && message.replyTo ? (
+            <div className={`mb-2 rounded-xl border px-3 py-2 ${isOwn ? 'border-white/30 bg-white/15' : 'border-slate-200 bg-slate-100/70'}`}>
+              <div className={`text-[10px] font-semibold ${isOwn ? 'text-white/90' : 'text-slate-600'}`}>
+                Replying to {resolveUserName?.(message.replyTo.senderId) || 'User'}
+              </div>
+              <div className={`mt-1 text-[12px] ${isOwn ? 'text-white/80' : 'text-slate-600'} line-clamp-2`}>
+                {message.replyTo.deleted
+                  ? 'Message deleted'
+                  : message.replyTo.type === 'text'
+                    ? (message.replyTo.content || 'Text message')
+                    : message.replyTo.attachment?.fileName || 'Attachment'}
+              </div>
+            </div>
+          ) : null}
 
           {message.deleted && (
             <>
@@ -344,7 +378,7 @@ export function MessageBubble({
               onDelete?.();
               setDeleteOpen(false);
             }}
-            className="rounded-xl border border-red-300 bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+            className="rounded-xl border border-red-300 bg-red-300 px-4 py-2 text-sm font-semibold text-red-900 hover:bg-red-400"
           >
             Delete
           </button>

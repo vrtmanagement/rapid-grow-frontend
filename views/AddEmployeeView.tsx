@@ -11,8 +11,7 @@ const BACKEND_ROLES = [
 ] as const;
 
 function getAllowedRoles(currentUser: PlanningState['currentUser']): { value: string; label: string }[] {
-  const isSuperAdmin =
-    currentUser.role === 'Admin' && currentUser.powers?.includes('EDIT_STRATEGY');
+  const isSuperAdmin = currentUser.email === 'superadmin@example.com';
   if (isSuperAdmin) return [...BACKEND_ROLES];
   if (currentUser.role === 'Admin') return BACKEND_ROLES.filter((r) => r.value !== 'ADMIN');
   if (currentUser.role === 'Leader') return BACKEND_ROLES.filter((r) => r.value === 'EMPLOYEE');
@@ -26,9 +25,7 @@ interface AddEmployeeViewProps {
 const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
   const allowedRoles = useMemo(() => getAllowedRoles(state.currentUser), [state.currentUser]);
   const isSuperAdmin =
-    state.currentUser.role === 'Admin' &&
-    Array.isArray(state.currentUser.powers) &&
-    state.currentUser.powers.includes('EDIT_STRATEGY');
+    state.currentUser.email === 'superadmin@example.com';
   const defaultRole = allowedRoles[0]?.value ?? 'EMPLOYEE';
 
   const [form, setForm] = useState<{
