@@ -46,6 +46,32 @@ function getStoredAuth() {
   }
 }
 
+function ensureSocketConnected(socket: any, timeoutMs = 5000): Promise<void> {
+  if (socket.connected) return Promise.resolve();
+  return new Promise<void>((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      socket.off('connect', onConnect);
+      socket.off('connect_error', onConnectError);
+      reject(new Error('Socket connection timeout'));
+    }, timeoutMs);
+
+    const onConnect = () => {
+      window.clearTimeout(timeout);
+      socket.off('connect_error', onConnectError);
+      resolve();
+    };
+    const onConnectError = () => {
+      window.clearTimeout(timeout);
+      socket.off('connect', onConnect);
+      reject(new Error('Socket connection failed'));
+    };
+
+    socket.once('connect', onConnect);
+    socket.once('connect_error', onConnectError);
+    socket.connect();
+  });
+}
+
 export function CommunicationProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<CommunicationContextValue['currentUser']>(null);
   const [users, setUsers] = useState<ChatUser[]>([]);
@@ -486,72 +512,83 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
 
   const joinByConversationKey = useCallback(
     async (conversationKey: string) => {
+      setError(null);
       setTypingUserIds({});
       setSelectedConversationKey(conversationKey);
       // Join + then load history for deterministic state
       return new Promise<void>((resolve, reject) => {
-        socket.emit('comm:join', { conversationKey }, async (ack: any) => {
-          if (!ack?.ok) {
-            reject(new Error(ack?.error || 'Failed to join conversation'));
-            return;
-          }
+        ensureSocketConnected(socket)
+          .then(() => {
+            socket.emit('comm:join', { conversationKey }, async (ack: any) => {
+              if (!ack?.ok) {
+                const err = new Error(ack?.error || 'Failed to join conversation');
+                setError(err.message);
+                reject(err);
+                return;
+              }
 
-          // Ensure we have minimal summary for header even if REST conversations list lags behind.
-          const ackConversation = ack?.conversation;
-          if (ackConversation?.type && !conversations.some((c) => c.conversationKey === conversationKey)) {
-            if (ackConversation.type === 'channel') {
-              setConversations((prev) => [
-                ...prev,
-                {
-                  conversationKey,
-                  type: 'channel',
-                  title: ackConversation.title || 'Channel',
-                  channelKey: ackConversation.channelKey || null,
-                  onlineCount: undefined,
-                  unreadCount: 0,
-                  lastMessagePreview: '',
-                  lastMessageAt: null,
-                },
-              ]);
-            }
-            if (ackConversation.type === 'dm') {
-              const otherUserRaw = ackConversation.otherUser;
-              const otherUserNormalized: any = otherUserRaw
-                ? {
-                    id: String(otherUserRaw.id),
-                    empId: String(otherUserRaw.empId || ''),
-                    name: String(otherUserRaw.name || 'User'),
-                    role: String(otherUserRaw.role || ''),
-                    roleGroup: (otherUserRaw.roleGroup as any) || 'employees',
-                    online: false,
-                    lastSeenAt: null,
-                  }
-                : null;
-              setConversations((prev) => [
-                ...prev,
-                {
-                  conversationKey,
-                  type: 'dm',
-                  title: ackConversation.title || 'Direct Message',
-                  otherUser: otherUserNormalized,
-                  unreadCount: 0,
-                  lastMessagePreview: '',
-                  lastMessageAt: null,
-                },
-              ]);
-            }
-          }
-          try {
-            setMessages([]);
-            await loadMessages(conversationKey);
-            // Mark messages as seen (updates unread baseline + DM seen ticks)
-            setConversations((prev) => prev.map((c) => (c.conversationKey === conversationKey ? { ...c, unreadCount: 0 } : c)));
-            socket.emit('comm:seen:open', { conversationKey });
-            resolve();
-          } catch (e: any) {
+              // Ensure we have minimal summary for header even if REST conversations list lags behind.
+              const ackConversation = ack?.conversation;
+              if (ackConversation?.type && !conversations.some((c) => c.conversationKey === conversationKey)) {
+                if (ackConversation.type === 'channel') {
+                  setConversations((prev) => [
+                    ...prev,
+                    {
+                      conversationKey,
+                      type: 'channel',
+                      title: ackConversation.title || 'Channel',
+                      channelKey: ackConversation.channelKey || null,
+                      onlineCount: undefined,
+                      unreadCount: 0,
+                      lastMessagePreview: '',
+                      lastMessageAt: null,
+                    },
+                  ]);
+                }
+                if (ackConversation.type === 'dm') {
+                  const otherUserRaw = ackConversation.otherUser;
+                  const otherUserNormalized: any = otherUserRaw
+                    ? {
+                        id: String(otherUserRaw.id),
+                        empId: String(otherUserRaw.empId || ''),
+                        name: String(otherUserRaw.name || 'User'),
+                        role: String(otherUserRaw.role || ''),
+                        roleGroup: (otherUserRaw.roleGroup as any) || 'employees',
+                        online: false,
+                        lastSeenAt: null,
+                      }
+                    : null;
+                  setConversations((prev) => [
+                    ...prev,
+                    {
+                      conversationKey,
+                      type: 'dm',
+                      title: ackConversation.title || 'Direct Message',
+                      otherUser: otherUserNormalized,
+                      unreadCount: 0,
+                      lastMessagePreview: '',
+                      lastMessageAt: null,
+                    },
+                  ]);
+                }
+              }
+              try {
+                setMessages([]);
+                await loadMessages(conversationKey);
+                // Mark messages as seen (updates unread baseline + DM seen ticks)
+                setConversations((prev) => prev.map((c) => (c.conversationKey === conversationKey ? { ...c, unreadCount: 0 } : c)));
+                socket.emit('comm:seen:open', { conversationKey });
+                resolve();
+              } catch (e: any) {
+                setError(e?.message || 'Failed to open conversation');
+                reject(e);
+              }
+            });
+          })
+          .catch((e: any) => {
+            setError(e?.message || 'Socket is not connected');
             reject(e);
-          }
-        });
+          });
       });
     },
     [conversations, loadMessages, socket]
@@ -605,61 +642,81 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
 
   const startDmWithUser = useCallback(
     async (otherUserId: string) => {
+      setError(null);
       setTypingUserIds({});
-      return new Promise<void>((resolve, reject) => {
-        socket.emit('comm:join', { type: 'dm', otherUserId }, async (ack: any) => {
-          if (!ack?.ok) {
-            reject(new Error(ack?.error || 'Failed to start chat'));
-            return;
-          }
-          const conversationKey = String(ack?.conversation?.conversationKey || '');
-          if (!conversationKey) {
-            reject(new Error('Missing conversationKey'));
-            return;
-          }
-          setSelectedConversationKey(conversationKey);
+      // Prefer existing DM thread to avoid unnecessary "create/join" failures.
+      const existingDm = conversations.find((c) => c.type === 'dm' && c.otherUser?.id === otherUserId);
+      if (existingDm?.conversationKey) {
+        await joinByConversationKey(existingDm.conversationKey);
+        return;
+      }
 
-          if (!conversations.some((c) => c.conversationKey === conversationKey)) {
-            const otherUserRaw = ack?.conversation?.otherUser;
-            const otherUserNormalized: any = otherUserRaw
-              ? {
-                  id: String(otherUserRaw.id),
-                  empId: String(otherUserRaw.empId || ''),
-                  name: String(otherUserRaw.name || 'User'),
-                  role: String(otherUserRaw.role || ''),
-                  roleGroup: (otherUserRaw.roleGroup as any) || 'employees',
-                  online: false,
-                  lastSeenAt: null,
-                }
-              : null;
-            setConversations((prev) => [
-              ...prev,
-              {
-                conversationKey,
-                type: 'dm',
-                title: ack?.conversation?.title || 'Direct Message',
-                otherUser: otherUserNormalized,
-                unreadCount: 0,
-                lastMessagePreview: '',
-                lastMessageAt: null,
-              },
-            ]);
-          }
-          try {
-            setMessages([]);
-            await loadMessages(conversationKey);
-            setConversations((prev) =>
-              prev.map((c) => (c.conversationKey === conversationKey ? { ...c, unreadCount: 0 } : c))
-            );
-            socket.emit('comm:seen:open', { conversationKey });
-            resolve();
-          } catch (e: any) {
+      return new Promise<void>((resolve, reject) => {
+        ensureSocketConnected(socket)
+          .then(() => {
+            socket.emit('comm:join', { type: 'dm', otherUserId }, async (ack: any) => {
+              if (!ack?.ok) {
+                const err = new Error(ack?.error || 'Failed to start chat');
+                setError(err.message);
+                reject(err);
+                return;
+              }
+              const conversationKey = String(ack?.conversation?.conversationKey || '');
+              if (!conversationKey) {
+                const err = new Error('Missing conversationKey');
+                setError(err.message);
+                reject(err);
+                return;
+              }
+              setSelectedConversationKey(conversationKey);
+
+              if (!conversations.some((c) => c.conversationKey === conversationKey)) {
+                const otherUserRaw = ack?.conversation?.otherUser;
+                const otherUserNormalized: any = otherUserRaw
+                  ? {
+                      id: String(otherUserRaw.id),
+                      empId: String(otherUserRaw.empId || ''),
+                      name: String(otherUserRaw.name || 'User'),
+                      role: String(otherUserRaw.role || ''),
+                      roleGroup: (otherUserRaw.roleGroup as any) || 'employees',
+                      online: false,
+                      lastSeenAt: null,
+                    }
+                  : null;
+                setConversations((prev) => [
+                  ...prev,
+                  {
+                    conversationKey,
+                    type: 'dm',
+                    title: ack?.conversation?.title || 'Direct Message',
+                    otherUser: otherUserNormalized,
+                    unreadCount: 0,
+                    lastMessagePreview: '',
+                    lastMessageAt: null,
+                  },
+                ]);
+              }
+              try {
+                setMessages([]);
+                await loadMessages(conversationKey);
+                setConversations((prev) =>
+                  prev.map((c) => (c.conversationKey === conversationKey ? { ...c, unreadCount: 0 } : c))
+                );
+                socket.emit('comm:seen:open', { conversationKey });
+                resolve();
+              } catch (e: any) {
+                setError(e?.message || 'Failed to open chat');
+                reject(e);
+              }
+            });
+          })
+          .catch((e: any) => {
+            setError(e?.message || 'Socket is not connected');
             reject(e);
-          }
-        });
+          });
       });
     },
-    [conversations, loadMessages, socket]
+    [conversations, joinByConversationKey, loadMessages, socket]
   );
 
   const createTeam = useCallback(

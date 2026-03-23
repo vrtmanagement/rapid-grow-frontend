@@ -22,7 +22,13 @@ export function getSocket(): Socket {
     return socket;
   }
 
-  const url = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5002';
+  const configuredSocketUrl = import.meta.env.VITE_SOCKET_URL;
+  const apiBase = import.meta.env.VITE_API_URL;
+  const derivedSocketUrl =
+    typeof apiBase === 'string' && apiBase.length > 0
+      ? apiBase.replace(/\/api\/?$/, '')
+      : '';
+  const url = configuredSocketUrl || derivedSocketUrl || 'http://localhost:5002';
   socket = io(url, {
     transports: ['websocket', 'polling'],
     auth: { token: latestToken },
