@@ -32,6 +32,7 @@ import PermissionsView from './views/PermissionsView';
 import { mapBackendRoleToUiRole } from './config/permissions';
 import { usePermissions } from './context/PermissionContext';
 import AccessDenied from './components/AccessDenied';
+import { API_BASE, getAuthHeaders } from './config/api';
 
 const SUPER_ADMIN_EMAIL = 'superadmin@example.com';
 const DEFAULT_POWERS: Record<string, string[]> = {
@@ -115,6 +116,108 @@ const EMPTY_PROFILE: ProfileData = {
   productsToSell: ''
 };
 
+const QUARTER_LABELS = ['Q1', 'Q2', 'Q3', 'Q4'];
+
+const normalizeGoalHierarchy = (state: PlanningState): PlanningState => {
+  const yearlyGoals = state.yearlyGoals;
+  const yearlyIds = new Set(yearlyGoals.map((g) => g.id));
+
+  const quarterMap = new Map<string, Goal>();
+  for (const quarter of state.quarterlyGoals) {
+    if (!quarter.parentId || !yearlyIds.has(quarter.parentId)) continue;
+    const label = quarter.timeline || '';
+    if (!QUARTER_LABELS.includes(label)) continue;
+    quarterMap.set(`${quarter.parentId}:${label}`, quarter);
+  }
+
+  const quarterlyGoals: Goal[] = [];
+  for (const year of yearlyGoals) {
+    QUARTER_LABELS.forEach((label) => {
+      const key = `${year.id}:${label}`;
+      const existing = quarterMap.get(key);
+      quarterlyGoals.push(
+        existing || {
+          id: `${year.id.toLowerCase()}-${label.toLowerCase()}`,
+          text: '',
+          completed: false,
+          level: 'quarter',
+          parentId: year.id,
+          timeline: label,
+        },
+      );
+    });
+  }
+
+  const quarterIds = new Set(quarterlyGoals.map((q) => q.id));
+  const monthlyGoals = state.monthlyGoals.filter((m) => m.parentId && quarterIds.has(m.parentId));
+  const monthIds = new Set(monthlyGoals.map((m) => m.id));
+  const weeklyGoals = state.weeklyGoals.filter((w) => w.parentId && monthIds.has(w.parentId));
+  const weekIds = new Set(weeklyGoals.map((w) => w.id));
+  const dailyGoals = state.dailyGoals.filter((d) => d.parentId && weekIds.has(d.parentId));
+
+  const dailyByWeek = new Map<string, Goal[]>();
+  dailyGoals.forEach((d) => {
+    const key = d.parentId as string;
+    const list = dailyByWeek.get(key) || [];
+    list.push(d);
+    dailyByWeek.set(key, list);
+  });
+
+  const weeklyWithCompletion = weeklyGoals.map((w) => {
+    const children = dailyByWeek.get(w.id) || [];
+    const completed = children.length > 0 ? children.every((d) => d.completed) : w.completed;
+    return { ...w, completed };
+  });
+
+  const weeklyByMonth = new Map<string, Goal[]>();
+  weeklyWithCompletion.forEach((w) => {
+    const key = w.parentId as string;
+    const list = weeklyByMonth.get(key) || [];
+    list.push(w);
+    weeklyByMonth.set(key, list);
+  });
+
+  const monthlyWithCompletion = monthlyGoals.map((m) => {
+    const children = weeklyByMonth.get(m.id) || [];
+    return { ...m, completed: children.length > 0 && children.every((w) => w.completed) };
+  });
+
+  const monthlyByQuarter = new Map<string, Goal[]>();
+  monthlyWithCompletion.forEach((m) => {
+    const key = m.parentId as string;
+    const list = monthlyByQuarter.get(key) || [];
+    list.push(m);
+    monthlyByQuarter.set(key, list);
+  });
+
+  const quarterlyWithCompletion = quarterlyGoals.map((q) => {
+    const children = monthlyByQuarter.get(q.id) || [];
+    return { ...q, completed: children.length > 0 && children.every((m) => m.completed) };
+  });
+
+  const quarterByYear = new Map<string, Goal[]>();
+  quarterlyWithCompletion.forEach((q) => {
+    const key = q.parentId as string;
+    const list = quarterByYear.get(key) || [];
+    list.push(q);
+    quarterByYear.set(key, list);
+  });
+
+  const yearlyWithCompletion = yearlyGoals.map((y) => {
+    const children = quarterByYear.get(y.id) || [];
+    return { ...y, completed: children.length > 0 && children.every((q) => q.completed) };
+  });
+
+  return {
+    ...state,
+    yearlyGoals: yearlyWithCompletion,
+    quarterlyGoals: quarterlyWithCompletion,
+    monthlyGoals: monthlyWithCompletion,
+    weeklyGoals: weeklyWithCompletion,
+    dailyGoals,
+  };
+};
+
 const App: React.FC = () => {
   const { permissions, hasPermission, loading: permissionsLoading } = usePermissions();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -159,7 +262,7 @@ const App: React.FC = () => {
     setIsAuthenticated(false);
   }, []);
 
-  const [state, setState] = useState<PlanningState>({
+  const [state, setState] = useState<PlanningState>(normalizeGoalHierarchy({
     currentYear: 2026,
     currentUser: INITIAL_TEAM[0],
     profile: EMPTY_PROFILE,
@@ -169,11 +272,7 @@ const App: React.FC = () => {
       { id: '2', text: 'Expand to 3 Global Regions', completed: false, level: 'year' },
       { id: '3', text: 'Build Performance-First Culture', completed: false, level: 'year' },
     ],
-    quarterlyGoals: [
-      { id: 'q1', text: '', completed: false, level: 'quarter' },
-      { id: 'q2', text: '', completed: false, level: 'quarter' },
-      { id: 'q3', text: '', completed: false, level: 'quarter' },
-    ],
+    quarterlyGoals: [],
     monthlyGoals: [],
     weeklyGoals: [],
     dailyGoals: [],
@@ -191,7 +290,7 @@ const App: React.FC = () => {
       },
     ],
     emailLogs: []
-  });
+  }));
 
   useEffect(() => {
     const saved = localStorage.getItem('rapidgrow-os-v1');
@@ -234,7 +333,7 @@ const App: React.FC = () => {
             };
           } catch (_e) { /* ignore */ }
         }
-        setState({ ...parsed, currentUser });
+        setState(normalizeGoalHierarchy({ ...parsed, currentUser }));
       } catch (e) {
         console.error("Restore failed", e);
       }
@@ -260,9 +359,42 @@ const App: React.FC = () => {
     }
   }, [state]);
 
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const loadGoals = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/goals`, { headers: getAuthHeaders() });
+        if (!res.ok) return;
+        const goals = await res.json();
+        if (!Array.isArray(goals)) return;
+        setState((prev) =>
+          normalizeGoalHierarchy({
+            ...prev,
+            yearlyGoals: goals.filter((g: any) => g.level === 'year').map((g: any) => ({ id: g.goalId, text: g.text || '', completed: !!g.completed, level: 'year' as const })),
+            quarterlyGoals: goals
+              .filter((g: any) => g.level === 'quarter')
+              .map((g: any) => ({ id: g.goalId, text: g.text || '', completed: !!g.completed, level: 'quarter' as const, parentId: g.parentId || '', timeline: g.timeline || '' })),
+            monthlyGoals: goals
+              .filter((g: any) => g.level === 'month')
+              .map((g: any) => ({ id: g.goalId, text: g.text || '', completed: !!g.completed, level: 'month' as const, parentId: g.parentId || '', details: g.details || '' })),
+            weeklyGoals: goals
+              .filter((g: any) => g.level === 'week')
+              .map((g: any) => ({ id: g.goalId, text: g.text || '', completed: !!g.completed, level: 'week' as const, parentId: g.parentId || '', details: g.details || '', timeline: g.timeline || '' })),
+            dailyGoals: goals
+              .filter((g: any) => g.level === 'day')
+              .map((g: any) => ({ id: g.goalId, text: g.text || '', completed: !!g.completed, level: 'day' as const, parentId: g.parentId || '' })),
+          }),
+        );
+      } catch (_e) {
+        // keep local state if goals API unavailable
+      }
+    };
+    loadGoals();
+  }, [isAuthenticated]);
+
   const updateState = useCallback((updater: (prev: PlanningState) => PlanningState) => {
     setState(prev => {
-      const next = updater(prev);
+      const next = normalizeGoalHierarchy(updater(prev));
       const tIdx = next.team.findIndex(m => m.id === next.currentUser.id);
       if (tIdx !== -1) next.team[tIdx] = { ...next.currentUser };
       return next;
@@ -272,6 +404,12 @@ const App: React.FC = () => {
   const hasPower = (power: string) => hasPermission(power);
   const isSuperAdmin = state.currentUser.email === SUPER_ADMIN_EMAIL;
   const isAdmin = state.currentUser.role === 'Admin';
+  const visionNavItems = [
+    { power: 'YEARLY_VIEW', to: '/yearly', icon: <Target size={20} />, label: state.uiConfig.yearlyTitle },
+    { power: 'QUARTERLY_VIEW', to: '/quarterly', icon: <BarChart3 size={20} />, label: state.uiConfig.quarterlyTitle },
+    { power: 'MONTHLY_VIEW', to: '/monthly', icon: <Calendar size={20} />, label: state.uiConfig.monthlyTitle },
+    { power: 'WEEKLY_VIEW', to: '/weekly', icon: <CheckSquare size={20} />, label: state.uiConfig.weeklyTitle },
+  ];
 
   if (isAuthenticated === null) {
     return null;
@@ -304,10 +442,11 @@ const App: React.FC = () => {
               {hasPower('SPACES_VIEW') && <SidebarLink to="/spaces" icon={<Database size={20} />} label="TaskHub" collapsed={false} />}
               {hasPower('ATTENDANCE_VIEW') && <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={false} />}
               <div className="h-px bg-white/5 mx-4 my-6"></div>
-              {hasPower('YEARLY_VIEW') && <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={false} />}
-              {hasPower('QUARTERLY_VIEW') && <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={false} />}
-              {hasPower('MONTHLY_VIEW') && <SidebarLink to="/monthly" icon={<Calendar size={20}/>} label={state.uiConfig.monthlyTitle} collapsed={false} />}
-              {hasPower('WEEKLY_VIEW') && <SidebarLink to="/weekly" icon={<CheckSquare size={20}/>} label={state.uiConfig.weeklyTitle} collapsed={false} />}
+              {visionNavItems.map((item) =>
+                hasPower(item.power) ? (
+                  <SidebarLink key={item.to} to={item.to} icon={item.icon} label={item.label} collapsed={false} />
+                ) : null,
+              )}
               <div className="h-px bg-white/5 mx-4 my-6"></div>
               {hasPower('DAILY_VIEW') && <SidebarLink to="/daily" icon={<Clock size={20}/>} label={state.uiConfig.dailyTitle} collapsed={false} />}
               {hasPower('REFLECTION_VIEW') && <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={false} />}
@@ -422,10 +561,17 @@ const App: React.FC = () => {
                 {hasPower('SPACES_VIEW') && <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={!isSidebarOpen} />}
                 {hasPower('ATTENDANCE_VIEW') && <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />}
                 <div className="h-px bg-white/5 mx-4 my-6"></div>
-                {hasPower('YEARLY_VIEW') && <SidebarLink to="/yearly" icon={<Target size={20}/>} label={state.uiConfig.yearlyTitle} collapsed={!isSidebarOpen} />}
-                {hasPower('QUARTERLY_VIEW') && <SidebarLink to="/quarterly" icon={<BarChart3 size={20}/>} label={state.uiConfig.quarterlyTitle} collapsed={!isSidebarOpen} />}
-                {hasPower('MONTHLY_VIEW') && <SidebarLink to="/monthly" icon={<Calendar size={20}/>} label={state.uiConfig.monthlyTitle} collapsed={!isSidebarOpen} />}
-                {hasPower('WEEKLY_VIEW') && <SidebarLink to="/weekly" icon={<CheckSquare size={20}/>} label={state.uiConfig.weeklyTitle} collapsed={!isSidebarOpen} />}
+                {visionNavItems.map((item) =>
+                  hasPower(item.power) ? (
+                    <SidebarLink
+                      key={item.to}
+                      to={item.to}
+                      icon={item.icon}
+                      label={item.label}
+                      collapsed={!isSidebarOpen}
+                    />
+                  ) : null,
+                )}
                 {hasPower('DAILY_VIEW') && <SidebarLink to="/daily" icon={<Clock size={20}/>} label={state.uiConfig.dailyTitle} collapsed={!isSidebarOpen} />}
                 {hasPower('REFLECTION_VIEW') && <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={!isSidebarOpen} />}
                 <div className="h-px bg-white/5 mx-4 my-6"></div>
@@ -528,7 +674,7 @@ const App: React.FC = () => {
   );
 };
 
-const SidebarLink = ({ to, icon, label, collapsed }: { to: string, icon: any, label: string, collapsed: boolean }) => {
+const SidebarLink: React.FC<{ to: string; icon: any; label: string; collapsed: boolean }> = ({ to, icon, label, collapsed }) => {
   const location = useLocation();
   const isActive = to === '/workspaces'
     ? location.pathname.startsWith('/workspaces')

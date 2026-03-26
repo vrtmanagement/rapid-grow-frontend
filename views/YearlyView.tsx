@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { PlanningState, Goal } from '../types';
-import { Target, CheckCircle2, Layers, Activity, Edit3, Lock, ShieldCheck, Shield } from 'lucide-react';
+import { Plus, Trash2, Target } from 'lucide-react';
+import { removeGoal, saveGoal } from '../services/goalApi';
 
 interface Props {
   state: PlanningState;
@@ -9,121 +10,154 @@ interface Props {
 }
 
 const YearlyView: React.FC<Props> = ({ state, updateState }) => {
-  const [isEditingYear, setIsEditingYear] = useState(false);
-  
-  const hasStrategicPower = state.currentUser.powers.includes('EDIT_STRATEGY') || state.currentUser.role === 'Admin';
+  const isAdmin = state.currentUser.role === 'Admin';
+  const [editingIds, setEditingIds] = useState<Record<string, boolean>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [newGoalText, setNewGoalText] = useState('');
 
-  const handleGoalChange = (id: string, text: string) => {
-    if (!hasStrategicPower) return;
-    updateState(prev => ({
+  const generateId = () =>
+    (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? (crypto.randomUUID() as string)
+      : Math.random().toString(36).slice(2));
+
+  const getProgress = (yearlyId: string) => {
+    const quarters = state.quarterlyGoals.filter((q) => q.parentId === yearlyId);
+    if (!quarters.length) return 0;
+    return Math.round((quarters.filter((q) => q.completed).length / quarters.length) * 100);
+  };
+
+  const addYearlyGoal = async () => {
+    if (!isAdmin) return;
+    const text = newGoalText.trim();
+    if (!text) return;
+    const newGoal: Goal = { id: `y-${generateId()}`, text, completed: false, level: 'year' };
+    updateState((prev) => ({
       ...prev,
-      yearlyGoals: prev.yearlyGoals.map(g => g.id === id ? { ...g, text } : g)
+      yearlyGoals: [...prev.yearlyGoals, newGoal],
+    }));
+    try {
+      await saveGoal(newGoal);
+      setNewGoalText('');
+      setIsAddingNew(false);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const updateYearlyGoal = (id: string, text: string) => {
+    if (!isAdmin) return;
+    updateState((prev) => ({
+      ...prev,
+      yearlyGoals: prev.yearlyGoals.map((g) => (g.id === id ? { ...g, text } : g)),
     }));
   };
 
-  const handleYearChange = (newYear: number) => {
-    if (!hasStrategicPower) return;
-    updateState(prev => ({ ...prev, currentYear: newYear }));
-    setIsEditingYear(false);
+  const deleteYearlyGoal = (id: string) => {
+    if (!isAdmin) return;
+    removeGoal(id).catch((e) => console.error(e));
+    updateState((prev) => {
+      const quarterIds = new Set(prev.quarterlyGoals.filter((q) => q.parentId === id).map((q) => q.id));
+      const monthIds = new Set(prev.monthlyGoals.filter((m) => m.parentId && quarterIds.has(m.parentId)).map((m) => m.id));
+      const weekIds = new Set(prev.weeklyGoals.filter((w) => w.parentId && monthIds.has(w.parentId)).map((w) => w.id));
+      return {
+        ...prev,
+        yearlyGoals: prev.yearlyGoals.filter((g) => g.id !== id),
+        quarterlyGoals: prev.quarterlyGoals.filter((q) => q.parentId !== id),
+        monthlyGoals: prev.monthlyGoals.filter((m) => !monthIds.has(m.id)),
+        weeklyGoals: prev.weeklyGoals.filter((w) => !weekIds.has(w.id)),
+        dailyGoals: prev.dailyGoals.filter((d) => !d.parentId || !weekIds.has(d.parentId)),
+      };
+    });
   };
 
-  const getGoalData = (yearlyGoalId: string) => {
-    const children = state.quarterlyGoals.filter(q => q.parentId === yearlyGoalId);
-    if (children.length === 0) return { progress: 0, childCount: 0 };
-    const totalProgress = children.reduce((acc, q) => {
-      const grandchildren = state.monthlyGoals.filter(m => m.parentId === q.id);
-      if (grandchildren.length === 0) return acc + (q.completed ? 100 : 0);
-      const completedGrandchildren = grandchildren.filter(m => m.completed).length;
-      return acc + (completedGrandchildren / grandchildren.length) * 100;
-    }, 0);
-    return { progress: Math.round(totalProgress / children.length), childCount: children.length };
+  const handleSave = async (goal: Goal) => {
+    const text = drafts[goal.id] ?? goal.text;
+    updateYearlyGoal(goal.id, text);
+    try {
+      await saveGoal({ ...goal, text });
+      setEditingIds((prev) => ({ ...prev, [goal.id]: false }));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-16 animate-in fade-in duration-700 pb-24">
-      <div className="bg-slate-900 p-20 rounded-[3rem] text-white relative overflow-hidden shadow-2xl border border-white/5">
-        <div className="absolute top-0 left-0 w-full h-2 bg-brand-red"></div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-12">
-          <div className="space-y-8">
-            <div className="flex items-center gap-4">
-              {isEditingYear && hasStrategicPower ? (
-                  <input 
-                  type="number" autoFocus defaultValue={state.currentYear}
-                  onBlur={(e) => handleYearChange(parseInt(e.target.value) || state.currentYear)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleYearChange(parseInt((e.target as HTMLInputElement).value) || state.currentYear)}
-                  className="bg-white/10 border border-white/20 rounded-2xl px-10 py-5 text-7xl outline-none focus:bg-white/20 transition-all w-56 shadow-inner"
-                />
-              ) : (
-                  <div className="flex items-center gap-8">
-                  <h2 className="text-8xl leading-none">
-                    {state.currentYear} <span className="text-brand-red">Strategy</span>
-                  </h2>
-                  {hasStrategicPower && (
-                    <button onClick={() => setIsEditingYear(true)} className="p-4 bg-white/5 hover:bg-brand-red rounded-xl transition-all"><Edit3 size={28} /></button>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-5 px-8 py-3 bg-brand-red/10 border border-brand-red/20 rounded-full w-fit">
-               <ShieldCheck size={20} className="text-brand-red" />
-               <span className="text-[12px] text-brand-red">Strategic Authority Verified</span>
-            </div>
-            <p className="text-slate-800 max-w-2xl text-2xl leading-relaxed font-medium ">
-              {state.uiConfig.yearlySub}
-            </p>
-          </div>
-          <div className="shrink-0">
-             <div className="w-48 h-48 rounded-[2rem] border-8 border-brand-red/20 flex items-center justify-center text-brand-red/10 rotate-12">
-                <Shield size={160} />
-             </div>
-          </div>
-        </div>
+    <div className="max-w-5xl mx-auto space-y-6 pb-16">
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl text-slate-900">{state.uiConfig.yearlyTitle}</h2>
+        {isAdmin && (
+          <button onClick={() => setIsAddingNew(true)} className="px-4 py-2 rounded-lg bg-brand-red text-white flex items-center gap-2">
+            <Plus size={16} /> Add Yearly Goal
+          </button>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-12">
-        {state.yearlyGoals.map((goal, idx) => {
-          const { progress, childCount } = getGoalData(goal.id);
+      {isAdmin && isAddingNew && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
+          <textarea
+            value={newGoalText}
+            onChange={(e) => setNewGoalText(e.target.value)}
+            placeholder="Enter yearly goal"
+            className="flex-1 resize-none outline-none bg-transparent"
+            rows={2}
+          />
+          <button onClick={addYearlyGoal} className="px-3 py-1 text-xs rounded bg-brand-red text-white">
+            Save
+          </button>
+          <button
+            onClick={() => {
+              setIsAddingNew(false);
+              setNewGoalText('');
+            }}
+            className="px-3 py-1 text-xs rounded bg-slate-100 text-slate-700"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {state.yearlyGoals.map((goal) => {
+          const progress = getProgress(goal.id);
           return (
-            <div key={goal.id} className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden hover:shadow-2xl transition-all group flex flex-col md:flex-row relative">
-              <div className="absolute top-0 left-0 w-2.5 h-full bg-brand-red"></div>
-              
-              <div className="md:w-[28rem] p-16 bg-slate-50/50 border-r border-slate-100 flex flex-col justify-between space-y-12">
-                <div className="space-y-8">
-                  <div className="w-24 h-24 bg-brand-red text-white rounded-2xl flex items-center justify-center text-5xl shadow-2xl group-hover:scale-110 transition-transform">
-                    {idx + 1}
-                  </div>
-                  <div>
-                    <h3 className="text-slate-900 text-3xl leading-none">Strategic Anchor</h3>
-                    <p className="text-[12px] text-slate-800 mt-4">{childCount} Tactical Units Linked</p>
+            <div key={goal.id} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1">
+                  <textarea
+                    readOnly={!isAdmin || !editingIds[goal.id]}
+                    value={drafts[goal.id] ?? goal.text}
+                    onChange={(e) => setDrafts((prev) => ({ ...prev, [goal.id]: e.target.value }))}
+                    placeholder="Define yearly goal"
+                    className="w-full resize-none outline-none text-xl bg-transparent"
+                    rows={2}
+                  />
+                </div>
+                <div className="text-right min-w-[130px]">
+                  <div className="text-sm text-slate-500">{progress}% complete</div>
+                  <div className="h-2 bg-slate-200 rounded-full mt-2 overflow-hidden">
+                    <div className="h-full bg-brand-red" style={{ width: `${progress}%` }} />
                   </div>
                 </div>
-
-                <div className="space-y-5">
-                  <div className="flex items-center justify-between">
-                     <span className="text-[12px] text-brand-red">{progress}% Integrity</span>
+                {isAdmin && (
+                  <div className="flex items-center gap-2">
+                    {!editingIds[goal.id] ? (
+                      <button onClick={() => setEditingIds((prev) => ({ ...prev, [goal.id]: true }))} className="px-3 py-1 text-xs rounded bg-slate-100 text-slate-700">
+                        Edit
+                      </button>
+                    ) : (
+                      <button onClick={() => handleSave(goal)} className="px-3 py-1 text-xs rounded bg-brand-red text-white">
+                        Save
+                      </button>
+                    )}
+                    <button onClick={() => deleteYearlyGoal(goal.id)} className="p-2 text-slate-500 hover:text-brand-red">
+                      <Trash2 size={16} />
+                    </button>
                   </div>
-                  <div className="w-full h-4 bg-slate-200 rounded-full overflow-hidden shadow-inner border border-slate-100 p-1">
-                    <div className="h-full bg-brand-red rounded-full transition-all duration-1000 shadow-[0_0_15px_rgba(220,38,38,0.3)]" style={{ width: `${progress}%` }} />
-                  </div>
-                </div>
+                )}
               </div>
-
-              <div className="flex-1 p-16 flex flex-col">
-                <div className="flex items-center justify-between mb-10">
-                   <span className="text-[15px] text-slate-800">Executive Definition</span>
-                   {hasStrategicPower ? (
-                     <div className="p-4 bg-red-50 rounded-xl text-brand-red"><Edit3 size={20}/></div>
-                   ) : (
-                     <div className="p-4 bg-slate-50 rounded-xl text-slate-300"><Lock size={20}/></div>
-                   )}
-                </div>
-                <textarea
-                  readOnly={!hasStrategicPower}
-                  value={goal.text}
-                  onChange={(e) => handleGoalChange(goal.id, e.target.value)}
-                  placeholder={hasStrategicPower ? "Define the strategic mission..." : "Strategic anchor pending..."}
-                  className={`w-full bg-transparent p-6 text-5xl transition-all outline-none min-h-[220px] resize-none leading-tight text-slate-900 ${hasStrategicPower ? 'focus:text-brand-red' : 'cursor-default opacity-80'}`}
-                />
+              <div className="text-xs text-slate-500 flex items-center gap-2">
+                <Target size={12} /> Auto-linked quarters: Q1, Q2, Q3, Q4
               </div>
             </div>
           );
