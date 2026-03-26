@@ -32,6 +32,7 @@ function getLoggedInEmpId(): string {
 
 const DailyView: React.FC<Props> = ({ state, updateState }) => {
   const [topTasks, setTopTasks] = useState<SpacesTaskSummary[]>([]);
+  const isAdmin = state.currentUser.role === 'Admin';
 
   useEffect(() => {
     const empId = getLoggedInEmpId();
@@ -94,9 +95,57 @@ const DailyView: React.FC<Props> = ({ state, updateState }) => {
     });
   };
 
+  const toggleDaily = (id: string) => {
+    if (!isAdmin) return;
+    updateState((prev) => ({
+      ...prev,
+      dailyGoals: prev.dailyGoals.map((d) => (d.id === id ? { ...d, completed: !d.completed } : d)),
+    }));
+  };
+
+  const updateDailyText = (id: string, text: string) => {
+    if (!isAdmin) return;
+    updateState((prev) => ({
+      ...prev,
+      dailyGoals: prev.dailyGoals.map((d) => (d.id === id ? { ...d, text } : d)),
+    }));
+  };
+
+  const dailyGroups = state.weeklyGoals.map((week) => ({
+    week,
+    days: state.dailyGoals.filter((d) => d.parentId === week.id),
+  }));
+
   return (
     <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-500">
       <div className="lg:col-span-5 space-y-8">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+          <h3 className="text-lg text-slate-800 mb-4">Daily Protocol by Weekly Goal</h3>
+          <div className="space-y-4 max-h-[420px] overflow-y-auto">
+            {dailyGroups.map(({ week, days }) => (
+              <div key={week.id} className="border border-slate-100 rounded-xl p-3">
+                <div className="text-sm font-medium text-slate-700 mb-2">{week.text || 'Untitled Weekly Goal'}</div>
+                <div className="space-y-2">
+                  {days.map((day) => (
+                    <label key={day.id} className="flex items-center gap-2">
+                      <input type="checkbox" checked={day.completed} onChange={() => toggleDaily(day.id)} disabled={!isAdmin} />
+                      <input
+                        type="text"
+                        value={day.text}
+                        onChange={(e) => updateDailyText(day.id, e.target.value)}
+                        readOnly={!isAdmin}
+                        className="flex-1 bg-transparent border-b border-slate-200 outline-none text-sm"
+                      />
+                    </label>
+                  ))}
+                  {!days.length && <div className="text-xs text-slate-500">No days mapped.</div>}
+                </div>
+              </div>
+            ))}
+            {!dailyGroups.length && <div className="text-sm text-slate-500">No weekly goals found.</div>}
+          </div>
+        </div>
+
         <div className="bg-white p-8 rounded-[3rem] border border-slate-200 shadow-sm relative overflow-hidden group hover:border-brand-indigo/30 transition-all">
           <div className="absolute top-4 right-4 rotate-12">
             <PriorityStamp />

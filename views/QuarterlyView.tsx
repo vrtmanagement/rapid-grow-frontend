@@ -1,7 +1,8 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { PlanningState } from '../types';
-import { BarChart3, Link2, CheckCircle2, Target, Boxes, Lock, Zap } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { removeGoal, saveGoal } from '../services/goalApi';
 
 interface Props {
   state: PlanningState;
@@ -10,6 +11,9 @@ interface Props {
 
 const QuarterlyView: React.FC<Props> = ({ state, updateState }) => {
   const isAdmin = state.currentUser.role === 'Admin';
+  const [expandedYearIds, setExpandedYearIds] = useState<Record<string, boolean>>({});
+  const [editingIds, setEditingIds] = useState<Record<string, boolean>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   const handleGoalChange = (id: string, text: string) => {
     if (!isAdmin) return;
@@ -19,111 +23,100 @@ const QuarterlyView: React.FC<Props> = ({ state, updateState }) => {
     }));
   };
 
-  const handleParentChange = (id: string, parentId: string) => {
+  const handleDeleteQuarter = (quarterId: string) => {
     if (!isAdmin) return;
-    updateState(prev => ({
-      ...prev,
-      quarterlyGoals: prev.quarterlyGoals.map(g => g.id === id ? { ...g, parentId } : g)
-    }));
+    removeGoal(quarterId).catch((e) => console.error(e));
+    updateState((prev) => {
+      const monthIds = new Set(prev.monthlyGoals.filter((m) => m.parentId === quarterId).map((m) => m.id));
+      const weekIds = new Set(prev.weeklyGoals.filter((w) => w.parentId && monthIds.has(w.parentId)).map((w) => w.id));
+      return {
+        ...prev,
+        quarterlyGoals: prev.quarterlyGoals.filter((q) => q.id !== quarterId),
+        monthlyGoals: prev.monthlyGoals.filter((m) => !monthIds.has(m.id)),
+        weeklyGoals: prev.weeklyGoals.filter((w) => !weekIds.has(w.id)),
+        dailyGoals: prev.dailyGoals.filter((d) => !d.parentId || !weekIds.has(d.parentId)),
+      };
+    });
   };
 
-  const getProgressData = (quarterId: string) => {
-    const children = state.monthlyGoals.filter(m => m.parentId === quarterId);
-    if (children.length === 0) return { progress: 0, count: 0 };
-    const completedCount = children.filter(m => m.completed).length;
-    return {
-      progress: Math.round((completedCount / children.length) * 100),
-      count: children.length
-    };
-  };
+  const grouped = state.yearlyGoals.map((yearGoal) => ({
+    yearGoal,
+    quarters: state.quarterlyGoals
+      .filter((q) => q.parentId === yearGoal.id)
+      .sort((a, b) => (a.timeline || '').localeCompare(b.timeline || '')),
+  }));
 
   return (
-    <div className="max-w-4xl mx-auto space-y-10 animate-in fade-in duration-500 pb-16">
-      <div className="bg-slate-900 p-12 rounded-[2.5rem] text-white shadow-2xl flex flex-col md:flex-row items-center justify-between gap-8 overflow-hidden relative border border-white/5">
-        <div className="absolute top-0 left-0 w-full h-2 bg-brand-red"></div>
-        <div className="relative z-10">
-          <h2 className="text-4xl mb-2">Tactical Sprints</h2>
-          <p className="text-slate-800 max-w-lg text-lg">
-            {isAdmin 
-              ? "Distill organizational strategy into quarterly performance sprints." 
-              : "VRT performance architecture read-only protocol."}
-          </p>
-        </div>
-        {!isAdmin && (
-            <div className="absolute top-6 right-6 bg-white/10 px-4 py-2 rounded-xl flex items-center gap-3 border border-white/10 backdrop-blur-md">
-            <Lock size={14} className="text-brand-red" />
-            <span className="text-[15px] text-brand-red">System Locked</span>
+    <div className="max-w-5xl mx-auto space-y-5 pb-16">
+      <h2 className="text-3xl text-slate-900">{state.uiConfig.quarterlyTitle}</h2>
+      {grouped.map(({ yearGoal, quarters }) => {
+        const isExpanded = expandedYearIds[yearGoal.id] ?? true;
+        const progress = quarters.length ? Math.round((quarters.filter((q) => q.completed).length / quarters.length) * 100) : 0;
+        return (
+          <div key={yearGoal.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setExpandedYearIds((prev) => ({ ...prev, [yearGoal.id]: !isExpanded }))}
+              className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50"
+            >
+              <div className="flex items-center gap-2 text-left">
+                {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                <div>
+                  <div className="text-sm text-slate-500">Yearly Goal</div>
+                  <div className="text-slate-900">{yearGoal.text || 'Untitled yearly goal'}</div>
+                </div>
+              </div>
+              <div className="text-sm text-slate-600">{progress}% complete</div>
+            </button>
+            {isExpanded && (
+              <div className="px-5 pb-5 grid md:grid-cols-2 gap-4">
+                {quarters.map((goal) => {
+                  const monthly = state.monthlyGoals.filter((m) => m.parentId === goal.id);
+                  const quarterProgress = monthly.length ? Math.round((monthly.filter((m) => m.completed).length / monthly.length) * 100) : 0;
+                  return (
+                    <div key={goal.id} className="border border-slate-200 rounded-xl p-4 space-y-2">
+                      <div className="text-xs text-slate-500">{goal.timeline}</div>
+                      <textarea
+                        readOnly={!isAdmin || !editingIds[goal.id]}
+                        value={drafts[goal.id] ?? goal.text}
+                        onChange={(e) => setDrafts((prev) => ({ ...prev, [goal.id]: e.target.value }))}
+                        placeholder={`${goal.timeline} goal`}
+                        className="w-full resize-none bg-transparent outline-none text-slate-800"
+                        rows={2}
+                      />
+                      {isAdmin && (
+                        <div className="flex items-center gap-2">
+                          {!editingIds[goal.id] ? (
+                            <button onClick={() => setEditingIds((prev) => ({ ...prev, [goal.id]: true }))} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-700">
+                              Edit
+                            </button>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                const text = drafts[goal.id] ?? goal.text;
+                                handleGoalChange(goal.id, text);
+                                await saveGoal({ ...goal, text }).catch((e) => console.error(e));
+                                setEditingIds((prev) => ({ ...prev, [goal.id]: false }));
+                              }}
+                              className="px-2 py-1 text-xs rounded bg-brand-red text-white"
+                            >
+                              Save
+                            </button>
+                          )}
+                          <button onClick={() => handleDeleteQuarter(goal.id)} className="p-1 text-slate-500 hover:text-brand-red">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                      <div className="text-xs text-slate-500">{quarterProgress}% monthly completion</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-        <Zap className="absolute -right-10 -bottom-10 text-brand-red w-64 h-64 opacity-5 rotate-12" />
-      </div>
-
-      <div className="grid gap-10">
-        {state.quarterlyGoals.map((goal, idx) => {
-          const { progress, count } = getProgressData(goal.id);
-          const parentGoal = state.yearlyGoals.find(y => y.id === goal.parentId);
-          
-          return (
-            <div key={goal.id} className="bg-white p-10 rounded-[2rem] shadow-sm border border-slate-200 group transition-all hover:shadow-2xl hover:border-brand-red/30">
-               <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
-                  <div className="flex items-center gap-8">
-                    <span className="text-7xl text-slate-400 group-hover:text-brand-red/10 transition-colors select-none leading-none">Q{idx + 1}</span>
-                    <div>
-                      <h4 className="text-slate-900 text-2xl leading-none">Operational Sprint</h4>
-                      <div className="flex items-center gap-3 mt-3">
-                        <Link2 size={16} className="text-brand-red" />
-                        <select 
-                          disabled={!isAdmin}
-                          value={goal.parentId || ''}
-                          onChange={(e) => handleParentChange(goal.id, e.target.value)}
-                          className={`text-[15px] rounded-xl px-4 py-2 outline-none transition-colors ${isAdmin ? 'bg-slate-50 hover:bg-brand-red/10 cursor-pointer text-slate-600' : 'bg-slate-50 text-slate-800 cursor-not-allowed'}`}
-                        >
-                          <option value="">Link Strategic Anchor</option>
-                          {state.yearlyGoals.map((yg, yidx) => (
-                            <option key={yg.id} value={yg.id}>
-                              {yg.text ? `Anchor ${yidx + 1}: ${yg.text.substring(0, 30)}...` : `Anchor ${yidx + 1}`}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex flex-col items-center min-w-[180px]">
-                    <span className="text-[15px] text-slate-500 mb-3">{progress}% Completion</span>
-                    <div className="w-full h-4 bg-white rounded-full overflow-hidden shadow-inner border border-slate-100">
-                      <div 
-                        className="h-full bg-brand-red transition-all duration-1000 ease-out shadow-[0_0_12px_rgba(220,38,38,0.4)]" 
-                        style={{ width: `${progress}%` }}
-                      ></div>
-                    </div>
-                    <span className="mt-3 text-[15px] text-slate-800">{count} Linked Projects</span>
-                  </div>
-               </div>
-               
-               <textarea
-                  readOnly={!isAdmin}
-                  value={goal.text}
-                  onChange={(e) => handleGoalChange(goal.id, e.target.value)}
-                  placeholder={isAdmin ? `Primary performance outcome for Q${idx + 1}...` : "Strategic sprint focus pending..."}
-                  className={`w-full border-4 rounded-[2rem] p-8 text-2xl transition-all outline-none resize-none min-h-[160px] leading-tight ${isAdmin ? 'bg-slate-50/50 border-slate-100 focus:border-brand-red focus:bg-white text-slate-800' : 'bg-slate-50 border-transparent text-slate-800'}`}
-               />
-
-               {parentGoal && (
-                 <div className="mt-8 flex items-center gap-4 px-6 py-3 bg-brand-red/5 rounded-2xl border border-brand-red/10">
-                   <Target size={18} className="text-brand-red" />
-                   <div className="flex flex-col">
-                      <span className="text-[15px] text-brand-red">Anchored Strategic Mission</span>
-                      <span className="text-md text-slate-800 truncate max-w-lg">
-                        {parentGoal.text || `Strategic Goal ${state.yearlyGoals.indexOf(parentGoal) + 1}`}
-                      </span>
-                   </div>
-                 </div>
-               )}
-            </div>
-          );
-        })}
-      </div>
+        );
+      })}
     </div>
   );
 };
