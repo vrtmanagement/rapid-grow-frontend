@@ -120,6 +120,21 @@ const EMPTY_PROFILE: ProfileData = {
 
 const QUARTER_LABELS = ['Q1', 'Q2', 'Q3', 'Q4'];
 
+function getStoredEmployeeIdentifiers() {
+  try {
+    const raw = localStorage.getItem('rapidgrow-admin');
+    if (!raw) return { userId: '', empId: '' };
+    const parsed = JSON.parse(raw);
+    const employee = parsed?.employee || {};
+    return {
+      userId: String(employee._id || ''),
+      empId: String(employee.empId || ''),
+    };
+  } catch {
+    return { userId: '', empId: '' };
+  }
+}
+
 const normalizeGoalHierarchy = (state: PlanningState): PlanningState => {
   const yearlyGoals = state.yearlyGoals;
   const yearlyIds = new Set(yearlyGoals.map((g) => g.id));
@@ -227,6 +242,7 @@ const App: React.FC = () => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isVisionsOpen, setIsVisionsOpen] = useState(true);
   const [communicationUnreadCount, setCommunicationUnreadCount] = useState(0);
+  const [taskCount, setTaskCount] = useState(0);
 
   useEffect(() => {
     const adminStored = localStorage.getItem('rapidgrow-admin');
@@ -398,6 +414,47 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isAuthenticated) return;
+
+    const { empId } = getStoredEmployeeIdentifiers();
+    if (!empId) return;
+
+    let active = true;
+
+    async function fetchTaskCount() {
+      try {
+        const res = await fetch(`${API_BASE}/tasks/unread-count/${encodeURIComponent(empId)}`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) {
+          throw new Error('Failed to load task count');
+        }
+        const data = await res.json();
+        if (active) {
+          setTaskCount(typeof data?.unreadCount === 'number' ? data.unreadCount : 0);
+        }
+      } catch (err) {
+        console.warn('Failed to load task count', err);
+      }
+    }
+
+    fetchTaskCount();
+
+    const socket = getSocket();
+    const handleTaskCount = (payload: any) => {
+      if (!payload || String(payload.userId) !== empId) return;
+      setTaskCount(typeof payload.unreadCount === 'number' ? payload.unreadCount : 0);
+    };
+
+    socket.on('taskCount', handleTaskCount);
+
+    return () => {
+      active = false;
+      socket.off('taskCount', handleTaskCount);
+    };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
     const loadGoals = async () => {
       try {
         const res = await fetch(`${API_BASE}/goals`, { headers: getAuthHeaders() });
@@ -441,7 +498,6 @@ const App: React.FC = () => {
   const hasPower = (power: string) => hasPermission(power);
   const isSuperAdmin = state.currentUser.email === SUPER_ADMIN_EMAIL;
   const isAdmin = state.currentUser.role === 'Admin';
-  const taskCount = state.workspaces?.reduce((count, ws) => count + (Array.isArray(ws.projects) ? ws.projects.length : 0), 0) || 0;
   const visionNavItems = [
     { power: 'YEARLY_VIEW', to: '/yearly', icon: <Target size={20} />, label: state.uiConfig.yearlyTitle },
     { power: 'QUARTERLY_VIEW', to: '/quarterly', icon: <BarChart3 size={20} />, label: state.uiConfig.quarterlyTitle },
@@ -477,7 +533,7 @@ const App: React.FC = () => {
             </div>
             <nav className="flex-1 min-h-0 py-6 space-y-2 overflow-y-auto overflow-x-hidden px-4">
               {hasPower('DASHBOARD_VIEW') && <SidebarLink to="/" icon={<LayoutDashboard size={20} />} label={state.uiConfig.dashboardTitle} collapsed={false} />}
-              {hasPower('SPACES_VIEW') && <SidebarLink to="/spaces" icon={<Database size={20} />} label={`TaskHub${taskCount > 0 ? ' (1)' : ''}`} collapsed={false} />}
+              {hasPower('SPACES_VIEW') && <SidebarLink to="/spaces" icon={<Database size={20} />} label={taskCount > 0 ? `TaskHub (${taskCount})` : 'TaskHub'} collapsed={false} />}
               {hasPower('ATTENDANCE_VIEW') && <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={false} />}
               <div className="h-px bg-white/5 mx-4 my-6"></div>
               {visionNavItems.map((item) =>
@@ -596,7 +652,7 @@ const App: React.FC = () => {
             {!isSuperAdmin && (
               <>
                 {hasPower('WORKSPACES_VIEW') && <SidebarLink to="/workspaces" icon={<Briefcase size={20}/>} label={state.uiConfig.operationsTitle} collapsed={!isSidebarOpen} />}
-                {hasPower('SPACES_VIEW') && <SidebarLink to="/spaces" icon={<Database size={20} />} label="TaskHub" collapsed={!isSidebarOpen} />}
+                {hasPower('SPACES_VIEW') && <SidebarLink to="/spaces" icon={<Database size={20} />} label={taskCount > 0 ? `TaskHub (${taskCount})` : 'TaskHub'} collapsed={!isSidebarOpen} />}
                 {hasPower('ATTENDANCE_VIEW') && <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />}
                 <div className="h-px bg-white/5 mx-4 my-6"></div>
                 {visionNavItems.map((item) =>

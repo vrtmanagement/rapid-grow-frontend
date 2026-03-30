@@ -33,6 +33,7 @@ interface SpacesComment {
 
 type TaskStatus = 'todo' | 'doing' | 'review' | 'done' | 'blocked';
 type TaskPriority = 'low' | 'medium' | 'high';
+type TaskFilterMode = 'all' | 'me' | 'assigned';
 
 interface SpacesTask {
   taskId: string;
@@ -42,6 +43,7 @@ interface SpacesTask {
   projectTaskId?: string;
   assigneeId?: string;
   assigneeName?: string;
+  isViewed?: boolean;
   dueDate?: string;
   priority: TaskPriority;
   status: TaskStatus;
@@ -74,6 +76,16 @@ function getLoggedInEmployee() {
 
 function normalizeRole(role?: BackendRole): BackendRole {
   return (role || '').toUpperCase() as BackendRole;
+}
+
+function getPriorityRowClass(priority?: TaskPriority): string {
+  if (priority === 'high') {
+    return 'bg-red-100';
+  }
+  if (priority === 'medium') {
+    return 'bg-red-50';
+  }
+  return 'bg-green-100';
 }
 
 function projectCharterPayloadFromBackendProject(proj: any, updatedTasks: any[]) {
@@ -119,6 +131,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const [columns, setColumns] = useState<SpacesColumn[]>([]);
   const [tasks, setTasks] = useState<SpacesTask[]>([]);
   const [spacesLoading, setSpacesLoading] = useState(false);
+  const [markingTasksViewed, setMarkingTasksViewed] = useState(false);
 
   const [title, setTitle] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
@@ -143,7 +156,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const [columnToDelete, setColumnToDelete] = useState<SpacesColumn | null>(null);
   const [deleteTaskModal, setDeleteTaskModal] = useState<SpacesTask | null>(null);
 
-  const [taskFilterMode, setTaskFilterMode] = useState<'all' | 'me'>('all');
+  const [taskFilterMode, setTaskFilterMode] = useState<TaskFilterMode>('all');
   const [taskSearch, setTaskSearch] = useState('');
 
   const [editingTask, setEditingTask] = useState<SpacesTask | null>(null);
@@ -262,6 +275,48 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     loadSpaces();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const hasUnreadAssignedTasks = tasks.some(
+      (task) => task.assigneeId === me.id && task.isViewed === false,
+    );
+
+    if (!me.id || !hasUnreadAssignedTasks || markingTasksViewed) return;
+
+    let cancelled = false;
+
+    const markAssignedTasksAsViewed = async () => {
+      setMarkingTasksViewed(true);
+      try {
+        const res = await fetch(`${API_BASE}/tasks/mark-as-viewed`, {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) {
+          throw new Error('Failed to mark tasks as viewed');
+        }
+        if (!cancelled) {
+          setTasks((prev) =>
+            prev.map((task) =>
+              task.assigneeId === me.id ? { ...task, isViewed: true } : task,
+            ),
+          );
+        }
+      } catch (e) {
+        console.error('Failed to mark assigned tasks as viewed', e);
+      } finally {
+        if (!cancelled) {
+          setMarkingTasksViewed(false);
+        }
+      }
+    };
+
+    markAssignedTasksAsViewed();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tasks, me.id, markingTasksViewed]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -575,8 +630,12 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     let list = visibleTasks;
 
     if (taskFilterMode === 'me' && me.id) {
+      list = list.filter((t) => t.createdByEmpId === me.id);
+    }
+
+    if (taskFilterMode === 'assigned' && me.id) {
       list = list.filter(
-        (t) => t.assigneeId === me.id,
+        (t) => t.assigneeId === me.id && t.createdByEmpId !== me.id,
       );
     }
 
@@ -614,47 +673,23 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   }, [filteredTasks, mode]);
 
   const getTaskHighlightClass = (t: SpacesTask): string => {
-    const creatorRole = normalizeRole(t.createdByRole);
-    const viewerRole = normalizeRole(me.role);
-    const isSelf = t.createdByEmpId && t.createdByEmpId === me.id;
-
-    if (isSelf) return '';
-
-    if (mode === 'employee') {
-      // Employee: admin- and team-lead-created tasks are highlighted
-      if (
-        creatorRole === 'ADMIN' ||
-        creatorRole === 'SUPER_ADMIN' ||
-        creatorRole === 'TEAM_LEAD'
-      ) {
-        return 'bg-emerald-50';
-      }
-      return '';
-    }
-
-    if (mode === 'manager' && viewerRole === 'TEAM_LEAD') {
-      // Team lead: admin-created tasks are highlighted
-      if (creatorRole === 'ADMIN' || creatorRole === 'SUPER_ADMIN') {
-        return 'bg-emerald-50';
-      }
-    }
-
-    return '';
+    return getPriorityRowClass(t.priority);
   };
 
   const getTaskRowClasses = (t: SpacesTask): string => {
     const highlight = getTaskHighlightClass(t);
     const base = 'border-b border-slate-100';
+    const isLockedDoneRow = mode === 'employee' && t.status === 'done';
     if (highlight) {
-      return `${base} ${highlight} hover:bg-emerald-100`;
+      return `${base} ${highlight}${isLockedDoneRow ? ' opacity-60' : ''}`;
     }
-    return `${base} hover:bg-slate-50/50`;
+    return `${base}${isLockedDoneRow ? ' opacity-60' : ' hover:bg-slate-50/50'}`;
   };
 
   const canEditTask = (t: SpacesTask): boolean => {
     const role = (me.role || '').toUpperCase() as BackendRole;
     if (mode === 'employee') {
-      // Employee can edit only tasks they created
+      // Employee can edit only tasks they created themselves
       return t.createdByEmpId === me.id;
     }
     if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
@@ -662,10 +697,9 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       return true;
     }
     if (role === 'TEAM_LEAD') {
-      // Team leads can edit:
-      // - their own tasks (assignee or creator)
-      // - tasks created by team leads or employees
-      if (t.assigneeId === me.id || t.createdByEmpId === me.id) return true;
+      // Team leads can edit their own tasks and employee-created tasks,
+      // but not admin-created tasks.
+      if (t.createdByEmpId === me.id) return true;
       const createdRole = (t.createdByRole || '').toUpperCase();
       return createdRole === 'TEAM_LEAD' || createdRole === 'EMPLOYEE';
     }
@@ -683,7 +717,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const canDeleteTask = (t: SpacesTask): boolean => {
     const role = (me.role || '').toUpperCase() as BackendRole;
     if (mode === 'employee') {
-      // Employee: can delete only tasks they created
+      // Employee: can delete only tasks they created themselves
       return t.createdByEmpId === me.id;
     }
     if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
@@ -691,15 +725,20 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       return true;
     }
     if (role === 'TEAM_LEAD') {
-      // Team leads: can delete tasks they are assigned to OR tasks created by team leads/employees
-      if (t.assigneeId === me.id || t.createdByEmpId === me.id) return true;
+      // Team leads can delete their own tasks and employee-created tasks,
+      // but not admin-created tasks.
+      if (t.createdByEmpId === me.id) return true;
       const createdRole = (t.createdByRole || '').toUpperCase();
       return createdRole === 'TEAM_LEAD' || createdRole === 'EMPLOYEE';
     }
     return false;
   };
 
+  const isTaskLockedForEmployee = (t: SpacesTask): boolean =>
+    mode === 'employee' && t.status === 'done';
+
   const canChangeStatus = (t: SpacesTask): boolean => {
+    if (isTaskLockedForEmployee(t)) return false;
     if (mode === 'employee') {
       // Employee can change status for tasks they are assigned to or created
       return t.assigneeId === me.id || t.createdByEmpId === me.id;
@@ -905,6 +944,17 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
           >
             Me
           </button>
+          <button
+            type="button"
+            onClick={() => setTaskFilterMode('assigned')}
+            className={`px-4 py-1.5 text-[13px] rounded-full ${
+              taskFilterMode === 'assigned'
+                ? 'bg-slate-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Assigned
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -1040,17 +1090,18 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
               ) : (
                 sortedTasks.map((t) => {
                   const canEdit = canEditTask(t);
+                  const isLockedDoneRow = isTaskLockedForEmployee(t);
                   return (
                   <tr key={t.taskId} className={getTaskRowClasses(t)}>
                     <td className="px-4 py-3">
                       <input
                         defaultValue={t.title}
                         onBlur={(e) => {
-                          if (!canEdit) return;
+                          if (!canEdit || isLockedDoneRow) return;
                           const next = e.target.value.trim();
                           if (next && next !== t.title) patchTask(t.taskId, { title: next });
                         }}
-                        disabled={!canEdit}
+                        disabled={!canEdit || isLockedDoneRow}
                         className="w-full bg-transparent border-none outline-none text-[14px] text-slate-900 font-medium disabled:text-slate-500"
                       />
                       <div className="text-[11px] text-slate-400 mt-1 space-y-0.5">
@@ -1081,9 +1132,9 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                         return (
                       <select
                         value={t.assigneeId || ''}
-                        onChange={(e) => canEdit && patchTask(t.taskId, { assigneeId: e.target.value })}
+                        onChange={(e) => canEdit && !isLockedDoneRow && patchTask(t.taskId, { assigneeId: e.target.value })}
                         className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
-                        disabled={employeesLoading || !canEdit}
+                        disabled={employeesLoading || !canEdit || isLockedDoneRow}
                       >
                         <option value="">Unassigned</option>
                         {options.map((e) => (
@@ -1102,18 +1153,18 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                       <input
                         type="date"
                         value={t.dueDate || ''}
-                        onChange={(e) => canEdit && patchTask(t.taskId, { dueDate: e.target.value })}
+                        onChange={(e) => canEdit && !isLockedDoneRow && patchTask(t.taskId, { dueDate: e.target.value })}
                         className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
-                        disabled={!canEdit}
+                        disabled={!canEdit || isLockedDoneRow}
                       />
                     </td>
 
                     <td className="px-4 py-3">
                       <select
                         value={t.priority}
-                        onChange={(e) => canEdit && patchTask(t.taskId, { priority: e.target.value as TaskPriority })}
+                        onChange={(e) => canEdit && !isLockedDoneRow && patchTask(t.taskId, { priority: e.target.value as TaskPriority })}
                         className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
-                        disabled={!canEdit}
+                        disabled={!canEdit || isLockedDoneRow}
                       >
                         <option value="low">Low</option>
                         <option value="medium">Medium</option>
@@ -1143,13 +1194,13 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                       <button
                         type="button"
                         onClick={() => {
-                          if (!canCommentOnTask(t)) return;
+                          if (!canCommentOnTask(t) || isLockedDoneRow) return;
                           setCommentTaskId(t.taskId);
                           setModalStatus(t.status);
                         }}
-                        disabled={!canCommentOnTask(t)}
+                        disabled={!canCommentOnTask(t) || isLockedDoneRow}
                         className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border bg-white text-slate-700 ${
-                          canCommentOnTask(t)
+                          canCommentOnTask(t) && !isLockedDoneRow
                             ? 'border-slate-200 hover:bg-slate-50'
                             : 'border-slate-100 opacity-60 cursor-not-allowed'
                         }`}
@@ -1165,14 +1216,14 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                         <input
                           defaultValue={t.customFields?.[c.id] || ''}
                           onBlur={(e) => {
-                            if (!canEdit) return;
+                            if (!canEdit || isLockedDoneRow) return;
                             const next = e.target.value;
                             const prevVal = t.customFields?.[c.id] || '';
                             if (next === prevVal) return;
                             const nextCustom = { ...(t.customFields || {}), [c.id]: next };
                             patchTask(t.taskId, { customFields: nextCustom });
                           }}
-                          disabled={!canEdit}
+                          disabled={!canEdit || isLockedDoneRow}
                           className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red disabled:bg-slate-50 disabled:text-slate-500"
                           placeholder="—"
                         />
@@ -1203,7 +1254,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                             <button
                               type="button"
                               onClick={() => {
-                                if (!canEditTask(t)) return;
+                                if (!canEditTask(t) || isLockedDoneRow) return;
                                 setEditingTask(t);
                                 setEditingTaskDraft({
                                   title: t.title,
@@ -1213,7 +1264,8 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                                   status: t.status,
                                 });
                               }}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-100"
+                              disabled={isLockedDoneRow}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed"
                               title="Edit task"
                             >
                               <Pencil size={14} />
@@ -1222,8 +1274,12 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                           {canDeleteTask(t) && (
                             <button
                               type="button"
-                              onClick={() => setDeleteTaskModal(t)}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-red-100 text-red-500 hover:bg-red-50 text-[18px]"
+                              onClick={() => {
+                                if (isLockedDoneRow) return;
+                                setDeleteTaskModal(t);
+                              }}
+                              disabled={isLockedDoneRow}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-red-100 text-red-500 hover:bg-red-50 text-[18px] disabled:opacity-60 disabled:cursor-not-allowed"
                               title="Delete task"
                             >
                               ×
