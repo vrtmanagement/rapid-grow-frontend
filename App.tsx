@@ -454,6 +454,20 @@ const App: React.FC = () => {
   }, [isAuthenticated]);
 
   useEffect(() => {
+    const handleImmediateTaskCount = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId?: string; unreadCount?: number }>).detail;
+      const { empId } = getStoredEmployeeIdentifiers();
+      if (!empId || !detail || String(detail.userId || '') !== empId) return;
+      setTaskCount(typeof detail.unreadCount === 'number' ? detail.unreadCount : 0);
+    };
+
+    window.addEventListener('rapidgrow:task-count-sync', handleImmediateTaskCount as EventListener);
+    return () => {
+      window.removeEventListener('rapidgrow:task-count-sync', handleImmediateTaskCount as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isAuthenticated) return;
     const loadGoals = async () => {
       try {

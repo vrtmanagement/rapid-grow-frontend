@@ -1,6 +1,19 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { API_BASE, getAuthHeaders } from '../config/api';
-import { Plus, MessageSquareText, RefreshCw, MoreVertical, Pencil, Eye } from 'lucide-react';
+import {
+  Plus,
+  MessageSquareText,
+  RefreshCw,
+  MoreVertical,
+  Pencil,
+  Eye,
+  X,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+} from 'lucide-react';
 import { getSocket } from '../realtime/socket';
 
 type SpacesMode = 'employee' | 'manager';
@@ -87,6 +100,480 @@ function getPriorityRowClass(priority?: TaskPriority): string {
   }
   return 'bg-green-100';
 }
+
+function parseDateValue(value?: string): Date | null {
+  if (!value) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function formatDateValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateLabel(value?: string): string {
+  const parsed = parseDateValue(value);
+  if (!parsed) return 'mm/dd/yyyy';
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  const year = parsed.getFullYear();
+  return `${month}/${day}/${year}`;
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+const CALENDAR_WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+const ThemedDatePicker: React.FC<{
+  value?: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  compact?: boolean;
+  forceOpenDown?: boolean;
+}> = ({ value, onChange, disabled = false, compact = false, forceOpenDown = false }) => {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState<Date>(() => parseDateValue(value) || new Date());
+  const [openAbove, setOpenAbove] = useState(false);
+
+  useEffect(() => {
+    const parsed = parseDateValue(value);
+    if (parsed) setViewDate(parsed);
+  }, [value]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!wrapperRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !wrapperRef.current) return;
+
+    const updatePlacement = () => {
+      if (!wrapperRef.current) return;
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const estimatedHeight = compact ? 240 : 290;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      setOpenAbove(forceOpenDown ? false : spaceBelow < estimatedHeight && spaceAbove > spaceBelow);
+    };
+
+    updatePlacement();
+    window.addEventListener('resize', updatePlacement);
+    window.addEventListener('scroll', updatePlacement, true);
+    return () => {
+      window.removeEventListener('resize', updatePlacement);
+      window.removeEventListener('scroll', updatePlacement, true);
+    };
+  }, [open, compact, forceOpenDown]);
+
+  const startOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+  const monthLabel = viewDate.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+  const selectedDate = parseDateValue(value);
+  const today = new Date();
+  const triggerClass = compact
+    ? TABLE_DATE_TRIGGER_CLASS
+    : `${CREATE_INPUT_CLASS} text-left hover:border-slate-300 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400`;
+
+  const calendarDays = useMemo(() => {
+    const days: Date[] = [];
+    const startDay = startOfMonth.getDay();
+    const gridStart = new Date(startOfMonth);
+    gridStart.setDate(startOfMonth.getDate() - startDay);
+
+    for (let i = 0; i < 42; i += 1) {
+      const day = new Date(gridStart);
+      day.setDate(gridStart.getDate() + i);
+      days.push(day);
+    }
+
+    return days;
+  }, [startOfMonth]);
+
+  const handleSelect = (date: Date) => {
+    onChange(formatDateValue(date));
+    setOpen(false);
+  };
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen((prev) => !prev)}
+        disabled={disabled}
+        className={triggerClass}
+      >
+        <span className={value ? 'text-slate-700' : 'text-slate-400'}>{formatDateLabel(value)}</span>
+        {!disabled ? (
+          <Calendar
+            size={compact ? 16 : 18}
+            className={`absolute top-1/2 -translate-y-1/2 text-slate-500 ${compact ? 'right-3' : 'right-4'}`}
+          />
+        ) : null}
+      </button>
+
+      {open && !disabled && (
+        <div
+          className={`absolute left-0 z-30 border border-slate-200 bg-white shadow-2xl ${
+            compact
+              ? `w-[248px] rounded-[18px] p-2 ${openAbove ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}`
+              : `w-[270px] rounded-[22px] p-2.5 ${openAbove ? 'bottom-full mb-2' : 'top-full mt-2'}`
+          }`}
+        >
+          <div className={`flex items-center justify-between ${compact ? 'mb-1.5' : 'mb-2'}`}>
+            <div className={`${compact ? 'text-[13px]' : 'text-[14px]'} font-semibold text-slate-900`}>
+              {monthLabel}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}
+                className={`inline-flex items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:border-brand-red/20 hover:bg-red-50 hover:text-brand-red ${
+                  compact ? 'h-7 w-7' : 'h-8 w-8'
+                }`}
+              >
+                <ChevronLeft size={compact ? 14 : 15} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}
+                className={`inline-flex items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:border-brand-red/20 hover:bg-red-50 hover:text-brand-red ${
+                  compact ? 'h-7 w-7' : 'h-8 w-8'
+                }`}
+              >
+                <ChevronRight size={compact ? 14 : 15} />
+              </button>
+            </div>
+          </div>
+
+          <div className={`grid grid-cols-7 ${compact ? 'mb-1 gap-0.5' : 'mb-1.5 gap-1'}`}>
+            {CALENDAR_WEEKDAYS.map((day) => (
+              <div
+                key={day}
+                className={`text-center font-semibold uppercase tracking-[0.08em] text-slate-400 ${
+                  compact ? 'text-[10px]' : 'text-[11px]'
+                }`}
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className={`grid grid-cols-7 ${compact ? 'gap-0.5' : 'gap-1'}`}>
+            {calendarDays.map((day) => {
+              const inCurrentMonth = day.getMonth() === viewDate.getMonth();
+              const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
+              const isTodayValue = isSameDay(day, today);
+
+              return (
+                <button
+                  key={day.toISOString()}
+                  type="button"
+                  onClick={() => handleSelect(day)}
+                  className={`${compact ? 'h-7 rounded-lg text-[12px]' : 'h-8 rounded-xl text-[13px]'} transition-colors ${
+                    isSelected
+                      ? 'bg-brand-red text-white shadow-md'
+                      : inCurrentMonth
+                      ? 'text-slate-700 hover:bg-slate-100'
+                      : 'text-slate-300 hover:bg-slate-50'
+                  } ${isTodayValue && !isSelected ? 'border border-brand-red/20 bg-red-50 text-brand-red' : ''}`}
+                >
+                  {day.getDate()}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className={`flex items-center justify-between border-t border-slate-100 ${compact ? 'mt-1.5 pt-1.5' : 'mt-2 pt-2'}`}>
+            <button
+              type="button"
+              onClick={() => {
+                onChange('');
+                setOpen(false);
+              }}
+              className={`${compact ? 'text-[11px]' : 'text-[12px]'} font-semibold text-slate-500 hover:text-brand-red`}
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelect(new Date())}
+              className={`rounded-full bg-brand-red font-semibold text-white hover:bg-brand-navy ${
+                compact ? 'px-3 py-1 text-[11px]' : 'px-3.5 py-1.5 text-[12px]'
+              }`}
+            >
+              Today
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+const ThemedSelect: React.FC<{
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  compact?: boolean;
+  forceOpenDown?: boolean;
+}> = ({
+  value,
+  options,
+  onChange,
+  placeholder = 'Select',
+  disabled = false,
+  compact = false,
+  forceOpenDown = false,
+}) => {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [openAbove, setOpenAbove] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!wrapperRef.current?.contains(target) && !menuRef.current?.contains(target)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !wrapperRef.current) return;
+
+    const updatePlacement = () => {
+      if (!wrapperRef.current) return;
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const estimatedHeight = compact ? 240 : 290;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const shouldOpenAbove = forceOpenDown ? false : spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+      setOpenAbove(shouldOpenAbove);
+
+      if (compact) {
+        setMenuPosition({
+          left: rect.left,
+          top: shouldOpenAbove ? Math.max(8, rect.top - estimatedHeight - 6) : rect.bottom + 6,
+          width: rect.width,
+        });
+      }
+    };
+
+    updatePlacement();
+    window.addEventListener('resize', updatePlacement);
+    window.addEventListener('scroll', updatePlacement, true);
+    return () => {
+      window.removeEventListener('resize', updatePlacement);
+      window.removeEventListener('scroll', updatePlacement, true);
+    };
+  }, [open, compact, forceOpenDown]);
+
+  useEffect(() => {
+    if (!open || !wrapperRef.current) return;
+
+    const updatePlacement = () => {
+      if (!wrapperRef.current) return;
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const estimatedHeight = compact ? 240 : 290;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      setOpenAbove(forceOpenDown ? false : spaceBelow < estimatedHeight && spaceAbove > spaceBelow);
+    };
+
+    updatePlacement();
+    window.addEventListener('resize', updatePlacement);
+    window.addEventListener('scroll', updatePlacement, true);
+    return () => {
+      window.removeEventListener('resize', updatePlacement);
+      window.removeEventListener('scroll', updatePlacement, true);
+    };
+  }, [open, compact, forceOpenDown]);
+
+  useEffect(() => {
+    if (!open || !compact) return;
+
+    const updatePosition = () => {
+      if (!wrapperRef.current) return;
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const estimatedHeight = Math.min(Math.max(options.length, 1), 6) * 38 + 16;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const shouldOpenAbove = forceOpenDown ? false : spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+      setOpenAbove(shouldOpenAbove);
+      setMenuPosition({
+        top: shouldOpenAbove ? Math.max(8, rect.top - estimatedHeight - 6) : rect.bottom + 6,
+        left: rect.left,
+        width: rect.width,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open, compact, options.length, forceOpenDown]);
+
+  useEffect(() => {
+    if (!open || compact || !wrapperRef.current) return;
+
+    const updatePlacement = () => {
+      if (!wrapperRef.current) return;
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const estimatedHeight = Math.min(Math.max(options.length, 1), 6) * 50 + 16;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      setOpenAbove(forceOpenDown ? false : spaceBelow < estimatedHeight && spaceAbove > spaceBelow);
+    };
+
+    updatePlacement();
+    window.addEventListener('resize', updatePlacement);
+    window.addEventListener('scroll', updatePlacement, true);
+    return () => {
+      window.removeEventListener('resize', updatePlacement);
+      window.removeEventListener('scroll', updatePlacement, true);
+    };
+  }, [open, compact, options.length, forceOpenDown]);
+
+  const selected = options.find((option) => option.value === value);
+  const triggerClass = compact ? TABLE_SELECT_TRIGGER_CLASS : CREATE_SELECT_TRIGGER_CLASS;
+  const menuClass = compact ? TABLE_SELECT_MENU_CLASS : CREATE_SELECT_MENU_CLASS;
+  const optionClass = compact ? TABLE_SELECT_OPTION_CLASS : CREATE_SELECT_OPTION_CLASS;
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen((prev) => !prev)}
+        disabled={disabled}
+        className={triggerClass}
+      >
+        <span
+          className={`min-w-0 flex-1 truncate whitespace-nowrap pr-2 text-left ${
+            selected ? 'text-slate-700' : 'text-slate-400'
+          }`}
+        >
+          {selected?.label || placeholder}
+        </span>
+        <ChevronDown
+          size={compact ? 16 : 18}
+          className={`shrink-0 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open && !disabled && !compact && (
+        <div className={`${menuClass} ${openAbove ? 'bottom-full top-auto mb-2 mt-0' : ''}`}>
+          {options.map((option) => {
+            const isSelected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                className={`${optionClass} ${
+                  isSelected ? 'bg-red-50 text-brand-red' : ''
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {open && !disabled && compact
+        ? createPortal(
+            <div
+              ref={menuRef}
+              className={`${menuClass} fixed z-[80] max-h-[240px] overflow-y-auto`}
+              style={{
+                top: `${menuPosition.top}px`,
+                left: `${menuPosition.left}px`,
+                width: `${menuPosition.width}px`,
+              }}
+            >
+              {options.map((option) => {
+                const isSelected = option.value === value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(option.value);
+                      setOpen(false);
+                    }}
+                    className={`${optionClass} ${isSelected ? 'bg-red-50 text-brand-red' : ''}`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+};
+
+const CREATE_INPUT_CLASS =
+  'w-full rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[15px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15';
+
+const TABLE_INPUT_CLASS =
+  'w-full bg-white border border-slate-200 rounded-xl px-4 pr-12 py-2 text-[13px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red';
+
+const CREATE_SELECT_TRIGGER_CLASS =
+  'flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[15px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+
+const CREATE_SELECT_MENU_CLASS =
+  'absolute left-0 top-full z-30 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl';
+
+const CREATE_SELECT_OPTION_CLASS =
+  'w-full px-5 py-3 text-left text-[15px] text-slate-700 transition-colors hover:bg-red-50 hover:text-brand-red';
+
+const TABLE_SELECT_TRIGGER_CLASS =
+  'flex w-[124px] max-w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 pr-4 py-2 text-[13px] text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+
+const TABLE_SELECT_MENU_CLASS =
+  'absolute left-0 top-full z-30 mt-1.5 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl';
+
+const TABLE_SELECT_OPTION_CLASS =
+  'w-full px-4 py-2.5 text-left text-[13px] text-slate-700 transition-colors hover:bg-red-50 hover:text-brand-red';
+
+const TABLE_DATE_TRIGGER_CLASS =
+  'w-[138px] max-w-full rounded-xl border border-slate-200 bg-white px-4 pr-10 py-2 text-center text-[13px] text-slate-700 outline-none transition-colors hover:border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 function projectCharterPayloadFromBackendProject(proj: any, updatedTasks: any[]) {
   return {
@@ -225,6 +712,45 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     return map;
   }, [employees, me.id, me.name, me.role]);
 
+  const createAssigneeOptions = useMemo(
+    () => [
+      { value: '', label: 'Unassigned' },
+      ...assignableEmployees.map((employee) => ({
+        value: employee.empId,
+        label: employee.empId === me.id ? `${employee.empName} (You)` : employee.empName || 'Unknown User',
+      })),
+    ],
+    [assignableEmployees, me.id],
+  );
+
+  const priorityOptions = useMemo(
+    () => [
+      { value: 'low', label: 'Low' },
+      { value: 'medium', label: 'Medium' },
+      { value: 'high', label: 'High' },
+    ],
+    [],
+  );
+
+  const statusOptions = useMemo(
+    () => [
+      { value: 'todo', label: 'To Do' },
+      { value: 'doing', label: 'Doing' },
+      { value: 'review', label: 'Review' },
+      { value: 'done', label: 'Done' },
+      { value: 'blocked', label: 'Blocked' },
+    ],
+    [],
+  );
+
+  const projectSelectOptions = useMemo(
+    () => [
+      { value: '', label: 'No project' },
+      ...projects.map((project) => ({ value: project.id, label: project.name })),
+    ],
+    [projects],
+  );
+
   const assigneeOptionsForTask = (currentAssigneeId?: string): EmployeeOption[] => {
     const map = new Map<string, EmployeeOption>();
     assignableEmployees.forEach((emp) => map.set(emp.empId, emp));
@@ -275,6 +801,18 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     loadSpaces();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!me.id) return;
+    const unreadCount = tasks.filter(
+      (task) => task.assigneeId === me.id && task.isViewed === false && task.status !== 'done',
+    ).length;
+    window.dispatchEvent(
+      new CustomEvent('rapidgrow:task-count-sync', {
+        detail: { userId: me.id, unreadCount },
+      }),
+    );
+  }, [tasks, me.id]);
 
   useEffect(() => {
     const hasUnreadAssignedTasks = tasks.some(
@@ -676,10 +1214,29 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     return getPriorityRowClass(t.priority);
   };
 
+  const isTaskLocked = (t: SpacesTask): boolean => {
+    const role = (me.role || '').toUpperCase() as BackendRole;
+    const createdRole = (t.createdByRole || '').toUpperCase() as BackendRole;
+
+    if (mode === 'employee') {
+      return t.status === 'done';
+    }
+
+    if (
+      role === 'TEAM_LEAD' &&
+      t.status === 'done' &&
+      (createdRole === 'ADMIN' || createdRole === 'SUPER_ADMIN')
+    ) {
+      return true;
+    }
+
+    return false;
+  };
+
   const getTaskRowClasses = (t: SpacesTask): string => {
     const highlight = getTaskHighlightClass(t);
     const base = 'border-b border-slate-100';
-    const isLockedDoneRow = mode === 'employee' && t.status === 'done';
+    const isLockedDoneRow = isTaskLocked(t);
     if (highlight) {
       return `${base} ${highlight}${isLockedDoneRow ? ' opacity-60' : ''}`;
     }
@@ -734,15 +1291,22 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     return false;
   };
 
-  const isTaskLockedForEmployee = (t: SpacesTask): boolean =>
-    mode === 'employee' && t.status === 'done';
+  const canEditDueDate = (t: SpacesTask): boolean => {
+    if (isTaskLocked(t)) return false;
+    return canEditTask(t);
+  };
 
   const canChangeStatus = (t: SpacesTask): boolean => {
-    if (isTaskLockedForEmployee(t)) return false;
+    if (isTaskLocked(t)) return false;
     if (mode === 'employee') {
       // Employee can change status for tasks they are assigned to or created
       return t.assigneeId === me.id || t.createdByEmpId === me.id;
     }
+
+    if ((me.role || '').toUpperCase() === 'TEAM_LEAD') {
+      return t.assigneeId === me.id || canEditTask(t);
+    }
+
     return canEditTask(t);
   };
 
@@ -790,9 +1354,9 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
         <div>
           <div className="flex items-center gap-2 mb-3">
             <div className="h-1.5 w-8 bg-brand-red rounded-full" />
-            <span className="text-[15px] text-slate-500">Spaces</span>
+            <span className="text-[15px] text-slate-500">Task Hub</span>
           </div>
-          <h2 className="text-4xl text-slate-900 leading-none">Spaces</h2>
+          <h2 className="text-4xl text-slate-900 leading-none">Task Hub</h2>
           <p className="text-slate-500 text-lg mt-3">
             Tasks table with project/no-project support.
           </p>
@@ -825,83 +1389,60 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+              className={CREATE_INPUT_CLASS}
               placeholder="Task name"
             />
           </div>
 
           <div>
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Assignee</label>
-            <select
+            <ThemedSelect
               value={assigneeId}
-              onChange={(e) => setAssigneeId(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
+              onChange={setAssigneeId}
+              options={createAssigneeOptions}
+              placeholder="Unassigned"
               disabled={employeesLoading}
-            >
-              <option value="">Unassigned</option>
-              {assignableEmployees.map((e) => (
-                <option key={e.empId} value={e.empId}>
-                  {e.empId === me.id ? `${e.empName} (You)` : e.empName || 'Unknown User'}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-semibold text-slate-700 mb-2">Due date</label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+              forceOpenDown={true}
             />
           </div>
 
           <div>
+            <label className="block text-[13px] font-semibold text-slate-700 mb-2">Due date</label>
+            <ThemedDatePicker value={dueDate} onChange={setDueDate} forceOpenDown={true} />
+          </div>
+
+          <div>
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Priority</label>
-            <select
+            <ThemedSelect
               value={priority}
-              onChange={(e) => setPriority(e.target.value as TaskPriority)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
+              onChange={(value) => setPriority(value as TaskPriority)}
+              options={priorityOptions}
+              forceOpenDown={true}
+            />
           </div>
 
           <div>
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Status</label>
-            <select
+            <ThemedSelect
               value={status}
-              onChange={(e) => setStatus(e.target.value as TaskStatus)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
-            >
-              <option value="todo">To Do</option>
-              <option value="doing">Doing</option>
-              <option value="review">Review</option>
-              <option value="done">Done</option>
-              <option value="blocked">Blocked</option>
-            </select>
+              onChange={(value) => setStatus(value as TaskStatus)}
+              options={statusOptions}
+              forceOpenDown={true}
+            />
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div className="md:col-span-2">
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Project</label>
-            <select
+            <ThemedSelect
               value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
+              onChange={setSelectedProjectId}
+              options={projectSelectOptions}
+              placeholder="No project"
               disabled={projectsLoading}
-            >
-              <option value="">No project</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+              forceOpenDown={true}
+            />
           </div>
 
           <div className="flex justify-end">
@@ -1090,7 +1631,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
               ) : (
                 sortedTasks.map((t) => {
                   const canEdit = canEditTask(t);
-                  const isLockedDoneRow = isTaskLockedForEmployee(t);
+                  const isLockedDoneRow = isTaskLocked(t);
                   return (
                   <tr key={t.taskId} className={getTaskRowClasses(t)}>
                     <td className="px-4 py-3">
@@ -1129,65 +1670,63 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                             empName: t.assigneeName || '',
                           };
                         });
+                        const selectOptions = [
+                          { value: '', label: 'Unassigned' },
+                          ...options.map((employee) => ({
+                            value: employee.empId,
+                            label:
+                              employee.empId === me.id
+                                ? `${employee.empName} (You)`
+                                : employee.empName || 'Unknown User',
+                          })),
+                        ];
                         return (
-                      <select
+                      <ThemedSelect
                         value={t.assigneeId || ''}
-                        onChange={(e) => canEdit && !isLockedDoneRow && patchTask(t.taskId, { assigneeId: e.target.value })}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                        onChange={(value) =>
+                          canEdit && !isLockedDoneRow && patchTask(t.taskId, { assigneeId: value })
+                        }
+                        options={selectOptions}
+                        placeholder="Unassigned"
                         disabled={employeesLoading || !canEdit || isLockedDoneRow}
-                      >
-                        <option value="">Unassigned</option>
-                        {options.map((e) => (
-                          <option key={e.empId} value={e.empId}>
-                            {e.empId === me.id
-                              ? `${e.empName} (You)`
-                              : e.empName || 'Unknown User'}
-                          </option>
-                        ))}
-                      </select>
+                        compact={true}
+                      />
                         );
                       })()}
                     </td>
 
                     <td className="px-4 py-3">
-                      <input
-                        type="date"
+                      <ThemedDatePicker
                         value={t.dueDate || ''}
-                        onChange={(e) => canEdit && !isLockedDoneRow && patchTask(t.taskId, { dueDate: e.target.value })}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
-                        disabled={!canEdit || isLockedDoneRow}
+                        onChange={(value) => canEditDueDate(t) && patchTask(t.taskId, { dueDate: value })}
+                        disabled={!canEditDueDate(t)}
+                        compact={true}
                       />
                     </td>
 
                     <td className="px-4 py-3">
-                      <select
+                      <ThemedSelect
                         value={t.priority}
-                        onChange={(e) => canEdit && !isLockedDoneRow && patchTask(t.taskId, { priority: e.target.value as TaskPriority })}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                        onChange={(value) =>
+                          canEdit && !isLockedDoneRow && patchTask(t.taskId, { priority: value as TaskPriority })
+                        }
+                        options={priorityOptions}
                         disabled={!canEdit || isLockedDoneRow}
-                      >
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                      </select>
+                        compact={true}
+                      />
                     </td>
 
                     <td className="px-4 py-3">
-                      <select
+                      <ThemedSelect
                         value={t.status}
-                        onChange={(e) =>
+                        onChange={(value) =>
                           canChangeStatus(t) &&
-                          patchTask(t.taskId, { status: e.target.value as TaskStatus })
+                          patchTask(t.taskId, { status: value as TaskStatus })
                         }
-                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                        options={statusOptions}
                         disabled={!canChangeStatus(t)}
-                      >
-                        <option value="todo">To Do</option>
-                        <option value="doing">Doing</option>
-                        <option value="review">Review</option>
-                        <option value="done">Done</option>
-                        <option value="blocked">Blocked</option>
-                      </select>
+                        compact={true}
+                      />
                     </td>
 
                     <td className="px-4 py-3">
@@ -1224,8 +1763,8 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                             patchTask(t.taskId, { customFields: nextCustom });
                           }}
                           disabled={!canEdit || isLockedDoneRow}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red disabled:bg-slate-50 disabled:text-slate-500"
-                          placeholder="—"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 pr-10 py-2 text-[13px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red disabled:bg-slate-50 disabled:text-slate-500"
+                          placeholder="â€”"
                         />
                       </td>
                     ))}
@@ -1282,7 +1821,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                               className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-red-100 text-red-500 hover:bg-red-50 text-[18px] disabled:opacity-60 disabled:cursor-not-allowed"
                               title="Delete task"
                             >
-                              ×
+                              <X size={14} strokeWidth={2} />
                             </button>
                           )}
                         </div>
@@ -1321,7 +1860,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                   setCommentDraft('');
                 }}
               >
-                ×
+                <X size={14} strokeWidth={2} className="mx-auto text-slate-700" />
               </button>
             </div>
 
@@ -1684,13 +2223,11 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1">
                     Due date
                   </label>
-                  <input
-                    type="date"
+                  <ThemedDatePicker
                     value={editingTaskDraft.dueDate || ''}
-                    onChange={(e) =>
-                      setEditingTaskDraft((prev) => ({ ...prev, dueDate: e.target.value }))
+                    onChange={(value) =>
+                      setEditingTaskDraft((prev) => ({ ...prev, dueDate: value }))
                     }
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
                   />
                 </div>
               </div>
@@ -1781,4 +2318,5 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
 };
 
 export default SpacesView;
+
 
