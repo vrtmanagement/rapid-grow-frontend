@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { apiCreateTeam, apiDeleteTeam, apiHistory, apiListConversations, apiListUsers, apiUpdateTeam, apiUploadFile } from '../api';
+import { apiCreateTeam, apiDeleteTeam, apiHistory, apiListConversations, apiListUsers, apiMarkAsRead, apiUpdateTeam, apiUploadFile } from '../api';
+import { API_BASE } from '../../config/api';
 import { ChatConversationSummary, ChatMessage, ChatUser, ChatAttachment, ChatReplyRef } from '../types';
 import { getSocket } from '../../realtime/socket';
 
@@ -655,6 +656,15 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
                 // Mark messages as seen (updates unread baseline + DM seen ticks)
                 setConversations((prev) => prev.map((c) => (c.conversationKey === conversationKey ? { ...c, unreadCount: 0 } : c)));
                 socket.emit('comm:seen:open', { conversationKey });
+
+                // Also mark as read in the backend API for aggregated unread count tracking.
+                try {
+                  await apiMarkAsRead({ conversationKey });
+                } catch (err) {
+                  // non-fatal: do not block conversation open
+                  console.warn('apiMarkAsRead failed', err);
+                }
+
                 resolve();
               } catch (e: any) {
                 setError(e?.message || 'Failed to open conversation');
