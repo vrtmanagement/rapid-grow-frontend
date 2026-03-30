@@ -157,11 +157,15 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const employeeNameById = useMemo(() => {
     const map = new Map<string, string>();
     employees.forEach((e) => map.set(e.empId, e.empName));
+    if (me.id && me.name) {
+      map.set(me.id, me.name);
+    }
     return map;
-  }, [employees]);
+  }, [employees, me.id, me.name]);
 
   const canAssignTo = (emp: EmployeeOption | null): boolean => {
     if (!emp) return true;
+    if (emp.empId === me.id) return true;
     const viewerRole = normalizeRole(me.role);
     const targetRole = normalizeRole(emp.role || 'EMPLOYEE');
 
@@ -178,6 +182,21 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     // Admin / Super Admin: can assign to anyone
     return true;
   };
+
+  const assignableEmployees = useMemo(() => {
+    const map = new Map<string, EmployeeOption>();
+    employees.forEach((emp) => {
+      map.set(emp.empId, emp);
+    });
+    if (me.id) {
+      map.set(me.id, {
+        empId: me.id,
+        empName: me.name || 'You',
+        role: me.role || 'EMPLOYEE',
+      });
+    }
+    return Array.from(map.values()).filter((emp) => canAssignTo(emp));
+  }, [employees, me.id, me.name, me.role]);
 
   const loadSpaces = async () => {
     setSpacesLoading(true);
@@ -740,13 +759,11 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
               disabled={employeesLoading}
             >
               <option value="">Unassigned</option>
-              {employees
-                .filter((e) => canAssignTo(e))
-                .map((e) => (
-                  <option key={e.empId} value={e.empId}>
-                    {e.empName}
-                  </option>
-                ))}
+              {assignableEmployees.map((e) => (
+                <option key={e.empId} value={e.empId}>
+                  {e.empId === me.id ? `${e.empName} (You)` : e.empName}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -1019,13 +1036,11 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                         disabled={employeesLoading || !canEdit}
                       >
                         <option value="">Unassigned</option>
-                        {employees
-                          .filter((e) => canAssignTo(e))
-                          .map((e) => (
-                            <option key={e.empId} value={e.empId}>
-                              {e.empName}
-                            </option>
-                          ))}
+                        {assignableEmployees.map((e) => (
+                          <option key={e.empId} value={e.empId}>
+                            {e.empId === me.id ? `${e.empName} (You)` : e.empName}
+                          </option>
+                        ))}
                       </select>
                     </td>
 
@@ -1548,13 +1563,11 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
                   >
                     <option value="">Unassigned</option>
-                    {employees
-                      .filter((e) => canAssignTo(e))
-                      .map((e) => (
-                        <option key={e.empId} value={e.empId}>
-                          {e.empName}
-                        </option>
-                      ))}
+                    {assignableEmployees.map((e) => (
+                      <option key={e.empId} value={e.empId}>
+                        {e.empId === me.id ? `${e.empName} (You)` : e.empName}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
