@@ -558,7 +558,7 @@ const App: React.FC = () => {
             {!isSuperAdmin && (
               <>
                 {hasPower('WORKSPACES_VIEW') && <SidebarLink to="/workspaces" icon={<Briefcase size={20}/>} label={state.uiConfig.operationsTitle} collapsed={!isSidebarOpen} />}
-                {hasPower('SPACES_VIEW') && <SidebarLink to="/spaces" icon={<Database size={20} />} label="Spaces" collapsed={!isSidebarOpen} />}
+                {hasPower('SPACES_VIEW') && <SidebarLink to="/spaces" icon={<Database size={20} />} label="TaskHub" collapsed={!isSidebarOpen} />}
                 {hasPower('ATTENDANCE_VIEW') && <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />}
                 <div className="h-px bg-white/5 mx-4 my-6"></div>
                 {visionNavItems.map((item) =>
