@@ -28,6 +28,8 @@ import FeedbackView from './views/FeedbackView';
 import AttendanceView from './views/AttendanceView';
 import StaffView from './views/StaffView';
 import CommunicationView from './communication/views/CommunicationView';
+import { apiUnreadCount } from './communication/api';
+import { getSocket } from './realtime/socket';
 import PermissionsView from './views/PermissionsView';
 import { mapBackendRoleToUiRole } from './config/permissions';
 import { usePermissions } from './context/PermissionContext';
@@ -224,6 +226,7 @@ const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isVisionsOpen, setIsVisionsOpen] = useState(true);
+  const [communicationUnreadCount, setCommunicationUnreadCount] = useState(0);
 
   useEffect(() => {
     const adminStored = localStorage.getItem('rapidgrow-admin');
@@ -360,6 +363,40 @@ const App: React.FC = () => {
   }, [state]);
 
   useEffect(() => {
+    if (!isAuthenticated || !state.currentUser?.id) return;
+
+    let active = true;
+
+    async function fetchUnread() {
+      try {
+        const data = await apiUnreadCount(String(state.currentUser.id));
+        if (active) {
+          setCommunicationUnreadCount(typeof data.unreadCount === 'number' ? data.unreadCount : 0);
+        }
+      } catch (err) {
+        console.warn('Failed to load unread count', err);
+      }
+    }
+
+    fetchUnread();
+
+    const socket = getSocket();
+    const handleUnreadCount = (payload: any) => {
+      if (!payload || String(payload.userId) !== String(state.currentUser.id)) return;
+      if (typeof payload.unreadCount === 'number') {
+        setCommunicationUnreadCount(payload.unreadCount);
+      }
+    };
+
+    socket.on('unreadCount', handleUnreadCount);
+
+    return () => {
+      active = false;
+      socket.off('unreadCount', handleUnreadCount);
+    };
+  }, [isAuthenticated, state.currentUser?.id]);
+
+  useEffect(() => {
     if (!isAuthenticated) return;
     const loadGoals = async () => {
       try {
@@ -404,6 +441,7 @@ const App: React.FC = () => {
   const hasPower = (power: string) => hasPermission(power);
   const isSuperAdmin = state.currentUser.email === SUPER_ADMIN_EMAIL;
   const isAdmin = state.currentUser.role === 'Admin';
+  const taskCount = state.workspaces?.reduce((count, ws) => count + (Array.isArray(ws.projects) ? ws.projects.length : 0), 0) || 0;
   const visionNavItems = [
     { power: 'YEARLY_VIEW', to: '/yearly', icon: <Target size={20} />, label: state.uiConfig.yearlyTitle },
     { power: 'QUARTERLY_VIEW', to: '/quarterly', icon: <BarChart3 size={20} />, label: state.uiConfig.quarterlyTitle },
@@ -439,7 +477,7 @@ const App: React.FC = () => {
             </div>
             <nav className="flex-1 min-h-0 py-6 space-y-2 overflow-y-auto overflow-x-hidden px-4">
               {hasPower('DASHBOARD_VIEW') && <SidebarLink to="/" icon={<LayoutDashboard size={20} />} label={state.uiConfig.dashboardTitle} collapsed={false} />}
-              {hasPower('SPACES_VIEW') && <SidebarLink to="/spaces" icon={<Database size={20} />} label="TaskHub" collapsed={false} />}
+              {hasPower('SPACES_VIEW') && <SidebarLink to="/spaces" icon={<Database size={20} />} label={`TaskHub${taskCount > 0 ? ' (1)' : ''}`} collapsed={false} />}
               {hasPower('ATTENDANCE_VIEW') && <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={false} />}
               <div className="h-px bg-white/5 mx-4 my-6"></div>
               {visionNavItems.map((item) =>
@@ -451,7 +489,7 @@ const App: React.FC = () => {
               {hasPower('DAILY_VIEW') && <SidebarLink to="/daily" icon={<Clock size={20}/>} label={state.uiConfig.dailyTitle} collapsed={false} />}
               {hasPower('REFLECTION_VIEW') && <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={false} />}
               <div className="h-px bg-white/5 mx-4 my-6"></div>
-              {hasPower('COMMUNICATION_VIEW') && <SidebarLink to="/communication" icon={<Mail size={20}/>} label="Communication" collapsed={false} />}
+              {hasPower('COMMUNICATION_VIEW') && <SidebarLink to="/communication" icon={<Mail size={20}/>} label={communicationUnreadCount > 0 ? `Communication (${communicationUnreadCount})` : 'Communication'} collapsed={false} />}
               {hasPower('STAFF_VIEW') && <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={false} />}
             </nav>
           </aside>
@@ -583,7 +621,7 @@ const App: React.FC = () => {
             {isAdmin && (
               <SidebarLink to="/permissions" icon={<ShieldAlert size={20}/>} label="Permissions" collapsed={!isSidebarOpen} />
             )}
-            {hasPower('COMMUNICATION_VIEW') && <SidebarLink to="/communication" icon={<Mail size={20}/>} label="Communication" collapsed={!isSidebarOpen} />}
+            {hasPower('COMMUNICATION_VIEW') && <SidebarLink to="/communication" icon={<Mail size={20}/>} label={communicationUnreadCount > 0 ? `Communication (${communicationUnreadCount})` : 'Communication'} collapsed={!isSidebarOpen} />}
             {isAdmin && hasPower('FEEDBACK_VIEW') && (
               <SidebarLink to="/feedback" icon={<Mail size={20}/>} label="Feedback" collapsed={!isSidebarOpen} />
             )}

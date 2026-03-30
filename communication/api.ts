@@ -97,3 +97,27 @@ export async function apiDeleteTeam(conversationKey: string) {
   return res.json() as Promise<{ ok: boolean }>;
 }
 
+export async function apiUnreadCount(userId: string) {
+  const res = await fetch(`${API_BASE}/communication/messages/unread-count/${encodeURIComponent(userId)}`, {
+    headers: authHeadersJson(),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load unread count');
+  return res.json() as Promise<{ unreadCount: number }>;
+}
+
+export async function apiMarkAsRead({
+  senderId,
+  conversationKey,
+}: {
+  senderId?: string;
+  conversationKey?: string;
+}) {
+  const res = await fetch(`${API_BASE}/communication/messages/mark-as-read`, {
+    method: 'PUT',
+    headers: authHeadersJson(),
+    body: JSON.stringify({ senderId, conversationKey }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to mark messages read');
+  return res.json() as Promise<{ updated: number; unreadCount: number }>;
+}
+
