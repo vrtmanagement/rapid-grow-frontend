@@ -41,6 +41,7 @@ interface SpacesTask {
   projectId?: string;
   projectTaskId?: string;
   assigneeId?: string;
+  assigneeName?: string;
   dueDate?: string;
   priority: TaskPriority;
   status: TaskStatus;
@@ -221,7 +222,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
         currentId,
         currentEmp || {
           empId: currentId,
-          empName: currentId,
+          empName: '',
           role: 'EMPLOYEE',
         },
       );
@@ -801,7 +802,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
               <option value="">Unassigned</option>
               {assignableEmployees.map((e) => (
                 <option key={e.empId} value={e.empId}>
-                  {e.empId === me.id ? `${e.empName} (You)` : e.empName}
+                  {e.empId === me.id ? `${e.empName} (You)` : e.empName || 'Unknown User'}
                 </option>
               ))}
             </select>
@@ -1070,7 +1071,13 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
 
                     <td className="px-4 py-3">
                       {(() => {
-                        const options = assigneeOptionsForTask(t.assigneeId);
+                        const options = assigneeOptionsForTask(t.assigneeId).map((opt) => {
+                          if (opt.empId !== t.assigneeId || opt.empName) return opt;
+                          return {
+                            ...opt,
+                            empName: t.assigneeName || '',
+                          };
+                        });
                         return (
                       <select
                         value={t.assigneeId || ''}
@@ -1081,7 +1088,9 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                         <option value="">Unassigned</option>
                         {options.map((e) => (
                           <option key={e.empId} value={e.empId}>
-                            {e.empId === me.id ? `${e.empName} (You)` : e.empName}
+                            {e.empId === me.id
+                              ? `${e.empName} (You)`
+                              : e.empName || 'Unknown User'}
                           </option>
                         ))}
                       </select>
@@ -1610,7 +1619,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                     <option value="">Unassigned</option>
                     {assignableEmployees.map((e) => (
                       <option key={e.empId} value={e.empId}>
-                        {e.empId === me.id ? `${e.empName} (You)` : e.empName}
+                        {e.empId === me.id ? `${e.empName} (You)` : e.empName || 'Unknown User'}
                       </option>
                     ))}
                   </select>
