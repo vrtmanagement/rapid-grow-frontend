@@ -198,6 +198,46 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     return Array.from(map.values()).filter((emp) => canAssignTo(emp));
   }, [employees, me.id, me.name, me.role]);
 
+  const employeeById = useMemo(() => {
+    const map = new Map<string, EmployeeOption>();
+    employees.forEach((emp) => map.set(emp.empId, emp));
+    if (me.id) {
+      map.set(me.id, {
+        empId: me.id,
+        empName: me.name || 'You',
+        role: me.role || 'EMPLOYEE',
+      });
+    }
+    return map;
+  }, [employees, me.id, me.name, me.role]);
+
+  const assigneeOptionsForTask = (currentAssigneeId?: string): EmployeeOption[] => {
+    const map = new Map<string, EmployeeOption>();
+    assignableEmployees.forEach((emp) => map.set(emp.empId, emp));
+    const currentId = (currentAssigneeId || '').trim();
+    if (currentId && !map.has(currentId)) {
+      const currentEmp = employeeById.get(currentId);
+      map.set(
+        currentId,
+        currentEmp || {
+          empId: currentId,
+          empName: currentId,
+          role: 'EMPLOYEE',
+        },
+      );
+    }
+    return Array.from(map.values());
+  };
+
+  const upsertTaskById = (prev: SpacesTask[], incoming: SpacesTask): SpacesTask[] => {
+    if (!incoming?.taskId) return prev;
+    const idx = prev.findIndex((t) => t.taskId === incoming.taskId);
+    if (idx === -1) return [incoming, ...prev];
+    const next = [...prev];
+    next[idx] = incoming;
+    return next;
+  };
+
   const loadSpaces = async () => {
     setSpacesLoading(true);
     setError(null);
@@ -246,7 +286,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
 
       if (action === 'task_created' && payload?.task) {
         const task = payload.task as SpacesTask;
-        setTasks((prev) => (prev.some((t) => t.taskId === task.taskId) ? prev : [task, ...prev]));
+        setTasks((prev) => upsertTaskById(prev, task));
         return;
       }
 
@@ -514,7 +554,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
         throw new Error(data.message || 'Failed to create task');
       }
 
-      setTasks((prev) => [data as SpacesTask, ...prev]);
+      setTasks((prev) => upsertTaskById(prev, data as SpacesTask));
       setTitle('');
       setAssigneeId('');
       setDueDate('');
@@ -1029,6 +1069,9 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                     </td>
 
                     <td className="px-4 py-3">
+                      {(() => {
+                        const options = assigneeOptionsForTask(t.assigneeId);
+                        return (
                       <select
                         value={t.assigneeId || ''}
                         onChange={(e) => canEdit && patchTask(t.taskId, { assigneeId: e.target.value })}
@@ -1036,12 +1079,14 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                         disabled={employeesLoading || !canEdit}
                       >
                         <option value="">Unassigned</option>
-                        {assignableEmployees.map((e) => (
+                        {options.map((e) => (
                           <option key={e.empId} value={e.empId}>
                             {e.empId === me.id ? `${e.empName} (You)` : e.empName}
                           </option>
                         ))}
                       </select>
+                        );
+                      })()}
                     </td>
 
                     <td className="px-4 py-3">
