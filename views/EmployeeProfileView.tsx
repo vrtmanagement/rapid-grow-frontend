@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { User, Eye, EyeOff, Image as ImageIcon, Check } from 'lucide-react';
 import { PlanningState, TeamMember } from '../types';
+import AvatarCropModal from '../components/profile/AvatarCropModal';
 
 interface Props {
   state: PlanningState;
@@ -19,6 +20,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
 
   const syncCurrentUser = (updates: Partial<TeamMember>) => {
     updateState(prev => {
@@ -47,6 +49,12 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
     // we intentionally don't include dependencies to avoid re-sync loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!infoMessage) return;
+    const timer = window.setTimeout(() => setInfoMessage(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [infoMessage]);
 
   if (!employee) return null;
 
@@ -79,6 +87,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
       syncCurrentUser({ avatar: nextAvatar });
     } catch (e: any) {
       setError(e?.message || 'Failed to upload profile image');
+      throw e;
     } finally {
       setUploadingAvatar(false);
     }
@@ -290,13 +299,19 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
             />
             <div className="space-y-2 px-2">
               <label className="text-[13px] text-slate-700">Or upload profile image</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={e => handleAvatarFileChange(e.target.files?.[0] || null)}
-                className="block w-full text-[13px] text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[13px] file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
-                disabled={uploadingAvatar}
-              />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={e => {
+                    const file = e.target.files?.[0] || null;
+                    if (file) {
+                      setPendingAvatarFile(file);
+                    }
+                    e.target.value = '';
+                  }}
+                  className="block w-full text-[13px] text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[13px] file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
+                  disabled={uploadingAvatar}
+                />
             </div>
           </div>
           {uploadingAvatar && <div className="text-[13px] text-slate-600">Uploading profile image...</div>}
@@ -321,31 +336,25 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
       </div>
 
       {infoMessage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-md">
-          <div className="bg-white rounded-4xl shadow-2xl w-full max-w-lg p-8 border border-slate-100 relative">
-            <button
-              className="absolute top-4 right-4 text-slate-300 hover:text-emerald-500 transition-colors"
-              onClick={() => setInfoMessage(null)}
-            >
-              <Check size={20} />
-            </button>
-            <div className="mb-4">
-              <h3 className="text-xl font-bold text-slate-900">Profile updated</h3>
+        <div className="fixed top-6 right-6 z-50 animate-in slide-in-from-top-2 fade-in duration-300">
+          <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-white px-4 py-3 shadow-[0_18px_45px_rgba(15,23,42,0.12)]">
+            <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <Check size={18} />
             </div>
-            <p className="text-[15px] text-slate-700 mb-8">
-              {infoMessage}
-            </p>
-            <div className="flex justify-end">
-              <button
-                className="px-7 py-2.5 rounded-full text-[14px] font-black tracking-[0.15em] text-white bg-emerald-500 shadow-lg shadow-emerald-200 hover:bg-emerald-600 transition-colors uppercase"
-                onClick={() => setInfoMessage(null)}
-              >
-                OK
-              </button>
+            <div className="pr-2">
+              <p className="text-sm font-semibold text-slate-900">Profile updated</p>
+              <p className="text-sm text-slate-500">{infoMessage}</p>
             </div>
           </div>
         </div>
       )}
+
+      <AvatarCropModal
+        open={!!pendingAvatarFile}
+        file={pendingAvatarFile}
+        onClose={() => setPendingAvatarFile(null)}
+        onConfirm={handleAvatarFileChange}
+      />
     </div>
   );
 };

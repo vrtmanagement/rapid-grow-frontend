@@ -2,6 +2,31 @@ import React, { useEffect, useRef } from 'react';
 import { ChatMessage, ChatUser } from '../types';
 import { MessageBubble } from './MessageBubble';
 
+function ChatMessagesSkeleton() {
+  const rows = [
+    { align: 'start', width: 'w-56' },
+    { align: 'end', width: 'w-40' },
+    { align: 'start', width: 'w-64' },
+    { align: 'end', width: 'w-48' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {rows.map((row, index) => (
+        <div
+          key={`chat-message-skeleton-${index}`}
+          className={`flex ${row.align === 'end' ? 'justify-end' : 'justify-start'} animate-pulse`}
+        >
+          <div className="max-w-[75%] space-y-2">
+            <div className={`h-4 rounded-full bg-slate-200 ${row.width}`} />
+            <div className="h-16 rounded-3xl bg-white border border-slate-200" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ChatMessages({
   currentUserId,
   messages,
@@ -47,7 +72,7 @@ export function ChatMessages({
         </div>
 
         {messagesLoading ? (
-          <div className="text-sm text-slate-600">Loading messages...</div>
+          <ChatMessagesSkeleton />
         ) : messages.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
             <div className="text-lg font-semibold text-slate-900">No messages yet</div>

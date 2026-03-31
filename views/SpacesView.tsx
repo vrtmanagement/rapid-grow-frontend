@@ -69,6 +69,52 @@ interface SpacesTask {
   updatedAt: string;
 }
 
+const TaskHubTableSkeleton: React.FC<{ customColumnCount: number }> = ({ customColumnCount }) => {
+  const rows = Array.from({ length: 6 });
+  const customColumns = Array.from({ length: customColumnCount });
+
+  return (
+    <>
+      {rows.map((_, rowIndex) => (
+        <tr key={`task-skeleton-${rowIndex}`} className="animate-pulse border-b border-slate-100 last:border-b-0">
+          <td className="px-4 py-4">
+            <div className="space-y-2">
+              <div className="h-4 w-40 rounded-full bg-slate-200" />
+              <div className="h-3 w-28 rounded-full bg-slate-100" />
+            </div>
+          </td>
+          <td className="px-4 py-4">
+            <div className="h-10 w-full rounded-2xl bg-slate-100" />
+          </td>
+          <td className="px-4 py-4">
+            <div className="h-10 w-full rounded-2xl bg-slate-100" />
+          </td>
+          <td className="px-4 py-4">
+            <div className="h-10 w-full rounded-2xl bg-slate-100" />
+          </td>
+          <td className="px-4 py-4">
+            <div className="h-10 w-full rounded-2xl bg-slate-100" />
+          </td>
+          <td className="px-4 py-4">
+            <div className="flex items-center gap-2">
+              <div className="h-9 w-9 rounded-full bg-slate-100" />
+              <div className="h-4 w-10 rounded-full bg-slate-200" />
+            </div>
+          </td>
+          {customColumns.map((__, columnIndex) => (
+            <td key={`task-skeleton-${rowIndex}-column-${columnIndex}`} className="px-4 py-4">
+              <div className="h-10 w-full rounded-2xl bg-slate-100" />
+            </td>
+          ))}
+          <td className="px-3 py-4">
+            <div className="ml-auto h-9 w-9 rounded-full bg-slate-100" />
+          </td>
+        </tr>
+      ))}
+    </>
+  );
+};
+
 function safeJsonParse<T>(raw: string | null): T | null {
   if (!raw) return null;
   try {
@@ -1617,11 +1663,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
 
             <tbody>
               {spacesLoading ? (
-                <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={7 + columns.length}>
-                    Loading...
-                  </td>
-                </tr>
+                <TaskHubTableSkeleton customColumnCount={columns.length} />
               ) : sortedTasks.length === 0 ? (
                 <tr>
                   <td className="px-4 py-10 text-slate-500" colSpan={7 + columns.length}>

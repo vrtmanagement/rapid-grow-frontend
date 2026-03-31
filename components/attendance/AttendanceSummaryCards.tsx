@@ -1,6 +1,7 @@
 import React from 'react';
 import { Activity, Clock, History } from 'lucide-react';
 import { AttendanceSummaryResponse, Range, formatMinutes } from './attendanceUtils';
+import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
 
 interface Props {
   summary: AttendanceSummaryResponse | null;
@@ -8,6 +9,7 @@ interface Props {
   todayMinutes: number;
   todayColor: string;
   leaveDaysInRange: number;
+  loading?: boolean;
 }
 
 const AttendanceSummaryCards: React.FC<Props> = ({
@@ -16,10 +18,36 @@ const AttendanceSummaryCards: React.FC<Props> = ({
   todayMinutes,
   todayColor,
   leaveDaysInRange,
+  loading = false,
 }) => {
   const totalHours = summary ? parseFloat((summary.totalMinutes / 60).toFixed(2)) : 0;
   const totalDays = summary?.days.length ?? 0;
   const workingDays = Math.max(0, totalDays - leaveDaysInRange);
+
+  if (loading) {
+    return (
+      <>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={`attendance-card-${index}`} className="bg-white rounded-3xl border border-slate-200 p-5 flex items-center gap-4 shadow-sm animate-pulse">
+              <SkeletonBlock className={`w-11 h-11 rounded-2xl ${index === 0 ? 'bg-brand-red/10' : index === 1 ? 'bg-emerald-50' : 'bg-slate-100'}`} />
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-8 w-20" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600 animate-pulse">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-3 w-28" />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

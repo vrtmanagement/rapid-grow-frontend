@@ -4,9 +4,11 @@ import { Target, Calendar, Clock, BarChart3, TrendingUp, Award, Users, CheckCirc
 import { Link } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { API_BASE, getAuthHeaders } from '../config/api';
+import { AdminCardGridSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 
 interface Props {
   state: PlanningState;
+  loading?: boolean;
 }
 
 interface EmployeeRow {
@@ -23,7 +25,7 @@ interface EmployeeRow {
   [key: string]: unknown;
 }
 
-const DashboardView: React.FC<Props> = ({ state }) => {
+const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
   const [viewScope, setViewScope] = useState<'individual' | 'team'>('individual');
   const [allAdmins, setAllAdmins] = useState<EmployeeRow[]>([]);
   const [adminsLoaded, setAdminsLoaded] = useState(false);
@@ -73,6 +75,110 @@ const DashboardView: React.FC<Props> = ({ state }) => {
       rate: memberTasks.length > 0 ? Math.round((completedTasks.length / memberTasks.length) * 100) : 0
     };
   });
+
+  if (loading) {
+    return isSuperAdmin ? (
+      <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-500">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 animate-pulse">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="h-1.5 w-8 rounded-full bg-slate-200" />
+              <div className="h-4 w-40 rounded-full bg-slate-100" />
+            </div>
+            <div className="h-10 w-48 rounded-full bg-slate-200" />
+            <div className="h-5 w-72 max-w-full rounded-full bg-slate-100" />
+          </div>
+          <SkeletonBlock className="h-12 w-40 rounded-xl" />
+        </div>
+
+        <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-200 space-y-6 animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-slate-200" />
+            <div className="space-y-2">
+              <div className="h-5 w-48 rounded-full bg-slate-200" />
+              <div className="h-4 w-32 rounded-full bg-slate-100" />
+            </div>
+          </div>
+          <AdminCardGridSkeleton count={3} />
+        </div>
+      </div>
+    ) : (
+      <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-500">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 animate-pulse">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="h-1.5 w-8 rounded-full bg-slate-200" />
+              <div className="h-4 w-40 rounded-full bg-slate-100" />
+            </div>
+            <div className="h-10 w-64 rounded-full bg-slate-200" />
+            <div className="h-5 w-80 max-w-full rounded-full bg-slate-100" />
+          </div>
+          <div className="flex items-center gap-2 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xl">
+            <SkeletonBlock className="h-12 w-32 rounded-xl" />
+            <SkeletonBlock className="h-12 w-36 rounded-xl" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={`dashboard-stat-skeleton-${index}`} className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200 flex items-start gap-8 animate-pulse">
+              <div className="w-16 h-16 rounded-2xl bg-slate-100 shrink-0" />
+              <div className="space-y-3 flex-1">
+                <div className="h-4 w-28 rounded-full bg-slate-100" />
+                <div className="h-9 w-24 rounded-full bg-slate-200" />
+                <div className="h-4 w-24 rounded-full bg-slate-100" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-8 bg-white p-12 rounded-[2rem] shadow-2xl border border-slate-200 animate-pulse">
+            <div className="flex items-center justify-between mb-12">
+              <div className="space-y-3">
+                <div className="h-8 w-52 rounded-full bg-slate-200" />
+                <div className="h-4 w-56 rounded-full bg-slate-100" />
+              </div>
+              <SkeletonBlock className="h-10 w-40 rounded-xl" />
+            </div>
+            <div className="h-[380px] w-full rounded-[2rem] bg-slate-50 border border-slate-100 p-8">
+              <div className="h-full flex items-end gap-6">
+                {[28, 44, 36, 58, 42, 64].map((height, index) => (
+                  <div key={`dashboard-bar-skeleton-${index}`} className="flex-1 flex items-end">
+                    <div
+                      className="w-full rounded-t-2xl bg-slate-200"
+                      style={{ height: `${height}%` }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-4 bg-slate-900 p-12 rounded-[2rem] shadow-2xl animate-pulse">
+            <div className="flex items-center justify-between mb-10">
+              <div className="h-6 w-32 rounded-full bg-white/10" />
+              <div className="w-8 h-8 rounded-full bg-white/10" />
+            </div>
+            <div className="space-y-6">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <div key={`ops-skeleton-${index}`} className="flex items-center justify-between border-b border-white/5 pb-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-2 h-2 rounded-full bg-white/20" />
+                    <div className="h-4 w-32 rounded-full bg-white/10" />
+                  </div>
+                  <div className="h-3 w-10 rounded-full bg-white/10" />
+                </div>
+              ))}
+            </div>
+            <div className="mt-10 pt-10 border-t border-white/10">
+              <div className="h-14 w-full rounded-xl bg-white/10" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-700">
@@ -125,7 +231,9 @@ const DashboardView: React.FC<Props> = ({ state }) => {
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {!adminsLoaded && (
-              <p className="col-span-full text-slate-500 py-8 text-center">Loading…</p>
+              <div className="col-span-full">
+                <AdminCardGridSkeleton count={3} />
+              </div>
             )}
             {adminsLoaded && allAdmins.length === 0 && (
               <p className="col-span-full text-slate-500 py-8 text-center">No admins found.</p>

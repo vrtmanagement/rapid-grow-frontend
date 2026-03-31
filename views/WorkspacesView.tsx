@@ -4,13 +4,15 @@ import { PlanningState, WorkspaceProject } from '../types';
 import { Plus, Trash2, X, Briefcase } from 'lucide-react';
 import WorkspaceP1Detail from '../components/WorkspaceP1Detail';
 import { API_BASE, getAuthHeaders } from '../config/api';
+import { Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 
 interface Props {
   state: PlanningState;
   updateState: (updater: (prev: PlanningState) => PlanningState) => void;
+  loading?: boolean;
 }
 const WorkspacesView: React.FC<Props> = (props) => {
-  const { state, updateState } = props;
+  const { state, updateState, loading = false } = props;
   const generateId = () =>
     (typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? (crypto.randomUUID() as string)
@@ -19,6 +21,7 @@ const WorkspacesView: React.FC<Props> = (props) => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null);
+  const [chartersLoading, setChartersLoading] = useState(loading);
 
   const canCreateProject = state.currentUser.role === 'Admin' || state.currentUser.role === 'Leader';
   const canDeleteProject = state.currentUser.role === 'Admin';
@@ -26,6 +29,7 @@ const WorkspacesView: React.FC<Props> = (props) => {
   // Load existing project charters from backend (never show default "Rapid Grow execution framework")
   useEffect(() => {
     const loadProjects = async () => {
+      setChartersLoading(true);
       try {
         const res = await fetch(`${API_BASE}/project-charters`, {
           headers: getAuthHeaders(),
@@ -68,6 +72,8 @@ const WorkspacesView: React.FC<Props> = (props) => {
       } catch (e) {
         // You can replace this with UI error handling if desired
         console.error('Failed to load project charters', e);
+      } finally {
+        setChartersLoading(false);
       }
     };
 
@@ -110,6 +116,8 @@ const WorkspacesView: React.FC<Props> = (props) => {
     navigate(`${newProject.id}`);
   };
 
+  const showPageSkeleton = loading || chartersLoading;
+
   return (
     <Routes>
       <Route path="/" element={
@@ -131,8 +139,8 @@ const WorkspacesView: React.FC<Props> = (props) => {
               </button>
             )}
           </div>
-          
-          {isCreateModalOpen && (
+
+          {!showPageSkeleton && isCreateModalOpen && (
             <div className="fixed inset-0 z-40 flex items-center justify-center bg-white/60 backdrop-blur-md">
               <div className="bg-white rounded-4xl shadow-2xl w-full max-w-lg p-8 relative border border-slate-100">
                 <button 
@@ -185,7 +193,7 @@ const WorkspacesView: React.FC<Props> = (props) => {
             </div>
           )}
 
-        {pendingDeleteProjectId && canDeleteProject && (
+        {!showPageSkeleton && pendingDeleteProjectId && canDeleteProject && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-md">
               <div className="bg-white rounded-4xl shadow-2xl w-full max-w-lg p-8 border border-slate-100 relative">
                 <button 
@@ -251,7 +259,35 @@ const WorkspacesView: React.FC<Props> = (props) => {
               </div>
             </div>
           )}
-          <div className="flex-1 p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-16 overflow-auto no-scrollbar pb-40">
+          <div className="flex-1 p-6 overflow-auto no-scrollbar pb-40">
+            {showPageSkeleton ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-16 animate-pulse">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div
+                    key={`charter-skeleton-${index}`}
+                    className="bg-white rounded-5xl p-14 border-2 border-slate-100 shadow-sm relative overflow-hidden flex flex-col min-h-[420px]"
+                  >
+                    <div className="absolute top-0 right-0 w-40 h-40 bg-slate-100/70 -mr-20 -mt-20 rounded-full" />
+                    <div className="flex items-center justify-between mb-12 relative z-10">
+                      <div className="w-15 h-15 rounded-[1.8rem] bg-slate-200" />
+                      <SkeletonBlock className="h-10 w-24 rounded-full" />
+                    </div>
+                    <div className="space-y-4 relative z-10">
+                      <div className="h-10 w-3/4 rounded-full bg-slate-200" />
+                      <div className="space-y-3">
+                        <Skeleton className="h-4 w-full rounded-full bg-slate-100" />
+                        <Skeleton className="h-4 w-5/6 rounded-full bg-slate-100" />
+                        <Skeleton className="h-4 w-2/3 rounded-full bg-slate-100" />
+                      </div>
+                    </div>
+                    <div className="pt-0 mt-auto flex justify-between items-center">
+                      <div className="h-5 w-40 rounded-full bg-slate-100" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-16">
             {state.workspaces.flatMap(w => w.projects).map(p => (
               <Link 
                 to={`${p.id}`} 
@@ -303,6 +339,8 @@ const WorkspacesView: React.FC<Props> = (props) => {
                     System initialization Required
                   </button>
                </div>
+            )}
+            </div>
             )}
           </div>
         </div>

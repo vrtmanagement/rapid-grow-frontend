@@ -27,6 +27,7 @@ export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export interface LeaveRequest {
   _id: string;
   empId: string;
+  empName?: string;
   startDate: string;
   endDate: string;
   reason: string;

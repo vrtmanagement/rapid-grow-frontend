@@ -1,6 +1,7 @@
 import React from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
 import { AttendanceSummaryResponse, getHoursColor } from './attendanceUtils';
+import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
 
 interface Props {
   summary: AttendanceSummaryResponse | null;
@@ -41,8 +42,15 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading }) => {
       </div>
       <div className="h-72 w-full">
         {loading ? (
-          <div className="h-full flex items-center justify-center text-slate-400 text-sm">
-            Loading attendance…
+          <div className="h-full animate-pulse">
+            <div className="flex h-full items-end gap-4 px-4">
+              {Array.from({ length: 7 }).map((_, index) => (
+                <div key={`attendance-bar-skeleton-${index}`} className="flex flex-1 flex-col justify-end gap-3">
+                  <SkeletonBlock className={`w-full rounded-t-2xl ${index % 3 === 0 ? 'h-40' : index % 3 === 1 ? 'h-28' : 'h-20'}`} />
+                  <Skeleton className="h-3 w-8 mx-auto" />
+                </div>
+              ))}
+            </div>
           </div>
         ) : chartData.length === 0 ? (
           <div className="h-full flex items-center justify-center text-slate-400 text-sm">

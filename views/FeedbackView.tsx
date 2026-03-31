@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { Pencil, Trash2, Send } from 'lucide-react';
+import { FeedbackListSkeleton } from '../components/ui/Skeleton';
 
 interface Feedback {
   feedbackId: string;
@@ -188,7 +189,9 @@ const FeedbackView: React.FC = () => {
           <h3 className="text-lg font-semibold text-slate-900">Previous feedback</h3>
           {loading && <span className="text-[12px] text-slate-400">Loading...</span>}
         </div>
-        {items.length === 0 ? (
+        {loading ? (
+          <FeedbackListSkeleton count={4} />
+        ) : items.length === 0 ? (
           <div className="py-10 text-center text-[14px] text-slate-500">
             No feedback has been submitted yet.
           </div>

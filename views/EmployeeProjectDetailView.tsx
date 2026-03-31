@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { SendHorizonal } from 'lucide-react';
+import { DetailPageSkeleton } from '../components/ui/Skeleton';
 
 const EmployeeProjectDetailView: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -69,11 +70,7 @@ const EmployeeProjectDetailView: React.FC = () => {
   }, [projectId]);
 
   if (loading) {
-    return (
-      <div className="max-w-4xl mx-auto py-16 text-center text-slate-500">
-        Loading project...
-      </div>
-    );
+    return <DetailPageSkeleton />;
   }
 
   if (!project) {

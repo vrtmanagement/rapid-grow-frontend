@@ -3,13 +3,15 @@ import React, { useState } from 'react';
 import { PlanningState, Goal } from '../types';
 import { Plus, Trash2, Target } from 'lucide-react';
 import { removeGoal, saveGoal } from '../services/goalApi';
+import { PageHeaderSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 
 interface Props {
   state: PlanningState;
   updateState: (updater: (prev: PlanningState) => PlanningState) => void;
+  loading?: boolean;
 }
 
-const YearlyView: React.FC<Props> = ({ state, updateState }) => {
+const YearlyView: React.FC<Props> = ({ state, updateState, loading = false }) => {
   const isAdmin = state.currentUser.role === 'Admin';
   const [editingIds, setEditingIds] = useState<Record<string, boolean>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -81,6 +83,34 @@ const YearlyView: React.FC<Props> = ({ state, updateState }) => {
       console.error(e);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="max-w-5xl mx-auto space-y-6 pb-16">
+        <PageHeaderSkeleton />
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={`yearly-skeleton-${index}`} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 animate-pulse">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 space-y-3">
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-6 w-2/3" />
+                </div>
+                <div className="min-w-[130px] space-y-2">
+                  <Skeleton className="h-4 w-20 ml-auto" />
+                  <SkeletonBlock className="h-2 w-full rounded-full" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <SkeletonBlock className="h-4 w-4 rounded" />
+                <Skeleton className="h-3 w-40" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-16">

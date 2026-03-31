@@ -1,6 +1,7 @@
 import React from 'react';
 import { Calendar, Clock, BarChart3, Moon, SunMedium } from 'lucide-react';
 import { Range } from './attendanceUtils';
+import { PageHeaderSkeleton, SkeletonBlock } from '../ui/Skeleton';
 
 interface Props {
   range: Range;
@@ -8,9 +9,21 @@ interface Props {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   subtitle: string;
+  loading?: boolean;
 }
 
-const AttendanceHeader: React.FC<Props> = ({ range, onRangeChange, theme, onToggleTheme, subtitle }) => {
+const AttendanceHeader: React.FC<Props> = ({ range, onRangeChange, theme, onToggleTheme, subtitle, loading = false }) => {
+  if (loading) {
+    return (
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <PageHeaderSkeleton />
+        <div className="flex flex-col items-end gap-3 animate-pulse">
+          <SkeletonBlock className="h-12 w-[280px] rounded-2xl bg-white border border-slate-200 shadow-sm" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
       <div>
