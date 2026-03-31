@@ -28,7 +28,8 @@ import FeedbackView from './views/FeedbackView';
 import AttendanceView from './views/AttendanceView';
 import StaffView from './views/StaffView';
 import CommunicationView from './communication/views/CommunicationView';
-import { apiUnreadCount } from './communication/api';
+import { apiListConversations } from './communication/api';
+import { getUnreadDirectMessageSourceCount } from './communication/unread';
 import { getSocket } from './realtime/socket';
 import PermissionsView from './views/PermissionsView';
 import { mapBackendRoleToUiRole } from './config/permissions';
@@ -239,6 +240,8 @@ const App: React.FC = () => {
   const { permissions, hasPermission, loading: permissionsLoading } = usePermissions();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [appStateHydrated, setAppStateHydrated] = useState(false);
+  const [goalsHydrated, setGoalsHydrated] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isVisionsOpen, setIsVisionsOpen] = useState(true);
   const [communicationUnreadCount, setCommunicationUnreadCount] = useState(0);
@@ -314,8 +317,8 @@ const App: React.FC = () => {
   useEffect(() => {
     const saved = localStorage.getItem('rapidgrow-os-v1');
     const adminStored = localStorage.getItem('rapidgrow-admin');
-    if (saved) {
-      try {
+    try {
+      if (saved) {
         const parsed = JSON.parse(saved);
         // Migration: remove legacy default \"Rapid Grow execution framework\" project if present
         if (Array.isArray(parsed.workspaces)) {
@@ -353,9 +356,11 @@ const App: React.FC = () => {
           } catch (_e) { /* ignore */ }
         }
         setState(normalizeGoalHierarchy({ ...parsed, currentUser }));
-      } catch (e) {
-        console.error("Restore failed", e);
       }
+    } catch (e) {
+      console.error("Restore failed", e);
+    } finally {
+      setAppStateHydrated(true);
     }
   }, []);
 
@@ -383,32 +388,37 @@ const App: React.FC = () => {
 
     let active = true;
 
-    async function fetchUnread() {
+    async function syncCommunicationUnreadCount() {
       try {
-        const data = await apiUnreadCount(String(state.currentUser.id));
+        const data = await apiListConversations();
         if (active) {
-          setCommunicationUnreadCount(typeof data.unreadCount === 'number' ? data.unreadCount : 0);
+          setCommunicationUnreadCount(getUnreadDirectMessageSourceCount(data.conversations || []));
         }
       } catch (err) {
-        console.warn('Failed to load unread count', err);
+        console.warn('Failed to load communication unread count', err);
       }
     }
 
-    fetchUnread();
+    syncCommunicationUnreadCount();
 
     const socket = getSocket();
     const handleUnreadCount = (payload: any) => {
       if (!payload || String(payload.userId) !== String(state.currentUser.id)) return;
-      if (typeof payload.unreadCount === 'number') {
-        setCommunicationUnreadCount(payload.unreadCount);
-      }
+      syncCommunicationUnreadCount();
+    };
+    const handleCommunicationSync = (event: Event) => {
+      const detail = (event as CustomEvent<{ unreadSourceCount?: number }>).detail;
+      if (!detail || typeof detail.unreadSourceCount !== 'number') return;
+      setCommunicationUnreadCount(detail.unreadSourceCount);
     };
 
     socket.on('unreadCount', handleUnreadCount);
+    window.addEventListener('rapidgrow:communication-unread-sync', handleCommunicationSync as EventListener);
 
     return () => {
       active = false;
       socket.off('unreadCount', handleUnreadCount);
+      window.removeEventListener('rapidgrow:communication-unread-sync', handleCommunicationSync as EventListener);
     };
   }, [isAuthenticated, state.currentUser?.id]);
 
@@ -468,7 +478,11 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      setGoalsHydrated(true);
+      return;
+    }
+    setGoalsHydrated(false);
     const loadGoals = async () => {
       try {
         const res = await fetch(`${API_BASE}/goals`, { headers: getAuthHeaders() });
@@ -495,10 +509,14 @@ const App: React.FC = () => {
         );
       } catch (_e) {
         // keep local state if goals API unavailable
+      } finally {
+        setGoalsHydrated(true);
       }
     };
     loadGoals();
   }, [isAuthenticated]);
+
+  const planningViewsLoading = !appStateHydrated || !goalsHydrated;
 
   const updateState = useCallback((updater: (prev: PlanningState) => PlanningState) => {
     setState(prev => {
@@ -622,12 +640,12 @@ const App: React.FC = () => {
                 {hasPower('PROFILE_VIEW') && <Route path="/profile" element={<EmployeeProfileView state={state} updateState={updateState} />} />}
                 {hasPower('WORKSPACES_VIEW') && <Route path="/project/:projectId" element={<EmployeeProjectDetailView />} />}
                 {hasPower('WORKSPACES_VIEW') && <Route path="/workspaces/*" element={<WorkspacesView state={state} updateState={updateState} />} />}
-                {hasPower('YEARLY_VIEW') && <Route path="/yearly" element={<YearlyView state={state} updateState={updateState} />} />}
-                {hasPower('QUARTERLY_VIEW') && <Route path="/quarterly" element={<QuarterlyView state={state} updateState={updateState} />} />}
-                {hasPower('MONTHLY_VIEW') && <Route path="/monthly" element={<MonthlyView state={state} updateState={updateState} />} />}
+                {hasPower('YEARLY_VIEW') && <Route path="/yearly" element={<YearlyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
+                {hasPower('QUARTERLY_VIEW') && <Route path="/quarterly" element={<QuarterlyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
+                {hasPower('MONTHLY_VIEW') && <Route path="/monthly" element={<MonthlyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
                 {hasPower('WEEKLY_VIEW') && <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} />} />}
-                {hasPower('DAILY_VIEW') && <Route path="/daily" element={<DailyView state={state} updateState={updateState} />} />}
-                {hasPower('REFLECTION_VIEW') && <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} />} />}
+                {hasPower('DAILY_VIEW') && <Route path="/daily" element={<DailyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
+                {hasPower('REFLECTION_VIEW') && <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
                 {hasPower('COMMUNICATION_VIEW') && <Route path="/communication" element={<CommunicationView />} />}
                 {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView />} />}
                 <Route path="*" element={<AccessDenied />} />
@@ -752,18 +770,18 @@ const App: React.FC = () => {
             </header>
           <div className="flex-1 overflow-y-auto p-16 bg-slate-100/30 no-scrollbar">
             <Routes>
-              {hasPower('DASHBOARD_VIEW') && <Route path="/" element={<DashboardView state={state} />} />}
+              {hasPower('DASHBOARD_VIEW') && <Route path="/" element={<DashboardView state={state} loading={planningViewsLoading} />} />}
               {hasPower('SPACES_VIEW') && <Route path="/spaces" element={<SpacesView mode="manager" state={state} updateState={updateState} />} />}
               {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance" element={<AttendanceView mode="manager" />} />}
               {hasPower('EMPLOYEE_CREATE') && <Route path="/employees/add" element={<AddEmployeeView state={state} />} />}
               {hasPower('PROFILE_VIEW') && <Route path="/profile" element={<ProfileView state={state} updateState={updateState} />} />}
-              {hasPower('WORKSPACES_VIEW') && <Route path="/workspaces/*" element={<WorkspacesView state={state} updateState={updateState} />} />}
-              {hasPower('YEARLY_VIEW') && <Route path="/yearly" element={<YearlyView state={state} updateState={updateState} />} />}
-              {hasPower('QUARTERLY_VIEW') && <Route path="/quarterly" element={<QuarterlyView state={state} updateState={updateState} />} />}
-              {hasPower('MONTHLY_VIEW') && <Route path="/monthly" element={<MonthlyView state={state} updateState={updateState} />} />}
+              {hasPower('WORKSPACES_VIEW') && <Route path="/workspaces/*" element={<WorkspacesView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
+              {hasPower('YEARLY_VIEW') && <Route path="/yearly" element={<YearlyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
+              {hasPower('QUARTERLY_VIEW') && <Route path="/quarterly" element={<QuarterlyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
+              {hasPower('MONTHLY_VIEW') && <Route path="/monthly" element={<MonthlyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
               {hasPower('WEEKLY_VIEW') && <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} />} />}
-              {hasPower('DAILY_VIEW') && <Route path="/daily" element={<DailyView state={state} updateState={updateState} />} />}
-              {hasPower('REFLECTION_VIEW') && <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} />} />}
+              {hasPower('DAILY_VIEW') && <Route path="/daily" element={<DailyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
+              {hasPower('REFLECTION_VIEW') && <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
               {hasPower('COMMUNICATION_VIEW') && <Route path="/communication" element={<CommunicationView />} />}
               {isAdmin && hasPower('FEEDBACK_VIEW') && <Route path="/feedback" element={<FeedbackView />} />}
               {isAdmin && (

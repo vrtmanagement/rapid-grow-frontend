@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { LayoutDashboard } from 'lucide-react';
+import { PageHeaderSkeleton, ProjectCardGridSkeleton } from '../components/ui/Skeleton';
 
 interface Project {
   clientProjectId: string;
@@ -53,18 +54,24 @@ const EmployeeDashboardView: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-12">
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <div className="h-1.5 w-8 bg-brand-red rounded-full" />
-          <span className="text-[15px] text-slate-500">Your Workspace</span>
-        </div>
-        <h2 className="text-4xl text-slate-900 leading-none">Dashboard</h2>
-        <p className="text-slate-500 text-lg mt-3">
-          Projects you are assigned to as Champion, Lead, or Team Member
-        </p>
+        {loading ? (
+          <PageHeaderSkeleton />
+        ) : (
+          <>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-1.5 w-8 bg-brand-red rounded-full" />
+              <span className="text-[15px] text-slate-500">Your Workspace</span>
+            </div>
+            <h2 className="text-4xl text-slate-900 leading-none">Dashboard</h2>
+            <p className="text-slate-500 text-lg mt-3">
+              Projects you are assigned to as Champion, Lead, or Team Member
+            </p>
+          </>
+        )}
       </div>
 
       {loading ? (
-        <div className="text-slate-500 text-center py-20">Loading projects...</div>
+        <ProjectCardGridSkeleton count={3} />
       ) : projects.length === 0 ? (
         <div className="bg-white rounded-3xl p-16 border border-slate-200 shadow-sm text-center">
           <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6">

@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { apiCreateTeam, apiDeleteTeam, apiHistory, apiListConversations, apiListUsers, apiMarkAsRead, apiUpdateTeam, apiUploadFile } from '../api';
 import { API_BASE } from '../../config/api';
 import { ChatConversationSummary, ChatMessage, ChatUser, ChatAttachment, ChatReplyRef } from '../types';
+import { getUnreadDirectMessageSourceCount } from '../unread';
 import { getSocket } from '../../realtime/socket';
 
 type CommunicationContextValue = {
@@ -231,6 +232,16 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     loadUsers();
     loadConversations();
   }, [loadUsers, loadConversations]);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('rapidgrow:communication-unread-sync', {
+        detail: {
+          unreadSourceCount: getUnreadDirectMessageSourceCount(conversations),
+        },
+      })
+    );
+  }, [conversations]);
 
   // Socket listeners
   useEffect(() => {

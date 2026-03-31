@@ -4,10 +4,12 @@ import { PlanningState } from '../types';
 import { Clock, Star, ListCheck, Pin, Link2 } from 'lucide-react';
 import { PriorityStamp } from '../constants';
 import { API_BASE, getAuthHeaders } from '../config/api';
+import { Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 
 interface Props {
   state: PlanningState;
   updateState: (updater: (prev: PlanningState) => PlanningState) => void;
+  loading?: boolean;
 }
 
 interface SpacesTaskSummary {
@@ -30,7 +32,7 @@ function getLoggedInEmpId(): string {
   }
 }
 
-const DailyView: React.FC<Props> = ({ state, updateState }) => {
+const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => {
   const [topTasks, setTopTasks] = useState<SpacesTaskSummary[]>([]);
   const isAdmin = state.currentUser.role === 'Admin';
 
@@ -115,6 +117,82 @@ const DailyView: React.FC<Props> = ({ state, updateState }) => {
     week,
     days: state.dailyGoals.filter((d) => d.parentId === week.id),
   }));
+
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-500">
+        <div className="lg:col-span-5 space-y-8">
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-pulse">
+            <Skeleton className="h-6 w-56 mb-4" />
+            <div className="space-y-4 max-h-[420px]">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={`daily-group-${index}`} className="border border-slate-100 rounded-xl p-3 space-y-3">
+                  <Skeleton className="h-4 w-40" />
+                  <div className="space-y-2">
+                    {Array.from({ length: 3 }).map((__, itemIndex) => (
+                      <div key={`daily-item-${index}-${itemIndex}`} className="flex items-center gap-2">
+                        <SkeletonBlock className="h-4 w-4 rounded" />
+                        <Skeleton className="h-4 w-full" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white p-8 rounded-[3rem] border border-slate-200 shadow-sm animate-pulse">
+            <div className="flex items-center gap-3 mb-6">
+              <SkeletonBlock className="h-6 w-6 rounded-full" />
+              <Skeleton className="h-6 w-52" />
+            </div>
+            <div className="space-y-4">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <div key={`priority-skeleton-${index}`} className="flex items-center gap-4">
+                  <SkeletonBlock className="h-8 w-8 rounded-full" />
+                  <Skeleton className="h-5 w-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-brand-indigo/5 p-8 rounded-[3rem] border-2 border-brand-indigo/10 space-y-4 animate-pulse">
+            <div className="flex items-center gap-3">
+              <SkeletonBlock className="h-6 w-6 rounded-full" />
+              <Skeleton className="h-6 w-44" />
+            </div>
+            <SkeletonBlock className="h-[200px] w-full rounded-2xl bg-white" />
+          </div>
+        </div>
+
+        <div className="lg:col-span-7 bg-white rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden flex flex-col animate-pulse">
+          <div className="bg-slate-50 p-6 border-b border-slate-200 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <SkeletonBlock className="h-6 w-6 rounded-full" />
+              <Skeleton className="h-6 w-48" />
+            </div>
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <div className="flex-1 divide-y divide-slate-100">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={`schedule-skeleton-${index}`} className="flex">
+                <div className="w-24 px-4 py-6 bg-slate-50 border-r border-slate-100 flex items-center justify-center shrink-0">
+                  <Skeleton className="h-4 w-12" />
+                </div>
+                <div className="flex-1 p-4 flex items-center">
+                  <Skeleton className="h-5 w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="p-8 bg-slate-50 border-t border-slate-200">
+            <Skeleton className="h-4 w-40 mb-4" />
+            <SkeletonBlock className="h-[120px] w-full rounded-2xl bg-white" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-500">

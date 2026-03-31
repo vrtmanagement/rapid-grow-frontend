@@ -1,5 +1,6 @@
 import React from 'react';
 import { LeaveRequest, formatMinutes } from './attendanceUtils';
+import { AttendanceLeaveOverviewSkeleton, Skeleton, SkeletonBlock } from '../ui/Skeleton';
 
 interface Props {
   leaveStart: string;
@@ -18,6 +19,7 @@ interface Props {
   canApplyLeave: boolean;
   approverLeaves: LeaveRequest[];
   isAdmin: boolean;
+  loading?: boolean;
 }
 
 const AttendanceLeavePanel: React.FC<Props> = ({
@@ -37,6 +39,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
   canApplyLeave,
   approverLeaves,
   isAdmin,
+  loading = false,
 }) => {
   const baseLeaves = isAdmin ? approverLeaves : myLeaves;
   const visibleMyLeaves = canApplyLeave
@@ -45,7 +48,34 @@ const AttendanceLeavePanel: React.FC<Props> = ({
 
   return (
     <>
-      {canApplyLeave && (
+      {canApplyLeave && (loading ? (
+        <div className="bg-white rounded-[2rem] border border-slate-200 p-6 shadow-xl animate-pulse">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-28" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-10" />
+                <SkeletonBlock className="h-10 w-full rounded-xl" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-8" />
+                <SkeletonBlock className="h-10 w-full rounded-xl" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-12" />
+              <SkeletonBlock className="h-20 w-full rounded-xl" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-10" />
+              <SkeletonBlock className="h-10 w-full rounded-xl" />
+            </div>
+            <SkeletonBlock className="h-10 w-full rounded-xl bg-slate-100" />
+          </div>
+        </div>
+      ) : (
         <div className="bg-white rounded-[2rem] border border-slate-200 p-6 shadow-xl">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -108,7 +138,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
             </button>
           </div>
         </div>
-      )}
+      ))}
 
       <div className="bg-white rounded-[2rem] border border-slate-200 p-6 shadow-xl space-y-4">
         <div className="flex items-center justify-between">
@@ -118,7 +148,9 @@ const AttendanceLeavePanel: React.FC<Props> = ({
           )}
         </div>
         <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-          {visibleMyLeaves.length === 0 ? (
+          {leaveLoading ? (
+            <AttendanceLeaveOverviewSkeleton count={3} />
+          ) : visibleMyLeaves.length === 0 ? (
             canApplyLeave ? (
               <p className="text-[12px] text-slate-500">
                 No leave requests yet. Your history will show here once you apply.
@@ -167,7 +199,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
                   className="rounded-xl border border-slate-100 px-3 py-2 text-[11px] space-y-1"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-800">{l.empId}</span>
+                    <span className="font-semibold text-slate-800">{l.empName || l.empId}</span>
                     <span className="text-[10px] text-slate-500">
                       {new Date(l.startDate).toLocaleDateString()} –{' '}
                       {new Date(l.endDate).toLocaleDateString()}

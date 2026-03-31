@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { RotateCcw, UserPlus, Check, Eye, EyeOff } from 'lucide-react';
+import { RotateCcw, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { PlanningState } from '../types';
+import Toast from '../components/ui/Toast';
 
 const BACKEND_ROLES = [
   { value: 'ADMIN', label: 'Admin' },
@@ -62,12 +63,17 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
   }, [allowedRoles, form.role]);
 
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [createdRole, setCreatedRole] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [adminOptions, setAdminOptions] = useState<{ empId: string; empName: string }[]>([]);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  React.useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   React.useEffect(() => {
     if (!isSuperAdmin) return;
@@ -139,8 +145,6 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
         throw new Error(data.message || 'Failed to add employee');
       }
 
-      setCreatedRole(form.role);
-      setSuccess(true);
       setForm({
         empId: '',
         empName: '',
@@ -154,62 +158,43 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
         role: defaultRole,
         parentAdminEmpId: '',
       });
+      setToast({
+        type: 'success',
+        message:
+          form.role === 'ADMIN'
+            ? 'Admin profile created successfully.'
+            : form.role === 'TEAM_LEAD'
+            ? 'Team lead profile created successfully.'
+            : 'Employee profile created successfully.',
+      });
     } catch (_err: any) {
-      const roleLabel =
-        form.role === 'ADMIN'
-          ? 'admin'
-          : form.role === 'TEAM_LEAD'
-          ? 'team lead'
-          : 'employee';
-      setError(`Failed to create ${roleLabel}`);
+      const message = _err?.message || 'Failed to add employee';
+      const normalized = String(message).toLowerCase();
+
+      if (normalized.includes('employee id already exists')) {
+        setToast({
+          type: 'error',
+          message: 'This employee ID is already in use.',
+        });
+      } else {
+        setToast({
+          type: 'error',
+          message:
+            form.role === 'ADMIN'
+              ? 'Admin profile could not be created.'
+              : form.role === 'TEAM_LEAD'
+              ? 'Team lead profile could not be created.'
+              : 'Employee profile could not be created.',
+        });
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  if (success) {
-    const createdLabel =
-      createdRole === 'ADMIN'
-        ? 'Admin'
-        : createdRole === 'TEAM_LEAD'
-        ? 'Team Lead'
-        : 'Employee';
-    const createdLower = createdLabel.toLowerCase();
-    return (
-      <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-700">
-        <div className="bg-white p-12 rounded-3xl shadow-2xl border border-slate-200 text-center">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Check size={40} className="text-green-600" />
-          </div>
-          <h3 className="text-2xl font-black text-slate-900">{createdLabel} Added Successfully</h3>
-          <p className="text-slate-600 mt-2">
-            The {createdLower} can now log in to the user portal with their credentials.
-          </p>
-          <div className="mt-10 flex gap-4 justify-center">
-            <Link
-              to="/employees/add"
-              onClick={() => {
-                setSuccess(false);
-                setCreatedRole(null);
-              }}
-              className="px-6 py-3 bg-brand-red text-white rounded-full font-bold hover:bg-brand-navy transition-colors"
-            >
-              Add Another {createdLabel}
-            </Link>
-            <Link
-              to="/"
-              className="px-6 py-3 bg-slate-100 text-slate-800 rounded-full font-bold hover:bg-slate-200 transition-colors"
-            >
-              Back to Dashboard
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-700">
+      {toast && <Toast type={toast.type} message={toast.message} />}
       <div className="flex items-center gap-4">
         <Link
           to="/"
@@ -229,12 +214,6 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white p-12 rounded-3xl shadow-2xl border border-slate-200 space-y-8">
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-[15px]">
-            {error}
-          </div>
-        )}
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Employee ID *</label>

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { BACKEND_ROLES, BackendRole, PermissionKey, ROLE_LABELS } from '../config/permissions';
+import { PageHeaderSkeleton, PermissionsMatrixSkeleton } from '../components/ui/Skeleton';
 
 type Matrix = Record<BackendRole, PermissionKey[]>;
 
@@ -128,7 +129,12 @@ const PermissionsView: React.FC<PermissionsViewProps> = ({ canEdit }) => {
   };
 
   if (loading) {
-    return <div className="text-slate-600">Loading permissions...</div>;
+    return (
+      <div className="space-y-6">
+        <PageHeaderSkeleton />
+        <PermissionsMatrixSkeleton roleColumns={3} rows={8} />
+      </div>
+    );
   }
 
   return (

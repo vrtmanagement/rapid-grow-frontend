@@ -3,13 +3,15 @@ import React, { useState } from 'react';
 import { PlanningState } from '../types';
 import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { removeGoal, saveGoal } from '../services/goalApi';
+import { PageHeaderSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 
 interface Props {
   state: PlanningState;
   updateState: (updater: (prev: PlanningState) => PlanningState) => void;
+  loading?: boolean;
 }
 
-const QuarterlyView: React.FC<Props> = ({ state, updateState }) => {
+const QuarterlyView: React.FC<Props> = ({ state, updateState, loading = false }) => {
   const isAdmin = state.currentUser.role === 'Admin';
   const [expandedYearIds, setExpandedYearIds] = useState<Record<string, boolean>>({});
   const [editingIds, setEditingIds] = useState<Record<string, boolean>>({});
@@ -45,6 +47,42 @@ const QuarterlyView: React.FC<Props> = ({ state, updateState }) => {
       .filter((q) => q.parentId === yearGoal.id)
       .sort((a, b) => (a.timeline || '').localeCompare(b.timeline || '')),
   }));
+
+  if (loading) {
+    return (
+      <div className="max-w-5xl mx-auto space-y-5 pb-16">
+        <PageHeaderSkeleton />
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={`quarterly-skeleton-${index}`} className="bg-white rounded-2xl border border-slate-200 overflow-hidden animate-pulse">
+            <div className="w-full px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <SkeletonBlock className="h-4 w-4 rounded" />
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-4 w-56" />
+                </div>
+              </div>
+              <Skeleton className="h-4 w-20" />
+            </div>
+            <div className="px-5 pb-5 grid md:grid-cols-2 gap-4">
+              {Array.from({ length: 2 }).map((__, cardIndex) => (
+                <div key={`quarter-card-${index}-${cardIndex}`} className="border border-slate-200 rounded-xl p-4 space-y-3">
+                  <Skeleton className="h-3 w-12" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-4/5" />
+                  <div className="flex items-center gap-2">
+                    <SkeletonBlock className="h-7 w-14 rounded-lg" />
+                    <SkeletonBlock className="h-7 w-7 rounded" />
+                  </div>
+                  <Skeleton className="h-3 w-28" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-5 pb-16">

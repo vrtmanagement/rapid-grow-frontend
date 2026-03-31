@@ -3,6 +3,8 @@ import { API_BASE, getAuthHeaders } from '../config/api';
 import { Pencil, Trash2, UserCircle } from 'lucide-react';
 import { usePermissions } from '../context/PermissionContext';
 import AccessDenied from '../components/AccessDenied';
+import { StaffTableSkeleton } from '../components/ui/Skeleton';
+import Toast from '../components/ui/Toast';
 
 type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | string;
 
@@ -44,6 +46,7 @@ const StaffView: React.FC = () => {
   const [editing, setEditing] = useState<EmployeeRow | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<EmployeeRow>>({});
   const [deleting, setDeleting] = useState<EmployeeRow | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const isAdmin = backendRole === 'ADMIN' || backendRole === 'SUPER_ADMIN';
   const isTeamLead = backendRole === 'TEAM_LEAD';
@@ -98,6 +101,12 @@ const StaffView: React.FC = () => {
     load();
   }, [hasPermission]);
 
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
   if (!hasPermission('STAFF_VIEW')) {
     return <AccessDenied />;
   }
@@ -141,10 +150,11 @@ const StaffView: React.FC = () => {
         throw new Error(data.message || 'Failed to update staff');
       }
       setRows((prev) => prev.map((r) => (r._id === data._id ? data : r)));
+      setToast({ type: 'success', message: 'User details updated successfully.' });
       setEditing(null);
       setEditDraft({});
     } catch (e: any) {
-      setError(e?.message || 'Failed to update staff');
+      setToast({ type: 'error', message: e?.message || 'User details could not be updated.' });
     }
   };
 
@@ -161,14 +171,16 @@ const StaffView: React.FC = () => {
         throw new Error(data.message || 'Failed to delete staff');
       }
       setRows((prev) => prev.filter((r) => r._id !== deleting._id));
+      setToast({ type: 'success', message: 'Employee deleted successfully.' });
       setDeleting(null);
     } catch (e: any) {
-      setError(e?.message || 'Failed to delete staff');
+      setToast({ type: 'error', message: e?.message || 'Employee could not be deleted.' });
     }
   };
 
   return (
     <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-700">
+      {toast && <Toast type={toast.type} message={toast.message} />}
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-3">
@@ -214,11 +226,7 @@ const StaffView: React.FC = () => {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={9}>
-                    Loading staff...
-                  </td>
-                </tr>
+                <StaffTableSkeleton rows={6} />
               ) : rows.length === 0 ? (
                 <tr>
                   <td className="px-4 py-10 text-slate-500" colSpan={9}>

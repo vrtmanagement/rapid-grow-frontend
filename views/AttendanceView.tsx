@@ -56,6 +56,46 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const isBackendAdminRole = backendRole === 'ADMIN' || backendRole === 'SUPER_ADMIN';
   const isBackendApproverRole = isBackendAdminRole || backendRole === 'TEAM_LEAD';
 
+  const getLocalDateKey = (value: string | Date) => {
+    const date = value instanceof Date ? value : new Date(value);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const attachEmployeeNames = async (leaves: LeaveRequest[]): Promise<LeaveRequest[]> => {
+    if (!leaves.length) return leaves;
+    if (leaves.every((leave) => leave.empName && leave.empName.trim())) return leaves;
+
+    try {
+      const res = await fetch(`${API_BASE}/employees`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) return leaves;
+
+      const data = await res.json();
+      const employees = Array.isArray(data) ? data : [];
+      const nameByEmpId = new Map<string, string>();
+
+      employees.forEach((employee: any) => {
+        const empId = typeof employee?.empId === 'string' ? employee.empId.trim() : '';
+        const empName = typeof employee?.empName === 'string' ? employee.empName.trim() : '';
+        if (empId && empName) {
+          nameByEmpId.set(empId, empName);
+        }
+      });
+
+      return leaves.map((leave) => ({
+        ...leave,
+        empName: leave.empName || nameByEmpId.get(leave.empId) || leave.empId,
+      }));
+    } catch (error) {
+      console.error('Failed to load employee names for leave approvals', error);
+      return leaves;
+    }
+  };
+
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
@@ -101,14 +141,16 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         const pendingRes = await fetch(`${API_BASE}/leaves/pending`, { headers });
         if (pendingRes.ok) {
           const data = await pendingRes.json();
-          setPendingLeaves(Array.isArray(data) ? data : []);
+          const leaves = Array.isArray(data) ? data : [];
+          setPendingLeaves(await attachEmployeeNames(leaves));
         }
         const approverRes = await fetch(`${API_BASE}/leaves/for-approver`, {
           headers,
         });
         if (approverRes.ok) {
           const data = await approverRes.json();
-          setApproverLeaves(Array.isArray(data) ? data : []);
+          const leaves = Array.isArray(data) ? data : [];
+          setApproverLeaves(await attachEmployeeNames(leaves));
         }
       } else {
         setPendingLeaves([]);
@@ -227,15 +269,28 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
 
   useEffect(() => {
     if (!activeSession?.loginTime) return;
-    const timer = window.setInterval(() => {
-      const loginDay = new Date(activeSession.loginTime).toISOString().slice(0, 10);
-      const today = new Date().toISOString().slice(0, 10);
-      if (loginDay !== today) {
-        void handleLogout();
-      }
-    }, 60000);
-    return () => window.clearInterval(timer);
-  }, [activeSession?.loginTime]);
+
+    const loginDay = getLocalDateKey(activeSession.loginTime);
+    const today = getLocalDateKey(new Date());
+    if (loginDay !== today) {
+      setActiveSession(null);
+      void loadSummary(range);
+      return;
+    }
+
+    const now = new Date();
+    const nextMidnight = new Date();
+    nextMidnight.setHours(24, 0, 0, 0);
+    const timeoutMs = Math.max(1000, nextMidnight.getTime() - now.getTime() + 1000);
+
+    const timer = window.setTimeout(() => {
+      setActiveSession(null);
+      setSessionError(null);
+      void loadSummary(range);
+    }, timeoutMs);
+
+    return () => window.clearTimeout(timer);
+  }, [activeSession?.loginTime, range]);
 
   const handleApplyLeave = async () => {
     if (!leaveStart || !leaveEnd) return;
@@ -290,6 +345,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     () => countLeaveDaysInRange(myLeaves, summary?.start, summary?.end),
     [myLeaves, summary?.start, summary?.end],
   );
+  const attendancePageLoading = loading && !summary;
 
   return (
     <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-700">
@@ -299,6 +355,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         theme={theme}
         onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
         subtitle={isEmployeePortal ? 'Your Presence Radar' : 'Team Attendance Console'}
+        loading={attendancePageLoading}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -309,8 +366,9 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
             todayMinutes={todayInfo.minutes}
             todayColor={todayInfo.color}
             leaveDaysInRange={leaveDaysInRange}
+            loading={attendancePageLoading}
           />
-          <AttendancePresenceChart summary={summary} loading={loading} />
+          <AttendancePresenceChart summary={summary} loading={attendancePageLoading} />
         </div>
 
         <div className="lg:col-span-4 space-y-6">
@@ -323,6 +381,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
             loginLoading={loginLoading}
             logoutLoading={logoutLoading}
             errorMessage={sessionError}
+            loading={attendancePageLoading}
           />
           <AttendanceLeavePanel
             leaveStart={leaveStart}
@@ -341,6 +400,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
             canApplyLeave={!isBackendAdminRole}
             approverLeaves={approverLeaves}
             isAdmin={!!isBackendAdminRole}
+            loading={leaveLoading && myLeaves.length === 0 && pendingLeaves.length === 0 && approverLeaves.length === 0}
           />
         </div>
       </div>

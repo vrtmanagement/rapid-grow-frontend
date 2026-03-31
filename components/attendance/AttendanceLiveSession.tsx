@@ -1,6 +1,7 @@
 import React from 'react';
 import { LogIn, LogOut } from 'lucide-react';
 import { AttendanceSession } from './attendanceUtils';
+import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
 
 interface Props {
   activeSession: AttendanceSession | null;
@@ -11,6 +12,7 @@ interface Props {
   loginLoading?: boolean;
   logoutLoading?: boolean;
   errorMessage?: string | null;
+  loading?: boolean;
 }
 
 const AttendanceLiveSession: React.FC<Props> = ({
@@ -22,7 +24,44 @@ const AttendanceLiveSession: React.FC<Props> = ({
   loginLoading,
   logoutLoading,
   errorMessage,
+  loading = false,
 }) => {
+  if (loading) {
+    return (
+      <div className="bg-slate-900 text-white rounded-[2rem] p-7 shadow-2xl flex flex-col gap-5 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-20 bg-white/10" />
+            <Skeleton className="h-8 w-48 bg-white/10" />
+          </div>
+          <SkeletonBlock className="h-8 w-20 rounded-full bg-slate-800" />
+        </div>
+        <div className="space-y-3">
+          <Skeleton className="h-3 w-28 bg-white/10" />
+          <SkeletonBlock className="h-10 w-full rounded-xl bg-slate-800" />
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-full bg-white/10" />
+            <Skeleton className="h-3 w-5/6 bg-white/10" />
+          </div>
+        </div>
+        <div className="flex gap-3 pt-2">
+          <SkeletonBlock className="h-10 flex-1 rounded-xl bg-slate-800" />
+          <SkeletonBlock className="h-10 flex-1 rounded-xl bg-slate-800" />
+        </div>
+        <div className="mt-3 rounded-xl bg-slate-800/80 border border-slate-700 px-4 py-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-3 w-20 bg-white/10" />
+            <Skeleton className="h-3 w-16 bg-white/10" />
+          </div>
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-3 w-16 bg-white/10" />
+            <Skeleton className="h-3 w-32 bg-white/10" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-slate-900 text-white rounded-[2rem] p-7 shadow-2xl flex flex-col gap-5">
       <div className="flex items-center justify-between">

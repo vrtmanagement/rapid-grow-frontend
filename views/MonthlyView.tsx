@@ -3,13 +3,15 @@ import React, { useState } from 'react';
 import { PlanningState, Goal } from '../types';
 import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { removeGoal, saveGoal } from '../services/goalApi';
+import { PageHeaderSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 
 interface Props {
   state: PlanningState;
   updateState: (updater: (prev: PlanningState) => PlanningState) => void;
+  loading?: boolean;
 }
 
-const MonthlyView: React.FC<Props> = ({ state, updateState }) => {
+const MonthlyView: React.FC<Props> = ({ state, updateState, loading = false }) => {
   const hasAdminPower = state.currentUser.role === 'Admin';
   const [expandedYearIds, setExpandedYearIds] = useState<Record<string, boolean>>({});
   const [expandedQuarterIds, setExpandedQuarterIds] = useState<Record<string, boolean>>({});
@@ -90,6 +92,48 @@ const MonthlyView: React.FC<Props> = ({ state, updateState }) => {
         months: state.monthlyGoals.filter((m) => m.parentId === quarter.id),
       })),
   }));
+
+  if (loading) {
+    return (
+      <div className="max-w-5xl mx-auto space-y-5 pb-16">
+        <PageHeaderSkeleton />
+        {Array.from({ length: 2 }).map((_, index) => (
+          <div key={`monthly-skeleton-${index}`} className="bg-white rounded-2xl border border-slate-200 overflow-hidden animate-pulse">
+            <div className="w-full px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <SkeletonBlock className="h-4 w-4 rounded" />
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-4 w-60" />
+                </div>
+              </div>
+              <Skeleton className="h-4 w-16" />
+            </div>
+            <div className="px-5 pb-5 space-y-3">
+              {Array.from({ length: 2 }).map((__, quarterIndex) => (
+                <div key={`monthly-quarter-${index}-${quarterIndex}`} className="border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="w-full px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <SkeletonBlock className="h-4 w-4 rounded" />
+                      <Skeleton className="h-4 w-48" />
+                    </div>
+                    <Skeleton className="h-3 w-10" />
+                  </div>
+                  <div className="px-4 pb-4 space-y-3">
+                    <SkeletonBlock className="h-9 w-36 rounded-lg" />
+                    <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+                      <Skeleton className="h-4 w-full" />
+                      <SkeletonBlock className="h-16 w-full rounded-lg" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-5 pb-16">

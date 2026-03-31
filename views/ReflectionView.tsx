@@ -4,10 +4,12 @@ import { PlanningState } from '../types';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { BrainCircuit, Zap, AlertCircle, Sparkles, Send, ShieldCheck } from 'lucide-react';
 import { getSocket } from '../realtime/socket';
+import { ReflectionLogSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 
 interface Props {
   state: PlanningState;
   updateState: (updater: (prev: PlanningState) => PlanningState) => void;
+  loading?: boolean;
 }
 
 interface ReflectionRecord {
@@ -27,7 +29,7 @@ interface ReflectionRecord {
   lastEditedByEmpId?: string;
 }
 
-const ReflectionView: React.FC<Props> = ({ state, updateState }) => {
+const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }) => {
   const [saving, setSaving] = useState(false);
   const [records, setRecords] = useState<ReflectionRecord[]>([]);
   const [loadingList, setLoadingList] = useState(false);
@@ -242,6 +244,91 @@ const ReflectionView: React.FC<Props> = ({ state, updateState }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto space-y-12 pb-24 animate-in fade-in duration-700">
+        <div className="bg-slate-900 text-white p-8 rounded-2xl flex items-center justify-center gap-8 text-[12px] shadow-2xl border border-white/5 relative overflow-hidden animate-pulse">
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-red"></div>
+          <Skeleton className="h-4 w-28 bg-white/10" />
+          <div className="h-1 w-16 bg-brand-red/20 rounded-full"></div>
+          <Skeleton className="h-4 w-40 bg-white/10" />
+        </div>
+
+        <div className="grid lg:grid-cols-12 gap-10">
+          <div className="lg:col-span-8 space-y-8">
+            <div className="bg-white p-16 rounded-[3rem] border border-slate-200 shadow-sm space-y-12 animate-pulse">
+              <div className="flex items-center gap-6">
+                <Skeleton className="h-10 w-56" />
+                <SkeletonBlock className="h-8 w-8 rounded-full" />
+              </div>
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={`reflection-field-${index}`} className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <SkeletonBlock className="h-12 w-12 rounded-xl" />
+                    <Skeleton className="h-5 w-64" />
+                  </div>
+                  <SkeletonBlock className="h-40 w-full rounded-2xl" />
+                </div>
+              ))}
+              <div className="bg-red-50 p-10 rounded-[2.5rem] border-4 border-brand-red/10 space-y-6">
+                <Skeleton className="h-5 w-52" />
+                <SkeletonBlock className="h-48 w-full rounded-2xl bg-white" />
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-4 space-y-8">
+            <div className="bg-slate-900 p-12 rounded-[2.5rem] shadow-2xl border border-white/5 animate-pulse space-y-8">
+              <Skeleton className="h-6 w-36 bg-white/10" />
+              <div className="flex items-center gap-8">
+                <SkeletonBlock className="h-24 w-24 rounded-2xl bg-white/10" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-24 bg-white/10" />
+                  <Skeleton className="h-4 w-20 bg-white/10" />
+                </div>
+              </div>
+              <div className="h-px bg-white/10 w-full"></div>
+              <div className="flex items-center gap-8">
+                <SkeletonBlock className="h-24 w-24 rounded-2xl bg-white/10" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-24 bg-white/10" />
+                  <Skeleton className="h-4 w-20 bg-white/10" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-12 rounded-[2.5rem] border border-slate-200 shadow-sm space-y-10 animate-pulse">
+              <Skeleton className="h-6 w-48" />
+              <div className="space-y-8">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={`habit-${index}`} className="flex gap-6">
+                    <SkeletonBlock className="w-2.5 h-2.5 rounded-full mt-2" />
+                    <div className="space-y-2 flex-1">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-5/6" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <SkeletonBlock className="h-14 w-full rounded-2xl bg-slate-100" />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-12 bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-10 space-y-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
+              <Skeleton className="h-6 w-48" />
+              <SkeletonBlock className="h-8 w-56 rounded-full" />
+            </div>
+            <Skeleton className="h-4 w-16" />
+          </div>
+          <ReflectionLogSkeleton count={3} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto space-y-12 pb-24 animate-in fade-in duration-700">
       <div className="bg-slate-900 text-white p-8 rounded-2xl flex items-center justify-center gap-8 text-[12px] shadow-2xl border border-white/5 relative overflow-hidden">
@@ -422,7 +509,9 @@ const ReflectionView: React.FC<Props> = ({ state, updateState }) => {
           </p>
         )}
         <div className="space-y-4">
-          {displayedRecords.map((r) => (
+          {loadingList ? (
+            <ReflectionLogSkeleton count={4} />
+          ) : displayedRecords.map((r) => (
             <div
               key={r._id}
               className="border border-slate-200 rounded-2xl p-6 bg-slate-50"
