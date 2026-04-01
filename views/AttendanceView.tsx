@@ -22,6 +22,7 @@ interface Props {
 
 const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const [range, setRange] = useState<Range>(() => (mode === 'employee' ? 'month' : 'day'));
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [summary, setSummary] = useState<AttendanceSummaryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -100,11 +101,14 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
 
-  const loadSummary = async (selectedRange: Range) => {
+  const loadSummary = async (selectedRange: Range, monthValue?: string) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       params.set('range', selectedRange);
+      if (selectedRange === 'month' && monthValue) {
+        params.set('date', `${monthValue}-01`);
+      }
       const res = await fetch(`${API_BASE}/attendance/me?${params.toString()}`, {
         headers: getAuthHeaders(),
       });
@@ -164,9 +168,9 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   };
 
   useEffect(() => {
-    loadSummary(range);
+    loadSummary(range, selectedMonth);
     loadLeaves();
-  }, [range]);
+  }, [range, selectedMonth]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -352,6 +356,11 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       <AttendanceHeader
         range={range}
         onRangeChange={(r) => setRange(r)}
+        selectedMonth={selectedMonth}
+        onSelectMonth={(month) => {
+          setSelectedMonth(month);
+          setRange('month');
+        }}
         theme={theme}
         onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
         subtitle={isEmployeePortal ? 'Your Presence Radar' : 'Team Attendance Console'}
@@ -368,7 +377,11 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
             leaveDaysInRange={leaveDaysInRange}
             loading={attendancePageLoading}
           />
-          <AttendancePresenceChart summary={summary} loading={attendancePageLoading} />
+          <AttendancePresenceChart
+            summary={summary}
+            loading={attendancePageLoading}
+            selectedMonth={selectedMonth}
+          />
         </div>
 
         <div className="lg:col-span-4 space-y-6">

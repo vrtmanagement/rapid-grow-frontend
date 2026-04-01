@@ -6,14 +6,36 @@ import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
 interface Props {
   summary: AttendanceSummaryResponse | null;
   loading: boolean;
+  selectedMonth?: string;
 }
 
-const AttendancePresenceChart: React.FC<Props> = ({ summary, loading }) => {
+const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMonth }) => {
+  const formatFullDate = (isoDate: string) => {
+    const parsed = new Date(`${isoDate}T00:00:00`);
+    return parsed.toLocaleDateString(undefined, {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+  const getShownMonthLabel = () => {
+    if (selectedMonth) {
+      const selectedDate = new Date(`${selectedMonth}-01T00:00:00`);
+      return selectedDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    }
+    if (summary?.start) {
+      const startDate = new Date(summary.start);
+      return startDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    }
+    const now = new Date();
+    return now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  };
+
   const chartData =
     summary?.days.map((d) => {
       const hours = d.minutes / 60;
       return {
-        date: d.date.slice(5),
+        date: formatFullDate(d.date),
         hours: parseFloat(hours.toFixed(2)),
         color: getHoursColor(hours),
       };
@@ -26,6 +48,9 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading }) => {
           <h3 className="text-lg font-semibold text-slate-900">Presence graph</h3>
           <p className="text-xs text-slate-500 mt-1">
             Daily logged-in hours with smart color coding.
+          </p>
+          <p className="text-xs text-slate-600 mt-1">
+            {getShownMonthLabel()}
           </p>
         </div>
         <div className="flex items-center gap-2 text-[11px] text-slate-500">
@@ -62,7 +87,7 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading }) => {
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 10, fill: '#64748b' }}
+                tick={false}
                 axisLine={false}
                 tickLine={false}
               />
