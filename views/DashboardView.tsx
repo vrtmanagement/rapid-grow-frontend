@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { PlanningState, WorkspaceTask } from '../types';
 import { Target, Calendar, Clock, BarChart3, TrendingUp, Award, Users, CheckCircle2, Zap, User, Sparkles, Diamond, UserPlus, Shield, Mail, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { AdminCardGridSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
+import ExecutionMatrix from '../components/dashboard/ExecutionMatrix';
 
 interface Props {
   state: PlanningState;
@@ -64,17 +64,6 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
   const completedCount = currentScopeTasks.filter(t => t.status === 'done').length;
   const totalCount = currentScopeTasks.length;
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-
-  const teamStats = state.team.map(member => {
-    const memberTasks = allTasks.filter(t => t.assigneeId === member.id);
-    const completedTasks = memberTasks.filter(t => t.status === 'done');
-    return {
-      name: member.name.split(' ')[0],
-      tasks: memberTasks.length,
-      completed: completedTasks.length,
-      rate: memberTasks.length > 0 ? Math.round((completedTasks.length / memberTasks.length) * 100) : 0
-    };
-  });
 
   if (loading) {
     return isSuperAdmin ? (
@@ -324,36 +313,8 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
             <StatCard icon={<Zap className="text-amber-500" />} label="VRT Velocity" value={`${progressPercent}%`} sub="System Rating" color="bg-amber-50" />
           </div>
 
-          <div className="grid lg:grid-cols-12 gap-8">
-            <div className="lg:col-span-8 bg-white p-12 rounded-[2rem] shadow-2xl border border-slate-200 relative overflow-hidden">
-              <div className="flex items-center justify-between mb-12">
-                <div>
-                   <h3 className="text-2xl text-slate-900">Execution Matrix</h3>
-                   <p className="text-[15px] text-slate-800 mt-1">Real-Time Performance Throughput</p>
-                </div>
-                <div className="flex items-center gap-2 bg-slate-50 px-5 py-2.5 rounded-xl border border-slate-100">
-                   <div className="w-2 h-2 rounded-full bg-brand-red animate-pulse"></div>
-                   <span className="text-[15px] text-slate-600">Live Feed Active</span>
-                </div>
-              </div>
-              <div className="h-[380px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={teamStats}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 800}} />
-                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 800}} />
-                    <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.15)', fontWeight: 800}} />
-                    <Bar dataKey="rate" fill="#dc2626" radius={[8, 8, 0, 0]} barSize={50} name="Velocity %">
-                      {teamStats.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.rate > 80 ? '#dc2626' : '#475569'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="lg:col-span-4 bg-slate-900 p-12 rounded-[2rem] text-white shadow-2xl relative overflow-hidden flex flex-col group">
+          <div className="grid gap-8">
+            <div className="bg-slate-900 p-12 rounded-[2rem] text-white shadow-2xl relative overflow-hidden flex flex-col group">
                <div className="absolute top-0 right-0 w-full h-1.5 bg-brand-red"></div>
                <div className="relative z-10 flex-1">
                 <div className="flex items-center justify-between mb-10">
@@ -382,6 +343,20 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
                      Personnel Audit Log
                   </button>
                </div>
+            </div>
+
+            <div className="bg-white p-12 rounded-[2rem] shadow-2xl border border-slate-200 relative overflow-visible">
+              <div className="flex items-center justify-between mb-12">
+                <div>
+                   <h3 className="text-2xl text-slate-900">Execution Matrix</h3>
+                   <p className="text-[15px] text-slate-800 mt-1">Real-Time Performance Throughput</p>
+                </div>
+                <div className="flex items-center gap-2 bg-slate-50 px-5 py-2.5 rounded-xl border border-slate-100">
+                   <div className="w-2 h-2 rounded-full bg-brand-red animate-pulse"></div>
+                   <span className="text-[15px] text-slate-600">Live Feed Active</span>
+                </div>
+              </div>
+              <ExecutionMatrix />
             </div>
           </div>
         </>
