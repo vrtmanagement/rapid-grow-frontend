@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { AdminCardGridSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 import ExecutionMatrix from '../components/dashboard/ExecutionMatrix';
+import { usePermissions } from '../context/PermissionContext';
 
 interface Props {
   state: PlanningState;
@@ -30,7 +31,9 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
   const [allAdmins, setAllAdmins] = useState<EmployeeRow[]>([]);
   const [adminsLoaded, setAdminsLoaded] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState<EmployeeRow | null>(null);
+  const { hasPermission } = usePermissions();
   const isSuperAdmin = state.currentUser.role === 'Admin' && state.currentUser.powers?.includes('EDIT_STRATEGY');
+  const canViewExecutionMatrix = state.currentUser.role === 'Admin' || hasPermission('EXECUTION_MATRIX_VIEW');
 
   useEffect(() => {
     if (!isSuperAdmin) return;
@@ -345,19 +348,21 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
                </div>
             </div>
 
-            <div className="bg-white p-12 rounded-[2rem] shadow-2xl border border-slate-200 relative overflow-visible">
-              <div className="flex items-center justify-between mb-12">
-                <div>
-                   <h3 className="text-2xl text-slate-900">Execution Matrix</h3>
-                   <p className="text-[15px] text-slate-800 mt-1">Real-Time Performance Throughput</p>
+            {canViewExecutionMatrix && (
+              <div className="bg-white p-12 rounded-[2rem] shadow-2xl border border-slate-200 relative overflow-visible">
+                <div className="flex items-center justify-between mb-12">
+                  <div>
+                     <h3 className="text-2xl text-slate-900">Execution Matrix</h3>
+                     <p className="text-[15px] text-slate-800 mt-1">Real-Time Performance Throughput</p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-slate-50 px-5 py-2.5 rounded-xl border border-slate-100">
+                     <div className="w-2 h-2 rounded-full bg-brand-red animate-pulse"></div>
+                     <span className="text-[15px] text-slate-600">Live Feed Active</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 bg-slate-50 px-5 py-2.5 rounded-xl border border-slate-100">
-                   <div className="w-2 h-2 rounded-full bg-brand-red animate-pulse"></div>
-                   <span className="text-[15px] text-slate-600">Live Feed Active</span>
-                </div>
+                <ExecutionMatrix />
               </div>
-              <ExecutionMatrix />
-            </div>
+            )}
           </div>
         </>
       )}

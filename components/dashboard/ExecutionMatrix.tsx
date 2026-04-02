@@ -266,6 +266,9 @@ const ExecutionMatrix: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const refreshTimeout = useRef<number | null>(null);
+  const controlsRef = useRef<HTMLDivElement | null>(null);
+  const insightsPanelRef = useRef<HTMLDivElement | null>(null);
+  const [listMaxHeight, setListMaxHeight] = useState<number | null>(null);
 
   useEffect(() => {
     const loadDepartments = async () => {
@@ -368,6 +371,39 @@ const ExecutionMatrix: React.FC = () => {
     };
   }, [selectedDepartment, selectedWeek]);
 
+  useEffect(() => {
+    const panel = insightsPanelRef.current;
+    const controls = controlsRef.current;
+
+    if (!panel || !controls) {
+      return;
+    }
+
+    const updateHeight = () => {
+      const panelHeight = panel.getBoundingClientRect().height;
+      const controlsHeight = controls.getBoundingClientRect().height;
+      const verticalGap = 20;
+      setListMaxHeight(Math.max(panelHeight - controlsHeight - verticalGap, 0));
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateHeight();
+    });
+
+    resizeObserver.observe(panel);
+    resizeObserver.observe(controls);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [rows.length, loading, error]);
+
   const topPerformer = rows[0] || null;
   const needsAttention = rows[rows.length - 1] || null;
   const weeklyAverageScore = rows.length
@@ -376,8 +412,11 @@ const ExecutionMatrix: React.FC = () => {
 
   return (
     <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_296px]">
-      <div className="space-y-5">
-        <div className="flex flex-col gap-4 rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex min-h-0 flex-col gap-5">
+        <div
+          ref={controlsRef}
+          className="flex flex-col gap-4 rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4 md:flex-row md:items-center md:justify-between"
+        >
           <div className="flex items-center gap-3 text-[13px] text-slate-500">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-sm">
               <Radar className="text-brand-red" size={18} />
@@ -416,153 +455,165 @@ const ExecutionMatrix: React.FC = () => {
           </div>
         </div>
 
-        {loading ? (
-          <div className="space-y-4">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <div
-                key={`execution-matrix-skeleton-${index}`}
-                className="animate-pulse rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-2xl bg-slate-100" />
-                  <div className="w-44 space-y-2">
-                    <div className="h-4 w-32 rounded-full bg-slate-200" />
-                    <div className="h-3 w-20 rounded-full bg-slate-100" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="h-16 rounded-2xl bg-slate-100" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : error ? (
-          <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 px-6 py-5 text-[15px] text-rose-700">
-            {error}
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="rounded-[1.75rem] border border-slate-200 bg-white px-6 py-10 text-center text-[15px] text-slate-500 shadow-sm">
-            No employee performance data found for this week.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {rows.map((row) => {
-              const trendMeta = getTrendMeta(row.trend);
-              const TrendIcon = trendMeta.icon;
-              const barTone = getBarTone(row.weeklyScore);
-              const liveScoreDelta = row.liveScoreDelta || 0;
-              const showLiveDelta = Math.abs(liveScoreDelta) >= 0.1;
-              const showRankDelta = row.rankDelta !== 0;
-              const DeltaIcon =
-                showLiveDelta
-                  ? liveScoreDelta >= 0
-                    ? ArrowUpRight
-                    : ArrowDownRight
-                  : row.rankDelta >= 0
-                  ? ArrowUpRight
-                  : ArrowDownRight;
-
-              return (
+        <div
+          className="min-h-0"
+          style={
+            listMaxHeight
+              ? ({ ['--execution-list-height' as string]: `${listMaxHeight}px` } as React.CSSProperties)
+              : undefined
+          }
+        >
+          {loading ? (
+            <div className="space-y-4 xl:max-h-[var(--execution-list-height)] xl:overflow-y-auto xl:overscroll-contain xl:pr-2">
+              {Array.from({ length: 5 }).map((_, index) => (
                 <div
-                  key={row.employeeId}
-                  className="rounded-[1.9rem] border border-slate-200/90 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(15,23,42,0.09)]"
+                  key={`execution-matrix-skeleton-${index}`}
+                  className="animate-pulse rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm"
                 >
-                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex-1 space-y-4">
-                      <div className="flex items-center gap-4">
-                        <div className="flex h-16 w-16 items-center justify-center rounded-[1.35rem] bg-[linear-gradient(160deg,#0f172a_0%,#1e293b_100%)] text-sm font-semibold text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)]">
-                          {getRankIcon(row.rank)}
-                        </div>
-
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-[17px] font-semibold tracking-tight text-slate-900">{row.name}</p>
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${trendMeta.className}`}
-                            >
-                              <TrendIcon size={12} />
-                              {trendMeta.label}
-                            </span>
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-slate-500">
-                            <span>{row.department || 'Unassigned department'}</span>
-                            <span className="h-1 w-1 rounded-full bg-slate-300" />
-                            <span>{row.tasksCompleted}/{row.tasksAssigned} completed</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="w-full max-w-[620px] ">
-                        <div className="relative overflow-hidden rounded-[1.6rem] border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-5 py-5">
-                          <div className="mb-4 flex items-center justify-between text-[12px] text-slate-900">
-                            <span>Weekly target progress</span>
-                            <span className="font-semibold text-slate-800">{formatPercentage(row.weeklyScore)}</span>
-                          </div>
-
-                          <div className="relative h-7 overflow-hidden rounded-full border border-white/70 bg-white shadow-inner shadow-slate-200/70">
-                            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(148,163,184,0.08)_1px,transparent_1px)] bg-[length:24px_100%]" />
-                            <div className="absolute inset-y-0 left-[75%] z-10 w-px bg-brand-red/70" />
-                            <div className="pointer-events-none absolute left-[75%] top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-brand-red/10 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-red shadow-sm">
-                              Target
-                            </div>
-                            <div
-                              className={`relative h-full rounded-full bg-gradient-to-r ${barTone.track} transition-all duration-700 ease-out ${barTone.glow}`}
-                              style={{ width: `${Math.max(4, row.weeklyScore)}%` }}
-                            >
-                              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.28)_0%,rgba(255,255,255,0.06)_48%,rgba(255,255,255,0.2)_100%)]" />
-                            </div>
-                          </div>
-
-                          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[12px]">
-                            <span className={`inline-flex items-center rounded-full border px-3 py-1 font-semibold ${barTone.badge}`}>
-                              {barTone.label}
-                            </span>
-                            <div className="flex flex-wrap items-center gap-2 text-slate-500">
-                              <span>{row.tasksCompleted}/{row.tasksAssigned} completed</span>
-                              <span className="h-1 w-1 rounded-full bg-slate-300" />
-                              <span>{Math.round(row.onTimePercentage)}% on-time</span>
-                              {typeof row.qualityScore === 'number' && (
-                                <>
-                                  <span className="h-1 w-1 rounded-full bg-slate-300" />
-                                  <span>{Math.round(row.qualityScore)} quality</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-2xl bg-slate-100" />
+                    <div className="w-44 space-y-2">
+                      <div className="h-4 w-32 rounded-full bg-slate-200" />
+                      <div className="h-3 w-20 rounded-full bg-slate-100" />
                     </div>
-
-                    <div className="flex items-center justify-between gap-3 lg:w-[180px] lg:min-w-[180px] lg:flex-col lg:items-end lg:self-end lg:gap-12">
-                      <div className="text-right">
-                        <p className="text-[14px] uppercase tracking-[0.18em] text-slate-700">Weekly Score</p>
-                        <p className="text-[3rem] font-semibold tracking-tight text-slate-900 leading-none">
-                          {Math.round(row.weeklyScore)}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap justify-end gap-2">
-                        {(showLiveDelta || showRankDelta) && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-brand-red/20 bg-brand-red/5 px-3 py-1.5 text-[12px] font-semibold text-brand-red">
-                            {showLiveDelta ? `${liveScoreDelta > 0 ? '+' : ''}${liveScoreDelta}` : `${row.rankDelta > 0 ? '+' : ''}${row.rankDelta}`}
-                            <DeltaIcon size={12} />
-                          </span>
-                        )}
-                        <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] font-semibold text-slate-600">
-                          {Math.round(row.onTimePercentage)}% on-time
-                        </span>
-                      </div>
+                    <div className="flex-1">
+                      <div className="h-16 rounded-2xl bg-slate-100" />
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              ))}
+            </div>
+          ) : error ? (
+            <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 px-6 py-5 text-[15px] text-rose-700 xl:flex xl:h-full xl:items-center">
+              {error}
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="rounded-[1.75rem] border border-slate-200 bg-white px-6 py-10 text-center text-[15px] text-slate-500 shadow-sm xl:flex xl:h-full xl:items-center xl:justify-center">
+              No employee performance data found for this week.
+            </div>
+          ) : (
+            <div className="space-y-4 xl:max-h-[var(--execution-list-height)] xl:overflow-y-auto xl:overscroll-contain xl:pr-2">
+              {rows.map((row) => {
+                const trendMeta = getTrendMeta(row.trend);
+                const TrendIcon = trendMeta.icon;
+                const barTone = getBarTone(row.weeklyScore);
+                const liveScoreDelta = row.liveScoreDelta || 0;
+                const showLiveDelta = Math.abs(liveScoreDelta) >= 0.1;
+                const showRankDelta = row.rankDelta !== 0;
+                const DeltaIcon =
+                  showLiveDelta
+                    ? liveScoreDelta >= 0
+                      ? ArrowUpRight
+                      : ArrowDownRight
+                    : row.rankDelta >= 0
+                    ? ArrowUpRight
+                    : ArrowDownRight;
+
+                return (
+                  <div
+                    key={row.employeeId}
+                    className="rounded-[1.9rem] border border-slate-200/90 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(15,23,42,0.09)]"
+                  >
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex-1 space-y-4">
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-16 w-16 items-center justify-center rounded-[1.35rem] bg-[linear-gradient(160deg,#0f172a_0%,#1e293b_100%)] text-sm font-semibold text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)]">
+                            {getRankIcon(row.rank)}
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="truncate text-[17px] font-semibold tracking-tight text-slate-900">{row.name}</p>
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${trendMeta.className}`}
+                              >
+                                <TrendIcon size={12} />
+                                {trendMeta.label}
+                              </span>
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-slate-500">
+                              <span>{row.department || 'Unassigned department'}</span>
+                              <span className="h-1 w-1 rounded-full bg-slate-300" />
+                              <span>{row.tasksCompleted}/{row.tasksAssigned} completed</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="w-full max-w-[620px] ">
+                          <div className="relative overflow-hidden rounded-[1.6rem] border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-5 py-5">
+                            <div className="mb-4 flex items-center justify-between text-[12px] text-slate-900">
+                              <span>Weekly target progress</span>
+                              <span className="font-semibold text-slate-800">{formatPercentage(row.weeklyScore)}</span>
+                            </div>
+
+                            <div className="relative h-7 overflow-hidden rounded-full border border-white/70 bg-white shadow-inner shadow-slate-200/70">
+                              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(148,163,184,0.08)_1px,transparent_1px)] bg-[length:24px_100%]" />
+                              <div className="absolute inset-y-0 left-[75%] z-10 w-px bg-brand-red/70" />
+                              <div className="pointer-events-none absolute left-[75%] top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-brand-red/10 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-red shadow-sm">
+                                Target
+                              </div>
+                              <div
+                                className={`relative h-full rounded-full bg-gradient-to-r ${barTone.track} transition-all duration-700 ease-out ${barTone.glow}`}
+                                style={{ width: `${Math.max(4, row.weeklyScore)}%` }}
+                              >
+                                <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.28)_0%,rgba(255,255,255,0.06)_48%,rgba(255,255,255,0.2)_100%)]" />
+                              </div>
+                            </div>
+
+                            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[12px]">
+                              <span className={`inline-flex items-center rounded-full border px-3 py-1 font-semibold ${barTone.badge}`}>
+                                {barTone.label}
+                              </span>
+                              <div className="flex flex-wrap items-center gap-2 text-slate-500">
+                                <span>{row.tasksCompleted}/{row.tasksAssigned} completed</span>
+                                <span className="h-1 w-1 rounded-full bg-slate-300" />
+                                <span>{Math.round(row.onTimePercentage)}% on-time</span>
+                                {typeof row.qualityScore === 'number' && (
+                                  <>
+                                    <span className="h-1 w-1 rounded-full bg-slate-300" />
+                                    <span>{Math.round(row.qualityScore)} quality</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 lg:w-[180px] lg:min-w-[180px] lg:flex-col lg:items-end lg:self-end lg:gap-12">
+                        <div className="text-right">
+                          <p className="text-[14px] uppercase tracking-[0.18em] text-slate-700">Weekly Score</p>
+                          <p className="text-[3rem] font-semibold tracking-tight text-slate-900 leading-none">
+                            {Math.round(row.weeklyScore)}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {(showLiveDelta || showRankDelta) && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-brand-red/20 bg-brand-red/5 px-3 py-1.5 text-[12px] font-semibold text-brand-red">
+                              {showLiveDelta ? `${liveScoreDelta > 0 ? '+' : ''}${liveScoreDelta}` : `${row.rankDelta > 0 ? '+' : ''}${row.rankDelta}`}
+                              <DeltaIcon size={12} />
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] font-semibold text-slate-600">
+                            {Math.round(row.onTimePercentage)}% on-time
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="self-start xl:h-[calc(100vh-6rem)]">
-        <div className="flex h-full flex-col rounded-[1.75rem] border border-slate-200 bg-slate-900 p-3.5 text-white shadow-2xl">
+      <div className="self-start">
+        <div
+          ref={insightsPanelRef}
+          className="flex flex-col rounded-[1.75rem] border border-slate-200 bg-slate-900 p-3.5 text-white shadow-2xl"
+        >
           <div className="mb-3.5 flex items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-[12px] uppercase tracking-[0.24em] text-white/45">Insights</p>
@@ -573,7 +624,7 @@ const ExecutionMatrix: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col justify-between gap-7">
+          <div className="flex flex-col gap-7">
             <div className="space-y-6">
               <InsightCard
                 icon={<Trophy size={15} className="text-emerald-300" />}
