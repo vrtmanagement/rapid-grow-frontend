@@ -274,11 +274,27 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   useEffect(() => {
     if (!activeSession?.loginTime) return;
 
+    let cancelled = false;
+    const autoLogoutForCompletedDay = async () => {
+      try {
+        await fetch(`${API_BASE}/attendance/logout`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+        });
+      } catch (e) {
+        console.error('Failed to auto logout attendance session', e);
+      } finally {
+        if (cancelled) return;
+        setActiveSession(null);
+        setSessionError(null);
+        void loadSummary(range);
+      }
+    };
+
     const loginDay = getLocalDateKey(activeSession.loginTime);
     const today = getLocalDateKey(new Date());
     if (loginDay !== today) {
-      setActiveSession(null);
-      void loadSummary(range);
+      void autoLogoutForCompletedDay();
       return;
     }
 
@@ -288,12 +304,13 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     const timeoutMs = Math.max(1000, nextMidnight.getTime() - now.getTime() + 1000);
 
     const timer = window.setTimeout(() => {
-      setActiveSession(null);
-      setSessionError(null);
-      void loadSummary(range);
+      void autoLogoutForCompletedDay();
     }, timeoutMs);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [activeSession?.loginTime, range]);
 
   const handleApplyLeave = async () => {
