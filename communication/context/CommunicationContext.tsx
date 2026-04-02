@@ -48,6 +48,21 @@ function getStoredAuth() {
   }
 }
 
+function resolveAvatarUrl(rawAvatar?: string | null): string | undefined {
+  const avatar = (rawAvatar || '').trim();
+  if (!avatar) return undefined;
+  if (/^(https?:)?\/\//i.test(avatar) || /^data:/i.test(avatar) || /^blob:/i.test(avatar)) return avatar;
+  let apiOrigin = '';
+  try {
+    apiOrigin = new URL(API_BASE).origin;
+  } catch {
+    apiOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  }
+  if (!apiOrigin) return avatar;
+  if (avatar.startsWith('/')) return `${apiOrigin}${avatar}`;
+  return `${apiOrigin}/${avatar.replace(/^\.?\//, '')}`;
+}
+
 function ensureSocketConnected(socket: any, timeoutMs = 5000): Promise<void> {
   if (socket.connected) return Promise.resolve();
   return new Promise<void>((resolve, reject) => {
@@ -122,7 +137,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
         phone: u.phone,
         designation: u.designation,
         department: u.department,
-        avatar: u.avatar,
+        avatar: resolveAvatarUrl(u.avatar),
         online: !!u.online,
         lastSeenAt: u.lastSeenAt ? String(u.lastSeenAt) : null,
       }));
@@ -149,6 +164,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
           name: String(c.otherUser.name || 'User'),
           role: String(c.otherUser.role || ''),
           roleGroup: (c.otherUser.roleGroup as any) || 'employees',
+          avatar: resolveAvatarUrl(c.otherUser.avatar),
           online: false,
           lastSeenAt: null,
         }) : null,
@@ -643,6 +659,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
                         name: String(otherUserRaw.name || 'User'),
                         role: String(otherUserRaw.role || ''),
                         roleGroup: (otherUserRaw.roleGroup as any) || 'employees',
+                        avatar: resolveAvatarUrl(otherUserRaw.avatar),
                         online: false,
                         lastSeenAt: null,
                       }
@@ -777,6 +794,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
                       name: String(otherUserRaw.name || 'User'),
                       role: String(otherUserRaw.role || ''),
                       roleGroup: (otherUserRaw.roleGroup as any) || 'employees',
+                      avatar: resolveAvatarUrl(otherUserRaw.avatar),
                       online: false,
                       lastSeenAt: null,
                     }
