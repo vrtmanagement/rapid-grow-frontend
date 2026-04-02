@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { PermissionKey } from '../config/permissions';
+import { getSocket } from '../realtime/socket';
 
 type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | '';
 
@@ -114,6 +115,19 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => {
       channel.removeEventListener('message', onMessage);
       channel.close();
+    };
+  }, [refreshPermissions]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const onPermissionsUpdate = () => {
+      refreshPermissions();
+    };
+
+    socket.on('permissions:update', onPermissionsUpdate);
+
+    return () => {
+      socket.off('permissions:update', onPermissionsUpdate);
     };
   }, [refreshPermissions]);
 

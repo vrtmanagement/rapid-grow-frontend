@@ -7,6 +7,7 @@ export type PermissionKey =
   | 'EMPLOYEE_DELETE'
   | 'EMPLOYEE_LIST'
   | 'DASHBOARD_VIEW'
+  | 'EXECUTION_MATRIX_VIEW'
   | 'WORKSPACES_VIEW'
   | 'SPACES_VIEW'
   | 'ATTENDANCE_VIEW'
