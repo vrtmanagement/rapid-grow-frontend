@@ -37,6 +37,27 @@ interface TeamAttendanceSummary {
   absent: number;
 }
 
+interface LeaveActorProfile {
+  empName: string;
+  empId: string;
+  designation?: string;
+  department?: string;
+}
+
+function readStoredLeaveNotificationState(storageKey: string): Record<string, boolean> {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    const stored = window.localStorage.getItem(storageKey);
+    if (!stored) return {};
+
+    const parsed = JSON.parse(stored);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const { hasPermission } = usePermissions();
   const [activeView, setActiveView] = useState<'attendance' | 'leave'>('attendance');
@@ -54,7 +75,6 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const [myLeaves, setMyLeaves] = useState<LeaveRequest[]>([]);
   const [pendingLeaves, setPendingLeaves] = useState<LeaveRequest[]>([]);
   const [approverLeaves, setApproverLeaves] = useState<LeaveRequest[]>([]);
-  const [readLeaveNotificationIds, setReadLeaveNotificationIds] = useState<Record<string, boolean>>({});
   const [leaveLoading, setLeaveLoading] = useState(false);
   const [leaveInitialLoaded, setLeaveInitialLoaded] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -98,8 +118,54 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       ? 'team_lead'
       : 'employee';
   const leaveNotificationStorageKey = `rapidgrow-leave-notifications:${leaveViewerRole}:${backendEmpId || 'anonymous'}:${mode}`;
+  const clearedLeaveNotificationStorageKey = `rapidgrow-leave-notifications-cleared:${leaveViewerRole}:${backendEmpId || 'anonymous'}:${mode}`;
+  const [readLeaveNotificationIds, setReadLeaveNotificationIds] = useState<Record<string, boolean>>(() =>
+    readStoredLeaveNotificationState(leaveNotificationStorageKey),
+  );
+  const [clearedLeaveNotificationIds, setClearedLeaveNotificationIds] = useState<Record<string, boolean>>(() =>
+    readStoredLeaveNotificationState(clearedLeaveNotificationStorageKey),
+  );
   const canReviewTeamAttendance =
     isBackendAdminRole || hasPermission('EMPLOYEE_ATTENDANCE_VIEW');
+
+  const employeeProfileByEmpId = useMemo(() => {
+    const map = new Map<string, AttendanceEmployeeOption>();
+    employeeOptions.forEach((employee) => {
+      if (employee.empId) {
+        map.set(employee.empId, employee);
+      }
+    });
+    return map;
+  }, [employeeOptions]);
+
+  const getLeaveActorProfile = useCallback((source: {
+    empId?: string;
+    empName?: string;
+    designation?: string;
+    department?: string;
+  }): LeaveActorProfile => {
+    const empId = String(source.empId || '').trim();
+    const directoryProfile = empId ? employeeProfileByEmpId.get(empId) : undefined;
+    const empName =
+      String(source.empName || directoryProfile?.empName || empId || 'An employee').trim();
+    const designation = String(source.designation || directoryProfile?.designation || '').trim();
+    const department = String(source.department || directoryProfile?.department || '').trim();
+
+    return {
+      empName,
+      empId,
+      designation,
+      department,
+    };
+  }, [employeeProfileByEmpId]);
+
+  const formatLeaveActorHeading = useCallback((profile: LeaveActorProfile) => {
+    return profile.empId ? `${profile.empName} (${profile.empId})` : profile.empName;
+  }, []);
+
+  const formatLeaveActorMeta = useCallback((profile: LeaveActorProfile) => {
+    return [profile.designation, profile.department].filter(Boolean).join(' | ');
+  }, []);
 
   const getDefaultMonthValue = () => {
     const now = new Date();
@@ -155,21 +221,12 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   }, [leaveInitialLoaded]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    try {
-      const stored = window.localStorage.getItem(leaveNotificationStorageKey);
-      if (!stored) {
-        setReadLeaveNotificationIds({});
-        return;
-      }
-
-      const parsed = JSON.parse(stored);
-      setReadLeaveNotificationIds(parsed && typeof parsed === 'object' ? parsed : {});
-    } catch {
-      setReadLeaveNotificationIds({});
-    }
+    setReadLeaveNotificationIds(readStoredLeaveNotificationState(leaveNotificationStorageKey));
   }, [leaveNotificationStorageKey]);
+
+  useEffect(() => {
+    setClearedLeaveNotificationIds(readStoredLeaveNotificationState(clearedLeaveNotificationStorageKey));
+  }, [clearedLeaveNotificationStorageKey]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -183,6 +240,19 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       // Ignore storage write failures and keep UI state working.
     }
   }, [leaveNotificationStorageKey, readLeaveNotificationIds]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      window.localStorage.setItem(
+        clearedLeaveNotificationStorageKey,
+        JSON.stringify(clearedLeaveNotificationIds),
+      );
+    } catch {
+      // Ignore storage write failures and keep UI state working.
+    }
+  }, [clearedLeaveNotificationIds, clearedLeaveNotificationStorageKey]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -670,11 +740,14 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
 
     if (isBackendApproverRole) {
       pendingLeaves.slice(0, 6).forEach((leave) => {
-        const actorName = leave.empName || leave.empId || 'An employee';
+        const actorProfile = getLeaveActorProfile(leave);
+        const actorHeading = formatLeaveActorHeading(actorProfile);
+        const actorMeta = formatLeaveActorMeta(actorProfile);
+        const leaveWindow = `${leave.type} leave from ${new Date(leave.startDate).toLocaleDateString()} to ${new Date(leave.endDate).toLocaleDateString()} is waiting for review.`;
         items.push({
           id: `pending-${leave._id}`,
-          title: `${actorName} applied for leave`,
-          description: `${leave.type} leave from ${new Date(leave.startDate).toLocaleDateString()} to ${new Date(leave.endDate).toLocaleDateString()} is waiting for review.`,
+          title: `${actorHeading} submitted a leave request`,
+          description: actorMeta ? `${actorMeta}. ${leaveWindow}` : leaveWindow,
           createdAt: leave.createdAt,
           read: !!readLeaveNotificationIds[`pending-${leave._id}`],
           tone: 'info',
@@ -708,15 +781,16 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     }
 
     return items
+      .filter((notification) => !clearedLeaveNotificationIds[notification.id])
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 10);
-  }, [isBackendAdminRole, isBackendApproverRole, myLeaves, pendingLeaves, readLeaveNotificationIds]);
+  }, [clearedLeaveNotificationIds, formatLeaveActorHeading, formatLeaveActorMeta, getLeaveActorProfile, isBackendAdminRole, isBackendApproverRole, myLeaves, pendingLeaves, readLeaveNotificationIds]);
   const unreadLeaveNotificationCount = useMemo(
     () => leaveNotifications.filter((notification) => !notification.read).length,
     [leaveNotifications],
   );
   useEffect(() => {
-    if (leaveLoading) return;
+    if (leaveLoading || !leaveInitialLoaded) return;
 
     setReadLeaveNotificationIds((prev) => {
       if (!Object.keys(prev).length) {
@@ -730,7 +804,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
 
       return Object.keys(next).length === Object.keys(prev).length ? prev : next;
     });
-  }, [leaveLoading, leaveNotifications]);
+  }, [leaveInitialLoaded, leaveLoading, leaveNotifications]);
   const markLeaveNotificationsRead = useCallback((notificationIds: string[]) => {
     if (!notificationIds.length) return;
 
@@ -748,6 +822,19 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const handleNotificationClick = useCallback((notificationId: string) => {
     markLeaveNotificationsRead([notificationId]);
   }, [markLeaveNotificationsRead]);
+  const handleClearLeaveNotifications = useCallback(() => {
+    if (!leaveNotifications.length) return;
+
+    setClearedLeaveNotificationIds((prev) => {
+      const next = { ...prev };
+      leaveNotifications.forEach((notification) => {
+        next[notification.id] = true;
+      });
+      return next;
+    });
+
+    markLeaveNotificationsRead(leaveNotifications.map((notification) => notification.id));
+  }, [leaveNotifications, markLeaveNotificationsRead]);
   const attendancePageLoading = loading && !summary;
   const selectedEmployee = useMemo(
     () => employeeOptions.find((employee) => employee.empId === selectedEmployeeEmpId) || null,
@@ -826,6 +913,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         unreadNotificationCount={unreadLeaveNotificationCount}
         onOpenNotifications={handleOpenLeaveNotifications}
         onNotificationClick={handleNotificationClick}
+        onClearNotifications={handleClearLeaveNotifications}
         loading={attendancePageLoading}
       />
 

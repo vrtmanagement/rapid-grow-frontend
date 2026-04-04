@@ -17,6 +17,7 @@ interface Props {
   unreadNotificationCount?: number;
   onOpenNotifications?: () => void;
   onNotificationClick?: (notificationId: string) => void;
+  onClearNotifications?: () => void;
   loading?: boolean;
 }
 
@@ -34,6 +35,7 @@ const AttendanceHeader: React.FC<Props> = ({
   unreadNotificationCount = 0,
   onOpenNotifications,
   onNotificationClick,
+  onClearNotifications,
   loading = false,
 }) => {
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
@@ -253,6 +255,17 @@ const AttendanceHeader: React.FC<Props> = ({
                         </div>
                       )}
                     </div>
+                    {leaveNotifications.length > 0 ? (
+                      <div className="border-t border-slate-100 p-3">
+                        <button
+                          type="button"
+                          onClick={() => onClearNotifications?.()}
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                        >
+                          Clear notifications
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>
