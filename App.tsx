@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { 
@@ -127,6 +127,13 @@ const EMPTY_PROFILE: ProfileData = {
 
 const QUARTER_LABELS = ['Q1', 'Q2', 'Q3', 'Q4'];
 
+interface GlobalLeaveToast {
+  key: string;
+  title: string;
+  message: string;
+  tone: 'info' | 'success' | 'warning';
+}
+
 function getStoredEmployeeIdentifiers() {
   try {
     const parsed = getStoredAuthSession();
@@ -251,6 +258,8 @@ const App: React.FC = () => {
   const [isVisionsOpen, setIsVisionsOpen] = useState(true);
   const [communicationUnreadCount, setCommunicationUnreadCount] = useState(0);
   const [taskCount, setTaskCount] = useState(0);
+  const [globalLeaveToast, setGlobalLeaveToast] = useState<GlobalLeaveToast | null>(null);
+  const shownLeaveToastKeysRef = useRef<Record<string, true>>({});
 
   useEffect(() => {
     const syncStoredSession = () => {
@@ -533,7 +542,131 @@ const App: React.FC = () => {
     loadGoals();
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    if (!globalLeaveToast) return undefined;
+    const timer = window.setTimeout(() => setGlobalLeaveToast(null), 4200);
+    return () => window.clearTimeout(timer);
+  }, [globalLeaveToast]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const session = getStoredAuthSession();
+    const backendEmployee = session?.employee || {};
+    const backendRole = String(backendEmployee.role || '').toUpperCase();
+    const backendEmpId = String(backendEmployee.empId || '').trim();
+    const isBackendAdminRole = backendRole === 'ADMIN' || backendRole === 'SUPER_ADMIN';
+    const isTeamLeadRole = backendRole === 'TEAM_LEAD';
+    const socket = getSocket();
+
+    const formatActorHeading = (payload: any) => {
+      const empName = String(payload?.empName || payload?.empId || 'An employee').trim();
+      const empId = String(payload?.empId || '').trim();
+      return empId ? `${empName} (${empId})` : empName;
+    };
+
+    const formatActorMeta = (payload: any) => {
+      const designation = String(payload?.designation || '').trim();
+      const department = String(payload?.department || '').trim();
+      return [designation, department].filter(Boolean).join(' | ');
+    };
+
+    const showGlobalLeaveToast = (toast: GlobalLeaveToast) => {
+      if (shownLeaveToastKeysRef.current[toast.key]) return;
+      shownLeaveToastKeysRef.current[toast.key] = true;
+      setGlobalLeaveToast(toast);
+    };
+
+    const onLeaveCreated = (payload: any) => {
+      const approverRole = String(payload?.approverRole || '').toUpperCase();
+      const actorHeading = formatActorHeading(payload);
+      const actorMeta = formatActorMeta(payload);
+      const actorSummary = actorMeta ? `${actorHeading} | ${actorMeta}` : actorHeading;
+      const eventKey = `leave-created:${String(payload?.leaveId || '')}:${String(payload?.createdAt || '')}`;
+
+      if (isBackendAdminRole) {
+        showGlobalLeaveToast({
+          key: eventKey,
+          title: 'New leave request',
+          message: `${actorSummary} submitted a leave request.`,
+          tone: 'info',
+        });
+        return;
+      }
+
+      if (isTeamLeadRole && approverRole === 'TEAM_LEAD') {
+        showGlobalLeaveToast({
+          key: eventKey,
+          title: 'New leave request',
+          message: `${actorSummary} submitted a leave request for your review.`,
+          tone: 'info',
+        });
+      }
+    };
+
+    const onLeaveUpdated = (payload: any) => {
+      const status = String(payload?.status || '').toUpperCase();
+      const decidedByRole = String(payload?.decidedByRole || '').toUpperCase();
+      const matchesCurrentUser = String(payload?.empId || '').trim() === backendEmpId;
+      const eventKey = `leave-updated:${String(payload?.leaveId || '')}:${status}:${String(payload?.decidedAt || '')}`;
+
+      if (!matchesCurrentUser || isBackendAdminRole || !['APPROVED', 'REJECTED'].includes(status)) {
+        return;
+      }
+
+      const actorLabel =
+        decidedByRole === 'TEAM_LEAD'
+          ? 'Team Lead'
+          : decidedByRole === 'ADMIN' || decidedByRole === 'SUPER_ADMIN'
+            ? 'Admin'
+            : 'Approver';
+
+      showGlobalLeaveToast({
+        key: eventKey,
+        title: status === 'APPROVED' ? 'Leave approved' : 'Leave rejected',
+        message: `Your leave request was ${status === 'APPROVED' ? 'approved' : 'rejected'} by ${actorLabel}.`,
+        tone: status === 'APPROVED' ? 'success' : 'warning',
+      });
+    };
+
+    socket.on('leave:created', onLeaveCreated);
+    socket.on('leave:updated', onLeaveUpdated);
+
+    return () => {
+      socket.off('leave:created', onLeaveCreated);
+      socket.off('leave:updated', onLeaveUpdated);
+    };
+  }, [isAuthenticated]);
+
   const planningViewsLoading = !appStateHydrated || !goalsHydrated;
+
+  const globalLeaveToastElement = globalLeaveToast ? (
+    <div className="fixed right-6 top-6 z-[100] animate-in slide-in-from-top-2 fade-in duration-300">
+      <div
+        className={`max-w-sm rounded-[24px] border bg-white px-5 py-4 shadow-[0_22px_50px_rgba(15,23,42,0.16)] ${
+          globalLeaveToast.tone === 'success'
+            ? 'border-emerald-200'
+            : globalLeaveToast.tone === 'warning'
+              ? 'border-rose-200'
+              : 'border-sky-200'
+        }`}
+      >
+        <p
+          className={`text-xs font-semibold uppercase tracking-[0.14em] ${
+            globalLeaveToast.tone === 'success'
+              ? 'text-emerald-600'
+              : globalLeaveToast.tone === 'warning'
+                ? 'text-rose-600'
+                : 'text-sky-600'
+          }`}
+        >
+          Live update
+        </p>
+        <p className="mt-2 text-base font-semibold text-slate-950">{globalLeaveToast.title}</p>
+        <p className="mt-1 text-sm leading-6 text-slate-600">{globalLeaveToast.message}</p>
+      </div>
+    </div>
+  ) : null;
 
   const updateState = useCallback((updater: (prev: PlanningState) => PlanningState) => {
     setState(prev => {
@@ -569,6 +702,7 @@ const App: React.FC = () => {
   if (state.currentUser.role === 'Employee') {
     return (
       <HashRouter>
+        {globalLeaveToastElement}
         <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
           <aside className="w-64 h-full min-h-0 bg-brand-charcoal text-white flex flex-col z-50 shadow-2xl relative shrink-0">
             <div className="absolute top-0 right-0 w-[2px] h-full bg-brand-red opacity-20" />
@@ -676,6 +810,7 @@ const App: React.FC = () => {
 
   return (
     <HashRouter>
+      {globalLeaveToastElement}
       <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
         <aside className={`${isSidebarOpen ? 'w-64' : 'w-24'} h-full min-h-0 bg-brand-charcoal text-white transition-all duration-500 flex flex-col z-50 shadow-2xl relative shrink-0`}>
           <div className="absolute top-0 right-0 w-[2px] h-full bg-brand-red opacity-20"></div>
