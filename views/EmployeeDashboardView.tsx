@@ -4,7 +4,7 @@ import { API_BASE, getAuthHeaders } from '../config/api';
 import { LayoutDashboard } from 'lucide-react';
 import { PageHeaderSkeleton, ProjectCardGridSkeleton } from '../components/ui/Skeleton';
 import ExecutionMatrix from '../components/dashboard/ExecutionMatrix';
-import { usePermissions } from '../context/PermissionContext';
+import { usePermissions } from '../context/usePermissions';
 
 interface Project {
   clientProjectId: string;

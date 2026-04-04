@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { Pencil, Trash2, UserCircle } from 'lucide-react';
-import { usePermissions } from '../context/PermissionContext';
+import { usePermissions } from '../context/usePermissions';
 import AccessDenied from '../components/AccessDenied';
 import { StaffTableSkeleton } from '../components/ui/Skeleton';
 import Toast from '../components/ui/Toast';
@@ -78,7 +78,7 @@ const StaffView: React.FC = () => {
   };
 
   const load = async () => {
-    if (!hasPermission('EMPLOYEE_LIST')) return;
+    if (!hasPermission('STAFF_VIEW')) return;
     setLoading(true);
     setError(null);
     try {

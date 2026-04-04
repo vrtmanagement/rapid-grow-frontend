@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { RotateCcw, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { RotateCcw, UserPlus, Eye, EyeOff, ChevronDown } from 'lucide-react';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { PlanningState } from '../types';
 import Toast from '../components/ui/Toast';
@@ -9,6 +9,19 @@ const BACKEND_ROLES = [
   { value: 'ADMIN', label: 'Admin' },
   { value: 'TEAM_LEAD', label: 'Team Lead' },
   { value: 'EMPLOYEE', label: 'Employee' },
+] as const;
+
+const DEPARTMENT_OPTIONS = [
+  'IT DEPARTMENT',
+  'Product Management',
+  'Design',
+  'Human Resources',
+  'Finance',
+  'Sales',
+  'Marketing',
+  'Operations',
+  'Customer Success',
+  'Business Development',
 ] as const;
 
 function getAllowedRoles(currentUser: PlanningState['currentUser']): { value: string; label: string }[] {
@@ -68,12 +81,62 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [adminOptions, setAdminOptions] = useState<{ empId: string; empName: string }[]>([]);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [departmentOpen, setDepartmentOpen] = useState(false);
+  const [departmentDirection, setDepartmentDirection] = useState<'down' | 'up'>('down');
+  const departmentDropdownRef = useRef<HTMLDivElement | null>(null);
+  const departmentTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   React.useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(null), 2000);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  const updateDepartmentDirection = React.useCallback(() => {
+    const trigger = departmentTriggerRef.current;
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const estimatedMenuHeight = Math.min(DEPARTMENT_OPTIONS.length * 44 + 16, 240);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    setDepartmentDirection(
+      spaceBelow >= estimatedMenuHeight || spaceBelow >= spaceAbove ? 'down' : 'up'
+    );
+  }, []);
+
+  React.useEffect(() => {
+    if (!departmentOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!departmentDropdownRef.current?.contains(event.target as Node)) {
+        setDepartmentOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setDepartmentOpen(false);
+      }
+    };
+
+    const handleViewportChange = () => {
+      updateDepartmentDirection();
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('scroll', handleViewportChange, true);
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('scroll', handleViewportChange, true);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [departmentOpen, updateDepartmentDirection]);
 
   React.useEffect(() => {
     if (!isSuperAdmin) return;
@@ -96,7 +159,7 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    setForm((prev) => ({ ...prev, [name]: value }));
     setError(null);
   };
 
@@ -106,6 +169,11 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
 
     if (form.password !== form.confirmPassword) {
       setError('Passwords do not match');
+      return;
+    }
+
+    if (!form.department.trim()) {
+      setError('Please select a department');
       return;
     }
 
@@ -158,6 +226,7 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
         role: defaultRole,
         parentAdminEmpId: '',
       });
+      setDepartmentOpen(false);
       setToast({
         type: 'success',
         message:
@@ -253,14 +322,73 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
           </div>
           <div>
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Department *</label>
-            <input
-              name="department"
-              value={form.department}
-              onChange={handleChange}
-              required
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
-              placeholder="e.g. Engineering"
-            />
+            <div ref={departmentDropdownRef} className="relative">
+              <button
+                ref={departmentTriggerRef}
+                type="button"
+                onClick={() => {
+                  if (!departmentOpen) {
+                    updateDepartmentDirection();
+                  }
+                  setDepartmentOpen((prev) => !prev);
+                  setError(null);
+                }}
+                aria-haspopup="listbox"
+                aria-expanded={departmentOpen}
+                className={`flex w-full items-center justify-between rounded-2xl border bg-white px-4 py-3 text-left text-[15px] outline-none transition-all duration-200 ${
+                  departmentOpen
+                    ? 'border-brand-red ring-2 ring-brand-red/20'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <span className={form.department ? 'text-slate-700' : 'text-slate-400'}>
+                  {form.department || 'Select department'}
+                </span>
+                <ChevronDown
+                  size={18}
+                  className={`shrink-0 transition-all duration-200 ${
+                    departmentOpen ? 'rotate-180 text-brand-red' : 'text-slate-400'
+                  }`}
+                />
+              </button>
+
+              {departmentOpen && (
+                <div
+                  className={`absolute left-0 z-20 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-sm shadow-[0_24px_48px_-28px_rgba(15,23,42,0.38)] ${
+                    departmentDirection === 'down' ? 'top-full mt-2' : 'bottom-full mb-2'
+                  }`}
+                >
+                  <div className="max-h-56 overflow-y-auto py-1.5">
+                    {DEPARTMENT_OPTIONS.map((department) => {
+                      const isSelected = form.department === department;
+                      return (
+                        <button
+                          key={department}
+                          type="button"
+                          onClick={() => {
+                            setForm((prev) => ({ ...prev, department }));
+                            setDepartmentOpen(false);
+                            setError(null);
+                          }}
+                          className={`flex w-full items-center justify-between px-4 py-3 text-[14px] transition-colors ${
+                            isSelected
+                              ? 'bg-brand-red/5 text-brand-red'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>{department}</span>
+                          <span
+                            className={`h-2.5 w-2.5 rounded-full transition-colors ${
+                              isSelected ? 'bg-brand-red' : 'bg-transparent'
+                            }`}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

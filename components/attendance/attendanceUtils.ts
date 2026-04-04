@@ -4,6 +4,7 @@ export interface AttendanceSession {
   _id: string;
   loginTime: string;
   logoutTime?: string | null;
+  effectiveLogoutTime?: string;
   location?: string;
   durationMinutes?: number;
 }
@@ -37,6 +38,15 @@ export interface LeaveRequest {
   createdAt: string;
   decidedAt?: string;
   decidedByRole?: string;
+}
+
+export interface LeaveNotificationItem {
+  id: string;
+  title: string;
+  description: string;
+  createdAt: string;
+  read: boolean;
+  tone: 'info' | 'success' | 'warning';
 }
 
 export const MINUTES_PER_DAY_TARGET = 8 * 60;

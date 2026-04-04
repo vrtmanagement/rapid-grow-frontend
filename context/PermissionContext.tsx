@@ -1,27 +1,8 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { PermissionKey } from '../config/permissions';
 import { getSocket } from '../realtime/socket';
-
-type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | '';
-
-interface PermissionState {
-  role: BackendRole;
-  permissions: PermissionKey[];
-  loading: boolean;
-  hasPermission: (permission: PermissionKey | string) => boolean;
-  canAccess: (role: string | undefined, permission: PermissionKey | string) => boolean;
-  refreshPermissions: () => Promise<void>;
-}
-
-const PermissionContext = createContext<PermissionState>({
-  role: '',
-  permissions: [],
-  loading: false,
-  hasPermission: () => false,
-  canAccess: () => false,
-  refreshPermissions: async () => {},
-});
+import { BackendRole, PermissionContext } from './PermissionContextCore';
 
 const CACHE_KEY = 'rapidgrow-permissions-cache-v1';
 const PERMISSIONS_UPDATE_KEY = 'rapidgrow-permissions-updated-at';
@@ -160,8 +141,4 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   return <PermissionContext.Provider value={value}>{children}</PermissionContext.Provider>;
 };
-
-export function usePermissions() {
-  return useContext(PermissionContext);
-}
 

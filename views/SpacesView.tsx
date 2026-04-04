@@ -717,8 +717,8 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     const targetRole = normalizeRole(emp.role || 'EMPLOYEE');
 
     if (viewerRole === 'EMPLOYEE') {
-      // Employee: cannot assign tasks to team leads or admins
-      return targetRole === 'EMPLOYEE';
+      // Employee: can only assign tasks to themselves.
+      return false;
     }
 
     if (viewerRole === 'TEAM_LEAD') {
@@ -1214,7 +1214,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     let list = visibleTasks;
 
     if (taskFilterMode === 'me' && me.id) {
-      list = list.filter((t) => t.createdByEmpId === me.id);
+      list = list.filter((t) => t.createdByEmpId === me.id && t.assigneeId === me.id);
     }
 
     if (taskFilterMode === 'assigned' && me.id) {

@@ -1,42 +1,10 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiCreateTeam, apiDeleteTeam, apiHistory, apiListConversations, apiListUsers, apiMarkAsRead, apiUpdateTeam, apiUploadFile } from '../api';
 import { API_BASE } from '../../config/api';
 import { ChatConversationSummary, ChatMessage, ChatUser, ChatAttachment, ChatReplyRef } from '../types';
 import { getUnreadDirectMessageSourceCount } from '../unread';
 import { getSocket } from '../../realtime/socket';
-
-type CommunicationContextValue = {
-  currentUser: { id: string; name: string; role: string } | null;
-  users: ChatUser[];
-  conversations: ChatConversationSummary[];
-  usersLoading: boolean;
-  conversationsLoading: boolean;
-  error: string | null;
-
-  selectedConversationKey: string | null;
-  selectedConversation: ChatConversationSummary | null;
-
-  messages: ChatMessage[];
-  messagesLoading: boolean;
-
-  typingUserIds: Record<string, true>;
-
-  selectChannel: (channelKey: string) => Promise<void>;
-  startDmWithUser: (otherUserId: string) => Promise<void>;
-  joinByConversationKey: (conversationKey: string) => Promise<void>;
-  createTeam: (name: string, memberIds: string[]) => Promise<void>;
-  updateTeam: (conversationKey: string, payload: { name?: string; memberIds?: string[] }) => Promise<void>;
-  deleteTeam: (conversationKey: string) => Promise<void>;
-
-  sendText: (conversationKey: string, content: string, replyToMessageId?: string | null) => Promise<void>;
-  sendFile: (conversationKey: string, file: File, content?: string, replyToMessageId?: string | null) => Promise<void>;
-  notifyTyping: (conversationKey: string) => void;
-
-  editMessage: (messageId: string, conversationKey: string, newContent: string) => Promise<void>;
-  deleteMessage: (messageId: string, conversationKey: string) => Promise<void>;
-};
-
-const CommunicationContext = createContext<CommunicationContextValue | undefined>(undefined);
+import { CommunicationContext, CommunicationContextValue } from './CommunicationContextCore';
 
 function getStoredAuth() {
   try {
@@ -1015,11 +983,5 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   };
 
   return <CommunicationContext.Provider value={value}>{children}</CommunicationContext.Provider>;
-}
-
-export function useCommunication() {
-  const ctx = useContext(CommunicationContext);
-  if (!ctx) throw new Error('useCommunication must be used within CommunicationProvider');
-  return ctx;
 }
 

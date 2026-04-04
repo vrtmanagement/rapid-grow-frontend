@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CommunicationProvider, useCommunication } from '../context/CommunicationContext';
+import { CommunicationProvider } from '../context/CommunicationContext';
+import { useCommunication } from '../context/useCommunication';
 import { AvatarPreviewModal } from '../components/AvatarPreviewModal';
 import { ChatSidebar } from '../components/ChatSidebar';
 import { ChatMessages } from '../components/ChatMessages';

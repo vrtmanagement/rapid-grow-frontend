@@ -3,6 +3,7 @@ import {
   Activity,
   ArrowDownRight,
   ArrowUpRight,
+  ChevronDown,
   Minus,
   Radar,
   Target,
@@ -55,6 +56,20 @@ interface EmployeeDepartment {
 }
 
 const TARGET_SCORE = 75;
+const ALL_DEPARTMENTS_VALUE = 'all';
+const ALL_DEPARTMENTS_LABEL = 'All Departments';
+const CURATED_DEPARTMENTS = [
+  'Engineering',
+  'Product Management',
+  'Design',
+  'Human Resources',
+  'Finance',
+  'Sales',
+  'Marketing',
+  'Operations',
+  'Customer Success',
+  'Business Development',
+] as const;
 const STATIC_EXECUTION_ROWS: PerformanceRow[] = [
   {
     employeeId: 'EMP-1001',
@@ -244,7 +259,7 @@ function getTrendMeta(trend: TrendDirection) {
 
 function getStaticExecutionRows(selectedDepartment: string) {
   const filtered =
-    selectedDepartment === 'all'
+    selectedDepartment === ALL_DEPARTMENTS_VALUE
       ? STATIC_EXECUTION_ROWS
       : STATIC_EXECUTION_ROWS.filter((row) => row.department === selectedDepartment);
 
@@ -257,17 +272,42 @@ function getStaticExecutionRows(selectedDepartment: string) {
     }));
 }
 
+function normalizeDepartmentLabel(value: string) {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function buildDepartmentOptions(values: string[]) {
+  const uniqueDepartments = new Map<string, string>();
+
+  values.forEach((value) => {
+    const normalized = normalizeDepartmentLabel(String(value || ''));
+    if (!normalized) return;
+    if (normalized.toLocaleLowerCase() === ALL_DEPARTMENTS_LABEL.toLocaleLowerCase()) return;
+
+    const key = normalized.toLocaleLowerCase();
+    if (!uniqueDepartments.has(key)) {
+      uniqueDepartments.set(key, normalized);
+    }
+  });
+
+  return Array.from(uniqueDepartments.values()).sort((a, b) => a.localeCompare(b));
+}
+
 const ExecutionMatrix: React.FC = () => {
   const weekOptions = buildWeekOptions();
   const [rows, setRows] = useState<PerformanceRow[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
   const [selectedWeek, setSelectedWeek] = useState(weekOptions[0]?.value || '');
-  const [selectedDepartment, setSelectedDepartment] = useState('all');
+  const [selectedDepartment, setSelectedDepartment] = useState(ALL_DEPARTMENTS_VALUE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const refreshTimeout = useRef<number | null>(null);
   const controlsRef = useRef<HTMLDivElement | null>(null);
   const insightsPanelRef = useRef<HTMLDivElement | null>(null);
+  const weekDropdownRef = useRef<HTMLDivElement | null>(null);
+  const departmentDropdownRef = useRef<HTMLDivElement | null>(null);
+  const [weekMenuOpen, setWeekMenuOpen] = useState(false);
+  const [departmentMenuOpen, setDepartmentMenuOpen] = useState(false);
   const [listMaxHeight, setListMaxHeight] = useState<number | null>(null);
 
   useEffect(() => {
@@ -280,15 +320,14 @@ const ExecutionMatrix: React.FC = () => {
 
         const payload = await response.json().catch(() => []);
         const items = Array.isArray(payload) ? payload : [];
-        const uniqueDepartments = Array.from(
-          new Set(
-            items
-              .map((employee: EmployeeDepartment) => String(employee.department || '').trim())
-              .filter(Boolean),
+        setDepartments(
+          buildDepartmentOptions(
+            [
+              ...CURATED_DEPARTMENTS,
+              ...items.map((employee: EmployeeDepartment) => String(employee.department || '')),
+            ],
           ),
-        ).sort((a, b) => a.localeCompare(b));
-
-        setDepartments(uniqueDepartments);
+        );
       } catch (fetchError) {
         console.error('Failed to load departments for execution matrix', fetchError);
       }
@@ -323,6 +362,14 @@ const ExecutionMatrix: React.FC = () => {
 
         if (ignore) return;
 
+        setDepartments((previous) =>
+          buildDepartmentOptions([
+            ...CURATED_DEPARTMENTS,
+            ...previous,
+            ...incoming.map((row) => String(row.department || '')),
+          ]),
+        );
+
         setRows((previousRows) => {
           const previousMap = new Map<string, PerformanceRow>(previousRows.map((row) => [row.employeeId, row]));
           return incoming.map((row) => {
@@ -339,6 +386,13 @@ const ExecutionMatrix: React.FC = () => {
       } catch (loadError: any) {
         if (!ignore) {
           setRows(getStaticExecutionRows(selectedDepartment));
+          setDepartments((previous) =>
+            buildDepartmentOptions([
+              ...CURATED_DEPARTMENTS,
+              ...previous,
+              ...STATIC_EXECUTION_ROWS.map((row) => row.department),
+            ]),
+          );
           setError(null);
         }
       } finally {
@@ -370,6 +424,35 @@ const ExecutionMatrix: React.FC = () => {
       }
     };
   }, [selectedDepartment, selectedWeek]);
+
+  useEffect(() => {
+    if (!weekMenuOpen && !departmentMenuOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!weekDropdownRef.current?.contains(target)) {
+        setWeekMenuOpen(false);
+      }
+      if (!departmentDropdownRef.current?.contains(target)) {
+        setDepartmentMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setWeekMenuOpen(false);
+        setDepartmentMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [departmentMenuOpen, weekMenuOpen]);
 
   useEffect(() => {
     const panel = insightsPanelRef.current;
@@ -409,6 +492,8 @@ const ExecutionMatrix: React.FC = () => {
   const weeklyAverageScore = rows.length
     ? rows.reduce((sum, row) => sum + row.weeklyScore, 0) / rows.length
     : 0;
+  const selectedWeekLabel =
+    weekOptions.find((option) => option.value === selectedWeek)?.label || 'This Week';
 
   return (
     <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_296px]">
@@ -428,30 +513,139 @@ const ExecutionMatrix: React.FC = () => {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <select
-              value={selectedWeek}
-              onChange={(event) => setSelectedWeek(event.target.value)}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[14px] text-slate-700 outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
-            >
-              {weekOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <div ref={weekDropdownRef} className="relative min-w-[190px]">
+              <button
+                type="button"
+                onClick={() => {
+                  setDepartmentMenuOpen(false);
+                  setWeekMenuOpen((previous) => !previous);
+                }}
+                className={`flex w-full items-center justify-between rounded-2xl border bg-white px-4 py-3 text-left text-[14px] outline-none transition-all ${
+                  weekMenuOpen
+                    ? 'border-brand-red shadow-[0_12px_32px_rgba(239,68,68,0.12)] ring-2 ring-brand-red/10'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+                aria-haspopup="listbox"
+                aria-expanded={weekMenuOpen}
+              >
+                <span className="truncate text-slate-700">{selectedWeekLabel}</span>
+                <ChevronDown
+                  size={16}
+                  className={`ml-3 shrink-0 text-slate-400 transition-transform ${
+                    weekMenuOpen ? 'rotate-180 text-brand-red' : ''
+                  }`}
+                />
+              </button>
 
-            <select
-              value={selectedDepartment}
-              onChange={(event) => setSelectedDepartment(event.target.value)}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[14px] text-slate-700 outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
-            >
-              <option value="all">All Departments</option>
-              {departments.map((department) => (
-                <option key={department} value={department}>
-                  {department}
-                </option>
-              ))}
-            </select>
+              {weekMenuOpen && (
+                <div className="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-[1.1rem] border border-slate-200 bg-white/95 shadow-[0_22px_48px_rgba(15,23,42,0.14)] backdrop-blur-sm">
+                  <div className="max-h-72 overflow-y-auto p-1.5">
+                    {weekOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          setSelectedWeek(option.value);
+                          setWeekMenuOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-[13px] transition-colors ${
+                          selectedWeek === option.value
+                            ? 'bg-brand-red/6 text-brand-red'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="truncate">{option.label}</span>
+                        <span
+                          className={`h-2.5 w-2.5 rounded-full ${
+                            selectedWeek === option.value ? 'bg-brand-red' : 'bg-transparent'
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div ref={departmentDropdownRef} className="relative min-w-[206px]">
+              <button
+                type="button"
+                onClick={() => {
+                  setWeekMenuOpen(false);
+                  setDepartmentMenuOpen((previous) => !previous);
+                }}
+                className={`flex w-full items-center justify-between rounded-2xl border bg-white px-4 py-3 text-left text-[14px] outline-none transition-all ${
+                  departmentMenuOpen
+                    ? 'border-brand-red shadow-[0_12px_32px_rgba(239,68,68,0.12)] ring-2 ring-brand-red/10'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+                aria-haspopup="listbox"
+                aria-expanded={departmentMenuOpen}
+              >
+                <span className="truncate text-slate-700">
+                  {selectedDepartment === ALL_DEPARTMENTS_VALUE
+                    ? ALL_DEPARTMENTS_LABEL
+                    : selectedDepartment}
+                </span>
+                <ChevronDown
+                  size={16}
+                  className={`ml-3 shrink-0 text-slate-400 transition-transform ${
+                    departmentMenuOpen ? 'rotate-180 text-brand-red' : ''
+                  }`}
+                />
+              </button>
+
+              {departmentMenuOpen && (
+                <div className="absolute right-0 top-full z-20 mt-2 w-full overflow-hidden rounded-[1.1rem] border border-slate-200 bg-white/95 shadow-[0_22px_48px_rgba(15,23,42,0.14)] backdrop-blur-sm">
+                  <div className="max-h-72 overflow-y-auto p-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDepartment(ALL_DEPARTMENTS_VALUE);
+                        setDepartmentMenuOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-[13px] transition-colors ${
+                        selectedDepartment === ALL_DEPARTMENTS_VALUE
+                          ? 'bg-brand-red/6 text-brand-red'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{ALL_DEPARTMENTS_LABEL}</span>
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full ${
+                          selectedDepartment === ALL_DEPARTMENTS_VALUE
+                            ? 'bg-brand-red'
+                            : 'bg-transparent'
+                        }`}
+                      />
+                    </button>
+
+                    {departments.map((department) => (
+                      <button
+                        key={department}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDepartment(department);
+                          setDepartmentMenuOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-[13px] transition-colors ${
+                          selectedDepartment === department
+                            ? 'bg-brand-red/6 text-brand-red'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="truncate">{department}</span>
+                        <span
+                          className={`h-2.5 w-2.5 rounded-full ${
+                            selectedDepartment === department ? 'bg-brand-red' : 'bg-transparent'
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -500,14 +694,23 @@ const ExecutionMatrix: React.FC = () => {
                 const liveScoreDelta = row.liveScoreDelta || 0;
                 const showLiveDelta = Math.abs(liveScoreDelta) >= 0.1;
                 const showRankDelta = row.rankDelta !== 0;
-                const DeltaIcon =
-                  showLiveDelta
-                    ? liveScoreDelta >= 0
-                      ? ArrowUpRight
-                      : ArrowDownRight
-                    : row.rankDelta >= 0
-                    ? ArrowUpRight
-                    : ArrowDownRight;
+                const deltaValue = showLiveDelta ? liveScoreDelta : row.rankDelta;
+                const isStableDelta = !showLiveDelta && !showRankDelta;
+                const DeltaIcon = isStableDelta
+                  ? Minus
+                  : deltaValue >= 0
+                  ? ArrowUpRight
+                  : ArrowDownRight;
+                const deltaBadgeTone = isStableDelta
+                  ? 'border-amber-300/90 bg-[linear-gradient(180deg,#fffbeb_0%,#fef3c7_100%)] text-amber-800'
+                  : deltaValue > 0
+                  ? 'border-emerald-300/90 bg-[linear-gradient(180deg,#ecfdf5_0%,#d1fae5_100%)] text-emerald-800'
+                  : 'border-rose-300/90 bg-[linear-gradient(180deg,#fff1f2_0%,#ffe4e6_100%)] text-rose-800';
+                const deltaLabel = isStableDelta
+                  ? '0'
+                  : showLiveDelta
+                  ? `${liveScoreDelta > 0 ? '+' : ''}${liveScoreDelta}`
+                  : `${row.rankDelta > 0 ? '+' : ''}${row.rankDelta}`;
 
                 return (
                   <div
@@ -589,12 +792,12 @@ const ExecutionMatrix: React.FC = () => {
                         </div>
 
                         <div className="flex flex-wrap justify-end gap-2">
-                          {(showLiveDelta || showRankDelta) && (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-brand-red/20 bg-brand-red/5 px-3 py-1.5 text-[12px] font-semibold text-brand-red">
-                              {showLiveDelta ? `${liveScoreDelta > 0 ? '+' : ''}${liveScoreDelta}` : `${row.rankDelta > 0 ? '+' : ''}${row.rankDelta}`}
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[12px] font-semibold ${deltaBadgeTone}`}
+                          >
+                              {deltaLabel}
                               <DeltaIcon size={12} />
-                            </span>
-                          )}
+                          </span>
                           <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] font-semibold text-slate-600">
                             {Math.round(row.onTimePercentage)}% on-time
                           </span>
