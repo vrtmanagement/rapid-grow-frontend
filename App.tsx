@@ -33,9 +33,15 @@ import { getUnreadDirectMessageSourceCount } from './communication/unread';
 import { getSocket } from './realtime/socket';
 import PermissionsView from './views/PermissionsView';
 import { mapBackendRoleToUiRole } from './config/permissions';
-import { usePermissions } from './context/PermissionContext';
+import { usePermissions } from './context/usePermissions';
 import AccessDenied from './components/AccessDenied';
-import { API_BASE, getAuthHeaders } from './config/api';
+import {
+  API_BASE,
+  AUTH_EXPIRED_EVENT,
+  clearStoredSession,
+  getAuthHeaders,
+  getStoredAuthSession,
+} from './config/api';
 
 const SUPER_ADMIN_EMAIL = 'superadmin@example.com';
 const DEFAULT_POWERS: Record<string, string[]> = {
@@ -123,9 +129,8 @@ const QUARTER_LABELS = ['Q1', 'Q2', 'Q3', 'Q4'];
 
 function getStoredEmployeeIdentifiers() {
   try {
-    const raw = localStorage.getItem('rapidgrow-admin');
-    if (!raw) return { userId: '', empId: '' };
-    const parsed = JSON.parse(raw);
+    const parsed = getStoredAuthSession();
+    if (!parsed) return { userId: '', empId: '' };
     const employee = parsed?.employee || {};
     return {
       userId: String(employee._id || ''),
@@ -248,11 +253,11 @@ const App: React.FC = () => {
   const [taskCount, setTaskCount] = useState(0);
 
   useEffect(() => {
-    const adminStored = localStorage.getItem('rapidgrow-admin');
-    setIsAuthenticated(!!adminStored);
-    if (adminStored) {
-      try {
-        const { employee } = JSON.parse(adminStored);
+    const syncStoredSession = () => {
+      const session = getStoredAuthSession();
+      setIsAuthenticated(!!session);
+      if (session?.employee) {
+        const { employee } = session;
         setState(prev => ({
           ...prev,
             currentUser: {
@@ -269,8 +274,20 @@ const App: React.FC = () => {
               powers: DEFAULT_POWERS[employee.role as keyof typeof DEFAULT_POWERS] || [],
             },
         }));
-      } catch (_e) { /* ignore */ }
-    }
+      }
+    };
+
+    const handleAuthExpired = () => {
+      clearStoredSession();
+      setIsAuthenticated(false);
+    };
+
+    syncStoredSession();
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    };
   }, []);
 
   const handleLoginSuccess = useCallback(() => {
@@ -280,7 +297,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogout = useCallback(() => {
-    localStorage.removeItem('rapidgrow-admin');
+    clearStoredSession();
     setIsAuthenticated(false);
   }, []);
 

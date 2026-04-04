@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar, Clock, BarChart3, ChevronLeft, ChevronRight, Check, Moon, Sparkles, SunMedium } from 'lucide-react';
-import { Range } from './attendanceUtils';
+import { Bell, Calendar, Clock, BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LeaveNotificationItem, Range } from './attendanceUtils';
 import { PageHeaderSkeleton, SkeletonBlock } from '../ui/Skeleton';
 
 interface Props {
@@ -8,9 +8,15 @@ interface Props {
   onRangeChange: (range: Range) => void;
   selectedMonth: string;
   onSelectMonth: (month: string) => void;
+  activeView: 'attendance' | 'leave';
+  onActiveViewChange: (view: 'attendance' | 'leave') => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   subtitle: string;
+  leaveNotifications?: LeaveNotificationItem[];
+  unreadNotificationCount?: number;
+  onOpenNotifications?: () => void;
+  onNotificationClick?: (notificationId: string) => void;
   loading?: boolean;
 }
 
@@ -19,13 +25,21 @@ const AttendanceHeader: React.FC<Props> = ({
   onRangeChange,
   selectedMonth,
   onSelectMonth,
+  activeView,
+  onActiveViewChange,
   theme,
   onToggleTheme,
   subtitle,
+  leaveNotifications = [],
+  unreadNotificationCount = 0,
+  onOpenNotifications,
+  onNotificationClick,
   loading = false,
 }) => {
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const monthPickerRef = useRef<HTMLDivElement | null>(null);
+  const notificationRef = useRef<HTMLDivElement | null>(null);
   const currentDate = useMemo(() => new Date(), []);
   const parsedSelectedDate = useMemo(() => {
     if (!selectedMonth) return null;
@@ -42,17 +56,22 @@ const AttendanceHeader: React.FC<Props> = ({
   }, [initialVisibleYear, isMonthPickerOpen]);
 
   useEffect(() => {
-    if (!isMonthPickerOpen) return;
+    if (!isMonthPickerOpen && !isNotificationOpen) return;
 
     const handlePointerDown = (event: MouseEvent) => {
-      if (!monthPickerRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!monthPickerRef.current?.contains(target)) {
         setIsMonthPickerOpen(false);
+      }
+      if (!notificationRef.current?.contains(target)) {
+        setIsNotificationOpen(false);
       }
     };
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsMonthPickerOpen(false);
+        setIsNotificationOpen(false);
       }
     };
 
@@ -62,7 +81,7 @@ const AttendanceHeader: React.FC<Props> = ({
       document.removeEventListener('mousedown', handlePointerDown);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [isMonthPickerOpen]);
+  }, [isMonthPickerOpen, isNotificationOpen]);
 
   const monthItems = useMemo(
     () => [
@@ -94,6 +113,38 @@ const AttendanceHeader: React.FC<Props> = ({
     setIsMonthPickerOpen(false);
   };
 
+  const pageTitle = activeView === 'leave' ? 'Manage Leave' : 'Manage Attendance';
+  const pageDescription =
+    activeView === 'leave'
+      ? 'Plan leave, track approvals, and manage your records in one premium workspace.'
+      : 'Login & logout, track hours, and review attendance + leave history in one premium view.';
+  const viewToggle = (
+    <div className="inline-flex items-center rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+      <button
+        type="button"
+        onClick={() => onActiveViewChange('attendance')}
+        className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+          activeView === 'attendance'
+            ? 'bg-brand-red text-white shadow-sm'
+            : 'text-slate-600 hover:bg-slate-50'
+        }`}
+      >
+        Attendance
+      </button>
+      <button
+        type="button"
+        onClick={() => onActiveViewChange('leave')}
+        className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+          activeView === 'leave'
+            ? 'bg-brand-red text-white shadow-sm'
+            : 'text-slate-600 hover:bg-slate-50'
+        }`}
+      >
+        Leave
+      </button>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -107,21 +158,111 @@ const AttendanceHeader: React.FC<Props> = ({
 
   return (
     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-      <div>
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 mb-3">
           <div className="h-1.5 w-8 bg-brand-red rounded-full" />
           <span className="text-[15px] text-slate-500">{subtitle}</span>
         </div>
-        <h2 className="text-3xl md:text-4xl text-slate-900 leading-none">
-          Manage Attendance
-        </h2>
-        <p className="text-slate-500 text-[15px] md:text-lg mt-3">
-          Login & logout, track hours, and review attendance + leave history in one premium view.
-        </p>
+        <div className={`flex flex-col gap-4 ${activeView === 'attendance' ? 'md:flex-row md:items-start md:justify-between' : ''}`}>
+          <div className="min-w-0">
+            <h2 className="text-3xl md:text-4xl text-slate-900 leading-none">
+              {pageTitle}
+            </h2>
+            <p className="text-slate-500 text-[15px] md:text-lg mt-3">
+              {pageDescription}
+            </p>
+          </div>
+          {activeView === 'attendance' ? (
+            <div className="hidden md:flex flex-1 justify-center px-6">
+              {viewToggle}
+            </div>
+          ) : null}
+          {activeView === 'attendance' ? (
+            <div className="md:hidden">
+              {viewToggle}
+            </div>
+          ) : null}
+        </div>
       </div>
       <div className="flex flex-col items-end gap-3">
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <div className="inline-flex items-center rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+          {activeView === 'leave' ? (
+            <>
+              {viewToggle}
+              <div className="relative" ref={notificationRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextOpen = !isNotificationOpen;
+                    setIsNotificationOpen(nextOpen);
+                    if (nextOpen) {
+                      onOpenNotifications?.();
+                    }
+                  }}
+                  className="group relative inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red transition group-hover:bg-brand-red group-hover:text-white">
+                    <Bell size={16} />
+                  </span>
+                  Notifications
+                  {unreadNotificationCount > 0 ? (
+                    <span className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-brand-red px-1.5 text-[11px] font-semibold text-white">
+                      {unreadNotificationCount}
+                    </span>
+                  ) : null}
+                </button>
+
+                {isNotificationOpen && (
+                  <div className="absolute right-0 top-[calc(100%+12px)] z-30 w-[340px] origin-top-right overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.16)] animate-in fade-in zoom-in-95 duration-200">
+                    <div className="border-b border-slate-100 px-5 py-4">
+                      <h3 className="text-sm font-semibold text-slate-900">Leave notifications</h3>
+                      <p className="mt-1 text-xs text-slate-500">Personalized updates based on the signed-in user.</p>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto p-3">
+                      {leaveNotifications.length === 0 ? (
+                        <p className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                          No notifications yet.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {leaveNotifications.map((notification) => (
+                            <button
+                              key={notification.id}
+                              type="button"
+                              onClick={() => onNotificationClick?.(notification.id)}
+                              className={`rounded-2xl border px-4 py-3 ${
+                                notification.read
+                                  ? 'border-slate-200 bg-white'
+                                  : 'border-brand-red/15 bg-brand-red/5'
+                              } w-full text-left transition hover:border-slate-300 hover:shadow-sm`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
+                                  <p className="mt-1 text-xs leading-5 text-slate-500">{notification.description}</p>
+                                </div>
+                                {!notification.read ? (
+                                  <span className="mt-1 h-2.5 w-2.5 rounded-full bg-brand-red" />
+                                ) : null}
+                              </div>
+                              <p className="mt-2 text-[11px] text-slate-400">
+                                {new Date(notification.createdAt).toLocaleString()}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : null}
+        </div>
+
+        {activeView === 'attendance' ? (
+        <div className="flex flex-col items-end gap-2">
+          <div className="mt-4 inline-flex items-center rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
             <button
               type="button"
               onClick={() => onRangeChange('day')}
@@ -188,10 +329,6 @@ const AttendanceHeader: React.FC<Props> = ({
                   <div className="absolute -left-6 bottom-0 h-16 w-16 rounded-full bg-white/10 blur-xl" />
                   <div className="relative flex items-start justify-between gap-4">
                     <div>
-                      {/* <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/60">
-                        <Sparkles size={12} />
-                        Attendance Window
-                      </div> */}
                       <h3 className="text-lg font-semibold">{visibleYear}</h3>
                       <p className="text-xs text-white/70">
                         Pick a month to review attendance insights.
@@ -246,12 +383,7 @@ const AttendanceHeader: React.FC<Props> = ({
                           }`}>
                             {isCurrentMonth ? '' : ''}
                           </span>
-                          {isSelected && (
-                            // <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-end rounded-full bg-white/18">
-                            //   <Check size={12} />
-                            // </span>
-                            <></>
-                          )}
+                          {isSelected && <></>}
                         </button>
                       );
                     })}
@@ -288,6 +420,7 @@ const AttendanceHeader: React.FC<Props> = ({
             )}
           </div>
         </div>
+        ) : null}
         {/* <button
           type="button"
           onClick={onToggleTheme}

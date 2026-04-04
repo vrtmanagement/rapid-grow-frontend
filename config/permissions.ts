@@ -11,6 +11,7 @@ export type PermissionKey =
   | 'WORKSPACES_VIEW'
   | 'SPACES_VIEW'
   | 'ATTENDANCE_VIEW'
+  | 'EMPLOYEE_ATTENDANCE_VIEW'
   | 'YEARLY_VIEW'
   | 'QUARTERLY_VIEW'
   | 'MONTHLY_VIEW'

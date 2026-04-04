@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { AdminCardGridSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 import ExecutionMatrix from '../components/dashboard/ExecutionMatrix';
-import { usePermissions } from '../context/PermissionContext';
+import { usePermissions } from '../context/usePermissions';
 
 interface Props {
   state: PlanningState;

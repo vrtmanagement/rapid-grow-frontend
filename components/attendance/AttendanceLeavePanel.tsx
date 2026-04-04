@@ -1,5 +1,5 @@
-import React from 'react';
-import { LeaveRequest, formatMinutes } from './attendanceUtils';
+import React, { useMemo, useState } from 'react';
+import { LeaveRequest } from './attendanceUtils';
 import { AttendanceLeaveOverviewSkeleton, Skeleton, SkeletonBlock } from '../ui/Skeleton';
 
 interface Props {
@@ -19,6 +19,7 @@ interface Props {
   canApplyLeave: boolean;
   approverLeaves: LeaveRequest[];
   isAdmin: boolean;
+  isApproverPortal: boolean;
   loading?: boolean;
 }
 
@@ -39,12 +40,58 @@ const AttendanceLeavePanel: React.FC<Props> = ({
   canApplyLeave,
   approverLeaves,
   isAdmin,
+  isApproverPortal,
   loading = false,
 }) => {
-  const baseLeaves = isAdmin ? approverLeaves : myLeaves;
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'GENERAL' | 'SICK' | 'VACATION' | 'EMERGENCY'>('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const baseLeaves = isApproverPortal || isAdmin ? approverLeaves : myLeaves;
   const visibleMyLeaves = canApplyLeave
     ? baseLeaves
     : baseLeaves.filter((l) => l.status === 'APPROVED' || l.status === 'REJECTED');
+
+  const filteredLeaves = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+
+    return visibleMyLeaves.filter((leave) => {
+      if (statusFilter !== 'ALL' && leave.status !== statusFilter) {
+        return false;
+      }
+
+      if (typeFilter !== 'ALL' && leave.type !== typeFilter) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      const searchableText = [
+        leave.reason,
+        leave.type,
+        leave.status,
+        leave.empName,
+        leave.empId,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return searchableText.includes(query);
+    });
+  }, [searchTerm, statusFilter, typeFilter, visibleMyLeaves]);
+
+  const getEmployeeRecordLabel = (leave: LeaveRequest) => {
+    const trimmedName = leave.empName?.trim();
+    const trimmedEmpId = leave.empId?.trim();
+
+    if (trimmedName && trimmedEmpId) return `${trimmedName} (${trimmedEmpId})`;
+    if (trimmedName) return trimmedName;
+    if (trimmedEmpId) return `Emp ID: ${trimmedEmpId}`;
+    return '';
+  };
 
   return (
     <>
@@ -147,32 +194,91 @@ const AttendanceLeavePanel: React.FC<Props> = ({
             <span className="text-[11px] text-slate-400">Refreshing…</span>
           )}
         </div>
-        <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium text-slate-500">Status</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED')}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
+              >
+                <option value="ALL">All statuses</option>
+                <option value="PENDING">Pending</option>
+                <option value="APPROVED">Approved</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-medium text-slate-500">Type</span>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value as 'ALL' | 'GENERAL' | 'SICK' | 'VACATION' | 'EMERGENCY')}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
+              >
+                <option value="ALL">All types</option>
+                <option value="GENERAL">General</option>
+                <option value="SICK">Sick</option>
+                <option value="VACATION">Vacation</option>
+                <option value="EMERGENCY">Emergency</option>
+              </select>
+            </label>
+          </div>
+
+          <label className="mt-3 block">
+            <span className="mb-1 block text-[11px] font-medium text-slate-500">Search</span>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={
+                isApproverPortal
+                  ? 'Search by name, emp id, reason, type, or status'
+                  : 'Search by reason, type, or status'
+              }
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
+            />
+          </label>
+        </div>
+        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
           {leaveLoading ? (
             <AttendanceLeaveOverviewSkeleton count={3} />
-          ) : visibleMyLeaves.length === 0 ? (
-            canApplyLeave ? (
-              <p className="text-[12px] text-slate-500">
-                No leave requests yet. Your history will show here once you apply.
-              </p>
-            ) : null
+          ) : filteredLeaves.length === 0 ? (
+            <p className="text-[12px] text-slate-500">
+              No leave records match the current filters.
+            </p>
           ) : (
-            visibleMyLeaves.map((l) => (
+            filteredLeaves.map((l) => (
               <div
                 key={l._id}
-                className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2 text-[11px]"
+                className="rounded-[22px] border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 px-4 py-4 text-[11px] shadow-[0_12px_28px_rgba(15,23,42,0.06)]"
               >
-                <div>
-                  <p className="font-semibold text-slate-800">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-800">
                     {new Date(l.startDate).toLocaleDateString()} –{' '}
                     {new Date(l.endDate).toLocaleDateString()}
                   </p>
-                  <p className="text-slate-500 line-clamp-1">
-                    {l.reason || l.type}
-                  </p>
-                </div>
+                    {isApproverPortal && getEmployeeRecordLabel(l) ? (
+                      <p className="mt-1 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold tracking-[0.04em] text-slate-700">
+                        {getEmployeeRecordLabel(l)}
+                      </p>
+                    ) : null}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-brand-red/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-red">
+                        {l.type}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Applied {new Date(l.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-slate-500 line-clamp-2">
+                      {l.reason || l.type}
+                    </p>
+                  </div>
                 <span
-                  className={`px-2 py-1 rounded-full text-[10px] font-semibold ${
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
                     l.status === 'APPROVED'
                       ? 'bg-emerald-50 text-emerald-700'
                       : l.status === 'REJECTED'
@@ -182,6 +288,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
                 >
                   {l.status.toLowerCase()}
                 </span>
+                </div>
               </div>
             ))
           )}

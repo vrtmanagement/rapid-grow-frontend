@@ -10,6 +10,16 @@ interface Props {
 }
 
 const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMonth }) => {
+  const formatTime = (value?: string | null) => {
+    if (!value) return 'N/A';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 'N/A';
+    return parsed.toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
   const formatFullDate = (isoDate: string) => {
     const parsed = new Date(`${isoDate}T00:00:00`);
     return parsed.toLocaleDateString(undefined, {
@@ -34,10 +44,21 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMo
   const chartData =
     summary?.days.map((d) => {
       const hours = d.minutes / 60;
+      const sortedSessions = [...(d.sessions || [])].sort((a, b) => (
+        new Date(a.loginTime).getTime() - new Date(b.loginTime).getTime()
+      ));
+      const firstSession = sortedSessions[0];
+      const lastSession = sortedSessions[sortedSessions.length - 1];
+      const isOpenSession = !!lastSession && !lastSession.logoutTime;
       return {
         date: formatFullDate(d.date),
         hours: parseFloat(hours.toFixed(2)),
         color: getHoursColor(hours),
+        loginTime: formatTime(firstSession?.loginTime),
+        logoutTime: isOpenSession
+          ? 'Active now'
+          : formatTime(lastSession?.effectiveLogoutTime || lastSession?.logoutTime),
+        statusLabel: isOpenSession ? 'Status' : 'Logout time',
       };
     }) ?? [];
 
@@ -98,6 +119,31 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMo
               />
               <Tooltip
                 cursor={{ fill: '#f8fafc' }}
+                formatter={(value: number) => [`${Number(value).toFixed(2)}h`, 'Hours']}
+                labelFormatter={(label) => `${label}`}
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const entry = payload[0]?.payload;
+                  return (
+                    <div className="min-w-[180px] rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_18px_40px_rgba(15,23,42,0.16)]">
+                      <p className="text-sm font-semibold text-slate-900">{label}</p>
+                      <div className="mt-2 space-y-1.5 text-xs text-slate-600">
+                        <div className="flex items-center justify-between gap-4">
+                          <span>Hours</span>
+                          <span className="font-semibold text-slate-900">{entry?.hours?.toFixed?.(2) ?? '0.00'}h</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <span>Login time</span>
+                          <span className="font-semibold text-slate-900">{entry?.loginTime || 'N/A'}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <span>{entry?.statusLabel || 'Logout time'}</span>
+                          <span className="font-semibold text-slate-900">{entry?.logoutTime || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }}
                 contentStyle={{
                   borderRadius: '14px',
                   border: 'none',
