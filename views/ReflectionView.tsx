@@ -29,6 +29,21 @@ interface ReflectionRecord {
   lastEditedByEmpId?: string;
 }
 
+function getIndiaDateKey(offsetDays = 0): string {
+  const baseDate = new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = formatter.formatToParts(baseDate);
+  const year = parts.find((part) => part.type === 'year')?.value || '0000';
+  const month = parts.find((part) => part.type === 'month')?.value || '01';
+  const day = parts.find((part) => part.type === 'day')?.value || '01';
+  return `${year}-${month}-${day}`;
+}
+
 const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }) => {
   const [saving, setSaving] = useState(false);
   const [records, setRecords] = useState<ReflectionRecord[]>([]);
@@ -39,8 +54,8 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ReflectionRecord | null>(null);
 
-  const todayKey = new Date().toISOString().slice(0, 10);
-  const yesterdayKey = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const todayKey = getIndiaDateKey();
+  const yesterdayKey = getIndiaDateKey(-1);
   const currentEmpId = (() => {
     const raw = typeof window !== 'undefined' ? localStorage.getItem('rapidgrow-admin') : null;
     if (!raw) return null;
