@@ -60,6 +60,7 @@ interface SpacesTask {
   dueDate?: string;
   priority: TaskPriority;
   status: TaskStatus;
+  submittedFromStatus?: string;
   comments: SpacesComment[];
   customFields: Record<string, string>;
   createdByEmpId?: string;
@@ -135,6 +136,21 @@ function getLoggedInEmployee() {
 
 function normalizeRole(role?: BackendRole): BackendRole {
   return (role || '').toUpperCase() as BackendRole;
+}
+
+function isSubmittedStatus(status?: string): boolean {
+  return String(status || '').trim().toLowerCase() === 'review';
+}
+
+function getReviewerLabel(role?: BackendRole): string {
+  const normalized = normalizeRole(role);
+  if (normalized === 'SUPER_ADMIN' || normalized === 'ADMIN') {
+    return 'Admin';
+  }
+  if (normalized === 'TEAM_LEAD') {
+    return 'Team Lead';
+  }
+  return 'Reviewer';
 }
 
 function getPriorityRowClass(priority?: TaskPriority): string {
@@ -678,6 +694,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
 
   const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editCommentDraft, setEditCommentDraft] = useState('');
   const [commentToDeleteId, setCommentToDeleteId] = useState<string | null>(null);
@@ -688,6 +705,9 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const [renameDraft, setRenameDraft] = useState('');
   const [columnToDelete, setColumnToDelete] = useState<SpacesColumn | null>(null);
   const [deleteTaskModal, setDeleteTaskModal] = useState<SpacesTask | null>(null);
+  const [rejectTaskModal, setRejectTaskModal] = useState<SpacesTask | null>(null);
+  const [rejectFeedbackDraft, setRejectFeedbackDraft] = useState('');
+  const [rejectingTask, setRejectingTask] = useState(false);
 
   const [taskFilterMode, setTaskFilterMode] = useState<TaskFilterMode>('all');
   const [taskSearch, setTaskSearch] = useState('');
@@ -778,16 +798,24 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     [],
   );
 
-  const statusOptions = useMemo(
-    () => [
+  const statusOptions = useMemo(() => {
+    const baseOptions = [
       { value: 'todo', label: 'To Do' },
       { value: 'doing', label: 'Doing' },
-      { value: 'review', label: 'Review' },
-      { value: 'done', label: 'Done' },
+      { value: 'review', label: 'Submitted' },
       { value: 'blocked', label: 'Blocked' },
-    ],
-    [],
-  );
+    ];
+
+    if (mode === 'employee') {
+      return baseOptions;
+    }
+
+    return [
+      ...baseOptions.slice(0, 3),
+      { value: 'done', label: 'Done' },
+      baseOptions[3],
+    ];
+  }, [mode]);
 
   const projectSelectOptions = useMemo(
     () => [
@@ -1051,14 +1079,20 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const patchTask = async (taskId: string, updates: Partial<SpacesTask>) => {
     setError(null);
     const existing = tasks.find((t) => t.taskId === taskId) || null;
+    const normalizedUpdates = { ...updates };
+    if (normalizedUpdates.status === 'done' && mode === 'employee') {
+      normalizedUpdates.status = 'review';
+    }
     setTasks((prev) =>
-      prev.map((t) => (t.taskId === taskId ? ({ ...t, ...updates } as SpacesTask) : t)),
+      prev.map((t) =>
+        t.taskId === taskId ? ({ ...t, ...normalizedUpdates } as SpacesTask) : t,
+      ),
     );
     try {
       const res = await fetch(`${API_BASE}/spaces/tasks/${taskId}`, {
         method: 'PATCH',
         headers: getAuthHeaders(),
-        body: JSON.stringify(updates),
+        body: JSON.stringify(normalizedUpdates),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -1080,11 +1114,11 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
               if (pt.id !== existing.projectTaskId) return pt;
               return {
                 ...pt,
-                title: updates.title ?? pt.title,
-                status: updates.status ?? pt.status,
-                priority: updates.priority ?? pt.priority,
-                assigneeId: updates.assigneeId ?? pt.assigneeId,
-                dueDate: updates.dueDate ?? pt.dueDate,
+                title: normalizedUpdates.title ?? pt.title,
+                status: normalizedUpdates.status ?? pt.status,
+                priority: normalizedUpdates.priority ?? pt.priority,
+                assigneeId: normalizedUpdates.assigneeId ?? pt.assigneeId,
+                dueDate: normalizedUpdates.dueDate ?? pt.dueDate,
                 updatedAt: new Date().toISOString(),
               };
             });
@@ -1099,10 +1133,31 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
           console.error('Failed to sync Spaces task to project charter', e);
         }
       }
+      return true;
     } catch (e: any) {
       setError(e?.message || 'Failed to update task');
       loadSpaces();
+      return false;
     }
+  };
+
+  const addTaskComment = async (taskId: string, text: string) => {
+    const res = await fetch(`${API_BASE}/spaces/tasks/${taskId}/comments`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ text }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to add comment');
+    }
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.taskId === taskId
+          ? { ...t, comments: Array.isArray(data.comments) ? data.comments : [] }
+          : t,
+      ),
+    );
   };
 
   const handleAddColumn = async () => {
@@ -1134,6 +1189,8 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
 
     const now = new Date().toISOString();
     const projectTaskId = `t-${generateId()}`;
+    const requestedStatus =
+      mode === 'employee' && status === 'done' ? ('review' as TaskStatus) : status;
     const project = selectedProjectId
       ? projects.find((p) => p.id === selectedProjectId) || null
       : null;
@@ -1153,7 +1210,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
           id: projectTaskId,
           title: t,
           description: '',
-          status,
+          status: requestedStatus,
           priority,
           createdBy: me.id || 'employee',
           createdByRole: me.role || 'EMPLOYEE',
@@ -1186,7 +1243,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
           assigneeId,
           dueDate,
           priority,
-          status,
+          status: requestedStatus,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1314,7 +1371,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       // Employee can comment on tasks they are assigned to or created
       return t.assigneeId === me.id || t.createdByEmpId === me.id;
     }
-    return canEditTask(t);
+    return canEditTask(t) || canValidateTask(t);
   };
 
   const canDeleteTask = (t: SpacesTask): boolean => {
@@ -1356,17 +1413,80 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     return canEditTask(t);
   };
 
+  const canValidateTask = (t: SpacesTask): boolean => {
+    if (mode !== 'manager' || !isSubmittedStatus(t.status)) return false;
+
+    const viewerRole = normalizeRole(me.role);
+    if (viewerRole === 'SUPER_ADMIN' || viewerRole === 'ADMIN') {
+      return true;
+    }
+
+    if (viewerRole === 'TEAM_LEAD') {
+      const assigneeRole = normalizeRole(
+        employeeById.get(t.assigneeId || '')?.role || (t.assigneeId === me.id ? me.role : 'EMPLOYEE'),
+      );
+      return assigneeRole === 'EMPLOYEE';
+    }
+
+    return false;
+  };
+
+  const handleApproveTask = async (t: SpacesTask) => {
+    if (!canValidateTask(t) || t.status === 'done') return;
+    await patchTask(t.taskId, { status: 'done' });
+  };
+
+  const handleRejectTask = async (t: SpacesTask) => {
+    if (!canValidateTask(t)) return;
+    setRejectTaskModal(t);
+    setRejectFeedbackDraft('');
+  };
+
+  const confirmRejectTask = async () => {
+    if (!rejectTaskModal || rejectingTask) return;
+
+    const feedback = rejectFeedbackDraft.trim();
+    if (!feedback) {
+      setError('Please enter rejection feedback before sending the task back.');
+      return;
+    }
+
+    const fallbackStatus =
+      rejectTaskModal.submittedFromStatus && !isSubmittedStatus(rejectTaskModal.submittedFromStatus)
+        ? (rejectTaskModal.submittedFromStatus as TaskStatus)
+        : ('todo' as TaskStatus);
+
+    try {
+      setRejectingTask(true);
+      setError(null);
+      const updated = await patchTask(rejectTaskModal.taskId, { status: fallbackStatus });
+      if (!updated) return;
+
+      await addTaskComment(
+        rejectTaskModal.taskId,
+        `Task rejected by ${getReviewerLabel(me.role)}: ${feedback}`,
+      );
+      setRejectTaskModal(null);
+      setRejectFeedbackDraft('');
+    } catch (e: any) {
+      setError(e?.message || 'Failed to reject task');
+    } finally {
+      setRejectingTask(false);
+    }
+  };
+
   const activeCommentTask = useMemo(
     () => sortedTasks.find((t) => t.taskId === commentTaskId) || null,
     [sortedTasks, commentTaskId],
   );
 
   const handleAddComment = async () => {
-    if (!activeCommentTask || !canCommentOnTask(activeCommentTask)) return;
+    if (!activeCommentTask || !canCommentOnTask(activeCommentTask) || submittingComment) return;
     const text = commentDraft.trim();
     if (!text) return;
     setError(null);
     try {
+      setSubmittingComment(true);
       // If employee is viewing their portal, allow status change together with comment
       if (mode === 'employee' && modalStatus && modalStatus !== activeCommentTask.status) {
         await patchTask(activeCommentTask.taskId, { status: modalStatus });
@@ -1391,6 +1511,8 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       setCommentDraft('');
     } catch (e: any) {
       setError(e?.message || 'Failed to add comment');
+    } finally {
+      setSubmittingComment(false);
     }
   };
 
@@ -1812,8 +1934,28 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                     ))}
 
                     <td className="px-3 py-3 text-right">
-                      {(canEditTask(t) || canDeleteTask(t)) ? (
+                      {(canValidateTask(t) || canEditTask(t) || canDeleteTask(t)) ? (
                         <div className="inline-flex items-center gap-2">
+                          {canValidateTask(t) && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleApproveTask(t)}
+                                className="inline-flex items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[12px] font-semibold text-emerald-700 hover:bg-emerald-100"
+                                title="Approve task"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRejectTask(t)}
+                                className="inline-flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-[12px] font-semibold text-amber-700 hover:bg-amber-100"
+                                title="Reject task"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
                           <button
                             type="button"
                             onClick={() => {
@@ -2040,8 +2182,8 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                     >
                       <option value="todo">To Do</option>
                       <option value="doing">Doing</option>
-                      <option value="review">Review</option>
-                      <option value="done">Done</option>
+                      <option value="review">Submitted</option>
+                      {mode !== 'employee' && <option value="done">Done</option>}
                       <option value="blocked">Blocked</option>
                     </select>
                   </label>
@@ -2054,18 +2196,21 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                   className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
                   placeholder="Add a comment or task update..."
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddComment();
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddComment();
+                    }
                   }}
                 />
                 <button
                   type="button"
                   onClick={handleAddComment}
-                  disabled={!commentDraft.trim()}
+                  disabled={!commentDraft.trim() || submittingComment}
                   className={`px-6 py-3 rounded-2xl bg-brand-red text-white font-bold hover:bg-brand-navy transition-colors ${
-                    !commentDraft.trim() ? 'opacity-60 cursor-not-allowed' : ''
+                    !commentDraft.trim() || submittingComment ? 'opacity-60 cursor-not-allowed' : ''
                   }`}
                 >
-                  Send
+                  {submittingComment ? 'Sending...' : 'Send'}
                 </button>
               </div>
             </div>
@@ -2224,6 +2369,68 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
         </div>
       )}
 
+      {rejectTaskModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl border border-slate-200 p-6">
+            <div className="mb-5">
+              <h3 className="text-xl font-semibold text-slate-900">Send task back for updates</h3>
+              <p className="mt-2 text-[14px] leading-6 text-slate-600">
+                Share a clear reason for rejection and mention what needs to be updated before
+                the employee submits this task again.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 mb-4">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Task
+              </div>
+              <div className="mt-1 text-[15px] font-medium text-slate-900">
+                {rejectTaskModal.title}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[13px] font-semibold text-slate-700 mb-2">
+                Rejection feedback
+              </label>
+              <textarea
+                value={rejectFeedbackDraft}
+                onChange={(e) => setRejectFeedbackDraft(e.target.value)}
+                rows={5}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-[14px] text-slate-800 outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red resize-none"
+                placeholder="Example: The task is not ready for approval yet. Please attach the final update, correct the due-date deliverable, and confirm the client-facing notes are completed."
+              />
+              <p className="mt-2 text-[12px] text-slate-500">
+                This feedback will be added to the task comments for the employee.
+              </p>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectTaskModal(null);
+                  setRejectFeedbackDraft('');
+                }}
+                className="px-4 py-2 rounded-full border border-slate-200 text-[13px] text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!rejectFeedbackDraft.trim() || rejectingTask}
+                onClick={confirmRejectTask}
+                className={`px-5 py-2 rounded-full bg-amber-500 text-white text-[13px] font-semibold hover:bg-amber-600 ${
+                  !rejectFeedbackDraft.trim() || rejectingTask ? 'opacity-60 cursor-not-allowed' : ''
+                }`}
+              >
+                {rejectingTask ? 'Sending...' : 'Send Back'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editingTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg border border-slate-200 p-6">
@@ -2309,8 +2516,8 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                   >
                     <option value="todo">To Do</option>
                     <option value="doing">Doing</option>
-                    <option value="review">Review</option>
-                    <option value="done">Done</option>
+                    <option value="review">Submitted</option>
+                    {mode !== 'employee' && <option value="done">Done</option>}
                     <option value="blocked">Blocked</option>
                   </select>
                 </div>

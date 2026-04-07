@@ -5,7 +5,7 @@ import {
   Target, Calendar, Clock, BarChart3, 
   LayoutDashboard, BrainCircuit, 
   CheckSquare, Menu, Briefcase, UserCircle, ShieldCheck, 
-  Mail, Settings, Zap, ShieldAlert, Check, Database, LogOut, UserPlus
+  Mail, Settings, Zap, ShieldAlert, Check, Database, LogOut, UserPlus, Bell
 } from 'lucide-react';
 import { PlanningState, Goal, ReflectionData, TeamMember, ProfileData, EmailLog, UserRole, UIConfig } from './types';
 import { BrandingLogo, HOURS } from './constants';
@@ -134,6 +134,40 @@ interface GlobalLeaveToast {
   tone: 'info' | 'success' | 'warning';
 }
 
+interface GlobalTaskToast {
+  key: string;
+  title: string;
+  message: string;
+  tone: 'info' | 'success' | 'warning';
+  route: string;
+}
+
+interface AppNotification {
+  _id: string;
+  empId: string;
+  title: string;
+  message: string;
+  type: string;
+  route: string;
+  dateKey: string;
+  isRead: boolean;
+  readAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+interface GlobalReminderToast {
+  key: string;
+  notificationId: string;
+  title: string;
+  message: string;
+  route: string;
+}
+
+function shouldAutoClearNotification(notification?: Partial<AppNotification> | null): boolean {
+  return String(notification?.type || '').trim().toLowerCase() === 'leave_request_review';
+}
+
 function getStoredEmployeeIdentifiers() {
   try {
     const parsed = getStoredAuthSession();
@@ -255,11 +289,18 @@ const App: React.FC = () => {
   const [appStateHydrated, setAppStateHydrated] = useState(false);
   const [goalsHydrated, setGoalsHydrated] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
   const [isVisionsOpen, setIsVisionsOpen] = useState(true);
   const [communicationUnreadCount, setCommunicationUnreadCount] = useState(0);
   const [taskCount, setTaskCount] = useState(0);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [globalLeaveToast, setGlobalLeaveToast] = useState<GlobalLeaveToast | null>(null);
+  const [globalTaskToast, setGlobalTaskToast] = useState<GlobalTaskToast | null>(null);
+  const [globalReminderToast, setGlobalReminderToast] = useState<GlobalReminderToast | null>(null);
   const shownLeaveToastKeysRef = useRef<Record<string, true>>({});
+  const shownTaskToastKeysRef = useRef<Record<string, true>>({});
+  const shownReminderToastKeysRef = useRef<Record<string, true>>({});
 
   useEffect(() => {
     const syncStoredSession = () => {
@@ -549,6 +590,18 @@ const App: React.FC = () => {
   }, [globalLeaveToast]);
 
   useEffect(() => {
+    if (!globalTaskToast) return undefined;
+    const timer = window.setTimeout(() => setGlobalTaskToast(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [globalTaskToast]);
+
+  useEffect(() => {
+    if (!globalReminderToast) return undefined;
+    const timer = window.setTimeout(() => setGlobalReminderToast(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [globalReminderToast]);
+
+  useEffect(() => {
     if (!isAuthenticated) return;
 
     const session = getStoredAuthSession();
@@ -638,7 +691,275 @@ const App: React.FC = () => {
     };
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const session = getStoredAuthSession();
+    const backendEmployee = session?.employee || {};
+    const backendEmpId = String(backendEmployee.empId || '').trim();
+    const socket = getSocket();
+
+    const showGlobalTaskToast = (toast: GlobalTaskToast) => {
+      if (shownTaskToastKeysRef.current[toast.key]) return;
+      shownTaskToastKeysRef.current[toast.key] = true;
+      setGlobalTaskToast(toast);
+    };
+
+    const onTaskValidation = (payload: any) => {
+      const action = String(payload?.action || '').toLowerCase();
+      const audience = String(payload?.audience || '').toLowerCase();
+      const taskTitle = String(payload?.taskTitle || 'Task').trim();
+      const actorName = String(payload?.actorName || payload?.actorEmpId || '').trim();
+      const actorLabel = String(payload?.actorLabel || 'Reviewer').trim();
+      const route = String(payload?.route || '/spaces').trim() || '/spaces';
+      const key = String(payload?.key || `${action}:${payload?.taskId || ''}:${payload?.eventAt || ''}:${audience}`).trim();
+      const isCurrentEmployee = String(payload?.assigneeId || '').trim() === backendEmpId;
+
+      if (!action || !key) return;
+
+      const isEmployeeAudience = audience === 'assignee' || audience === 'employee';
+
+      if (isEmployeeAudience && !isCurrentEmployee) return;
+
+      let title = '';
+      let message = '';
+      let tone: GlobalTaskToast['tone'] = 'info';
+
+      if (action === 'submitted') {
+        if (isEmployeeAudience) {
+          title = 'Task submitted';
+          message = `Your task "${taskTitle}" was sent for validation.`;
+          tone = 'info';
+        } else {
+          title = 'Task submitted for validation';
+          message = `${actorName || 'An employee'} submitted "${taskTitle}" for review.`;
+          tone = 'info';
+        }
+      } else if (action === 'approved') {
+        if (isEmployeeAudience) {
+          title = 'Task approved';
+          message = `Your task "${taskTitle}" was approved by ${actorLabel}.`;
+          tone = 'success';
+        } else {
+          title = 'Task approved';
+          message = `"${taskTitle}" was approved by ${actorName || actorLabel}.`;
+          tone = 'success';
+        }
+      } else if (action === 'rejected') {
+        if (isEmployeeAudience) {
+          title = 'Task sent back';
+          message = `Your task "${taskTitle}" was returned by ${actorLabel}. Open TaskHub to review the feedback.`;
+          tone = 'warning';
+        } else {
+          title = 'Task sent back';
+          message = `"${taskTitle}" was returned by ${actorName || actorLabel}.`;
+          tone = 'warning';
+        }
+      } else {
+        return;
+      }
+
+      showGlobalTaskToast({
+        key,
+        title,
+        message,
+        tone,
+        route,
+      });
+    };
+
+    socket.on('task:validation', onTaskValidation);
+
+    return () => {
+      socket.off('task:validation', onTaskValidation);
+    };
+  }, [isAuthenticated]);
+
+  const markNotificationRead = useCallback(async (notificationId: string) => {
+    if (!notificationId) return null;
+
+    let previousNotification: AppNotification | null = null;
+
+    setNotifications((prev) =>
+      prev.map((notification) => {
+        if (notification._id !== notificationId) return notification;
+        previousNotification = notification;
+        return {
+          ...notification,
+          isRead: true,
+          readAt: notification.readAt || new Date().toISOString(),
+        };
+      }),
+    );
+
+    try {
+      const res = await fetch(`${API_BASE}/notifications/${encodeURIComponent(notificationId)}/read`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to mark notification as read');
+      }
+
+      const updated = await res.json();
+      setNotifications((prev) => {
+        if (shouldAutoClearNotification(updated)) {
+          return prev.filter((notification) => notification._id !== notificationId);
+        }
+
+        return prev.map((notification) =>
+          notification._id === notificationId
+            ? {
+                ...notification,
+                ...updated,
+                isRead: true,
+              }
+            : notification,
+        );
+      });
+      return updated as AppNotification;
+    } catch (err) {
+      if (previousNotification) {
+        setNotifications((prev) =>
+          prev.map((notification) =>
+            notification._id === notificationId ? previousNotification as AppNotification : notification,
+          ),
+        );
+      }
+      console.warn('Failed to mark notification as read', err);
+      return null;
+    }
+  }, []);
+
+  const openNotification = useCallback(async (notification: AppNotification) => {
+    if (!notification) return;
+
+    if (!notification.isRead) {
+      await markNotificationRead(notification._id);
+    }
+
+    setNotificationMenuOpen(false);
+    if (globalReminderToast?.notificationId === notification._id) {
+      setGlobalReminderToast(null);
+    }
+
+    const nextRoute = notification.route?.startsWith('/') ? notification.route : `/${notification.route || 'review'}`;
+    window.location.hash = `#${nextRoute}`;
+  }, [globalReminderToast, markNotificationRead]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setNotifications([]);
+      return;
+    }
+
+    let active = true;
+    const session = getStoredAuthSession();
+    const backendEmpId = String(session?.employee?.empId || '').trim();
+    const socket = getSocket();
+
+    async function loadNotifications() {
+      try {
+        setNotificationsLoading(true);
+        const res = await fetch(`${API_BASE}/notifications`, {
+          headers: getAuthHeaders(),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || 'Failed to fetch notifications');
+        }
+
+        const data = await res.json();
+        if (active) {
+          setNotifications(
+            (Array.isArray(data) ? data : []).filter(
+              (notification: AppNotification) =>
+                !(shouldAutoClearNotification(notification) && notification.isRead),
+            ),
+          );
+        }
+      } catch (err) {
+        console.warn('Failed to load notifications', err);
+      } finally {
+        if (active) {
+          setNotificationsLoading(false);
+        }
+      }
+    }
+
+    const onNotificationCreated = (payload: any) => {
+      if (!payload || String(payload.empId || '').trim() !== backendEmpId) return;
+      setNotifications((prev) => {
+        const next = [payload as AppNotification, ...prev.filter((item) => item._id !== payload._id)];
+        return next.sort(
+          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+        );
+      });
+    };
+
+    const onNotificationRead = (payload: any) => {
+      const notificationId = String(payload?.notificationId || '').trim();
+      if (!notificationId) return;
+
+      setNotifications((prev) => {
+        const matched = prev.find((notification) => notification._id === notificationId);
+        if (matched && shouldAutoClearNotification(matched)) {
+          return prev.filter((notification) => notification._id !== notificationId);
+        }
+
+        return prev.map((notification) =>
+          notification._id === notificationId
+            ? {
+                ...notification,
+                isRead: true,
+                readAt: payload?.readAt || notification.readAt || new Date().toISOString(),
+              }
+            : notification,
+        );
+      });
+    };
+
+    loadNotifications();
+    socket.on('notification:created', onNotificationCreated);
+    socket.on('notification:read', onNotificationRead);
+
+    return () => {
+      active = false;
+      socket.off('notification:created', onNotificationCreated);
+      socket.off('notification:read', onNotificationRead);
+    };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    const unreadReminder = notifications.find(
+      (notification) => !notification.isRead && notification.type === 'daily_review_reminder',
+    );
+
+    if (!unreadReminder) return;
+
+    const toastKey = `daily-review-reminder:${unreadReminder._id}:${unreadReminder.updatedAt || unreadReminder.createdAt}`;
+    if (shownReminderToastKeysRef.current[toastKey]) return;
+
+    shownReminderToastKeysRef.current[toastKey] = true;
+    setGlobalReminderToast({
+      key: toastKey,
+      notificationId: unreadReminder._id,
+      title: unreadReminder.title || 'Review matrix reminder',
+      message: unreadReminder.message || 'Please fill your daily review matrix before the day ends.',
+      route: unreadReminder.route || '/review',
+    });
+  }, [notifications]);
+
   const planningViewsLoading = !appStateHydrated || !goalsHydrated;
+  const unreadNotificationCount = notifications.filter((notification) => !notification.isRead).length;
+  const notificationToastTopClass = globalLeaveToast && globalTaskToast
+    ? 'top-[14.5rem]'
+    : globalLeaveToast || globalTaskToast
+      ? 'top-32'
+      : 'top-6';
 
   const globalLeaveToastElement = globalLeaveToast ? (
     <div className="fixed right-6 top-6 z-[100] animate-in slide-in-from-top-2 fade-in duration-300">
@@ -667,6 +988,164 @@ const App: React.FC = () => {
       </div>
     </div>
   ) : null;
+
+  const globalTaskToastElement = globalTaskToast ? (
+    <button
+      type="button"
+      onClick={() => {
+        const nextRoute = globalTaskToast.route.startsWith('/') ? globalTaskToast.route : `/${globalTaskToast.route}`;
+        window.location.hash = `#${nextRoute}`;
+        setGlobalTaskToast(null);
+      }}
+      className={`fixed right-6 z-[101] max-w-sm rounded-[24px] border bg-white px-5 py-4 text-left shadow-[0_22px_50px_rgba(15,23,42,0.16)] animate-in slide-in-from-top-2 fade-in duration-300 ${
+        globalLeaveToast ? 'top-32' : 'top-6'
+      } ${
+        globalTaskToast.tone === 'success'
+          ? 'border-emerald-200'
+          : globalTaskToast.tone === 'warning'
+            ? 'border-amber-200'
+            : 'border-sky-200'
+      }`}
+    >
+      <p
+        className={`text-xs font-semibold uppercase tracking-[0.14em] ${
+          globalTaskToast.tone === 'success'
+            ? 'text-emerald-600'
+            : globalTaskToast.tone === 'warning'
+              ? 'text-amber-600'
+              : 'text-sky-600'
+        }`}
+      >
+        Task update
+      </p>
+      <p className="mt-2 text-base font-semibold text-slate-950">{globalTaskToast.title}</p>
+      <p className="mt-1 text-sm leading-6 text-slate-600">{globalTaskToast.message}</p>
+      <p className="mt-3 text-[12px] font-semibold text-brand-red">Open TaskHub</p>
+    </button>
+  ) : null;
+
+  const globalReminderToastElement = globalReminderToast ? (
+    <button
+      type="button"
+      onClick={() => {
+        const notification = notifications.find((item) => item._id === globalReminderToast.notificationId);
+        if (notification) {
+          void openNotification(notification);
+          return;
+        }
+
+        const nextRoute = globalReminderToast.route.startsWith('/') ? globalReminderToast.route : `/${globalReminderToast.route}`;
+        window.location.hash = `#${nextRoute}`;
+        setGlobalReminderToast(null);
+      }}
+      className={`fixed right-6 z-[102] max-w-sm rounded-[24px] border border-brand-red/20 bg-white px-5 py-4 text-left shadow-[0_22px_50px_rgba(15,23,42,0.16)] animate-in slide-in-from-top-2 fade-in duration-300 ${notificationToastTopClass}`}
+    >
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-red">
+        Reminder
+      </p>
+      <p className="mt-2 text-base font-semibold text-slate-950">{globalReminderToast.title}</p>
+      <p className="mt-1 text-sm leading-6 text-slate-600">{globalReminderToast.message}</p>
+      <p className="mt-3 text-[12px] font-semibold text-brand-red">Open Review Matrix</p>
+    </button>
+  ) : null;
+
+  const notificationBellElement = (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => {
+          setNotificationMenuOpen((value) => !value);
+          setUserMenuOpen(false);
+        }}
+        className="relative flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900"
+        aria-label="Notifications"
+        aria-expanded={notificationMenuOpen}
+        aria-haspopup="true"
+      >
+        <Bell size={18} />
+        {unreadNotificationCount > 0 && (
+          <span className="absolute -right-1 -top-1 min-w-[20px] rounded-full bg-brand-red px-1.5 py-0.5 text-center text-[11px] font-semibold text-white shadow-sm">
+            {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+          </span>
+        )}
+      </button>
+      {notificationMenuOpen && createPortal(
+        <>
+          <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setNotificationMenuOpen(false)} />
+          <div className="fixed right-8 top-20 z-[9999] w-[24rem] overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_22px_50px_rgba(15,23,42,0.16)]">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Notifications</p>
+                  <p className="text-xs text-slate-500">
+                    {unreadNotificationCount > 0 ? `${unreadNotificationCount} unread` : 'All caught up'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setNotificationMenuOpen(false)}
+                  className="text-xs font-semibold text-slate-500 hover:text-slate-900"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-[26rem] overflow-y-auto px-3 py-3">
+              {notificationsLoading ? (
+                <div className="px-3 py-6 text-sm text-slate-500">Loading notifications...</div>
+              ) : notifications.length === 0 ? (
+                <div className="px-3 py-6 text-sm text-slate-500">No notifications available.</div>
+              ) : (
+                notifications.map((notification) => (
+                  <div
+                    key={notification._id}
+                    className={`mb-3 rounded-[20px] border px-4 py-4 last:mb-0 ${
+                      notification.isRead ? 'border-slate-200 bg-slate-50' : 'border-brand-red/20 bg-red-50/60'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => void openNotification(notification)}
+                      className="w-full text-left"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
+                          <p className="mt-1 text-sm leading-6 text-slate-600">{notification.message}</p>
+                          <p className="mt-2 text-[12px] font-medium text-slate-400">
+                            {new Date(notification.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                        {!notification.isRead && (
+                          <span className="mt-1 inline-flex h-2.5 w-2.5 rounded-full bg-brand-red shadow-sm" />
+                        )}
+                      </div>
+                    </button>
+                    {!notification.isRead && (
+                      <div className="mt-3 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void markNotificationRead(notification._id);
+                          }}
+                          className="text-xs font-semibold text-brand-red hover:text-slate-900"
+                        >
+                          Mark as read
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>,
+        document.body,
+      )}
+    </div>
+  );
 
   const updateState = useCallback((updater: (prev: PlanningState) => PlanningState) => {
     setState(prev => {
@@ -703,6 +1182,8 @@ const App: React.FC = () => {
     return (
       <HashRouter>
         {globalLeaveToastElement}
+        {globalTaskToastElement}
+        {globalReminderToastElement}
         <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
           <aside className="w-64 h-full min-h-0 bg-brand-charcoal text-white flex flex-col z-50 shadow-2xl relative shrink-0">
             <div className="absolute top-0 right-0 w-[2px] h-full bg-brand-red opacity-20" />
@@ -734,53 +1215,59 @@ const App: React.FC = () => {
           </aside>
           <main className="flex-1 flex flex-col h-screen overflow-hidden">
             <header className="h-20 bg-white/90 backdrop-blur-xl border-b border-slate-200 flex items-center justify-end px-8 shrink-0 z-40 relative">
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setUserMenuOpen((v) => !v)}
-                  className="flex items-center gap-4 rounded-xl py-1 pr-1 hover:bg-slate-50 transition-colors"
-                  aria-expanded={userMenuOpen}
-                  aria-haspopup="true"
-                >
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-slate-900 leading-tight">{state.currentUser.name}</div>
-                    <div className="text-xs text-brand-red mt-0.5">{state.currentUser.role}</div>
-                  </div>
-                  <img
-                    src={
-                      state.currentUser.avatar ||
-                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-                        (state.currentUser.name || 'User').replace(/\s/g, ''),
-                      )}`
-                    }
-                    className="w-11 h-11 rounded-full border-2 border-white shadow-md bg-slate-50 object-cover"
-                    alt=""
-                  />
-                </button>
-                {userMenuOpen && createPortal(
-                  <>
-                    <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setUserMenuOpen(false)} />
-                    <div className="fixed right-8 top-20 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-[9999]">
-                      <button
-                        type="button"
-                        onClick={() => { setUserMenuOpen(false); window.location.hash = '#/profile'; }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left text-slate-700 hover:bg-slate-50 transition-colors"
-                      >
-                        <UserCircle size={18} className="text-slate-500" />
-                        Core Identity
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setUserMenuOpen(false); handleLogout(); }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left text-slate-700 hover:bg-slate-50 transition-colors"
-                      >
-                        <LogOut size={18} className="text-slate-500" />
-                        Logout
-                      </button>
+              <div className="flex items-center gap-3">
+                {notificationBellElement}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserMenuOpen((v) => !v);
+                      setNotificationMenuOpen(false);
+                    }}
+                    className="flex items-center gap-4 rounded-xl py-1 pr-1 hover:bg-slate-50 transition-colors"
+                    aria-expanded={userMenuOpen}
+                    aria-haspopup="true"
+                  >
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-slate-900 leading-tight">{state.currentUser.name}</div>
+                      <div className="text-xs text-brand-red mt-0.5">{state.currentUser.role}</div>
                     </div>
-                  </>,
-                  document.body
-                )}
+                    <img
+                      src={
+                        state.currentUser.avatar ||
+                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+                          (state.currentUser.name || 'User').replace(/\s/g, ''),
+                        )}`
+                      }
+                      className="w-11 h-11 rounded-full border-2 border-white shadow-md bg-slate-50 object-cover"
+                      alt=""
+                    />
+                  </button>
+                  {userMenuOpen && createPortal(
+                    <>
+                      <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setUserMenuOpen(false)} />
+                      <div className="fixed right-8 top-20 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-[9999]">
+                        <button
+                          type="button"
+                          onClick={() => { setUserMenuOpen(false); window.location.hash = '#/profile'; }}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <UserCircle size={18} className="text-slate-500" />
+                          Core Identity
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setUserMenuOpen(false); handleLogout(); }}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <LogOut size={18} className="text-slate-500" />
+                          Logout
+                        </button>
+                      </div>
+                    </>,
+                    document.body
+                  )}
+                </div>
               </div>
             </header>
             <div className="flex-1 overflow-y-auto p-16 bg-slate-100/30">
@@ -797,6 +1284,7 @@ const App: React.FC = () => {
                 {hasPower('WEEKLY_VIEW') && <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} />} />}
                 {hasPower('DAILY_VIEW') && <Route path="/daily" element={<DailyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
                 {hasPower('REFLECTION_VIEW') && <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
+                {hasPower('REFLECTION_VIEW') && <Route path="/review" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
                 {hasPower('COMMUNICATION_VIEW') && <Route path="/communication" element={<CommunicationView />} />}
                 {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView />} />}
                 <Route path="*" element={<AccessDenied />} />
@@ -811,6 +1299,8 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       {globalLeaveToastElement}
+      {globalTaskToastElement}
+      {globalReminderToastElement}
       <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
         <aside className={`${isSidebarOpen ? 'w-64' : 'w-24'} h-full min-h-0 bg-brand-charcoal text-white transition-all duration-500 flex flex-col z-50 shadow-2xl relative shrink-0`}>
           <div className="absolute top-0 right-0 w-[2px] h-full bg-brand-red opacity-20"></div>
@@ -871,53 +1361,59 @@ const App: React.FC = () => {
 
         <main className="flex-1 flex flex-col h-screen overflow-hidden">
             <header className="h-20 bg-white/90 backdrop-blur-xl border-b border-slate-200 flex items-center justify-end px-8 shrink-0 z-40 relative">
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setUserMenuOpen((v) => !v)}
-                  className="flex items-center gap-4 rounded-xl py-1 pr-1 hover:bg-slate-50 transition-colors"
-                  aria-expanded={userMenuOpen}
-                  aria-haspopup="true"
-                >
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-slate-900 leading-tight">{state.currentUser.name}</div>
-                    <div className="text-xs text-brand-red mt-0.5">{state.currentUser.role}</div>
-                  </div>
-                  <img
-                    src={
-                      state.currentUser.avatar ||
-                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-                        (state.currentUser.name || 'User').replace(/\s/g, ''),
-                      )}`
-                    }
-                    className="w-11 h-11 rounded-full border-2 border-white shadow-md bg-slate-50 object-cover"
-                    alt=""
-                  />
-                </button>
-                {userMenuOpen && createPortal(
-                  <>
-                    <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setUserMenuOpen(false)} />
-                    <div className="fixed right-8 top-20 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-[9999]">
-                      <button
-                        type="button"
-                        onClick={() => { setUserMenuOpen(false); window.location.hash = '#/profile'; }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left text-slate-700 hover:bg-slate-50 transition-colors"
-                      >
-                        <UserCircle size={18} className="text-slate-500" />
-                        Core Identity
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setUserMenuOpen(false); handleLogout(); }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left text-slate-700 hover:bg-slate-50 transition-colors"
-                      >
-                        <LogOut size={18} className="text-slate-500" />
-                        Logout
-                      </button>
+              <div className="flex items-center gap-3">
+                {notificationBellElement}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserMenuOpen((v) => !v);
+                      setNotificationMenuOpen(false);
+                    }}
+                    className="flex items-center gap-4 rounded-xl py-1 pr-1 hover:bg-slate-50 transition-colors"
+                    aria-expanded={userMenuOpen}
+                    aria-haspopup="true"
+                  >
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-slate-900 leading-tight">{state.currentUser.name}</div>
+                      <div className="text-xs text-brand-red mt-0.5">{state.currentUser.role}</div>
                     </div>
-                  </>,
-                  document.body
-                )}
+                    <img
+                      src={
+                        state.currentUser.avatar ||
+                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+                          (state.currentUser.name || 'User').replace(/\s/g, ''),
+                        )}`
+                      }
+                      className="w-11 h-11 rounded-full border-2 border-white shadow-md bg-slate-50 object-cover"
+                      alt=""
+                    />
+                  </button>
+                  {userMenuOpen && createPortal(
+                    <>
+                      <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setUserMenuOpen(false)} />
+                      <div className="fixed right-8 top-20 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-[9999]">
+                        <button
+                          type="button"
+                          onClick={() => { setUserMenuOpen(false); window.location.hash = '#/profile'; }}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <UserCircle size={18} className="text-slate-500" />
+                          Core Identity
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setUserMenuOpen(false); handleLogout(); }}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <LogOut size={18} className="text-slate-500" />
+                          Logout
+                        </button>
+                      </div>
+                    </>,
+                    document.body
+                  )}
+                </div>
               </div>
             </header>
           <div className="flex-1 overflow-y-auto p-16 bg-slate-100/30 no-scrollbar">
@@ -934,6 +1430,7 @@ const App: React.FC = () => {
               {hasPower('WEEKLY_VIEW') && <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} />} />}
               {hasPower('DAILY_VIEW') && <Route path="/daily" element={<DailyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
               {hasPower('REFLECTION_VIEW') && <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
+              {hasPower('REFLECTION_VIEW') && <Route path="/review" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
               {hasPower('COMMUNICATION_VIEW') && <Route path="/communication" element={<CommunicationView />} />}
               {isAdmin && hasPower('FEEDBACK_VIEW') && <Route path="/feedback" element={<FeedbackView />} />}
               {isAdmin && (

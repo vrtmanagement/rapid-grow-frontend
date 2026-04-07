@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, Calendar, Clock, BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
 import { LeaveNotificationItem, Range } from './attendanceUtils';
 import { PageHeaderSkeleton, SkeletonBlock } from '../ui/Skeleton';
 
@@ -188,89 +188,7 @@ const AttendanceHeader: React.FC<Props> = ({
       </div>
       <div className="flex flex-col items-end gap-3">
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {activeView === 'leave' ? (
-            <>
-              {viewToggle}
-              <div className="relative" ref={notificationRef}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextOpen = !isNotificationOpen;
-                    setIsNotificationOpen(nextOpen);
-                    if (nextOpen) {
-                      onOpenNotifications?.();
-                    }
-                  }}
-                  className="group relative inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red transition group-hover:bg-brand-red group-hover:text-white">
-                    <Bell size={16} />
-                  </span>
-                  Notifications
-                  {unreadNotificationCount > 0 ? (
-                    <span className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-brand-red px-1.5 text-[11px] font-semibold text-white">
-                      {unreadNotificationCount}
-                    </span>
-                  ) : null}
-                </button>
-
-                {isNotificationOpen && (
-                  <div className="absolute right-0 top-[calc(100%+12px)] z-30 w-[340px] origin-top-right overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.16)] animate-in fade-in zoom-in-95 duration-200">
-                    <div className="border-b border-slate-100 px-5 py-4">
-                      <h3 className="text-sm font-semibold text-slate-900">Leave notifications</h3>
-                      <p className="mt-1 text-xs text-slate-500">Personalized updates based on the signed-in user.</p>
-                    </div>
-                    <div className="max-h-80 overflow-y-auto p-3">
-                      {leaveNotifications.length === 0 ? (
-                        <p className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-                          No notifications yet.
-                        </p>
-                      ) : (
-                        <div className="space-y-2">
-                          {leaveNotifications.map((notification) => (
-                            <button
-                              key={notification.id}
-                              type="button"
-                              onClick={() => onNotificationClick?.(notification.id)}
-                              className={`rounded-2xl border px-4 py-3 ${
-                                notification.read
-                                  ? 'border-slate-200 bg-white'
-                                  : 'border-brand-red/15 bg-brand-red/5'
-                              } w-full text-left transition hover:border-slate-300 hover:shadow-sm`}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
-                                  <p className="mt-1 text-xs leading-5 text-slate-500">{notification.description}</p>
-                                </div>
-                                {!notification.read ? (
-                                  <span className="mt-1 h-2.5 w-2.5 rounded-full bg-brand-red" />
-                                ) : null}
-                              </div>
-                              <p className="mt-2 text-[11px] text-slate-400">
-                                {new Date(notification.createdAt).toLocaleString()}
-                              </p>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {leaveNotifications.length > 0 ? (
-                      <div className="border-t border-slate-100 p-3">
-                        <button
-                          type="button"
-                          onClick={() => onClearNotifications?.()}
-                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                        >
-                          Clear notifications
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : null}
+          {activeView === 'leave' ? viewToggle : null}
         </div>
 
         {activeView === 'attendance' ? (

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { ChevronDown } from 'lucide-react';
 import AttendanceHeader from '../components/attendance/AttendanceHeader';
@@ -60,7 +61,11 @@ function readStoredLeaveNotificationState(storageKey: string): Record<string, bo
 
 const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const { hasPermission } = usePermissions();
-  const [activeView, setActiveView] = useState<'attendance' | 'leave'>('attendance');
+  const location = useLocation();
+  const [activeView, setActiveView] = useState<'attendance' | 'leave'>(() => {
+    const params = new URLSearchParams(location.search || '');
+    return params.get('view') === 'leave' ? 'leave' : 'attendance';
+  });
   const [range, setRange] = useState<Range>(() => (mode === 'employee' ? 'month' : 'day'));
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [summary, setSummary] = useState<AttendanceSummaryResponse | null>(null);
@@ -127,6 +132,11 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   );
   const canReviewTeamAttendance =
     isBackendAdminRole || hasPermission('EMPLOYEE_ATTENDANCE_VIEW');
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || '');
+    setActiveView(params.get('view') === 'leave' ? 'leave' : 'attendance');
+  }, [location.search]);
 
   const employeeProfileByEmpId = useMemo(() => {
     const map = new Map<string, AttendanceEmployeeOption>();
