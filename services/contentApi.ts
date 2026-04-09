@@ -1,0 +1,156 @@
+import { API_BASE } from '../config/api';
+
+export type ContentType = 'general' | 'linkedin' | 'youtube' | 'website' | 'newsletter';
+
+export interface ContentAsset {
+  fileId: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  fileUrl: string;
+  type: 'image' | 'file';
+}
+
+export interface ContentItem {
+  contentId: string;
+  title: string;
+  description: string;
+  type: ContentType;
+  contentDate: string;
+  channelKey?: string;
+  coverImage?: ContentAsset | null;
+  attachments: ContentAsset[];
+  createdBy?: {
+    empId?: string;
+    name?: string;
+    role?: string;
+  };
+  updatedBy?: {
+    empId?: string;
+    name?: string;
+    role?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContentChannel {
+  channelKey: string;
+  title: string;
+  subtitle: string;
+  type: ContentType;
+  createdBy?: {
+    empId?: string;
+    name?: string;
+    role?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+function getAuthToken(): string | null {
+  try {
+    const raw = localStorage.getItem('rapidgrow-admin');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.token || null;
+  } catch {
+    return null;
+  }
+}
+
+function authHeadersJson(): Record<string, string> {
+  const token = getAuthToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+function authHeadersMultipart(): Record<string, string> {
+  const token = getAuthToken();
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+export async function apiListContent() {
+  const res = await fetch(`${API_BASE}/content`, { headers: authHeadersJson() });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load content');
+  return res.json() as Promise<{ items: ContentItem[] }>;
+}
+
+export async function apiGetContent(contentId: string) {
+  const res = await fetch(`${API_BASE}/content/${encodeURIComponent(contentId)}`, { headers: authHeadersJson() });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load content item');
+  return res.json() as Promise<{ item: ContentItem }>;
+}
+
+export async function apiUploadContentFile(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+
+  const res = await fetch(`${API_BASE}/content/upload`, {
+    method: 'POST',
+    headers: authHeadersMultipart(),
+    body: form,
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Upload failed');
+  return res.json() as Promise<ContentAsset>;
+}
+
+export async function apiCreateContent(payload: {
+  title: string;
+  description: string;
+  type: ContentType;
+  contentDate: string;
+  channelKey?: string;
+  coverImage?: ContentAsset | null;
+  attachments: ContentAsset[];
+}) {
+  const res = await fetch(`${API_BASE}/content`, {
+    method: 'POST',
+    headers: authHeadersJson(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to create content');
+  return res.json() as Promise<{ item: ContentItem }>;
+}
+
+export async function apiUpdateContent(
+  contentId: string,
+  payload: Partial<Pick<ContentItem, 'title' | 'description' | 'type' | 'contentDate' | 'channelKey' | 'attachments'>>
+) {
+  const res = await fetch(`${API_BASE}/content/${encodeURIComponent(contentId)}`, {
+    method: 'PATCH',
+    headers: authHeadersJson(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to update content');
+  return res.json() as Promise<{ item: ContentItem }>;
+}
+
+export async function apiDeleteContent(contentId: string) {
+  const res = await fetch(`${API_BASE}/content/${encodeURIComponent(contentId)}`, {
+    method: 'DELETE',
+    headers: authHeadersJson(),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to delete content');
+  return res.json() as Promise<{ ok: boolean; contentId: string }>;
+}
+
+export async function apiListChannels() {
+  const res = await fetch(`${API_BASE}/content/channels`, { headers: authHeadersJson() });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load channels');
+  return res.json() as Promise<{ channels: ContentChannel[] }>;
+}
+
+export async function apiCreateChannel(payload: { title: string; subtitle?: string; type?: ContentType; channelKey?: string }) {
+  const res = await fetch(`${API_BASE}/content/channels`, {
+    method: 'POST',
+    headers: authHeadersJson(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to create channel');
+  return res.json() as Promise<{ channel: ContentChannel }>;
+}

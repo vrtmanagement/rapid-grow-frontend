@@ -5,7 +5,7 @@ import {
   Target, Calendar, Clock, BarChart3, 
   LayoutDashboard, BrainCircuit, 
   CheckSquare, Menu, Briefcase, UserCircle, ShieldCheck, 
-  Mail, Settings, Zap, ShieldAlert, Check, Database, LogOut, UserPlus, Bell
+  Mail, Settings, Zap, ShieldAlert, Check, Database, LogOut, UserPlus, Bell, FileText
 } from 'lucide-react';
 import { PlanningState, Goal, ReflectionData, TeamMember, ProfileData, EmailLog, UserRole, UIConfig } from './types';
 import { BrandingLogo, HOURS } from './constants';
@@ -28,6 +28,8 @@ import FeedbackView from './views/FeedbackView';
 import AttendanceView from './views/AttendanceView';
 import StaffView from './views/StaffView';
 import CommunicationView from './communication/views/CommunicationView';
+import ContentView from './views/ContentView';
+import ContentCreateView from './views/ContentCreateView';
 import { apiListConversations } from './communication/api';
 import { getUnreadDirectMessageSourceCount } from './communication/unread';
 import { getSocket } from './realtime/socket';
@@ -45,10 +47,10 @@ import {
 
 const SUPER_ADMIN_EMAIL = 'superadmin@example.com';
 const DEFAULT_POWERS: Record<string, string[]> = {
-  SUPER_ADMIN: ['EMPLOYEE_CREATE', 'EMPLOYEE_UPDATE', 'EMPLOYEE_DELETE', 'EMPLOYEE_LIST', 'DASHBOARD_VIEW', 'EXECUTION_MATRIX_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'FEEDBACK_VIEW', 'STAFF_VIEW', 'PERMISSIONS_MANAGE'],
-  ADMIN: ['EMPLOYEE_CREATE', 'EMPLOYEE_UPDATE', 'EMPLOYEE_DELETE', 'EMPLOYEE_LIST', 'DASHBOARD_VIEW', 'EXECUTION_MATRIX_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'FEEDBACK_VIEW', 'STAFF_VIEW', 'PERMISSIONS_MANAGE'],
-  TEAM_LEAD: ['EMPLOYEE_CREATE', 'EMPLOYEE_UPDATE', 'EMPLOYEE_LIST', 'DASHBOARD_VIEW', 'EXECUTION_MATRIX_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'STAFF_VIEW'],
-  EMPLOYEE: ['DASHBOARD_VIEW', 'EXECUTION_MATRIX_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'STAFF_VIEW'],
+  SUPER_ADMIN: ['EMPLOYEE_CREATE', 'EMPLOYEE_UPDATE', 'EMPLOYEE_DELETE', 'EMPLOYEE_LIST', 'DASHBOARD_VIEW', 'EXECUTION_MATRIX_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'CONTENT_VIEW', 'FEEDBACK_VIEW', 'STAFF_VIEW', 'PERMISSIONS_MANAGE'],
+  ADMIN: ['EMPLOYEE_CREATE', 'EMPLOYEE_UPDATE', 'EMPLOYEE_DELETE', 'EMPLOYEE_LIST', 'DASHBOARD_VIEW', 'EXECUTION_MATRIX_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'CONTENT_VIEW', 'FEEDBACK_VIEW', 'STAFF_VIEW', 'PERMISSIONS_MANAGE'],
+  TEAM_LEAD: ['EMPLOYEE_CREATE', 'EMPLOYEE_UPDATE', 'EMPLOYEE_LIST', 'DASHBOARD_VIEW', 'EXECUTION_MATRIX_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'CONTENT_VIEW', 'STAFF_VIEW'],
+  EMPLOYEE: ['DASHBOARD_VIEW', 'EXECUTION_MATRIX_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'CONTENT_VIEW', 'STAFF_VIEW'],
 };
 
 const DEFAULT_UI_CONFIG: UIConfig = {
@@ -1210,6 +1212,7 @@ const App: React.FC = () => {
               {hasPower('REFLECTION_VIEW') && <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={false} />}
               <div className="h-px bg-white/5 mx-4 my-6"></div>
               {hasPower('COMMUNICATION_VIEW') && <SidebarLink to="/communication" icon={<Mail size={20}/>} label={communicationUnreadCount > 0 ? `Communication (${communicationUnreadCount})` : 'Communication'} collapsed={false} />}
+              {hasPower('CONTENT_VIEW') && <SidebarLink to="/content" icon={<FileText size={20}/>} label="Content" collapsed={false} />}
               {hasPower('STAFF_VIEW') && <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={false} />}
             </nav>
           </aside>
@@ -1286,6 +1289,9 @@ const App: React.FC = () => {
                 {hasPower('REFLECTION_VIEW') && <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
                 {hasPower('REFLECTION_VIEW') && <Route path="/review" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
                 {hasPower('COMMUNICATION_VIEW') && <Route path="/communication" element={<CommunicationView />} />}
+                {hasPower('CONTENT_VIEW') && <Route path="/content" element={<ContentView />} />}
+                {hasPower('CONTENT_VIEW') && <Route path="/content/day/:dayKey" element={<ContentView />} />}
+                {hasPower('CONTENT_VIEW') && <Route path="/content/new" element={<ContentCreateView />} />}
                 {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView />} />}
                 <Route path="*" element={<AccessDenied />} />
               </Routes>
@@ -1352,6 +1358,7 @@ const App: React.FC = () => {
               <SidebarLink to="/permissions" icon={<ShieldAlert size={20}/>} label="Permissions" collapsed={!isSidebarOpen} />
             )}
             {hasPower('COMMUNICATION_VIEW') && <SidebarLink to="/communication" icon={<Mail size={20}/>} label={communicationUnreadCount > 0 ? `Communication (${communicationUnreadCount})` : 'Communication'} collapsed={!isSidebarOpen} />}
+            {hasPower('CONTENT_VIEW') && <SidebarLink to="/content" icon={<FileText size={20} />} label="Content" collapsed={!isSidebarOpen} />}
             {isAdmin && hasPower('FEEDBACK_VIEW') && (
               <SidebarLink to="/feedback" icon={<Mail size={20}/>} label="Feedback" collapsed={!isSidebarOpen} />
             )}
@@ -1432,6 +1439,9 @@ const App: React.FC = () => {
               {hasPower('REFLECTION_VIEW') && <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
               {hasPower('REFLECTION_VIEW') && <Route path="/review" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
               {hasPower('COMMUNICATION_VIEW') && <Route path="/communication" element={<CommunicationView />} />}
+              {hasPower('CONTENT_VIEW') && <Route path="/content" element={<ContentView />} />}
+              {hasPower('CONTENT_VIEW') && <Route path="/content/day/:dayKey" element={<ContentView />} />}
+              {hasPower('CONTENT_VIEW') && <Route path="/content/new" element={<ContentCreateView />} />}
               {isAdmin && hasPower('FEEDBACK_VIEW') && <Route path="/feedback" element={<FeedbackView />} />}
               {isAdmin && (
                 <Route
@@ -1455,6 +1465,8 @@ const SidebarLink: React.FC<{ to: string; icon: any; label: string; collapsed: b
     ? location.pathname.startsWith('/workspaces')
     : to.startsWith('/employees')
     ? location.pathname.startsWith('/employees')
+    : to === '/content'
+    ? location.pathname === '/content' || location.pathname.startsWith('/content/day/') || location.pathname.startsWith('/content/new')
     : location.pathname === to;
   return (
     <Link to={to} className={`flex items-center gap-6 px-7 py-5 rounded transition-all group ${isActive ? 'bg-brand-red text-white shadow-xl' : 'text-slate-500 hover:bg-white/5 hover:text-white'} ${collapsed ? 'justify-center px-0' : ''}`}>
