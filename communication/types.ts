@@ -23,6 +23,7 @@ export type ChatConversationSummary = {
   conversationKey: string;
   type: ChatConversationType;
   title: string;
+  avatar?: string;
 
   // dm
   otherUser?: ChatUser | null;

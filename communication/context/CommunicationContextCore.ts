@@ -20,8 +20,8 @@ export type CommunicationContextValue = {
   selectChannel: (channelKey: string) => Promise<void>;
   startDmWithUser: (otherUserId: string) => Promise<void>;
   joinByConversationKey: (conversationKey: string) => Promise<void>;
-  createTeam: (name: string, memberIds: string[]) => Promise<void>;
-  updateTeam: (conversationKey: string, payload: { name?: string; memberIds?: string[] }) => Promise<void>;
+  createTeam: (name: string, memberIds: string[], avatar?: string | null) => Promise<void>;
+  updateTeam: (conversationKey: string, payload: { name?: string; memberIds?: string[]; avatar?: string | null }) => Promise<void>;
   deleteTeam: (conversationKey: string) => Promise<void>;
 
   sendText: (conversationKey: string, content: string, replyToMessageId?: string | null) => Promise<void>;

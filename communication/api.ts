@@ -68,24 +68,24 @@ export async function apiUploadFile(file: File) {
   }>;
 }
 
-export async function apiCreateTeam(name: string, memberIds: string[]) {
+export async function apiCreateTeam(name: string, memberIds: string[], avatar?: string | null) {
   const res = await fetch(`${API_BASE}/communication/teams`, {
     method: 'POST',
     headers: authHeadersJson(),
-    body: JSON.stringify({ name, memberIds }),
+    body: JSON.stringify({ name, memberIds, avatar }),
   });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to create team');
-  return res.json() as Promise<{ team: { conversationKey: string; title: string; memberCount: number } }>;
+  return res.json() as Promise<{ team: { conversationKey: string; title: string; avatar?: string; memberCount: number } }>;
 }
 
-export async function apiUpdateTeam(conversationKey: string, payload: { name?: string; memberIds?: string[] }) {
+export async function apiUpdateTeam(conversationKey: string, payload: { name?: string; memberIds?: string[]; avatar?: string | null }) {
   const res = await fetch(`${API_BASE}/communication/teams/${encodeURIComponent(conversationKey)}`, {
     method: 'PATCH',
     headers: authHeadersJson(),
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to update team');
-  return res.json() as Promise<{ team: { conversationKey: string; title: string; memberCount: number } }>;
+  return res.json() as Promise<{ team: { conversationKey: string; title: string; avatar?: string; memberCount: number } }>;
 }
 
 export async function apiDeleteTeam(conversationKey: string) {

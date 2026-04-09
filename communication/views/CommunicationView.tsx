@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CommunicationProvider } from '../context/CommunicationContext';
 import { useCommunication } from '../context/useCommunication';
-import { AvatarPreviewModal } from '../components/AvatarPreviewModal';
+import { AvatarPreviewEntity, AvatarPreviewModal } from '../components/AvatarPreviewModal';
 import { ChatSidebar } from '../components/ChatSidebar';
 import { ChatMessages } from '../components/ChatMessages';
 import { ChatComposer } from '../components/ChatComposer';
@@ -65,7 +65,7 @@ function CommunicationLayout() {
   const selectedTitle = selectedConversation?.title || 'Select a conversation';
   const canCompose = !!currentUser && !!selectedConversationKey;
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
-  const [previewUser, setPreviewUser] = useState<ChatUser | null>(null);
+  const [previewEntity, setPreviewEntity] = useState<AvatarPreviewEntity | null>(null);
   useEffect(() => {
     setReplyToMessage(null);
   }, [selectedConversationKey]);
@@ -88,7 +88,20 @@ function CommunicationLayout() {
             onCreateTeam={(name, memberIds) => ctx.createTeam(name, memberIds)}
             onUpdateTeam={(conversationKey, payload) => ctx.updateTeam(conversationKey, payload)}
             onDeleteTeam={(conversationKey) => ctx.deleteTeam(conversationKey)}
-            onPreviewUser={(user) => setPreviewUser(user)}
+            onPreviewUser={(user) =>
+              setPreviewEntity({
+                name: user.name,
+                avatar: user.avatar,
+                subtitle: user.online ? 'Online now' : 'Offline',
+              })
+            }
+            onPreviewTeamAvatar={(team) =>
+              setPreviewEntity({
+                name: team.title,
+                avatar: team.avatar,
+                subtitle: 'Team',
+              })
+            }
           />
         ) : null}
 
@@ -120,6 +133,23 @@ function CommunicationLayout() {
                     }`}
                   >
                     <div className="flex items-center gap-2">
+                      <span className="h-6 w-6 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
+                        {c.avatar ? (
+                          <img
+                            src={c.avatar}
+                            alt={c.title}
+                            className="h-full w-full cursor-pointer object-cover"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPreviewEntity({ name: c.title, avatar: c.avatar, subtitle: 'Team' });
+                            }}
+                          />
+                        ) : (
+                          <span className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase text-slate-500">
+                            {(c.title || 'T').slice(0, 1)}
+                          </span>
+                        )}
+                      </span>
                       <span>{c.title}</span>
                       {unreadCount > 0 ? <span className="w-2.5 h-2.5 rounded-full bg-brand-red inline-block" aria-hidden /> : null}
                     </div>
@@ -179,7 +209,17 @@ function CommunicationLayout() {
                 {selectedConversation?.type === 'dm' && selectedConversation.otherUser ? (
                   <button
                     type="button"
-                    onClick={() => setPreviewUser(selectedConversation.otherUser || null)}
+                    onClick={() =>
+                      setPreviewEntity(
+                        selectedConversation.otherUser
+                          ? {
+                              name: selectedConversation.otherUser.name,
+                              avatar: selectedConversation.otherUser.avatar,
+                              subtitle: selectedConversation.otherUser.online ? 'Online now' : 'Offline',
+                            }
+                          : null
+                      )
+                    }
                     className="w-10 h-10 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 shrink-0"
                   >
                     <img
@@ -192,9 +232,24 @@ function CommunicationLayout() {
                     />
                   </button>
                 ) : (
-                  <div className="w-10 h-10 rounded-2xl bg-brand-red/10 border border-brand-red/20 flex items-center justify-center">
-                    <Mail size={18} className="text-brand-red" />
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedConversation?.type !== 'channel') return;
+                      setPreviewEntity({
+                        name: selectedConversation.title,
+                        avatar: selectedConversation.avatar,
+                        subtitle: 'Team',
+                      });
+                    }}
+                    className="w-10 h-10 rounded-2xl border border-brand-red/20 overflow-hidden bg-brand-red/10 flex items-center justify-center"
+                  >
+                    {selectedConversation?.type === 'channel' && selectedConversation.avatar ? (
+                      <img src={selectedConversation.avatar} alt={selectedConversation.title} className="h-full w-full object-cover" />
+                    ) : (
+                      <Mail size={18} className="text-brand-red" />
+                    )}
+                  </button>
                 )}
                 <div className="min-w-0">
                   <div className="text-lg font-bold text-slate-900 truncate">{selectedTitle}</div>
@@ -263,9 +318,9 @@ function CommunicationLayout() {
       </div>
 
       <AvatarPreviewModal
-        open={!!previewUser}
-        user={previewUser}
-        onClose={() => setPreviewUser(null)}
+        open={!!previewEntity}
+        entity={previewEntity}
+        onClose={() => setPreviewEntity(null)}
       />
     </div>
   );

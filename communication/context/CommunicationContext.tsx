@@ -31,6 +31,10 @@ function resolveAvatarUrl(rawAvatar?: string | null): string | undefined {
   return `${apiOrigin}/${avatar.replace(/^\.?\//, '')}`;
 }
 
+function resolveConversationAvatar(rawAvatar?: string | null): string | undefined {
+  return resolveAvatarUrl(rawAvatar);
+}
+
 function ensureSocketConnected(socket: any, timeoutMs = 5000): Promise<void> {
   if (socket.connected) return Promise.resolve();
   return new Promise<void>((resolve, reject) => {
@@ -126,6 +130,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
         conversationKey: String(c.conversationKey),
         type: c.type as any,
         title: String(c.title || ''),
+        avatar: resolveConversationAvatar(c.avatar),
         otherUser: c.type === 'dm' && c.otherUser ? ({
           id: String(c.otherUser.id),
           empId: String(c.otherUser.empId || ''),
@@ -804,15 +809,15 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   );
 
   const createTeam = useCallback(
-    async (name: string, memberIds: string[]) => {
-      await apiCreateTeam(name, memberIds);
+    async (name: string, memberIds: string[], avatar?: string | null) => {
+      await apiCreateTeam(name, memberIds, avatar);
       await loadConversations();
     },
     [loadConversations]
   );
 
   const updateTeam = useCallback(
-    async (conversationKey: string, payload: { name?: string; memberIds?: string[] }) => {
+    async (conversationKey: string, payload: { name?: string; memberIds?: string[]; avatar?: string | null }) => {
       await apiUpdateTeam(conversationKey, payload);
       await loadConversations();
     },
