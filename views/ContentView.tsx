@@ -59,8 +59,8 @@ function nameInitials(name: string) {
 }
 
 function renderStyledDescription(text: string) {
-  const value = String(text || '').trim();
-  if (!value) return 'No description';
+  const value = String(text || '');
+  if (!value.trim()) return 'No description';
   const parts = value.split(/(\s+)/);
   return parts.map((part, index) => {
     if (/^https?:\/\/\S+$/i.test(part)) {
@@ -97,6 +97,18 @@ function readStringList(storageKey: string) {
   } catch {
     return [];
   }
+}
+
+function FormattedContentBody({ text, compact = false }: { text: string; compact?: boolean }) {
+  const hasValue = String(text || '').trim().length > 0;
+
+  return (
+    <div className={`mt-3 rounded-2xl border border-slate-200 bg-slate-50/90 ${compact ? 'p-3' : 'p-4'} shadow-sm`}>
+      <div className={`whitespace-pre-wrap break-words text-slate-700 ${compact ? 'text-sm leading-6' : 'text-[15px] leading-7'}`}>
+        {hasValue ? renderStyledDescription(text) : 'No description'}
+      </div>
+    </div>
+  );
 }
 
 const ContentView: React.FC = () => {
@@ -180,6 +192,16 @@ const ContentView: React.FC = () => {
     const timer = window.setTimeout(() => setToast(null), 2600);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    const incomingToast = (location.state as any)?.contentToast;
+    if (!incomingToast?.message) return;
+    setToast({
+      message: String(incomingToast.message),
+      type: incomingToast.type === 'error' ? 'error' : 'success',
+    });
+    navigate(location.pathname + location.search, { replace: true, state: {} });
+  }, [location.pathname, location.search, location.state, navigate]);
 
   useEffect(() => {
     if (dayKey && /^\d{4}-\d{2}-\d{2}$/.test(dayKey)) {
@@ -325,7 +347,7 @@ const ContentView: React.FC = () => {
       if (editingItem) {
         const updated = await apiUpdateContent(editingItem.contentId, {
           title: title.trim(),
-          description: description.trim(),
+          description,
           type,
           contentDate,
           attachments,
@@ -335,7 +357,7 @@ const ContentView: React.FC = () => {
       } else {
         const created = await apiCreateContent({
           title: title.trim(),
-          description: description.trim(),
+          description,
           type,
           contentDate,
           channelKey: type,
@@ -499,8 +521,8 @@ const ContentView: React.FC = () => {
                         </div>
                       ) : null}
                     </div>
-                    <h4 className="mt-2 text-base text-slate-900">{item.title}</h4>
-                    <p className="mt-1 text-sm text-slate-600 break-words">{renderStyledDescription(item.description)}</p>
+                    <h4 className="mt-2 text-base font-semibold text-slate-900">{item.title}</h4>
+                    <FormattedContentBody text={item.description} />
                     {item.attachments?.length > 0 && (
                       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
                         {item.attachments.map((asset) => {
@@ -608,8 +630,8 @@ const ContentView: React.FC = () => {
                     )}
                     <span>Added by: {item.createdBy?.name || 'Unknown'}</span>
                   </div>
-                  <h4 className="mt-2 text-base text-slate-900">{item.title}</h4>
-                  <p className="mt-1 text-sm text-slate-600 break-words">{renderStyledDescription(item.description)}</p>
+                  <h4 className="mt-2 text-base font-semibold text-slate-900">{item.title}</h4>
+                  <FormattedContentBody text={item.description} compact />
                   <div className="mt-3 flex gap-2">
                     <button type="button" onClick={() => openEdit(item)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700">
                       <Pencil size={12} /> Edit
@@ -646,7 +668,7 @@ const ContentView: React.FC = () => {
                 </select>
                 <input type="date" value={contentDate} onChange={(e) => setContentDate(e.target.value)} className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none" />
               </div>
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder="Description" className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none" />
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={8} placeholder="Description" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-[15px] leading-7 outline-none" />
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-2 text-slate-700">
                 <FileText size={16} />
                 {uploadingAttachment ? 'Uploading files...' : 'Add files'}

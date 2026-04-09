@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FileText, X } from 'lucide-react';
 import { apiCreateContent, apiUploadContentFile, ContentAsset, ContentType } from '../services/contentApi';
+import Toast from '../components/ui/Toast';
 
 const LINK_STORAGE_KEY = 'rapidgrow-content-links-v1';
 const TAG_STORAGE_KEY = 'rapidgrow-content-tags-v1';
@@ -57,6 +58,7 @@ const ContentCreateView: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const donePath = useMemo(() => {
     if (isFollowMode) return `/content?tab=${mode}`;
@@ -79,8 +81,10 @@ const ContentCreateView: React.FC = () => {
     try {
       const uploads = await Promise.all(Array.from(files).map((file) => apiUploadContentFile(file)));
       setAttachments((prev) => [...prev, ...uploads]);
+      setToast({ message: 'Files uploaded successfully.', type: 'success' });
     } catch (err: any) {
       setError(err.message || 'Failed to upload attachment');
+      setToast({ message: err.message || 'Failed to upload attachment', type: 'error' });
     } finally {
       setUploading(false);
     }
@@ -126,26 +130,44 @@ const ContentCreateView: React.FC = () => {
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!title.trim()) return setError('Title is required');
+    if (!title.trim()) {
+      setError('Title is required');
+      setToast({ message: 'Title is required.', type: 'error' });
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
       await apiCreateContent({
         title: title.trim(),
-        description: description.trim(),
+        description,
         type: isFollowMode ? 'newsletter' : type,
         contentDate,
         channelKey: isFollowMode ? mode : type,
         coverImage: null,
         attachments,
       });
-      navigate(donePath);
+      navigate(donePath, {
+        state: {
+          contentToast: {
+            message: isFollowMode ? 'Reminder saved successfully.' : 'Content saved successfully.',
+            type: 'success',
+          },
+        },
+      });
     } catch (err: any) {
       setError(err.message || 'Failed to create content');
+      setToast({ message: err.message || 'Failed to create content', type: 'error' });
     } finally {
       setSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -195,7 +217,7 @@ const ContentCreateView: React.FC = () => {
           onChange={(e) => setDescription(e.target.value)}
           rows={12}
           placeholder="Description / post body"
-          className="min-h-[320px] w-full rounded-xl border border-slate-300 px-4 py-3 outline-none"
+          className="min-h-[320px] w-full rounded-xl border border-slate-300 px-4 py-3 text-[15px] leading-7 outline-none"
         />
         <div className="flex flex-wrap items-center gap-2">
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-2 text-slate-700">
@@ -368,6 +390,7 @@ const ContentCreateView: React.FC = () => {
           </div>
         </div>
       )}
+      {toast && <Toast message={toast.message} type={toast.type} />}
     </div>
   );
 };
