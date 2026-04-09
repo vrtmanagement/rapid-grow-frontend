@@ -20,6 +20,7 @@ export type PermissionKey =
   | 'REFLECTION_VIEW'
   | 'PROFILE_VIEW'
   | 'COMMUNICATION_VIEW'
+  | 'CONTENT_VIEW'
   | 'FEEDBACK_VIEW'
   | 'STAFF_VIEW'
   | 'PERMISSIONS_MANAGE';
