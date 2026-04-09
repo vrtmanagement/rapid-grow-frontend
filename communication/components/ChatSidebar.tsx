@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ChatConversationSummary, ChatUser } from '../types';
-import { Mail, Pencil, Plus, Trash2, UserPlus } from 'lucide-react';
+import { ImagePlus, Mail, Pencil, Plus, Trash2, UserPlus, X } from 'lucide-react';
 import { MessageActionModal } from './MessageActionModal';
+import { apiUploadFile } from '../api';
 
 function roleLabel(roleGroup: string) {
   if (roleGroup === 'admin') return 'Admin';
@@ -22,6 +23,7 @@ export function ChatSidebar({
   onUpdateTeam,
   onDeleteTeam,
   onPreviewUser,
+  onPreviewTeamAvatar,
 }: {
   currentUserId: string;
   currentUserRole: string;
@@ -31,16 +33,21 @@ export function ChatSidebar({
   selectedConversationKey: string | null;
   onSelectTeam: (conversationKey: string) => Promise<void>;
   onStartDmWithUser: (otherUserId: string) => Promise<void>;
-  onCreateTeam: (name: string, memberIds: string[]) => Promise<void>;
-  onUpdateTeam: (conversationKey: string, payload: { name?: string; memberIds?: string[] }) => Promise<void>;
+  onCreateTeam: (name: string, memberIds: string[], avatar?: string | null) => Promise<void>;
+  onUpdateTeam: (conversationKey: string, payload: { name?: string; memberIds?: string[]; avatar?: string | null }) => Promise<void>;
   onDeleteTeam: (conversationKey: string) => Promise<void>;
   onPreviewUser: (user: ChatUser) => void;
+  onPreviewTeamAvatar: (team: ChatConversationSummary) => void;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [teamAvatar, setTeamAvatar] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [managingTeam, setManagingTeam] = useState<ChatConversationSummary | null>(null);
+  const createAvatarInputRef = useRef<HTMLInputElement | null>(null);
+  const manageAvatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const canManageTeams = currentUserRole === 'SUPER_ADMIN' || currentUserRole === 'ADMIN' || currentUserRole === 'TEAM_LEAD';
 
@@ -87,6 +94,18 @@ export function ChatSidebar({
   const resetTeamForm = () => {
     setTeamName('');
     setMemberIds([]);
+    setTeamAvatar(null);
+  };
+
+  const handleAvatarUpload = async (file: File | null) => {
+    if (!file) return;
+    setAvatarUploading(true);
+    try {
+      const upload = await apiUploadFile(file);
+      setTeamAvatar(upload.fileUrl || upload.urlPath || null);
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   return (
@@ -146,9 +165,28 @@ export function ChatSidebar({
                 }`}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-slate-900 truncate">{c.title}</div>
-                    <div className="mt-0.5 text-xs text-slate-500 truncate">{c.lastMessagePreview || 'No messages yet'}</div>
+                  <div className="min-w-0 flex items-center gap-2">
+                    <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
+                      {c.avatar ? (
+                        <img
+                          src={c.avatar}
+                          alt={c.title}
+                          className="h-full w-full cursor-pointer object-cover"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onPreviewTeamAvatar(c);
+                          }}
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase text-slate-500">
+                          {(c.title || 'T').slice(0, 1)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-900 truncate">{c.title}</div>
+                      <div className="mt-0.5 text-xs text-slate-500 truncate">{c.lastMessagePreview || 'No messages yet'}</div>
+                    </div>
                   </div>
                   <div className="shrink-0 flex items-center gap-2">
                     {canManageTeams ? (
@@ -160,6 +198,7 @@ export function ChatSidebar({
                             setManagingTeam(c);
                             setTeamName(c.title || '');
                             setMemberIds((c.memberIds || []).filter((id) => id !== currentUserId));
+                            setTeamAvatar(c.avatar || null);
                             setManageOpen(true);
                           }}
                         >
@@ -301,6 +340,46 @@ export function ChatSidebar({
         onClose={() => setCreateOpen(false)}
       >
         <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
+              {teamAvatar ? (
+                <img src={teamAvatar} alt="Team avatar" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-slate-500">Team</div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                ref={createAvatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  await handleAvatarUpload(e.target.files?.[0] || null);
+                  e.currentTarget.value = '';
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => createAvatarInputRef.current?.click()}
+                disabled={avatarUploading}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                <ImagePlus size={12} />
+                {avatarUploading ? 'Uploading...' : 'Add Profile Pic'}
+              </button>
+              {teamAvatar ? (
+                <button
+                  type="button"
+                  onClick={() => setTeamAvatar(null)}
+                  className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-2 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  aria-label="Remove avatar"
+                >
+                  <X size={12} />
+                </button>
+              ) : null}
+            </div>
+          </div>
           <input
             value={teamName}
             onChange={(e) => setTeamName(e.target.value)}
@@ -326,7 +405,7 @@ export function ChatSidebar({
             <button
               type="button"
               onClick={async () => {
-                await onCreateTeam(teamName, memberIds);
+                await onCreateTeam(teamName, memberIds, teamAvatar);
                 setCreateOpen(false);
               }}
               disabled={!teamName.trim()}
@@ -345,6 +424,46 @@ export function ChatSidebar({
         onClose={() => setManageOpen(false)}
       >
         <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
+              {teamAvatar ? (
+                <img src={teamAvatar} alt="Team avatar" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-slate-500">Team</div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                ref={manageAvatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  await handleAvatarUpload(e.target.files?.[0] || null);
+                  e.currentTarget.value = '';
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => manageAvatarInputRef.current?.click()}
+                disabled={avatarUploading}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                <ImagePlus size={12} />
+                {avatarUploading ? 'Uploading...' : 'Change Profile Pic'}
+              </button>
+              {teamAvatar ? (
+                <button
+                  type="button"
+                  onClick={() => setTeamAvatar(null)}
+                  className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-2 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  aria-label="Remove avatar"
+                >
+                  <X size={12} />
+                </button>
+              ) : null}
+            </div>
+          </div>
           <input
             value={teamName}
             onChange={(e) => setTeamName(e.target.value)}
@@ -383,7 +502,7 @@ export function ChatSidebar({
               type="button"
               onClick={async () => {
                 if (!managingTeam) return;
-                await onUpdateTeam(managingTeam.conversationKey, { name: teamName, memberIds });
+                await onUpdateTeam(managingTeam.conversationKey, { name: teamName, memberIds, avatar: teamAvatar });
                 setManageOpen(false);
               }}
               className="inline-flex items-center gap-1 rounded-xl border border-brand-red/30 bg-brand-red px-4 py-2 text-sm font-semibold text-white"

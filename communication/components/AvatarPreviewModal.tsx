@@ -1,20 +1,25 @@
 import React from 'react';
-import { ChatUser } from '../types';
 
 function fallbackAvatar(name: string) {
   return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name.replace(/\s/g, ''))}`;
 }
 
+export type AvatarPreviewEntity = {
+  name: string;
+  avatar?: string;
+  subtitle?: string;
+};
+
 export function AvatarPreviewModal({
-  user,
+  entity,
   open,
   onClose,
 }: {
-  user: ChatUser | null;
+  entity: AvatarPreviewEntity | null;
   open: boolean;
   onClose: () => void;
 }) {
-  if (!open || !user) return null;
+  if (!open || !entity) return null;
 
   return (
     <div
@@ -28,16 +33,14 @@ export function AvatarPreviewModal({
         <div className="flex flex-col items-center text-center">
           <div className="h-62 w-62 overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-50 shadow-sm">
             <img
-              src={user.avatar || fallbackAvatar(user.name || 'User')}
-              alt={user.name}
+              src={entity.avatar || fallbackAvatar(entity.name || 'User')}
+              alt={entity.name}
               className="h-full w-full object-cover"
             />
           </div>
           <div className="mt-4">
-            <div className="text-2xl font-semibold text-slate-900">{user.name}</div>
-            <div className="mt-1 text-lg text-slate-500">
-              {user.online ? 'Online now' : 'Offline'}
-            </div>
+            <div className="text-2xl font-semibold text-slate-900">{entity.name}</div>
+            {entity.subtitle ? <div className="mt-1 text-lg text-slate-500">{entity.subtitle}</div> : null}
           </div>
         </div>
       </div>
