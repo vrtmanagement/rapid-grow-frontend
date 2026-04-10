@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { FileText, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { ArrowRight, BellRing, Bot, CalendarDays, ChevronLeft, ChevronRight, FileText, Globe, Hash, Linkedin, Link2, Mail, Pencil, Plus, Sparkles, Trash2, X, Youtube } from 'lucide-react';
 import { apiCreateContent, apiDeleteContent, apiListContent, apiUpdateContent, apiUploadContentFile, ContentAsset, ContentItem, ContentType } from '../services/contentApi';
 import { apiListUsers } from '../communication/api';
 import Toast from '../components/ui/Toast';
@@ -12,16 +12,6 @@ const TYPE_LABEL: Record<ContentType, string> = {
   newsletter: 'Mail',
   website: 'Website',
 };
-
-function getCurrentRole() {
-  try {
-    const raw = localStorage.getItem('rapidgrow-admin');
-    if (!raw) return '';
-    return String(JSON.parse(raw)?.employee?.role || '');
-  } catch {
-    return '';
-  }
-}
 
 function toDateKey(date: Date) {
   const year = date.getFullYear();
@@ -44,6 +34,102 @@ const WEEK_DAY_HEADER_CLASS = [
 const LINK_STORAGE_KEY = 'rapidgrow-content-links-v1';
 const TAG_STORAGE_KEY = 'rapidgrow-content-tags-v1';
 type ContentTab = 'calendar' | 'follow-ee' | 'follow-ega' | 'auto-add';
+
+function isContentType(value: string): value is ContentType {
+  return value === 'linkedin' || value === 'youtube' || value === 'general' || value === 'newsletter' || value === 'website';
+}
+
+const TAB_META: Record<ContentTab, { label: string; hint: string; icon: React.ElementType; activeClass: string; idleClass: string }> = {
+  calendar: {
+    label: 'Calendar',
+    hint: 'Plan the full monthly content mix',
+    icon: CalendarDays,
+    activeClass: 'border-violet-300 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-[0_18px_40px_rgba(139,92,246,0.26)]',
+    idleClass: 'border-white/70 bg-white/75 text-slate-700 hover:border-violet-200 hover:bg-violet-50/90',
+  },
+  'follow-ee': {
+    label: 'Follow Reminder EE',
+    hint: 'Track EE follow-through',
+    icon: BellRing,
+    activeClass: 'border-emerald-300 bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-[0_18px_40px_rgba(16,185,129,0.22)]',
+    idleClass: 'border-white/70 bg-white/75 text-slate-700 hover:border-emerald-200 hover:bg-emerald-50/90',
+  },
+  'follow-ega': {
+    label: 'Follow Reminder EGA',
+    hint: 'Keep agency callbacks organized',
+    icon: Sparkles,
+    activeClass: 'border-indigo-300 bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[0_18px_40px_rgba(99,102,241,0.22)]',
+    idleClass: 'border-white/70 bg-white/75 text-slate-700 hover:border-indigo-200 hover:bg-indigo-50/90',
+  },
+  'auto-add': {
+    label: 'Auto Add',
+    hint: 'Manage reusable links and hashtags',
+    icon: Bot,
+    activeClass: 'border-fuchsia-300 bg-gradient-to-r from-fuchsia-600 to-violet-600 text-white shadow-[0_18px_40px_rgba(217,70,239,0.22)]',
+    idleClass: 'border-white/70 bg-white/75 text-slate-700 hover:border-fuchsia-200 hover:bg-fuchsia-50/90',
+  },
+};
+
+const TYPE_ACCENT: Record<ContentType, { badge: string; tone: string; chip: string; counter: string; previewIndex: string; previewDot: string; highlight: string; previewRow: string }> = {
+  linkedin: {
+    badge: 'bg-sky-50 text-sky-700 ring-1 ring-sky-100',
+    tone: 'from-sky-400/25 via-sky-100/55 to-transparent',
+    chip: 'bg-sky-100 text-sky-700',
+    counter: 'border-sky-200/80 text-sky-700 shadow-[0_8px_20px_rgba(56,189,248,0.12)]',
+    previewIndex: 'bg-sky-100 text-sky-700',
+    previewDot: 'bg-sky-400/50 shadow-[0_0_0_4px_rgba(56,189,248,0.10)]',
+    highlight: 'border-sky-300/70 ring-2 ring-sky-200/60 shadow-[0_26px_60px_rgba(56,189,248,0.16)]',
+    previewRow: 'from-sky-50/80 via-white to-white ring-sky-100/80',
+  },
+  youtube: {
+    badge: 'bg-rose-50 text-rose-700 ring-1 ring-rose-100',
+    tone: 'from-rose-400/20 via-rose-100/50 to-transparent',
+    chip: 'bg-rose-100 text-rose-700',
+    counter: 'border-rose-200/80 text-rose-700 shadow-[0_8px_20px_rgba(244,63,94,0.12)]',
+    previewIndex: 'bg-rose-100 text-rose-700',
+    previewDot: 'bg-rose-400/50 shadow-[0_0_0_4px_rgba(244,63,94,0.10)]',
+    highlight: 'border-rose-300/70 ring-2 ring-rose-200/60 shadow-[0_26px_60px_rgba(244,63,94,0.16)]',
+    previewRow: 'from-rose-50/80 via-white to-white ring-rose-100/80',
+  },
+  general: {
+    badge: 'bg-slate-100 text-slate-700 ring-1 ring-slate-200',
+    tone: 'from-emerald-400/30 via-emerald-100/65 to-transparent',
+    chip: 'bg-emerald-100 text-emerald-700',
+    counter: 'border-emerald-200/80 text-emerald-700 shadow-[0_8px_20px_rgba(16,185,129,0.12)]',
+    previewIndex: 'bg-emerald-100 text-emerald-700',
+    previewDot: 'bg-emerald-400/50 shadow-[0_0_0_4px_rgba(16,185,129,0.10)]',
+    highlight: 'border-emerald-300/70 ring-2 ring-emerald-200/60 shadow-[0_26px_60px_rgba(16,185,129,0.16)]',
+    previewRow: 'from-emerald-50/95 via-white to-white ring-emerald-100/90',
+  },
+  newsletter: {
+    badge: 'bg-amber-50 text-amber-700 ring-1 ring-amber-100',
+    tone: 'from-amber-300/20 via-amber-50/60 to-transparent',
+    chip: 'bg-amber-100 text-amber-700',
+    counter: 'border-amber-200/80 text-amber-700 shadow-[0_8px_20px_rgba(245,158,11,0.12)]',
+    previewIndex: 'bg-amber-100 text-amber-700',
+    previewDot: 'bg-amber-400/55 shadow-[0_0_0_4px_rgba(245,158,11,0.10)]',
+    highlight: 'border-amber-300/70 ring-2 ring-amber-200/60 shadow-[0_26px_60px_rgba(245,158,11,0.16)]',
+    previewRow: 'from-amber-50/80 via-white to-white ring-amber-100/80',
+  },
+  website: {
+    badge: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100',
+    tone: 'from-indigo-300/20 via-indigo-50/60 to-transparent',
+    chip: 'bg-indigo-100 text-indigo-700',
+    counter: 'border-indigo-200/80 text-indigo-700 shadow-[0_8px_20px_rgba(99,102,241,0.12)]',
+    previewIndex: 'bg-indigo-100 text-indigo-700',
+    previewDot: 'bg-indigo-400/50 shadow-[0_0_0_4px_rgba(99,102,241,0.10)]',
+    highlight: 'border-indigo-300/70 ring-2 ring-indigo-200/60 shadow-[0_26px_60px_rgba(99,102,241,0.16)]',
+    previewRow: 'from-indigo-50/80 via-white to-white ring-indigo-100/80',
+  },
+};
+
+const TYPE_ICON_META: Record<ContentType, { icon: React.ElementType; className: string; label: string }> = {
+  linkedin: { icon: Linkedin, className: 'bg-sky-100 text-sky-700', label: 'LinkedIn' },
+  youtube: { icon: Youtube, className: 'bg-rose-100 text-rose-700', label: 'YouTube' },
+  general: { icon: FileText, className: 'bg-emerald-100 text-emerald-700', label: 'General' },
+  newsletter: { icon: Mail, className: 'bg-amber-100 text-amber-700', label: 'Mail' },
+  website: { icon: Globe, className: 'bg-indigo-100 text-indigo-700', label: 'Website' },
+};
 
 function getInitialTab(search: string): ContentTab {
   const tab = String(new URLSearchParams(search).get('tab') || '').trim().toLowerCase();
@@ -99,14 +185,96 @@ function readStringList(storageKey: string) {
   }
 }
 
-function FormattedContentBody({ text, compact = false }: { text: string; compact?: boolean }) {
+function FormattedContentBody({ text, compact = false, clampLines, flat = false }: { text: string; compact?: boolean; clampLines?: number; flat?: boolean }) {
   const hasValue = String(text || '').trim().length > 0;
 
   return (
-    <div className={`mt-3 rounded-2xl border border-slate-200 bg-slate-50/90 ${compact ? 'p-3' : 'p-4'} shadow-sm`}>
-      <div className={`whitespace-pre-wrap break-words text-slate-700 ${compact ? 'text-sm leading-6' : 'text-[15px] leading-7'}`}>
+    <div className={`mt-3 overflow-hidden rounded-[1.5rem] ${flat ? 'border border-slate-200/80 bg-slate-50/65' : 'border border-white/70 bg-gradient-to-br from-white via-slate-50 to-slate-100/80 shadow-[0_16px_40px_rgba(15,23,42,0.08)]'} ${compact ? 'p-3' : 'p-4'}`}>
+      <div
+        className={`whitespace-pre-wrap break-words text-slate-700 ${compact ? 'text-sm leading-6' : 'text-[15px] leading-7'}`}
+        style={clampLines ? {
+          display: '-webkit-box',
+          WebkitBoxOrient: 'vertical',
+          WebkitLineClamp: clampLines,
+          overflow: 'hidden',
+        } : undefined}
+      >
         {hasValue ? renderStyledDescription(text) : 'No description'}
       </div>
+    </div>
+  );
+}
+
+function CalendarTypeCounter({
+  type,
+  count,
+  compact = false,
+  dense = false,
+}: {
+  type: ContentType;
+  count: number;
+  compact?: boolean;
+  dense?: boolean;
+}) {
+  const meta = TYPE_ICON_META[type];
+  const Icon = meta.icon;
+
+  if (compact) {
+    return (
+      <div className={`relative flex items-center justify-center ${dense ? 'h-7' : 'h-8'}`}>
+        <div className={`inline-flex items-center justify-center ${dense ? 'h-7 w-7 rounded-md' : 'h-8 w-8 rounded-lg'} ${meta.className} shadow-inner`}>
+          <Icon size={dense ? 12 : 14} />
+        </div>
+        <span className={`absolute inline-flex items-center justify-center rounded-full border border-brand-red/20 bg-white font-semibold text-brand-red shadow-[0_8px_18px_rgba(236,72,71,0.12)] ${dense ? '-right-1 -top-1 min-w-[18px] px-1 py-0.5 text-[9px]' : '-right-1.5 -top-1.5 min-w-[20px] px-1.5 py-0.5 text-[10px]'}`}>
+          {count}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-white/80 bg-gradient-to-r from-white via-slate-50 to-white px-2.5 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.06)] ring-1 ring-slate-100/70">
+      <div className="flex items-center gap-2">
+        <div className={`inline-flex h-6 w-6 items-center justify-center rounded-lg ${meta.className} shadow-inner`}>
+          <Icon size={13} />
+        </div>
+        <span className="text-[10px] font-medium tracking-[0.01em] text-slate-500">{meta.label}</span>
+      </div>
+      <div className="min-w-[20px] text-right text-[15px] font-semibold text-brand-red/75">{count}</div>
+    </div>
+  );
+}
+
+function CalendarDayCounters({ counts }: { counts: Record<ContentType, number> }) {
+  const entries = (Object.keys(TYPE_ICON_META) as ContentType[])
+    .map((type) => ({ type, count: counts[type] || 0 }))
+    .filter((entry) => entry.count > 0);
+
+  if (entries.length <= 2) {
+    return (
+      <div className="flex flex-col gap-1.5">
+        {entries.map((entry) => (
+          <CalendarTypeCounter key={entry.type} type={entry.type} count={entry.count} />
+        ))}
+      </div>
+    );
+  }
+
+  if (entries.length <= 4) {
+    return (
+      <div className="grid grid-cols-2 gap-2.5">
+        {entries.map((entry) => (
+          <CalendarTypeCounter key={entry.type} type={entry.type} count={entry.count} compact />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {entries.map((entry) => (
+        <CalendarTypeCounter key={entry.type} type={entry.type} count={entry.count} compact dense />
+      ))}
     </div>
   );
 }
@@ -114,13 +282,14 @@ function FormattedContentBody({ text, compact = false }: { text: string; compact
 const ContentView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { dayKey } = useParams();
+  const { dayKey, typeKey, itemKey } = useParams();
   const isDayPage = !!dayKey;
+  const selectedType = typeKey && isContentType(typeKey) ? typeKey : null;
+  const isTypeDetailPage = isDayPage && !!selectedType;
+  const isItemDetailPage = isTypeDetailPage && !!itemKey;
   const [items, setItems] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [role, setRole] = useState('');
-  const canManage = useMemo(() => role === 'ADMIN' || role === 'TEAM_LEAD' || role === 'SUPER_ADMIN', [role]);
   const [activeTab, setActiveTab] = useState<ContentTab>(() => getInitialTab(location.search));
 
   const [monthCursor, setMonthCursor] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
@@ -150,7 +319,6 @@ const ContentView: React.FC = () => {
     try {
       const contentRes = await apiListContent();
       setItems(Array.isArray(contentRes.items) ? contentRes.items : []);
-      setRole(getCurrentRole());
     } catch (err: any) {
       setError(err.message || 'Unable to load content');
     } finally {
@@ -253,6 +421,41 @@ const ContentView: React.FC = () => {
     () => calendarItems.filter((item) => (item.contentDate || item.createdAt?.slice(0, 10)) === selectedDate),
     [calendarItems, selectedDate]
   );
+  const selectedDayGroups = useMemo(
+    () =>
+      (Object.keys(TYPE_LABEL) as ContentType[])
+        .map((entryType) => {
+          const groupItems = selectedDayItems.filter((item) => item.type === entryType);
+          return {
+            type: entryType,
+            count: groupItems.length,
+            items: groupItems,
+          };
+        })
+        .filter((group) => group.count > 0),
+    [selectedDayItems]
+  );
+  const selectedTypeItems = useMemo(
+    () => (selectedType ? selectedDayItems.filter((item) => item.type === selectedType) : []),
+    [selectedDayItems, selectedType]
+  );
+  const selectedItem = useMemo(
+    () => (itemKey ? selectedTypeItems.find((item) => item.contentId === itemKey) || null : null),
+    [itemKey, selectedTypeItems]
+  );
+  const highlightedItemId = useMemo(
+    () => itemKey ? String(itemKey) : String(new URLSearchParams(location.search).get('item') || '').trim(),
+    [itemKey, location.search]
+  );
+  useEffect(() => {
+    if (!isTypeDetailPage || !highlightedItemId || loading) return;
+    const timer = window.setTimeout(() => {
+      const target = document.getElementById(`content-card-${highlightedItemId}`);
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [highlightedItemId, isTypeDetailPage, loading, selectedTypeItems]);
   const followEeItems = useMemo(
     () => items.filter((item) => String(item.channelKey || '').toLowerCase() === 'follow-ee'),
     [items]
@@ -263,6 +466,47 @@ const ContentView: React.FC = () => {
   );
 
   const activeReminderItems = activeTab === 'follow-ee' ? followEeItems : followEgaItems;
+  const selectedReminderType = useMemo(() => {
+    const value = String(new URLSearchParams(location.search).get('reminderType') || '').trim();
+    return isContentType(value) ? value : null;
+  }, [location.search]);
+  const selectedReminderItemId = useMemo(
+    () => String(new URLSearchParams(location.search).get('reminderItem') || '').trim(),
+    [location.search]
+  );
+  const reminderGroups = useMemo(
+    () =>
+      (Object.keys(TYPE_LABEL) as ContentType[])
+        .map((entryType) => {
+          const groupItems = activeReminderItems.filter((item) => item.type === entryType);
+          return {
+            type: entryType,
+            count: groupItems.length,
+            items: groupItems,
+          };
+        })
+        .filter((group) => group.count > 0),
+    [activeReminderItems]
+  );
+  const selectedReminderTypeItems = useMemo(
+    () => (selectedReminderType ? activeReminderItems.filter((item) => item.type === selectedReminderType) : []),
+    [activeReminderItems, selectedReminderType]
+  );
+  const selectedReminderItem = useMemo(
+    () => (selectedReminderItemId ? selectedReminderTypeItems.find((item) => item.contentId === selectedReminderItemId) || null : null),
+    [selectedReminderItemId, selectedReminderTypeItems]
+  );
+  const isReminderTypeDetail = (activeTab === 'follow-ee' || activeTab === 'follow-ega') && !!selectedReminderType;
+  const isReminderItemDetail = isReminderTypeDetail && !!selectedReminderItemId;
+  const todayKey = useMemo(() => toDateKey(new Date()), []);
+  const currentMonthKey = `${monthCursor.getFullYear()}-${String(monthCursor.getMonth() + 1).padStart(2, '0')}`;
+  const monthContentCount = useMemo(
+    () =>
+      calendarItems.filter((item) =>
+        String(item.contentDate || item.createdAt?.slice(0, 10) || '').startsWith(currentMonthKey)
+      ).length,
+    [calendarItems, currentMonthKey]
+  );
 
   const openCreatePage = (day?: string) => {
     const date = day || selectedDate || toDateKey(new Date());
@@ -388,85 +632,220 @@ const ContentView: React.FC = () => {
     }
   };
 
+  const getPreviewLineClamp = (item: ContentItem) => {
+    let lines = 7;
+    if (item.updatedAt && item.createdAt && item.updatedAt !== item.createdAt) lines -= 1;
+    if ((item.attachments?.length || 0) > 0) lines -= 1;
+    if (String(item.title || '').trim().length > 42) lines -= 1;
+    return Math.max(lines, 4);
+  };
+
+  const renderContentCard = (item: ContentItem, options?: { clickable?: boolean; expanded?: boolean; clickHref?: string }) => {
+    const isHighlighted = item.contentId === highlightedItemId;
+    const isClickable = !!options?.clickable;
+    const clickHref = options?.clickHref || `/content/day/${selectedDate}/type/${item.type}/item/${item.contentId}`;
+    const isExpanded = !!options?.expanded;
+
+    return (
+    <div
+      id={`content-card-${item.contentId}`}
+      key={item.contentId}
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onClick={isClickable ? () => navigate(clickHref) : undefined}
+      onKeyDown={isClickable ? (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          navigate(clickHref);
+        }
+      } : undefined}
+      className={`relative flex ${isExpanded ? 'h-auto min-h-0' : 'h-[430px]'} flex-col overflow-hidden rounded-[1.9rem] border bg-white/95 p-5 shadow-[0_22px_56px_rgba(15,23,42,0.08)] transition-all duration-300 ${
+        isHighlighted
+          ? TYPE_ACCENT[item.type].highlight
+          : 'border-white/80'
+      } ${isClickable ? 'cursor-pointer hover:-translate-y-[2px] hover:border-slate-200 hover:shadow-[0_26px_60px_rgba(15,23,42,0.10)]' : ''}`}
+    >
+      <div className={`pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r ${TYPE_ACCENT[item.type].tone}`} />
+      <div className="relative flex items-start justify-between gap-4">
+        <div className="min-w-0 space-y-3">
+          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${TYPE_ACCENT[item.type].badge}`}>{TYPE_LABEL[item.type]}</span>
+          <h4
+            className="text-lg font-semibold text-slate-900"
+            style={isExpanded ? undefined : {
+              display: '-webkit-box',
+              WebkitBoxOrient: 'vertical',
+              WebkitLineClamp: 2,
+              overflow: 'hidden',
+            }}
+          >
+            {item.title}
+          </h4>
+        </div>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+          {new Date(item.createdAt).toLocaleTimeString()}
+        </span>
+      </div>
+      <div className="relative mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-600">
+        <div className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2">
+          {userAvatarByEmpId[item.createdBy?.empId || ''] ? (
+            <img src={userAvatarByEmpId[item.createdBy?.empId || '']} alt="" className="h-7 w-7 rounded-full object-cover" />
+          ) : (
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-700">{nameInitials(item.createdBy?.name || '')}</span>
+          )}
+          <span>Created by: {item.createdBy?.name || 'Unknown'}</span>
+        </div>
+        {(item.updatedAt && item.createdAt && item.updatedAt !== item.createdAt) ? (
+          <div className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2">
+            {userAvatarByEmpId[item.updatedBy?.empId || ''] ? (
+              <img src={userAvatarByEmpId[item.updatedBy?.empId || '']} alt="" className="h-7 w-7 rounded-full object-cover" />
+            ) : (
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-violet-700">{nameInitials(item.updatedBy?.name || item.createdBy?.name || '')}</span>
+            )}
+            <span>Edited by: {item.updatedBy?.name || item.createdBy?.name || 'Unknown'}</span>
+          </div>
+        ) : null}
+      </div>
+      <FormattedContentBody text={item.description} compact clampLines={isExpanded ? undefined : getPreviewLineClamp(item)} flat />
+      {item.attachments?.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {(isExpanded ? item.attachments : item.attachments.slice(0, 2)).map((asset) => (
+            <span key={`${asset.fileId}-${asset.fileUrl}`} className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+              <span className="h-2 w-2 rounded-full bg-indigo-400/60" />
+              <span className="truncate">{asset.fileName || 'Attachment'}</span>
+            </span>
+          ))}
+          {!isExpanded && item.attachments.length > 2 ? (
+            <span className="inline-flex items-center rounded-full border border-brand-red/15 bg-brand-red/5 px-3 py-1.5 text-xs font-semibold text-brand-red">
+              +{item.attachments.length - 2} more files
+            </span>
+          ) : null}
+        </div>
+      )}
+      <div className={`${isExpanded ? 'mt-5' : 'mt-auto'} flex flex-wrap gap-2 pt-4`}>
+        <button type="button" onClick={(event) => { event.stopPropagation(); openEdit(item); }} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-violet-200 hover:text-violet-700">
+          <Pencil size={14} /> Edit
+        </button>
+        <button type="button" onClick={(event) => { event.stopPropagation(); setDeleteTarget(item); }} className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50/70 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100">
+          <Trash2 size={14} /> Delete
+        </button>
+      </div>
+    </div>
+  );
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6 pb-6">
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 rounded-[2.25rem] bg-[radial-gradient(circle_at_top_left,_rgba(139,92,246,0.12),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(239,68,68,0.08),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.9),_rgba(248,250,252,0.65))]" />
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-2">
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => handleTabChange('calendar')} className={`rounded-xl px-4 py-2 text-sm ${activeTab === 'calendar' ? 'bg-violet-600 text-white' : 'bg-violet-50 text-violet-700'}`}>Calendar</button>
-          <button type="button" onClick={() => handleTabChange('follow-ee')} className={`rounded-xl px-4 py-2 text-sm ${activeTab === 'follow-ee' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700'}`}>Follow Reminder EE</button>
-          <button type="button" onClick={() => handleTabChange('follow-ega')} className={`rounded-xl px-4 py-2 text-sm ${activeTab === 'follow-ega' ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700'}`}>Follow Reminder EGA</button>
-          <button type="button" onClick={() => handleTabChange('auto-add')} className={`rounded-xl px-4 py-2 text-sm ${activeTab === 'auto-add' ? 'bg-fuchsia-600 text-white' : 'bg-fuchsia-50 text-fuchsia-700'}`}>Auto Add</button>
+      <div className="rounded-[1.75rem] border border-white/70 bg-white/75 p-3 shadow-[0_18px_48px_rgba(15,23,42,0.06)] backdrop-blur">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+          {(Object.keys(TAB_META) as ContentTab[]).map((tab) => {
+            const meta = TAB_META[tab];
+            const Icon = meta.icon;
+            const isActive = activeTab === tab;
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => handleTabChange(tab)}
+                className={`group rounded-[1.4rem] border px-4 py-4 text-left transition-all duration-200 ${isActive ? meta.activeClass : meta.idleClass}`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`rounded-2xl p-2.5 ${isActive ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-700 group-hover:bg-white'}`}>
+                    <Icon size={18} />
+                  </div>
+                  <div>
+                    <div className={`text-base font-semibold ${isActive ? 'text-white' : 'text-slate-900'}`}>{meta.label}</div>
+                    <div className={`mt-1 text-xs leading-5 ${isActive ? 'text-white/80' : 'text-slate-500'}`}>{meta.hint}</div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {activeTab === 'calendar' && !isDayPage && (
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="mb-4 flex items-center gap-2">
+      <div className="rounded-[2rem] border border-white/70 bg-white/90 p-5 shadow-[0_26px_70px_rgba(15,23,42,0.08)]">
+        <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Monthly Board</p>
+            <h3 className="mt-1 text-2xl font-semibold text-slate-900">{monthCursor.toLocaleString('en-US', { month: 'long', year: 'numeric' })}</h3>
+            <p className="mt-1 text-sm text-slate-500">Visualize publishing volume and move from planning to execution without leaving the calendar.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-2 text-sm text-slate-600">
+              {monthContentCount} items scheduled this month
+            </div>
+            <button
+              type="button"
+              onClick={() => openCreatePage()}
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(139,92,246,0.25)] transition hover:translate-y-[-1px]"
+            >
+              <Plus size={16} /> Add Content
+            </button>
+          </div>
+        </div>
+        <div className="mb-5 flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-            className="rounded-lg border border-slate-300 px-3 py-1 text-sm"
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-violet-200 hover:text-violet-700"
           >
-            Prev
+            <ChevronLeft size={16} /> Prev
           </button>
-          <div className="rounded-lg bg-slate-100 px-4 py-1.5 text-sm text-slate-700">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700">
             {monthCursor.toLocaleString('en-US', { month: 'long', year: 'numeric' })}
           </div>
           <button
             type="button"
             onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-            className="rounded-lg border border-slate-300 px-3 py-1 text-sm"
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-violet-200 hover:text-violet-700"
           >
-            Next
-          </button>
-          <button
-            type="button"
-            onClick={() => openCreatePage()}
-            className="ml-auto inline-flex items-center gap-1 rounded-lg border border-violet-300 px-3 py-1.5 text-sm text-violet-700"
-          >
-            <Plus size={14} /> Add Content
+            Next <ChevronRight size={16} />
           </button>
         </div>
 
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-3">
           {WEEK_DAYS.map((day, dayIndex) => (
-            <div key={day} className={`rounded-lg p-2 text-center text-xs ${WEEK_DAY_HEADER_CLASS[dayIndex]}`}>
+            <div key={day} className={`rounded-2xl px-3 py-3 text-center text-xs font-medium uppercase tracking-[0.12em] ${WEEK_DAY_HEADER_CLASS[dayIndex]}`}>
               {day}
             </div>
           ))}
           {monthDays.map((day, idx) => {
-            if (!day) return <div key={`empty-${idx}`} className="min-h-[130px] rounded-lg bg-slate-50" />;
+            if (!day) return <div key={`empty-${idx}`} className="h-[156px] rounded-[1.6rem] border border-dashed border-slate-200 bg-white/40" />;
             const dateKey = toDateKey(day);
             const counts = countsByDate.get(dateKey);
             const hasAny = !!counts && Object.values(counts).some((val) => val > 0);
             const active = selectedDate === dateKey;
             const dayColumnIndex = idx % 7;
             const isWeekend = dayColumnIndex === 5 || dayColumnIndex === 6;
+            const isToday = dateKey === todayKey;
             return (
               <button
                 key={dateKey}
                 type="button"
                 onClick={() => navigate(`/content/day/${dateKey}`)}
-                className={`min-h-[130px] rounded-xl border p-3 text-left transition ${
+                className={`group relative h-[156px] overflow-hidden rounded-[1.7rem] border p-4 text-left transition-all duration-200 ${
                   active
-                    ? 'border-violet-400 bg-violet-50'
+                    ? 'border-violet-300 bg-gradient-to-br from-violet-50 to-white shadow-[0_18px_40px_rgba(139,92,246,0.12)]'
                     : isWeekend
-                    ? 'border-rose-100 bg-rose-50/30 hover:border-rose-300'
-                    : 'border-slate-200 bg-white hover:border-violet-300'
+                    ? 'border-rose-100 bg-gradient-to-br from-rose-50/40 to-white hover:border-rose-200 hover:shadow-[0_12px_28px_rgba(244,63,94,0.08)]'
+                    : 'border-slate-200 bg-white hover:border-violet-200 hover:shadow-[0_12px_28px_rgba(15,23,42,0.06)]'
                 }`}
               >
-                <div className="mb-2 text-xs text-slate-500">{String(day.getDate()).padStart(2, '0')}</div>
+                <div className="mb-4 flex items-center justify-between">
+                  <span className={`inline-flex h-9 w-9 items-center justify-center rounded-2xl text-sm font-semibold ${active ? 'bg-violet-600 text-white' : isToday ? 'border border-brand-red/20 bg-white text-brand-red shadow-[0_8px_20px_rgba(236,72,71,0.10)]' : 'bg-slate-100 text-slate-700'}`}>
+                    {String(day.getDate()).padStart(2, '0')}
+                  </span>
+                  {isToday ? <span className="rounded-full border border-brand-red/20 bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-red shadow-[0_8px_20px_rgba(236,72,71,0.10)]">Today</span> : null}
+                </div>
                 {hasAny ? (
-                  <div className="space-y-1 text-xs">
-                    {(counts?.linkedin || 0) > 0 && <div className="rounded bg-sky-100 px-2 py-0.5 text-sky-700">LinkedIn {counts?.linkedin}</div>}
-                    {(counts?.youtube || 0) > 0 && <div className="rounded bg-red-100 px-2 py-0.5 text-red-700">YouTube {counts?.youtube}</div>}
-                    {(counts?.general || 0) > 0 && <div className="rounded bg-emerald-100 px-2 py-0.5 text-emerald-700">General {counts?.general}</div>}
-                    {(counts?.newsletter || 0) > 0 && <div className="rounded bg-amber-100 px-2 py-0.5 text-amber-700">Mail {counts?.newsletter}</div>}
-                    {(counts?.website || 0) > 0 && <div className="rounded bg-indigo-100 px-2 py-0.5 text-indigo-700">Website {counts?.website}</div>}
-                  </div>
-                ) : null}
+                  <CalendarDayCounters counts={counts!} />
+                ) : (
+                  <div className="mt-10 text-xs text-slate-300">No scheduled items</div>
+                )}
               </button>
             );
           })}
@@ -476,121 +855,244 @@ const ContentView: React.FC = () => {
 
       {activeTab === 'calendar' ? (
         isDayPage ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <Link to="/content" className="inline-flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700">
-                  Back to calendar
-                </Link>
+          <div className="space-y-4">
+            <div className="rounded-[2rem] border border-white/70 bg-white/90 p-5 shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-slate-400">
+                    <Link to="/content" className="inline-flex items-center gap-2 transition hover:text-slate-700">
+                      <ArrowRight size={12} className="rotate-180" />
+                      Calendar
+                    </Link>
+                    {isTypeDetailPage ? (
+                      <>
+                        <span>/</span>
+                        <Link to={`/content/day/${selectedDate}`} className="inline-flex items-center gap-2 transition hover:text-slate-700">
+                          {selectedDate}
+                        </Link>
+                        {isItemDetailPage ? (
+                          <>
+                            <span>/</span>
+                            <Link to={`/content/day/${selectedDate}/type/${selectedType}`} className="inline-flex items-center gap-2 transition hover:text-slate-700">
+                              {TYPE_LABEL[selectedType]}
+                            </Link>
+                          </>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </div>
+                  <h3 className="mt-2 text-2xl font-semibold text-slate-900">
+                    {isItemDetailPage
+                      ? (selectedItem?.title || 'Content details')
+                      : isTypeDetailPage
+                      ? `${TYPE_LABEL[selectedType]} scheduled for ${selectedDate}`
+                      : `Content scheduled for ${selectedDate}`}
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {isItemDetailPage
+                      ? `Focused view for this ${TYPE_LABEL[selectedType].toLowerCase()} content item.`
+                      : isTypeDetailPage
+                      ? `${selectedTypeItems.length} ${TYPE_LABEL[selectedType].toLowerCase()} item${selectedTypeItems.length === 1 ? '' : 's'} ready to review, update, or publish.`
+                      : `${selectedDayItems.length} item${selectedDayItems.length === 1 ? '' : 's'} ready to review, update, or publish.`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openCreatePage(selectedDate)}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(139,92,246,0.25)]"
+                >
+                  <Plus size={16} /> Add Content
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => openCreatePage(selectedDate)}
-                className="inline-flex items-center gap-1 rounded-lg border border-violet-300 px-3 py-1.5 text-sm text-violet-700"
-              >
-                <Plus size={14} /> Add Content
-              </button>
             </div>
             {loading ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-4 text-slate-500">Loading...</div>
-            ) : selectedDayItems.length > 0 ? (
-              <div className="space-y-3">
-                {selectedDayItems.map((item) => (
-                  <div key={item.contentId} className="rounded-xl border border-slate-200 bg-white p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{TYPE_LABEL[item.type]}</span>
-                      <span className="text-xs text-slate-400">{new Date(item.createdAt).toLocaleTimeString()}</span>
+              <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 text-slate-500 shadow-sm">Loading...</div>
+            ) : isTypeDetailPage ? (
+              isItemDetailPage ? (
+                selectedItem ? (
+                  <div className="mx-auto max-w-[820px]">
+                    {renderContentCard(selectedItem, { expanded: true })}
+                  </div>
+                ) : (
+                  <div className="rounded-[1.8rem] border border-dashed border-slate-300 bg-white/80 px-6 py-12 text-center shadow-sm">
+                    <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl ${selectedType ? TYPE_ICON_META[selectedType].className : 'bg-violet-50 text-violet-600'}`}>
+                      {selectedType ? React.createElement(TYPE_ICON_META[selectedType].icon, { size: 22 }) : <CalendarDays size={22} />}
                     </div>
-                    <div className="mt-2 flex items-center gap-4 text-xs text-slate-600">
-                      <div className="inline-flex items-center gap-2">
-                        {userAvatarByEmpId[item.createdBy?.empId || ''] ? (
-                          <img src={userAvatarByEmpId[item.createdBy?.empId || '']} alt="" className="h-6 w-6 rounded-full object-cover" />
-                        ) : (
-                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700">{nameInitials(item.createdBy?.name || '')}</span>
-                        )}
-                        <span>Created by: {item.createdBy?.name || 'Unknown'}</span>
-                      </div>
-                      {(item.updatedAt && item.createdAt && item.updatedAt !== item.createdAt) ? (
-                        <div className="inline-flex items-center gap-2">
-                          {userAvatarByEmpId[item.updatedBy?.empId || ''] ? (
-                            <img src={userAvatarByEmpId[item.updatedBy?.empId || '']} alt="" className="h-6 w-6 rounded-full object-cover" />
-                          ) : (
-                            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 text-violet-700">{nameInitials(item.updatedBy?.name || item.createdBy?.name || '')}</span>
-                          )}
-                          <span>Edited by: {item.updatedBy?.name || item.createdBy?.name || 'Unknown'}</span>
-                        </div>
-                      ) : null}
-                    </div>
-                    <h4 className="mt-2 text-base font-semibold text-slate-900">{item.title}</h4>
-                    <FormattedContentBody text={item.description} />
-                    {item.attachments?.length > 0 && (
-                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                        {item.attachments.map((asset) => {
-                          const isImage = String(asset.mimeType || '').startsWith('image/');
-                          const extension = (asset.fileName || '').split('.').pop()?.toUpperCase() || 'FILE';
-                          return (
-                            <div key={`${asset.fileId}-${asset.fileUrl}`} className="rounded-xl border border-slate-200 bg-slate-50/40 p-3">
-                              {isImage ? (
-                                <img src={asset.fileUrl} alt={asset.fileName || 'attachment'} className="h-36 w-full rounded-lg object-cover" />
-                              ) : (
-                                <div className="mb-3 flex h-24 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700">
-                                  <span className="rounded-md bg-indigo-100 px-2 py-1 text-xs">{extension}</span>
-                                </div>
-                              )}
-                              <div className="mt-2 flex items-center justify-between gap-2">
-                                <div className="truncate text-xs text-slate-600">{asset.fileName || asset.fileUrl}</div>
-                                <a href={asset.fileUrl} download target="_blank" rel="noreferrer" className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-white">
-                                  Download
-                                </a>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <div className="mt-3 flex gap-2">
-                      <button type="button" onClick={() => openEdit(item)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700">
-                        <Pencil size={12} /> Edit
-                      </button>
-                      <button type="button" onClick={() => setDeleteTarget(item)} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600">
-                        <Trash2 size={12} /> Delete
-                      </button>
+                    <h4 className="mt-4 text-lg font-semibold text-slate-900">Content item not found</h4>
+                    <p className="mt-2 text-sm text-slate-500">Go back to the type view to choose another scheduled item.</p>
+                    <div className="mt-5 flex items-center justify-center gap-3">
+                      <Link to={`/content/day/${selectedDate}/type/${selectedType}`} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-300">
+                        <ArrowRight size={14} className="rotate-180" /> Back To Type
+                      </Link>
                     </div>
                   </div>
-                ))}
+                )
+              ) : selectedTypeItems.length > 0 ? (
+                <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+                  {selectedTypeItems.map((item) => renderContentCard(item, { clickable: true }))}
+                </div>
+              ) : (
+                <div className="rounded-[1.8rem] border border-dashed border-slate-300 bg-white/80 px-6 py-12 text-center shadow-sm">
+                  <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl ${selectedType ? TYPE_ICON_META[selectedType].className : 'bg-violet-50 text-violet-600'}`}>
+                    {selectedType ? React.createElement(TYPE_ICON_META[selectedType].icon, { size: 22 }) : <CalendarDays size={22} />}
+                  </div>
+                  <h4 className="mt-4 text-lg font-semibold text-slate-900">No {selectedType ? TYPE_LABEL[selectedType].toLowerCase() : 'content'} scheduled for this day</h4>
+                  <p className="mt-2 text-sm text-slate-500">Go back to the day summary or create a new item for this content type.</p>
+                  <div className="mt-5 flex items-center justify-center gap-3">
+                    <Link to={`/content/day/${selectedDate}`} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-300">
+                      <ArrowRight size={14} className="rotate-180" /> Back To Day
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => openCreatePage(selectedDate)}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(139,92,246,0.24)]"
+                    >
+                      <Plus size={16} /> Add Content
+                    </button>
+                  </div>
+                </div>
+              )
+            ) : selectedDayItems.length > 0 ? (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {selectedDayGroups.map((group) => {
+                  const meta = TYPE_ICON_META[group.type];
+                  const Icon = meta.icon;
+                  return (
+                    <div
+                      key={group.type}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => navigate(`/content/day/${selectedDate}/type/${group.type}`)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          navigate(`/content/day/${selectedDate}/type/${group.type}`);
+                        }
+                      }}
+                      className="group relative aspect-[1.02/1] w-full overflow-hidden rounded-[2rem] border border-white/80 bg-white/95 p-6 text-left shadow-[0_22px_56px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_28px_64px_rgba(15,23,42,0.12)]"
+                    >
+                      <div className={`pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r ${TYPE_ACCENT[group.type].tone}`} />
+                      <div className="relative flex h-full flex-col">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="inline-flex items-center gap-2">
+                            <div className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white/90 ${meta.className} shadow-[0_10px_24px_rgba(255,255,255,0.45)]`}>
+                              <Icon size={18} />
+                            </div>
+                            <span className={`inline-flex rounded-full px-4 py-1.5 text-sm font-semibold ${TYPE_ACCENT[group.type].badge}`}>{TYPE_LABEL[group.type]}</span>
+                          </div>
+                          <span className={`inline-flex h-14 min-w-[56px] items-center justify-center rounded-[1.15rem] border bg-white px-3 text-xl font-semibold ${TYPE_ACCENT[group.type].counter}`}>
+                            {group.count}
+                          </span>
+                        </div>
+                        <div className="mt-8 max-h-[184px] space-y-3 overflow-y-auto pr-1">
+                          {group.items.map((item, index) => (
+                            <button
+                              key={item.contentId}
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                navigate(`/content/day/${selectedDate}/type/${group.type}?item=${encodeURIComponent(item.contentId)}`);
+                              }}
+                              className={`flex w-full items-center gap-3 rounded-[1.1rem] border border-white/80 bg-gradient-to-r px-3.5 py-3 text-left shadow-[0_10px_24px_rgba(15,23,42,0.05)] ring-1 transition hover:-translate-y-[1px] hover:border-slate-200 hover:shadow-[0_14px_28px_rgba(15,23,42,0.08)] ${TYPE_ACCENT[group.type].previewRow}`}
+                            >
+                              <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold ${TYPE_ACCENT[group.type].previewIndex}`}>
+                                {index + 1}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-sm font-semibold text-slate-700">
+                                  {item.title || 'Untitled content'}
+                                </div>
+                                <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
+                                  Scheduled item
+                                </div>
+                              </div>
+                              <span className={`h-2 w-2 rounded-full ${TYPE_ACCENT[group.type].previewDot}`} />
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-auto flex items-center justify-between gap-4 pt-8">
+                          <p className="text-base text-slate-500">
+                            {group.count} item{group.count === 1 ? '' : 's'} scheduled
+                          </p>
+                          <div className="inline-flex items-center gap-2 text-sm font-medium text-brand-red/80 transition group-hover:text-brand-red">
+                            <span className="h-1.5 w-1.5 rounded-full bg-brand-red/60" />
+                            Open details
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ) : null}
+            ) : (
+              <div className="rounded-[1.8rem] border border-dashed border-slate-300 bg-white/80 px-6 py-12 text-center shadow-sm">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
+                  <CalendarDays size={22} />
+                </div>
+                <h4 className="mt-4 text-lg font-semibold text-slate-900">Nothing scheduled for this day yet</h4>
+                <p className="mt-2 text-sm text-slate-500">Create a content item to start building the day&apos;s publishing plan.</p>
+                <button
+                  type="button"
+                  onClick={() => openCreatePage(selectedDate)}
+                  className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(139,92,246,0.24)]"
+                >
+                  <Plus size={16} /> Add Content
+                </button>
+              </div>
+            )}
           </div>
         ) : null
       ) : activeTab === 'auto-add' ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600 space-y-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <p className="text-xs text-slate-500">Links</p>
-              <div className="flex gap-2">
-                <input value={newLinkValue} onChange={(e) => setNewLinkValue(e.target.value)} placeholder="https://..." className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                <button type="button" onClick={addAutoLink} className="rounded-lg bg-violet-600 px-3 py-2 text-sm text-white">Add</button>
+        <div className="rounded-[2rem] border border-white/70 bg-white/90 p-6 shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
+          <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Reusable Assets</p>
+              <h3 className="mt-1 text-2xl font-semibold text-slate-900">Auto add library</h3>
+              <p className="mt-1 text-sm text-slate-500">Maintain your reusable links and hashtags in a clean, premium workspace for faster content assembly.</p>
+            </div>
+            <div className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50/70 px-4 py-2 text-sm text-fuchsia-700">
+              {linkOptions.length + tagOptions.length} reusable assets
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+            <div className="rounded-[1.7rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="rounded-2xl bg-violet-100 p-3 text-violet-700"><Link2 size={18} /></div>
+                <div>
+                  <h4 className="text-lg font-semibold text-slate-900">Links</h4>
+                  <p className="text-sm text-slate-500">Store campaign URLs and frequently used destinations.</p>
+                </div>
               </div>
-              <div className="space-y-1 max-h-44 overflow-auto">
+              <div className="flex gap-3">
+                <input value={newLinkValue} onChange={(e) => setNewLinkValue(e.target.value)} placeholder="https://..." className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100" />
+                <button type="button" onClick={addAutoLink} className="rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-5 py-3 text-sm font-medium text-white shadow-[0_16px_30px_rgba(139,92,246,0.22)]">Add</button>
+              </div>
+              <div className="mt-4 space-y-2">
                 {linkOptions.map((entry) => (
-                  <div key={entry} className="flex items-center justify-between rounded border border-slate-200 px-2 py-1 text-xs">
-                    <span className="truncate pr-2">{entry}</span>
-                    <button type="button" onClick={() => removeAutoLink(entry)} className="text-red-600">Remove</button>
+                  <div key={entry} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
+                    <span className="truncate text-slate-700">{entry}</span>
+                    <button type="button" onClick={() => removeAutoLink(entry)} className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-100">Remove</button>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="space-y-2">
-              <p className="text-xs text-slate-500">Hashtags</p>
-              <div className="flex gap-2">
-                <input value={newTagValue} onChange={(e) => setNewTagValue(e.target.value)} placeholder="#tag" className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                <button type="button" onClick={addAutoTag} className="rounded-lg bg-fuchsia-600 px-3 py-2 text-sm text-white">Add</button>
+            <div className="rounded-[1.7rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="rounded-2xl bg-fuchsia-100 p-3 text-fuchsia-700"><Hash size={18} /></div>
+                <div>
+                  <h4 className="text-lg font-semibold text-slate-900">Hashtags</h4>
+                  <p className="text-sm text-slate-500">Keep branded and campaign-specific tags ready to insert.</p>
+                </div>
               </div>
-              <div className="space-y-1 max-h-44 overflow-auto">
+              <div className="flex gap-3">
+                <input value={newTagValue} onChange={(e) => setNewTagValue(e.target.value)} placeholder="#tag" className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-fuchsia-300 focus:ring-4 focus:ring-fuchsia-100" />
+                <button type="button" onClick={addAutoTag} className="rounded-2xl bg-gradient-to-r from-fuchsia-600 to-violet-600 px-5 py-3 text-sm font-medium text-white shadow-[0_16px_30px_rgba(217,70,239,0.22)]">Add</button>
+              </div>
+              <div className="mt-4 space-y-2">
                 {tagOptions.map((entry) => (
-                  <div key={entry} className="flex items-center justify-between rounded border border-slate-200 px-2 py-1 text-xs">
-                    <span className="truncate pr-2">{entry}</span>
-                    <button type="button" onClick={() => removeAutoTag(entry)} className="text-red-600">Remove</button>
+                  <div key={entry} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
+                    <span className="truncate text-slate-700">{entry}</span>
+                    <button type="button" onClick={() => removeAutoTag(entry)} className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-100">Remove</button>
                   </div>
                 ))}
               </div>
@@ -598,78 +1100,147 @@ const ContentView: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="space-y-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
-            <div className="flex items-center justify-end">
+        <div className="space-y-4">
+          <div className="rounded-[2rem] border border-white/70 bg-white/90 p-5 shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+                  <span>Reminder Workflow</span>
+                  {isReminderTypeDetail ? (
+                    <>
+                      <span>/</span>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/content?tab=${encodeURIComponent(activeTab)}`)}
+                        className="transition hover:text-slate-700"
+                      >
+                        {activeTab === 'follow-ee' ? 'EE follow-ups' : 'EGA follow-ups'}
+                      </button>
+                    </>
+                  ) : null}
+                  {isReminderItemDetail ? (
+                    <>
+                      <span>/</span>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/content?tab=${encodeURIComponent(activeTab)}&reminderType=${encodeURIComponent(selectedReminderType!)}`)}
+                        className="transition hover:text-slate-700"
+                      >
+                        {TYPE_LABEL[selectedReminderType!]}
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+                <h3 className="mt-1 text-2xl font-semibold text-slate-900">
+                  {isReminderItemDetail
+                    ? (selectedReminderItem?.title || 'Reminder details')
+                    : isReminderTypeDetail
+                    ? `${TYPE_LABEL[selectedReminderType!]} reminders`
+                    : activeTab === 'follow-ee'
+                    ? 'EE follow-ups'
+                    : 'EGA follow-ups'}
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  {isReminderItemDetail
+                    ? 'Focused view for this reminder item.'
+                    : isReminderTypeDetail
+                    ? `${selectedReminderTypeItems.length} ${TYPE_LABEL[selectedReminderType!].toLowerCase()} reminder item${selectedReminderTypeItems.length === 1 ? '' : 's'} ready to review, update, or publish.`
+                    : 'Curated reminder cards designed for prompt follow-through and high-visibility team communication.'}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => openCreatePage(selectedDate)}
-                className="inline-flex items-center gap-1 rounded-lg border border-violet-300 px-3 py-1.5 text-sm text-violet-700"
+                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(139,92,246,0.25)]"
               >
-                <Plus size={14} /> Add a Reminder
+                <Plus size={16} /> Add Reminder
               </button>
             </div>
           </div>
           {loading ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 text-slate-500">Loading...</div>
+            <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 text-slate-500 shadow-sm">Loading...</div>
           ) : activeReminderItems.length === 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">No reminders found in this tab.</div>
-          ) : (
-            <div className="space-y-3">
-              {activeReminderItems.map((item) => (
-                <div key={item.contentId} className="rounded-xl border border-slate-200 bg-white p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{TYPE_LABEL[item.type]}</span>
-                    <span className="text-xs text-slate-400">{(item.contentDate || item.createdAt?.slice(0, 10)) || '-'}</span>
-                  </div>
-                  <div className="mt-2 inline-flex items-center gap-2 text-xs text-slate-600">
-                    {userAvatarByEmpId[item.createdBy?.empId || ''] ? (
-                      <img src={userAvatarByEmpId[item.createdBy?.empId || '']} alt="" className="h-6 w-6 rounded-full object-cover" />
-                    ) : (
-                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700">{nameInitials(item.createdBy?.name || '')}</span>
-                    )}
-                    <span>Added by: {item.createdBy?.name || 'Unknown'}</span>
-                  </div>
-                  <h4 className="mt-2 text-base font-semibold text-slate-900">{item.title}</h4>
-                  <FormattedContentBody text={item.description} compact />
-                  <div className="mt-3 flex gap-2">
-                    <button type="button" onClick={() => openEdit(item)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700">
-                      <Pencil size={12} /> Edit
-                    </button>
-                    <button type="button" onClick={() => setDeleteTarget(item)} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600">
-                      <Trash2 size={12} /> Delete
-                    </button>
-                  </div>
+            <div className="rounded-[1.8rem] border border-dashed border-slate-300 bg-white/80 px-6 py-12 text-center shadow-sm">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                <BellRing size={22} />
+              </div>
+              <h4 className="mt-4 text-lg font-semibold text-slate-900">No reminders in this stream</h4>
+              <p className="mt-2 text-sm text-slate-500">Add a reminder to create a polished follow-up queue for your team.</p>
+            </div>
+          ) : isReminderItemDetail ? (
+            selectedReminderItem ? (
+              <div className="mx-auto max-w-[820px]">
+                {renderContentCard(selectedReminderItem, { expanded: true })}
+              </div>
+            ) : (
+              <div className="rounded-[1.8rem] border border-dashed border-slate-300 bg-white/80 px-6 py-12 text-center shadow-sm">
+                <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl ${selectedReminderType ? TYPE_ICON_META[selectedReminderType].className : 'bg-emerald-50 text-emerald-600'}`}>
+                  {selectedReminderType ? React.createElement(TYPE_ICON_META[selectedReminderType].icon, { size: 22 }) : <BellRing size={22} />}
                 </div>
-              ))}
+                <h4 className="mt-4 text-lg font-semibold text-slate-900">Reminder item not found</h4>
+                <p className="mt-2 text-sm text-slate-500">Go back to the reminder type view to choose another item.</p>
+              </div>
+            )
+          ) : isReminderTypeDetail ? (
+            selectedReminderTypeItems.length > 0 ? (
+              <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+                {selectedReminderTypeItems.map((item) =>
+                  renderContentCard(item, {
+                    clickable: true,
+                    clickHref: `/content?tab=${encodeURIComponent(activeTab)}&reminderType=${encodeURIComponent(selectedReminderType!)}&reminderItem=${encodeURIComponent(item.contentId)}`,
+                  })
+                )}
+              </div>
+            ) : (
+              <div className="rounded-[1.8rem] border border-dashed border-slate-300 bg-white/80 px-6 py-12 text-center shadow-sm">
+                <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl ${selectedReminderType ? TYPE_ICON_META[selectedReminderType].className : 'bg-emerald-50 text-emerald-600'}`}>
+                  {selectedReminderType ? React.createElement(TYPE_ICON_META[selectedReminderType].icon, { size: 22 }) : <BellRing size={22} />}
+                </div>
+                <h4 className="mt-4 text-lg font-semibold text-slate-900">No reminders in this type</h4>
+                <p className="mt-2 text-sm text-slate-500">Go back to the reminder overview or add a new reminder for this content type.</p>
+              </div>
+            )
+          ) : (
+            <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+              {activeReminderItems.map((item) =>
+                renderContentCard(item, {
+                  clickable: true,
+                  clickHref: `/content?tab=${encodeURIComponent(activeTab)}&reminderType=${encodeURIComponent(item.type)}&reminderItem=${encodeURIComponent(item.contentId)}`,
+                })
+              )}
             </div>
           )}
         </div>
       )}
 
       {showModal && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-violet-100 bg-white p-6 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-xl text-slate-900">{editingItem ? 'Edit Content' : 'Create Content'}</h3>
-              <button type="button" onClick={() => setShowModal(false)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
-                <X size={16} />
-              </button>
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl overflow-hidden rounded-[2rem] border border-white/70 bg-white shadow-[0_40px_120px_rgba(15,23,42,0.18)]">
+            <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-violet-50 px-6 py-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Content Composer</p>
+                  <h3 className="mt-1 text-2xl font-semibold text-slate-900">{editingItem ? 'Edit Content' : 'Create Content'}</h3>
+                </div>
+                <button type="button" onClick={() => setShowModal(false)} className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-500 transition hover:text-slate-800">
+                  <X size={16} />
+                </button>
+              </div>
             </div>
-            <form onSubmit={handleSave} className="space-y-4">
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Content title" className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none" />
+            <form onSubmit={handleSave} className="space-y-4 p-6">
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Content title" className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100" />
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <select value={type} onChange={(e) => setType(e.target.value as ContentType)} className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none">
+                <select value={type} onChange={(e) => setType(e.target.value as ContentType)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100">
                   <option value="general">General</option>
                   <option value="linkedin">LinkedIn</option>
                   <option value="youtube">YouTube</option>
                   <option value="newsletter">Mail</option>
                   <option value="website">Website</option>
                 </select>
-                <input type="date" value={contentDate} onChange={(e) => setContentDate(e.target.value)} className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none" />
+                <input type="date" value={contentDate} onChange={(e) => setContentDate(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100" />
               </div>
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={8} placeholder="Description" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-[15px] leading-7 outline-none" />
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-2 text-slate-700">
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={8} placeholder="Description" className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 text-[15px] leading-7 outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100" />
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50/70 px-4 py-3 text-sm font-medium text-violet-700">
                 <FileText size={16} />
                 {uploadingAttachment ? 'Uploading files...' : 'Add files'}
                 <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rtf" className="hidden" onChange={(e) => handleAttachmentUpload(e.target.files)} />
@@ -677,12 +1248,12 @@ const ContentView: React.FC = () => {
               {attachments.length > 0 && (
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                   {attachments.map((asset) => (
-                    <div key={`${asset.fileId}-${asset.fileUrl}`} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                    <div key={`${asset.fileId}-${asset.fileUrl}`} className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-3 text-sm text-slate-700">
                       <span className="truncate">{asset.fileName || asset.fileUrl}</span>
                       <button
                         type="button"
                         onClick={() => setAttachments((prev) => prev.filter((entry) => entry.fileId !== asset.fileId || entry.fileUrl !== asset.fileUrl))}
-                        className="rounded-md p-1 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                        className="rounded-xl p-1 text-slate-500 transition hover:bg-red-50 hover:text-red-600"
                         aria-label="Remove attachment"
                         title="Remove"
                       >
@@ -693,8 +1264,8 @@ const ContentView: React.FC = () => {
                 </div>
               )}
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setShowModal(false)} className="rounded-xl border border-slate-300 px-4 py-2 text-slate-700">Cancel</button>
-                <button type="submit" disabled={submitting} className="rounded-xl bg-gradient-to-r from-fuchsia-600 to-violet-600 px-4 py-2 text-white disabled:opacity-60">
+                <button type="button" onClick={() => setShowModal(false)} className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700">Cancel</button>
+                <button type="submit" disabled={submitting} className="rounded-2xl bg-gradient-to-r from-fuchsia-600 to-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow-[0_18px_30px_rgba(139,92,246,0.24)] disabled:opacity-60">
                   {submitting ? 'Saving...' : editingItem ? 'Update Content' : 'Save Content'}
                 </button>
               </div>
@@ -704,24 +1275,28 @@ const ContentView: React.FC = () => {
       )}
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <h3 className="text-lg text-slate-900">Delete content?</h3>
-            <p className="mt-2 text-sm text-slate-600">Are you sure you want to delete this content item?</p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setDeleteTarget(null)} className="rounded-xl border border-slate-300 px-4 py-2 text-slate-700">
-                No
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  await handleDelete(deleteTarget.contentId);
-                  setDeleteTarget(null);
-                }}
-                className="rounded-xl bg-red-600 px-4 py-2 text-white"
-              >
-                Yes
-              </button>
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-[0_40px_110px_rgba(15,23,42,0.18)]">
+            <div className="bg-gradient-to-r from-rose-50 to-white px-6 py-5">
+              <h3 className="text-xl font-semibold text-slate-900">Delete content?</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-500">This action removes the selected content item from the calendar and reminder views.</p>
+            </div>
+            <div className="px-6 py-5">
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setDeleteTarget(null)} className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700">
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleDelete(deleteTarget.contentId);
+                    setDeleteTarget(null);
+                  }}
+                  className="rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 px-4 py-2.5 text-sm font-medium text-white shadow-[0_18px_30px_rgba(225,29,72,0.22)]"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>

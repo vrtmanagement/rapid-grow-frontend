@@ -925,11 +925,15 @@ const App: React.FC = () => {
     };
 
     loadNotifications();
+    const notificationsPoller = window.setInterval(() => {
+      loadNotifications();
+    }, 30000);
     socket.on('notification:created', onNotificationCreated);
     socket.on('notification:read', onNotificationRead);
 
     return () => {
       active = false;
+      window.clearInterval(notificationsPoller);
       socket.off('notification:created', onNotificationCreated);
       socket.off('notification:read', onNotificationRead);
     };
@@ -1291,6 +1295,8 @@ const App: React.FC = () => {
                 {hasPower('COMMUNICATION_VIEW') && <Route path="/communication" element={<CommunicationView />} />}
                 {hasPower('CONTENT_VIEW') && <Route path="/content" element={<ContentView />} />}
                 {hasPower('CONTENT_VIEW') && <Route path="/content/day/:dayKey" element={<ContentView />} />}
+                {hasPower('CONTENT_VIEW') && <Route path="/content/day/:dayKey/type/:typeKey" element={<ContentView />} />}
+                {hasPower('CONTENT_VIEW') && <Route path="/content/day/:dayKey/type/:typeKey/item/:itemKey" element={<ContentView />} />}
                 {hasPower('CONTENT_VIEW') && <Route path="/content/new" element={<ContentCreateView />} />}
                 {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView />} />}
                 <Route path="*" element={<AccessDenied />} />
@@ -1441,6 +1447,8 @@ const App: React.FC = () => {
               {hasPower('COMMUNICATION_VIEW') && <Route path="/communication" element={<CommunicationView />} />}
               {hasPower('CONTENT_VIEW') && <Route path="/content" element={<ContentView />} />}
               {hasPower('CONTENT_VIEW') && <Route path="/content/day/:dayKey" element={<ContentView />} />}
+              {hasPower('CONTENT_VIEW') && <Route path="/content/day/:dayKey/type/:typeKey" element={<ContentView />} />}
+              {hasPower('CONTENT_VIEW') && <Route path="/content/day/:dayKey/type/:typeKey/item/:itemKey" element={<ContentView />} />}
               {hasPower('CONTENT_VIEW') && <Route path="/content/new" element={<ContentCreateView />} />}
               {isAdmin && hasPower('FEEDBACK_VIEW') && <Route path="/feedback" element={<FeedbackView />} />}
               {isAdmin && (
