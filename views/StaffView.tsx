@@ -12,6 +12,7 @@ interface EmployeeRow {
   _id: string;
   empId: string;
   empName: string;
+  avatar?: string;
   designation?: string;
   department?: string;
   email?: string;
@@ -33,6 +34,23 @@ function getBackendInfo() {
   } catch {
     return { role: 'EMPLOYEE' as BackendRole, empId: '' };
   }
+}
+
+function resolveAvatarUrl(rawAvatar?: string | null): string | undefined {
+  const avatar = (rawAvatar || '').trim();
+  if (!avatar) return undefined;
+  if (/^(https?:)?\/\//i.test(avatar) || /^data:/i.test(avatar) || /^blob:/i.test(avatar)) return avatar;
+
+  let apiOrigin = '';
+  try {
+    apiOrigin = new URL(API_BASE).origin;
+  } catch {
+    apiOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  }
+
+  if (!apiOrigin) return avatar;
+  if (avatar.startsWith('/')) return `${apiOrigin}${avatar}`;
+  return `${apiOrigin}/${avatar.replace(/^\.?\//, '')}`;
 }
 
 const StaffView: React.FC = () => {
@@ -236,12 +254,15 @@ const StaffView: React.FC = () => {
               ) : (
                 rows.map((row) => {
                   const editable = canEditRow(row);
+                  const avatarSrc =
+                    resolveAvatarUrl(row.avatar) ||
+                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent((row.empName || 'User').replace(/\s/g, ''))}`;
                   return (
                     <tr key={row._id} className="border-b border-slate-100 hover:bg-slate-50/50">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-                            <UserCircle size={18} className="text-slate-400" />
+                          <div className="h-10 w-10 overflow-hidden rounded-full border border-slate-200 bg-slate-50 shadow-sm">
+                            <img src={avatarSrc} alt={row.empName} className="h-full w-full object-cover" />
                           </div>
                           <div>
                             <div className="text-[14px] font-semibold text-slate-900">
