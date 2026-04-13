@@ -5,6 +5,7 @@ import { AvatarPreviewEntity, AvatarPreviewModal } from '../components/AvatarPre
 import { ChatSidebar } from '../components/ChatSidebar';
 import { ChatMessages } from '../components/ChatMessages';
 import { ChatComposer } from '../components/ChatComposer';
+import { NotificationStack } from '../components/NotificationStack';
 import { Mail } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
 
@@ -321,6 +322,13 @@ function CommunicationLayout() {
         open={!!previewEntity}
         entity={previewEntity}
         onClose={() => setPreviewEntity(null)}
+      />
+      <NotificationStack
+        notifications={ctx.notifications}
+        onClose={ctx.dismissNotification}
+        onOpen={(notificationId) => {
+          void ctx.openNotificationConversation(notificationId);
+        }}
       />
     </div>
   );

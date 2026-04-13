@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiCreateTeam, apiDeleteTeam, apiHistory, apiListConversations, apiListUsers, apiMarkAsRead, apiUpdateTeam, apiUploadFile } from '../api';
 import { API_BASE } from '../../config/api';
-import { ChatConversationSummary, ChatMessage, ChatUser, ChatAttachment, ChatReplyRef } from '../types';
+import { ChatConversationSummary, ChatMessage, ChatUser, ChatAttachment, ChatReplyRef, ChatNotification } from '../types';
 import { getUnreadDirectMessageSourceCount } from '../unread';
 import { getSocket } from '../../realtime/socket';
 import { CommunicationContext, CommunicationContextValue } from './CommunicationContextCore';
@@ -62,6 +62,37 @@ function ensureSocketConnected(socket: any, timeoutMs = 5000): Promise<void> {
   });
 }
 
+function messagePreviewFromPayload(type: string, content: string, attachment?: ChatAttachment | null): string {
+  if (type === 'text') return content.trim() || 'New message';
+  if (type === 'image') return 'Image';
+  return attachment?.fileName ? `Attachment: ${attachment.fileName}` : 'New attachment';
+}
+
+function playNotificationSound() {
+  // Use Web Audio so we don't depend on a bundled media file.
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const context = new AudioCtx();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = 'triangle';
+    oscillator.frequency.setValueAtTime(640, context.currentTime);
+    oscillator.frequency.linearRampToValueAtTime(840, context.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.045, context.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.2);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(context.currentTime);
+    oscillator.stop(context.currentTime + 0.2);
+    window.setTimeout(() => context.close(), 300);
+  } catch {
+    // Sound is best-effort only.
+  }
+}
+
 export function CommunicationProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<CommunicationContextValue['currentUser']>(null);
   const [users, setUsers] = useState<ChatUser[]>([]);
@@ -73,15 +104,23 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   const [selectedConversationKey, setSelectedConversationKey] = useState<string | null>(null);
   const [typingUserIds, setTypingUserIds] = useState<Record<string, true>>({});
   const [error, setError] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<ChatNotification[]>([]);
 
   const socket = useMemo(() => getSocket(), []);
 
   // Keep refs to avoid stale closures in socket event handlers
   const selectedConversationKeyRef = useRef<string | null>(null);
   selectedConversationKeyRef.current = selectedConversationKey;
+  const usersRef = useRef<ChatUser[]>([]);
+  usersRef.current = users;
+  const conversationsRef = useRef<ChatConversationSummary[]>([]);
+  conversationsRef.current = conversations;
+  const currentUserRef = useRef<CommunicationContextValue['currentUser']>(null);
+  currentUserRef.current = currentUser;
 
   const typingStopTimer = useRef<number | null>(null);
   const lastMessageIdByConversationKeyRef = useRef<Record<string, string>>({});
+  const notificationTimersRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     const stored = getStoredAuth();
@@ -232,6 +271,22 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     );
   }, [conversations]);
 
+  const dismissNotification = useCallback((notificationId: string) => {
+    const timer = notificationTimersRef.current[notificationId];
+    if (timer) {
+      window.clearTimeout(timer);
+      delete notificationTimersRef.current[notificationId];
+    }
+    setNotifications((prev) => prev.filter((item) => item.id !== notificationId));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      Object.values(notificationTimersRef.current).forEach((timer) => window.clearTimeout(timer));
+      notificationTimersRef.current = {};
+    };
+  }, []);
+
   // Socket listeners
   useEffect(() => {
     if (!socket) return;
@@ -336,6 +391,52 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
             } as ChatReplyRef)
           : null,
       };
+
+      const isIncoming = mapped.senderId !== currentUserRef.current?.id;
+      const isCurrentConversationOpen = selectedConversationKeyRef.current === conversationKey;
+      const isTabHidden = typeof document !== 'undefined' && document.visibilityState !== 'visible';
+      const shouldNotify = isIncoming && (isTabHidden || !isCurrentConversationOpen);
+
+      if (shouldNotify) {
+        const sender =
+          usersRef.current.find((user) => user.id === mapped.senderId) ||
+          conversationsRef.current.find((conversation) => conversation.conversationKey === conversationKey)?.otherUser ||
+          null;
+        const senderName = sender?.name || 'New message';
+        const avatar =
+          sender?.avatar ||
+          conversationsRef.current.find((conversation) => conversation.conversationKey === conversationKey)?.avatar;
+        const nextNotification: ChatNotification = {
+          id: `notif_${mapped.id}`,
+          conversationKey,
+          senderName,
+          messagePreview: messagePreviewFromPayload(mapped.type, mapped.content, mapped.attachment),
+          avatar,
+          createdAt: Date.now(),
+        };
+
+        setNotifications((prev) => {
+          const existing = prev.filter((item) => item.id !== nextNotification.id);
+          const next = [...existing, nextNotification].slice(-3);
+          const nextIds = new Set(next.map((item) => item.id));
+          Object.keys(notificationTimersRef.current).forEach((id) => {
+            if (!nextIds.has(id)) {
+              window.clearTimeout(notificationTimersRef.current[id]);
+              delete notificationTimersRef.current[id];
+            }
+          });
+          return next;
+        });
+
+        const existingTimer = notificationTimersRef.current[nextNotification.id];
+        if (existingTimer) window.clearTimeout(existingTimer);
+        notificationTimersRef.current[nextNotification.id] = window.setTimeout(() => {
+          setNotifications((prev) => prev.filter((item) => item.id !== nextNotification.id));
+          delete notificationTimersRef.current[nextNotification.id];
+        }, 4500);
+
+        playNotificationSound();
+      }
 
       // If the message is for the current conversation, append it.
       if (selectedConversationKeyRef.current === conversationKey) {
@@ -682,6 +783,16 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     [conversations, loadMessages, socket]
   );
 
+  const openNotificationConversation = useCallback(
+    async (notificationId: string) => {
+      const target = notifications.find((item) => item.id === notificationId);
+      if (!target) return;
+      dismissNotification(notificationId);
+      await joinByConversationKey(target.conversationKey);
+    },
+    [dismissNotification, joinByConversationKey, notifications]
+  );
+
   const selectChannel = useCallback(
     async (channelKey: string) => {
       const conversationKey = `channel:${channelKey}`;
@@ -985,6 +1096,9 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     notifyTyping,
     editMessage,
     deleteMessage,
+    notifications,
+    dismissNotification,
+    openNotificationConversation,
   };
 
   return <CommunicationContext.Provider value={value}>{children}</CommunicationContext.Provider>;
