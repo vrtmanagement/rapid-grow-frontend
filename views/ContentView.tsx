@@ -39,31 +39,27 @@ function isContentType(value: string): value is ContentType {
   return value === 'linkedin' || value === 'youtube' || value === 'general' || value === 'newsletter' || value === 'website';
 }
 
-const TAB_META: Record<ContentTab, { label: string; hint: string; icon: React.ElementType; activeClass: string; idleClass: string }> = {
+const TAB_META: Record<ContentTab, { label: string; icon: React.ElementType; activeClass: string; idleClass: string }> = {
   calendar: {
     label: 'Calendar',
-    hint: 'Plan the full monthly content mix',
     icon: CalendarDays,
     activeClass: 'border-violet-300 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-[0_18px_40px_rgba(139,92,246,0.26)]',
     idleClass: 'border-white/70 bg-white/75 text-slate-700 hover:border-violet-200 hover:bg-violet-50/90',
   },
   'follow-ee': {
     label: 'Follow Reminder EE',
-    hint: 'Track EE follow-through',
     icon: BellRing,
     activeClass: 'border-emerald-300 bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-[0_18px_40px_rgba(16,185,129,0.22)]',
     idleClass: 'border-white/70 bg-white/75 text-slate-700 hover:border-emerald-200 hover:bg-emerald-50/90',
   },
   'follow-ega': {
     label: 'Follow Reminder EGA',
-    hint: 'Keep agency callbacks organized',
     icon: Sparkles,
     activeClass: 'border-indigo-300 bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[0_18px_40px_rgba(99,102,241,0.22)]',
     idleClass: 'border-white/70 bg-white/75 text-slate-700 hover:border-indigo-200 hover:bg-indigo-50/90',
   },
   'auto-add': {
     label: 'Auto Add',
-    hint: 'Manage reusable links and hashtags',
     icon: Bot,
     activeClass: 'border-fuchsia-300 bg-gradient-to-r from-fuchsia-600 to-violet-600 text-white shadow-[0_18px_40px_rgba(217,70,239,0.22)]',
     idleClass: 'border-white/70 bg-white/75 text-slate-700 hover:border-fuchsia-200 hover:bg-fuchsia-50/90',
@@ -233,14 +229,14 @@ function CalendarTypeCounter({
   }
 
   return (
-    <div className="flex items-center justify-between rounded-xl border border-white/80 bg-gradient-to-r from-white via-slate-50 to-white px-2.5 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.06)] ring-1 ring-slate-100/70">
+    <div className="flex items-center justify-between rounded-[0.95rem] border border-white/80 bg-gradient-to-r from-white via-slate-50 to-white px-2.5 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.06)] ring-1 ring-slate-100/70">
       <div className="flex items-center gap-2">
-        <div className={`inline-flex h-6 w-6 items-center justify-center rounded-lg ${meta.className} shadow-inner`}>
-          <Icon size={13} />
+        <div className={`inline-flex h-[22px] w-[22px] items-center justify-center rounded-md ${meta.className} shadow-inner`}>
+          <Icon size={12} />
         </div>
-        <span className="text-[10px] font-medium tracking-[0.01em] text-slate-500">{meta.label}</span>
+        <span className="text-[9px] font-medium uppercase tracking-[0.08em] text-slate-500">{meta.label}</span>
       </div>
-      <div className="min-w-[20px] text-right text-[15px] font-semibold text-brand-red/75">{count}</div>
+      <div className="min-w-[18px] text-right text-sm font-semibold text-brand-red/75">{count}</div>
     </div>
   );
 }
@@ -262,7 +258,7 @@ function CalendarDayCounters({ counts }: { counts: Record<ContentType, number> }
 
   if (entries.length <= 4) {
     return (
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-2 gap-2">
         {entries.map((entry) => (
           <CalendarTypeCounter key={entry.type} type={entry.type} count={entry.count} compact />
         ))}
@@ -498,6 +494,8 @@ const ContentView: React.FC = () => {
   );
   const isReminderTypeDetail = (activeTab === 'follow-ee' || activeTab === 'follow-ega') && !!selectedReminderType;
   const isReminderItemDetail = isReminderTypeDetail && !!selectedReminderItemId;
+  const isReminderTab = activeTab === 'follow-ee' || activeTab === 'follow-ega';
+  const reminderCategoryLabel = 'General';
   const todayKey = useMemo(() => toDateKey(new Date()), []);
   const currentMonthKey = `${monthCursor.getFullYear()}-${String(monthCursor.getMonth() + 1).padStart(2, '0')}`;
   const monthContentCount = useMemo(
@@ -645,6 +643,9 @@ const ContentView: React.FC = () => {
     const isClickable = !!options?.clickable;
     const clickHref = options?.clickHref || `/content/day/${selectedDate}/type/${item.type}/item/${item.contentId}`;
     const isExpanded = !!options?.expanded;
+    const showTypeBadge = activeTab === 'calendar' || isReminderTab;
+    const cardTypeLabel = isReminderTab ? reminderCategoryLabel : TYPE_LABEL[item.type];
+    const cardTypeBadgeClass = isReminderTab ? TYPE_ACCENT.general.badge : TYPE_ACCENT[item.type].badge;
 
     return (
     <div
@@ -667,8 +668,10 @@ const ContentView: React.FC = () => {
     >
       <div className={`pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r ${TYPE_ACCENT[item.type].tone}`} />
       <div className="relative flex items-start justify-between gap-4">
-        <div className="min-w-0 space-y-3">
-          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${TYPE_ACCENT[item.type].badge}`}>{TYPE_LABEL[item.type]}</span>
+        <div className={`min-w-0 ${showTypeBadge ? 'space-y-3' : 'space-y-0'}`}>
+          {showTypeBadge ? (
+            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${cardTypeBadgeClass}`}>{cardTypeLabel}</span>
+          ) : null}
           <h4
             className="text-lg font-semibold text-slate-900"
             style={isExpanded ? undefined : {
@@ -734,87 +737,88 @@ const ContentView: React.FC = () => {
   };
 
   return (
-    <div className="relative space-y-6 pb-6">
+    <div className="relative -mx-8 -mt-14 w-auto space-y-4 pb-4 lg:-mx-10 lg:-mt-16 xl:-mx-12">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 rounded-[2.25rem] bg-[radial-gradient(circle_at_top_left,_rgba(139,92,246,0.12),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(239,68,68,0.08),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.9),_rgba(248,250,252,0.65))]" />
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
 
-      <div className="rounded-[1.75rem] border border-white/70 bg-white/75 p-3 shadow-[0_18px_48px_rgba(15,23,42,0.06)] backdrop-blur">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-          {(Object.keys(TAB_META) as ContentTab[]).map((tab) => {
-            const meta = TAB_META[tab];
-            const Icon = meta.icon;
-            const isActive = activeTab === tab;
-            return (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => handleTabChange(tab)}
-                className={`group rounded-[1.4rem] border px-4 py-4 text-left transition-all duration-200 ${isActive ? meta.activeClass : meta.idleClass}`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className={`rounded-2xl p-2.5 ${isActive ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-700 group-hover:bg-white'}`}>
-                    <Icon size={18} />
+      <div className="w-full max-w-full rounded-[1.65rem] border border-white/70 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
+        <div className="p-0">
+          <div className="grid w-full grid-cols-1 gap-2 lg:grid-cols-4 lg:gap-2.5">
+            {(Object.keys(TAB_META) as ContentTab[]).map((tab) => {
+              const meta = TAB_META[tab];
+              const Icon = meta.icon;
+              const isActive = activeTab === tab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => handleTabChange(tab)}
+                  className={`group flex items-center rounded-[1.2rem] border px-4 py-2.5 text-left transition-all duration-200 ${isActive ? meta.activeClass : meta.idleClass}`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-[0.95rem] ${isActive ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-700 group-hover:bg-white'}`}>
+                      <Icon size={17} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className={`text-[15px] font-semibold leading-none ${isActive ? 'text-white' : 'text-slate-900'}`}>{meta.label}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className={`text-base font-semibold ${isActive ? 'text-white' : 'text-slate-900'}`}>{meta.label}</div>
-                    <div className={`mt-1 text-xs leading-5 ${isActive ? 'text-white/80' : 'text-slate-500'}`}>{meta.hint}</div>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {activeTab === 'calendar' && !isDayPage && (
-      <div className="rounded-[2rem] border border-white/70 bg-white/90 p-5 shadow-[0_26px_70px_rgba(15,23,42,0.08)]">
-        <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="w-full max-w-full rounded-[1.8rem] border border-white/70 bg-white shadow-[0_22px_56px_rgba(15,23,42,0.08)]">
+        <div className="px-4 py-5">
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Monthly Board</p>
-            <h3 className="mt-1 text-2xl font-semibold text-slate-900">{monthCursor.toLocaleString('en-US', { month: 'long', year: 'numeric' })}</h3>
-            <p className="mt-1 text-sm text-slate-500">Visualize publishing volume and move from planning to execution without leaving the calendar.</p>
+            <h3 className="mt-1 text-[1.7rem] font-semibold tracking-[-0.02em] text-slate-900">{monthCursor.toLocaleString('en-US', { month: 'long', year: 'numeric' })}</h3>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-2 text-sm text-slate-600">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="rounded-[1rem] border border-slate-200 bg-slate-50/80 px-3.5 py-1.5 text-[13px] text-slate-600">
               {monthContentCount} items scheduled this month
             </div>
             <button
               type="button"
               onClick={() => openCreatePage()}
-              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(139,92,246,0.25)] transition hover:translate-y-[-1px]"
+              className="inline-flex items-center gap-2 rounded-[1rem] bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3.5 py-2.5 text-sm font-medium text-white shadow-[0_16px_30px_rgba(139,92,246,0.22)] transition hover:translate-y-[-1px]"
             >
               <Plus size={16} /> Add Content
             </button>
           </div>
         </div>
-        <div className="mb-5 flex flex-wrap items-center gap-2">
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-violet-200 hover:text-violet-700"
+            className="inline-flex items-center gap-2 rounded-[1rem] border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-violet-200 hover:text-violet-700"
           >
             <ChevronLeft size={16} /> Prev
           </button>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700">
+          <div className="rounded-[1rem] border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm font-medium text-slate-700">
             {monthCursor.toLocaleString('en-US', { month: 'long', year: 'numeric' })}
           </div>
           <button
             type="button"
             onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-violet-200 hover:text-violet-700"
+            className="inline-flex items-center gap-2 rounded-[1rem] border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-violet-200 hover:text-violet-700"
           >
             Next <ChevronRight size={16} />
           </button>
         </div>
 
-        <div className="grid grid-cols-7 gap-3">
+        <div className="grid grid-cols-7 gap-2.5">
           {WEEK_DAYS.map((day, dayIndex) => (
-            <div key={day} className={`rounded-2xl px-3 py-3 text-center text-xs font-medium uppercase tracking-[0.12em] ${WEEK_DAY_HEADER_CLASS[dayIndex]}`}>
+            <div key={day} className={`rounded-[1rem] px-2.5 py-2 text-center text-[11px] font-medium uppercase tracking-[0.12em] ${WEEK_DAY_HEADER_CLASS[dayIndex]}`}>
               {day}
             </div>
           ))}
           {monthDays.map((day, idx) => {
-            if (!day) return <div key={`empty-${idx}`} className="h-[156px] rounded-[1.6rem] border border-dashed border-slate-200 bg-white/40" />;
+            if (!day) return <div key={`empty-${idx}`} className="h-[138px] rounded-[1.35rem] border border-dashed border-slate-200 bg-white/40" />;
             const dateKey = toDateKey(day);
             const counts = countsByDate.get(dateKey);
             const hasAny = !!counts && Object.values(counts).some((val) => val > 0);
@@ -827,7 +831,7 @@ const ContentView: React.FC = () => {
                 key={dateKey}
                 type="button"
                 onClick={() => navigate(`/content/day/${dateKey}`)}
-                className={`group relative h-[156px] overflow-hidden rounded-[1.7rem] border p-4 text-left transition-all duration-200 ${
+                className={`group relative h-[138px] overflow-hidden rounded-[1.45rem] border p-3.5 text-left transition-all duration-200 ${
                   active
                     ? 'border-violet-300 bg-gradient-to-br from-violet-50 to-white shadow-[0_18px_40px_rgba(139,92,246,0.12)]'
                     : isWeekend
@@ -835,29 +839,30 @@ const ContentView: React.FC = () => {
                     : 'border-slate-200 bg-white hover:border-violet-200 hover:shadow-[0_12px_28px_rgba(15,23,42,0.06)]'
                 }`}
               >
-                <div className="mb-4 flex items-center justify-between">
-                  <span className={`inline-flex h-9 w-9 items-center justify-center rounded-2xl text-sm font-semibold ${active ? 'bg-violet-600 text-white' : isToday ? 'border border-brand-red/20 bg-white text-brand-red shadow-[0_8px_20px_rgba(236,72,71,0.10)]' : 'bg-slate-100 text-slate-700'}`}>
+                <div className="mb-3 flex items-center justify-between">
+                  <span className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-[13px] font-semibold ${active ? 'bg-violet-600 text-white' : isToday ? 'border border-brand-red/20 bg-white text-brand-red shadow-[0_8px_20px_rgba(236,72,71,0.10)]' : 'bg-slate-100 text-slate-700'}`}>
                     {String(day.getDate()).padStart(2, '0')}
                   </span>
-                  {isToday ? <span className="rounded-full border border-brand-red/20 bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-red shadow-[0_8px_20px_rgba(236,72,71,0.10)]">Today</span> : null}
+                  {isToday ? <span className="rounded-full border border-brand-red/20 bg-white px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-brand-red shadow-[0_8px_20px_rgba(236,72,71,0.10)]">Today</span> : null}
                 </div>
                 {hasAny ? (
                   <CalendarDayCounters counts={counts!} />
                 ) : (
-                  <div className="mt-10 text-xs text-slate-300">No scheduled items</div>
+                  <div className="mt-7 text-[11px] text-slate-300">No scheduled items</div>
                 )}
               </button>
             );
           })}
         </div>
       </div>
+      </div>
       )}
 
       {activeTab === 'calendar' ? (
         isDayPage ? (
           <div className="space-y-4">
-            <div className="rounded-[2rem] border border-white/70 bg-white/90 p-5 shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="rounded-[2rem] border border-white/70 bg-white/90 px-5 py-2 shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-slate-400">
                     <Link to="/content" className="inline-flex items-center gap-2 transition hover:text-slate-700">
@@ -881,7 +886,7 @@ const ContentView: React.FC = () => {
                       </>
                     ) : null}
                   </div>
-                  <h3 className="mt-2 text-2xl font-semibold text-slate-900">
+                  <h3 className="mt-1.5 text-[1.28rem] font-semibold text-slate-900">
                     {isItemDetailPage
                       ? (selectedItem?.title || 'Content details')
                       : isTypeDetailPage
@@ -910,7 +915,7 @@ const ContentView: React.FC = () => {
             ) : isTypeDetailPage ? (
               isItemDetailPage ? (
                 selectedItem ? (
-                  <div className="mx-auto max-w-[820px]">
+                  <div className="w-full">
                     {renderContentCard(selectedItem, { expanded: true })}
                   </div>
                 ) : (
@@ -953,7 +958,7 @@ const ContentView: React.FC = () => {
                 </div>
               )
             ) : selectedDayItems.length > 0 ? (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {selectedDayGroups.map((group) => {
                   const meta = TYPE_ICON_META[group.type];
                   const Icon = meta.icon;
@@ -969,22 +974,22 @@ const ContentView: React.FC = () => {
                           navigate(`/content/day/${selectedDate}/type/${group.type}`);
                         }
                       }}
-                      className="group relative aspect-[1.02/1] w-full overflow-hidden rounded-[2rem] border border-white/80 bg-white/95 p-6 text-left shadow-[0_22px_56px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_28px_64px_rgba(15,23,42,0.12)]"
+                      className="group relative aspect-[1.16/1] w-full overflow-hidden rounded-[2rem] border border-white/80 bg-white/95 p-3.5 text-left shadow-[0_22px_56px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_28px_64px_rgba(15,23,42,0.12)]"
                     >
-                      <div className={`pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r ${TYPE_ACCENT[group.type].tone}`} />
+                      <div className={`pointer-events-none absolute inset-x-0 top-0 h-[70px] bg-gradient-to-r ${TYPE_ACCENT[group.type].tone}`} />
                       <div className="relative flex h-full flex-col">
                         <div className="flex items-start justify-between gap-4">
                           <div className="inline-flex items-center gap-2">
-                            <div className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white/90 ${meta.className} shadow-[0_10px_24px_rgba(255,255,255,0.45)]`}>
-                              <Icon size={18} />
+                            <div className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/90 ${meta.className} shadow-[0_10px_24px_rgba(255,255,255,0.45)]`}>
+                              <Icon size={17} />
                             </div>
-                            <span className={`inline-flex rounded-full px-4 py-1.5 text-sm font-semibold ${TYPE_ACCENT[group.type].badge}`}>{TYPE_LABEL[group.type]}</span>
+                            <span className={`inline-flex rounded-full px-3.5 py-1.5 text-[15px] font-semibold ${TYPE_ACCENT[group.type].badge}`}>{TYPE_LABEL[group.type]}</span>
                           </div>
-                          <span className={`inline-flex h-14 min-w-[56px] items-center justify-center rounded-[1.15rem] border bg-white px-3 text-xl font-semibold ${TYPE_ACCENT[group.type].counter}`}>
+                          <span className={`inline-flex h-10 min-w-[46px] items-center justify-center rounded-[1rem] border bg-white px-2.5 text-[1.1rem] font-semibold ${TYPE_ACCENT[group.type].counter}`}>
                             {group.count}
                           </span>
                         </div>
-                        <div className="mt-8 max-h-[184px] space-y-3 overflow-y-auto pr-1">
+                        <div className="mt-7 max-h-[184px] space-y-3 overflow-y-auto pr-1">
                           {group.items.map((item, index) => (
                             <button
                               key={item.contentId}
@@ -1010,8 +1015,8 @@ const ContentView: React.FC = () => {
                             </button>
                           ))}
                         </div>
-                        <div className="mt-auto flex items-center justify-between gap-4 pt-8">
-                          <p className="text-base text-slate-500">
+                        <div className="mt-auto flex items-center justify-between gap-4 pt-6">
+                          <p className="text-[15px] text-slate-500">
                             {group.count} item{group.count === 1 ? '' : 's'} scheduled
                           </p>
                           <div className="inline-flex items-center gap-2 text-sm font-medium text-brand-red/80 transition group-hover:text-brand-red">
@@ -1043,55 +1048,51 @@ const ContentView: React.FC = () => {
           </div>
         ) : null
       ) : activeTab === 'auto-add' ? (
-        <div className="rounded-[2rem] border border-white/70 bg-white/90 p-6 shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
-          <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="rounded-[2rem] border border-white/70 bg-white/90 px-5 py-3.5 shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">Reusable Assets</p>
-              <h3 className="mt-1 text-2xl font-semibold text-slate-900">Auto add library</h3>
-              <p className="mt-1 text-sm text-slate-500">Maintain your reusable links and hashtags in a clean, premium workspace for faster content assembly.</p>
+              <h3 className="text-[1.2rem] font-semibold text-slate-900">Auto add library</h3>
             </div>
-            <div className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50/70 px-4 py-2 text-sm text-fuchsia-700">
+            <div className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50/70 px-3.5 py-1.5 text-[13px] text-fuchsia-700">
               {linkOptions.length + tagOptions.length} reusable assets
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-            <div className="rounded-[1.7rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="rounded-2xl bg-violet-100 p-3 text-violet-700"><Link2 size={18} /></div>
-                <div>
-                  <h4 className="text-lg font-semibold text-slate-900">Links</h4>
-                  <p className="text-sm text-slate-500">Store campaign URLs and frequently used destinations.</p>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:justify-items-center">
+            <div className="w-full max-w-[640px] rounded-[1.7rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-4 py-2.5 shadow-sm xl:w-[590px] xl:max-w-[590px]">
+              <div className="mb-2 flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-[0.95rem] bg-violet-100 text-violet-700"><Link2 size={14} /></div>
+                <div className="min-w-0">
+                  <h4 className="text-[0.95rem] font-semibold leading-none text-slate-900">Links</h4>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <input value={newLinkValue} onChange={(e) => setNewLinkValue(e.target.value)} placeholder="https://..." className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100" />
-                <button type="button" onClick={addAutoLink} className="rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-5 py-3 text-sm font-medium text-white shadow-[0_16px_30px_rgba(139,92,246,0.22)]">Add</button>
+              <div className="flex items-center gap-2.5">
+                <input value={newLinkValue} onChange={(e) => setNewLinkValue(e.target.value)} placeholder="https://..." className="min-w-0 w-[calc(100%-72px)] max-w-[500px] rounded-2xl border border-slate-200 bg-white px-4 py-2 text-[14px] outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100" />
+                <button type="button" onClick={addAutoLink} className="min-w-[62px] rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-2 text-[12px] font-medium text-white shadow-[0_16px_30px_rgba(139,92,246,0.22)]">Add</button>
               </div>
-              <div className="mt-4 space-y-2">
+              <div className="mt-3.5 space-y-2">
                 {linkOptions.map((entry) => (
-                  <div key={entry} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-                    <span className="truncate text-slate-700">{entry}</span>
+                  <div key={entry} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm shadow-sm">
+                    <span className="truncate text-[13px] text-slate-700">{entry}</span>
                     <button type="button" onClick={() => removeAutoLink(entry)} className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-100">Remove</button>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="rounded-[1.7rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="rounded-2xl bg-fuchsia-100 p-3 text-fuchsia-700"><Hash size={18} /></div>
-                <div>
-                  <h4 className="text-lg font-semibold text-slate-900">Hashtags</h4>
-                  <p className="text-sm text-slate-500">Keep branded and campaign-specific tags ready to insert.</p>
+            <div className="w-full max-w-[640px] rounded-[1.7rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-4 py-2.5 shadow-sm xl:w-[590px] xl:max-w-[590px]">
+              <div className="mb-2 flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-[0.95rem] bg-fuchsia-100 text-fuchsia-700"><Hash size={14} /></div>
+                <div className="min-w-0">
+                  <h4 className="text-[0.95rem] font-semibold leading-none text-slate-900">Hashtags</h4>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <input value={newTagValue} onChange={(e) => setNewTagValue(e.target.value)} placeholder="#tag" className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-fuchsia-300 focus:ring-4 focus:ring-fuchsia-100" />
-                <button type="button" onClick={addAutoTag} className="rounded-2xl bg-gradient-to-r from-fuchsia-600 to-violet-600 px-5 py-3 text-sm font-medium text-white shadow-[0_16px_30px_rgba(217,70,239,0.22)]">Add</button>
+              <div className="flex items-center gap-2.5">
+                <input value={newTagValue} onChange={(e) => setNewTagValue(e.target.value)} placeholder="#tag" className="min-w-0 w-[calc(100%-72px)] max-w-[500px] rounded-2xl border border-slate-200 bg-white px-4 py-2 text-[14px] outline-none transition focus:border-fuchsia-300 focus:ring-4 focus:ring-fuchsia-100" />
+                <button type="button" onClick={addAutoTag} className="min-w-[62px] rounded-2xl bg-gradient-to-r from-fuchsia-600 to-violet-600 px-4 py-2 text-[12px] font-medium text-white shadow-[0_16px_30px_rgba(217,70,239,0.22)]">Add</button>
               </div>
-              <div className="mt-4 space-y-2">
+              <div className="mt-3.5 space-y-2">
                 {tagOptions.map((entry) => (
-                  <div key={entry} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-                    <span className="truncate text-slate-700">{entry}</span>
+                  <div key={entry} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm shadow-sm">
+                    <span className="truncate text-[13px] text-slate-700">{entry}</span>
                     <button type="button" onClick={() => removeAutoTag(entry)} className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-100">Remove</button>
                   </div>
                 ))}
@@ -1101,8 +1102,8 @@ const ContentView: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="rounded-[2rem] border border-white/70 bg-white/90 p-5 shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="rounded-[2rem] border border-white/70 bg-white/90 px-5 py-4 shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
                   <span>Reminder Workflow</span>
@@ -1126,7 +1127,7 @@ const ContentView: React.FC = () => {
                         onClick={() => navigate(`/content?tab=${encodeURIComponent(activeTab)}&reminderType=${encodeURIComponent(selectedReminderType!)}`)}
                         className="transition hover:text-slate-700"
                       >
-                        {TYPE_LABEL[selectedReminderType!]}
+                        {reminderCategoryLabel}
                       </button>
                     </>
                   ) : null}
@@ -1135,18 +1136,11 @@ const ContentView: React.FC = () => {
                   {isReminderItemDetail
                     ? (selectedReminderItem?.title || 'Reminder details')
                     : isReminderTypeDetail
-                    ? `${TYPE_LABEL[selectedReminderType!]} reminders`
+                    ? `${reminderCategoryLabel} reminders`
                     : activeTab === 'follow-ee'
                     ? 'EE follow-ups'
                     : 'EGA follow-ups'}
                 </h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  {isReminderItemDetail
-                    ? 'Focused view for this reminder item.'
-                    : isReminderTypeDetail
-                    ? `${selectedReminderTypeItems.length} ${TYPE_LABEL[selectedReminderType!].toLowerCase()} reminder item${selectedReminderTypeItems.length === 1 ? '' : 's'} ready to review, update, or publish.`
-                    : 'Curated reminder cards designed for prompt follow-through and high-visibility team communication.'}
-                </p>
               </div>
               <button
                 type="button"
@@ -1169,7 +1163,7 @@ const ContentView: React.FC = () => {
             </div>
           ) : isReminderItemDetail ? (
             selectedReminderItem ? (
-              <div className="mx-auto max-w-[820px]">
+              <div className="w-full">
                 {renderContentCard(selectedReminderItem, { expanded: true })}
               </div>
             ) : (
