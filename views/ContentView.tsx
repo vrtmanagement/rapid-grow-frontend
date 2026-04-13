@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowRight, BellRing, Bot, CalendarDays, ChevronLeft, ChevronRight, FileText, Globe, Hash, Linkedin, Link2, Mail, Pencil, Plus, Sparkles, Trash2, X, Youtube } from 'lucide-react';
+import { ArrowRight, BellRing, Bot, CalendarDays, ChevronLeft, ChevronRight, Download, FileText, Globe, Hash, Linkedin, Link2, Mail, Pencil, Plus, Sparkles, Trash2, X, Youtube } from 'lucide-react';
 import { apiCreateContent, apiDeleteContent, apiListContent, apiUpdateContent, apiUploadContentFile, ContentAsset, ContentItem, ContentType } from '../services/contentApi';
 import { apiListUsers } from '../communication/api';
 import Toast from '../components/ui/Toast';
@@ -167,6 +167,38 @@ function renderStyledDescription(text: string) {
     }
     return <React.Fragment key={`part-${index}`}>{part}</React.Fragment>;
   });
+}
+
+function isImageAsset(asset: ContentAsset) {
+  return String(asset.type || '').toLowerCase() === 'image' || String(asset.mimeType || '').toLowerCase().startsWith('image/');
+}
+
+async function triggerAssetDownload(asset: ContentAsset) {
+  const href = String(asset.fileUrl || '').trim();
+  if (!href) return;
+  try {
+    const response = await fetch(href, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Download failed');
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = asset.fileName || 'attachment';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60000);
+  } catch {
+    // Fallback for hosts that block blob fetch.
+    const downloadHref = href.includes('?') ? `${href}&download=${Date.now()}` : `${href}?download=${Date.now()}`;
+    const link = document.createElement('a');
+    link.href = downloadHref;
+    link.download = asset.fileName || 'attachment';
+    link.rel = 'noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
 }
 
 function readStringList(storageKey: string) {
@@ -743,13 +775,57 @@ const ContentView: React.FC = () => {
       </div>
       <FormattedContentBody text={item.description} compact clampLines={isExpanded ? undefined : getPreviewLineClamp(item)} flat />
       {item.attachments?.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {(isExpanded ? item.attachments : item.attachments.slice(0, 2)).map((asset) => (
-            <span key={`${asset.fileId}-${asset.fileUrl}`} className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
-              <span className="h-2 w-2 rounded-full bg-indigo-400/60" />
-              <span className="truncate">{asset.fileName || 'Attachment'}</span>
-            </span>
-          ))}
+        <div
+          className="mt-4 space-y-2.5"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          {(isExpanded ? item.attachments : item.attachments.slice(0, 2)).map((asset) => {
+            const imageAsset = isImageAsset(asset);
+            return (
+              <div key={`${asset.fileId}-${asset.fileUrl}`} className="max-w-full">
+                {imageAsset ? (
+                  <div className="group/asset relative max-w-[260px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-[0_10px_28px_rgba(15,23,42,0.08)]">
+                    <img
+                      src={asset.fileUrl}
+                      alt={asset.fileName || 'Attachment image'}
+                      className="h-40 w-full object-cover"
+                    />
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-black/15 to-transparent opacity-0 transition-opacity duration-200 group-hover/asset:opacity-100" />
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        triggerAssetDownload(asset);
+                      }}
+                      className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/60 bg-white/95 text-slate-700 opacity-0 shadow-lg transition-all duration-200 group-hover/asset:opacity-100"
+                      aria-label={`Download ${asset.fileName || 'attachment'}`}
+                      title={`Download ${asset.fileName || 'attachment'}`}
+                    >
+                      <Download size={15} />
+                    </button>
+                    <div className="bg-white/95 px-3 py-2 text-xs font-medium text-slate-600">
+                      <span className="block truncate">{asset.fileName || 'Attachment image'}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      triggerAssetDownload(asset);
+                    }}
+                    className="group/file inline-flex w-auto max-w-[520px] items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-xs font-medium text-slate-700 transition hover:border-violet-200 hover:bg-white"
+                    title={`Download ${asset.fileName || 'attachment'}`}
+                  >
+                    <span className="h-2 w-2 rounded-full bg-indigo-400/60" />
+                    <span className="min-w-0 flex-1 truncate">{asset.fileName || 'Attachment'}</span>
+                    <Download size={14} className="text-slate-400 transition group-hover/file:text-violet-600" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
           {!isExpanded && item.attachments.length > 2 ? (
             <span className="inline-flex items-center rounded-full border border-brand-red/15 bg-brand-red/5 px-3 py-1.5 text-xs font-semibold text-brand-red">
               +{item.attachments.length - 2} more files
