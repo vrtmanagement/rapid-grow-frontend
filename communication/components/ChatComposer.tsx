@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { FileUp, Image as ImageIcon, Loader2, Paperclip, Send } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { FileUp, Image as ImageIcon, Loader2, Paperclip, Send, X } from 'lucide-react';
 import { ChatMessage } from '../types';
 
 export function ChatComposer({
@@ -22,33 +22,29 @@ export function ChatComposer({
   resolveUserName: (userId: string) => string;
 }) {
   const [content, setContent] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    if (!file) {
+    const imageFile = files.find((f) => f.type.startsWith("image/")) || null;
+    if (!imageFile) {
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
       setFilePreviewUrl(null);
       return;
     }
-    const isImage = file.type.startsWith("image/");
-    if (!isImage) {
-      if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
-      setFilePreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(file);
+    const url = URL.createObjectURL(imageFile);
     setFilePreviewUrl(url);
     return () => URL.revokeObjectURL(url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file]);
+  }, [files]);
 
   const canSend = useMemo(() => {
-    return (content.trim().length > 0 || !!file) && !disabled && !sending;
-  }, [content, file, disabled, sending]);
+    return (content.trim().length > 0 || files.length > 0) && !disabled && !sending;
+  }, [content, files, disabled, sending]);
 
   const handleSend = async () => {
     if (!canSend) return;
@@ -57,15 +53,19 @@ export function ChatComposer({
       setSendError(null);
       const trimmed = content.trim();
       const replyToMessageId = replyToMessage?.id || null;
-      if (file) {
+      if (files.length > 0) {
         setUploadingFile(true);
-        await onSendFile(file, trimmed || undefined, replyToMessageId);
+        for (let i = 0; i < files.length; i += 1) {
+          const file = files[i];
+          await onSendFile(file, i === 0 ? trimmed || undefined : undefined, replyToMessageId);
+        }
       } else {
         await onSendText(trimmed, replyToMessageId);
       }
       setContent("");
-      setFile(null);
+      setFiles([]);
       setFilePreviewUrl(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       onCancelReply();
     } catch (e: any) {
       setSendError(e?.message || 'Failed to send');
@@ -77,28 +77,37 @@ export function ChatComposer({
 
   return (
     <div className="border-t border-slate-200 bg-white p-4">
-      {file ? (
-        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <div className="min-w-0 flex items-center gap-3">
-            <div className="shrink-0 w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center">
-              {file.type.startsWith("image/") ? <ImageIcon size={18} className="text-brand-red" /> : <FileUp size={18} className="text-slate-700" />}
+      {files.length > 0 ? (
+        <div className="mb-3 space-y-2">
+          {files.map((file, index) => (
+            <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="min-w-0 flex items-center gap-3">
+                <div className="shrink-0 w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center">
+                  {file.type.startsWith("image/") ? <ImageIcon size={18} className="text-brand-red" /> : <FileUp size={18} className="text-slate-700" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900 truncate">{file.name}</div>
+                  <div className="text-xs text-slate-500">{file.type || 'file'} • {(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setFiles((prev) => prev.filter((_, i) => i !== index));
+                  if (fileInputRef.current) fileInputRef.current.value = "";
+                }}
+                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                aria-label={`Remove ${file.name}`}
+                title="Remove file"
+              >
+                <X size={14} />
+              </button>
             </div>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-slate-900 truncate">{file.name}</div>
-              <div className="text-xs text-slate-500">{file.type || 'file'} • {(file.size / 1024 / 1024).toFixed(2)} MB</div>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setFile(null)}
-            className="px-3 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-sm text-slate-700"
-          >
-            Remove
-          </button>
+          ))}
         </div>
       ) : null}
 
-      {filePreviewUrl && file?.type.startsWith("image/") ? (
+      {filePreviewUrl ? (
         <div className="mb-3 relative inline-block">
           <img src={filePreviewUrl} alt="Attachment preview" className="max-h-56 w-auto rounded-xl border border-slate-200 bg-white" />
           {sending ? (
@@ -173,12 +182,14 @@ export function ChatComposer({
               <Paperclip size={16} className="text-slate-700" />
               <input
                 type="file"
+                ref={fileInputRef}
                 className="hidden"
                 disabled={disabled || sending}
-                accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                multiple
+                accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 onChange={(e) => {
-                  const next = e.target.files?.[0] || null;
-                  setFile(next);
+                  const selected = Array.from(e.target.files || []);
+                  setFiles((prev) => [...prev, ...selected]);
                   notifyTyping();
                 }}
               />
