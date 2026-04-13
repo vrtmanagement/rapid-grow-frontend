@@ -49,7 +49,7 @@ const AttendanceHistoryModal: React.FC<Props> = ({ open, onClose, summary }) => 
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-slate-800">
-                          {new Date(d.date).toLocaleDateString()}
+                          {new Date(d.date).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
                         </span>
                       </div>
                       <span
@@ -69,9 +69,19 @@ const AttendanceHistoryModal: React.FC<Props> = ({ open, onClose, summary }) => 
                             className="flex items-center justify-between text-[11px] text-slate-600"
                           >
                             <span>
-                              {new Date(s.loginTime).toLocaleTimeString()} –{' '}
+                              {new Date(s.loginTime).toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                                hour12: true,
+                                timeZone: 'Asia/Kolkata',
+                              })} –{' '}
                               {s.logoutTime
-                                ? new Date(s.logoutTime).toLocaleTimeString()
+                                ? new Date(s.logoutTime).toLocaleTimeString('en-US', {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    hour12: true,
+                                    timeZone: 'Asia/Kolkata',
+                                  })
                                 : 'active'}
                             </span>
                             <span className="font-mono text-slate-500">

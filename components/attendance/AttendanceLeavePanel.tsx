@@ -257,8 +257,8 @@ const AttendanceLeavePanel: React.FC<Props> = ({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-semibold text-slate-800">
-                    {new Date(l.startDate).toLocaleDateString()} –{' '}
-                    {new Date(l.endDate).toLocaleDateString()}
+                    {new Date(l.startDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} –{' '}
+                    {new Date(l.endDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
                   </p>
                     {isApproverPortal && getEmployeeRecordLabel(l) ? (
                       <p className="mt-1 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold tracking-[0.04em] text-slate-700">
@@ -270,7 +270,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
                         {l.type}
                       </span>
                       <span className="text-[10px] text-slate-400">
-                        Applied {new Date(l.createdAt).toLocaleDateString()}
+                        Applied {new Date(l.createdAt).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
                       </span>
                     </div>
                     <p className="mt-2 text-slate-500 line-clamp-2">
@@ -308,8 +308,8 @@ const AttendanceLeavePanel: React.FC<Props> = ({
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-slate-800">{l.empName || l.empId}</span>
                     <span className="text-[10px] text-slate-500">
-                      {new Date(l.startDate).toLocaleDateString()} –{' '}
-                      {new Date(l.endDate).toLocaleDateString()}
+                      {new Date(l.startDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} –{' '}
+                      {new Date(l.endDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
                     </span>
                   </div>
                   <p className="text-slate-500 line-clamp-1">

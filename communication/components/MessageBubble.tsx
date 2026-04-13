@@ -6,7 +6,12 @@ import { API_BASE } from '../../config/api';
 
 function formatTime(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+  return d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kolkata',
+  });
 }
 
 function formatAttachmentSize(size?: number) {

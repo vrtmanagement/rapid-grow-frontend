@@ -137,7 +137,12 @@ const AttendanceLiveSession: React.FC<Props> = ({
           <div className="flex items-center justify-between">
             <span>Logged in at</span>
             <span className="font-mono">
-              {new Date(activeSession.loginTime).toLocaleTimeString()}
+              {new Date(activeSession.loginTime).toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+                timeZone: 'Asia/Kolkata',
+              })}
             </span>
           </div>
           {activeSession.location && (

@@ -753,7 +753,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         const actorProfile = getLeaveActorProfile(leave);
         const actorHeading = formatLeaveActorHeading(actorProfile);
         const actorMeta = formatLeaveActorMeta(actorProfile);
-        const leaveWindow = `${leave.type} leave from ${new Date(leave.startDate).toLocaleDateString()} to ${new Date(leave.endDate).toLocaleDateString()} is waiting for review.`;
+        const leaveWindow = `${leave.type} leave from ${new Date(leave.startDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} to ${new Date(leave.endDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} is waiting for review.`;
         items.push({
           id: `pending-${leave._id}`,
           title: `${actorHeading} submitted a leave request`,
@@ -776,8 +776,8 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
               : 'Leave request pending approval';
         const description =
           leave.status === 'PENDING'
-            ? `${leave.type} leave from ${new Date(leave.startDate).toLocaleDateString()} to ${new Date(leave.endDate).toLocaleDateString()} is waiting for review.`
-            : `${leave.type} leave from ${new Date(leave.startDate).toLocaleDateString()} to ${new Date(leave.endDate).toLocaleDateString()} was ${leave.status.toLowerCase()}.`;
+            ? `${leave.type} leave from ${new Date(leave.startDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} to ${new Date(leave.endDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} is waiting for review.`
+            : `${leave.type} leave from ${new Date(leave.startDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} to ${new Date(leave.endDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} was ${leave.status.toLowerCase()}.`;
 
         items.push({
           id: notificationId,
@@ -855,7 +855,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     return Array.from({ length: 12 }, (_, index) => {
       const date = new Date(baseDate.getFullYear(), baseDate.getMonth() - index, 1);
       const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
       return { value, label };
     });
   }, []);

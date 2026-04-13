@@ -1612,7 +1612,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
               <div className={`rounded-2xl border p-4 ${leaveDetailStatusThemes[selectedDetailLeave.status].panel}`}>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Date range</p>
                 <p className="mt-3 whitespace-nowrap text-[1.18rem] font-semibold tracking-[-0.025em] text-slate-950">
-                  {new Date(selectedDetailLeave.startDate).toLocaleDateString()} {'->'} {new Date(selectedDetailLeave.endDate).toLocaleDateString()}
+                  {new Date(selectedDetailLeave.startDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} {'->'} {new Date(selectedDetailLeave.endDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
                 </p>
               </div>
               <div className={`rounded-2xl border p-4 ${leaveDetailStatusThemes[selectedDetailLeave.status].panel}`}>

@@ -1121,7 +1121,7 @@ const App: React.FC = () => {
                           <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
                           <p className="mt-1 text-sm leading-6 text-slate-600">{notification.message}</p>
                           <p className="mt-2 text-[12px] font-medium text-slate-400">
-                            {new Date(notification.createdAt).toLocaleString()}
+                            {new Date(notification.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })}
                           </p>
                         </div>
                         {!notification.isRead && (

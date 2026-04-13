@@ -892,7 +892,7 @@ const WorkspaceP1Detail: React.FC<Props> = ({ state, updateState }) => {
                         </div>
                         {m.createdAt && (
                           <span className="text-[11px] text-slate-400">
-                            {new Date(m.createdAt).toLocaleString()}
+                            {new Date(m.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })}
                           </span>
                         )}
                       </div>

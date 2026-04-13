@@ -170,10 +170,11 @@ const EmployeeProjectDetailView: React.FC = () => {
             <h1 className="text-3xl font-bold text-slate-900 mb-2">{proj.name}</h1>
             {proj.dateCreated && (
               <p className="text-sm text-slate-500">
-                Created on {new Date(proj.dateCreated as string).toLocaleDateString(undefined, {
+                Created on {new Date(proj.dateCreated as string).toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',
+                  timeZone: 'Asia/Kolkata',
                 })}
               </p>
             )}
@@ -386,7 +387,7 @@ const EmployeeProjectDetailView: React.FC = () => {
                                   </div>
                                   {m.createdAt && (
                                     <div className="text-[10px] text-slate-400 whitespace-nowrap">
-                                      {new Date(m.createdAt).toLocaleString()}
+                                      {new Date(m.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })}
                                     </div>
                                   )}
                                 </div>
@@ -439,7 +440,7 @@ const EmployeeProjectDetailView: React.FC = () => {
                                   </div>
                                   {m.createdAt && (
                                     <span className="text-[10px] text-slate-400">
-                                      {new Date(m.createdAt).toLocaleString()}
+                                      {new Date(m.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })}
                                     </span>
                                   )}
                                 </div>
