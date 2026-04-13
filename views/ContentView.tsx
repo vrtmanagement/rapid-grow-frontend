@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowRight, BellRing, Bot, CalendarDays, ChevronLeft, ChevronRight, Download, FileText, Globe, Hash, Linkedin, Link2, Mail, Pencil, Plus, Sparkles, Trash2, X, Youtube } from 'lucide-react';
-import { apiCreateContent, apiDeleteContent, apiListContent, apiUpdateContent, apiUploadContentFile, ContentAsset, ContentItem, ContentType } from '../services/contentApi';
+import { ArrowRight, BellRing, Bot, CalendarDays, ChevronLeft, ChevronRight, Download, FileText, Globe, Hash, Linkedin, Link2, Mail, MessageSquareText, Pencil, Plus, Sparkles, Trash2, X, Youtube } from 'lucide-react';
+import { apiAddContentComment, apiCreateContent, apiDeleteContent, apiDeleteContentComment, apiListContent, apiUpdateContent, apiUpdateContentComment, apiUploadContentFile, ContentAsset, ContentComment, ContentItem, ContentType } from '../services/contentApi';
 import { apiListUsers } from '../communication/api';
 import Toast from '../components/ui/Toast';
 
@@ -138,6 +138,43 @@ function nameInitials(name: string) {
   if (!clean) return 'U';
   const parts = clean.split(/\s+/);
   return (parts[0][0] + (parts[1]?.[0] || '')).toUpperCase();
+}
+
+function getLoggedInUser() {
+  try {
+    const raw = localStorage.getItem('rapidgrow-admin');
+    const parsed = raw ? JSON.parse(raw) : null;
+    const employee = parsed?.employee || {};
+    return {
+      empId: String(employee.empId || employee._id || '').trim(),
+      role: String(employee.role || '').trim().toUpperCase(),
+    };
+  } catch {
+    return { empId: '', role: '' };
+  }
+}
+
+function isAdminRole(role: string) {
+  return role === 'SUPER_ADMIN' || role === 'ADMIN';
+}
+
+function formatUsDateTime(value?: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+function autoResizeTextarea(target: HTMLTextAreaElement) {
+  target.style.height = 'auto';
+  target.style.height = `${target.scrollHeight}px`;
 }
 
 function renderStyledDescription(text: string) {
@@ -368,6 +405,15 @@ const ContentView: React.FC = () => {
   const [tagOptions, setTagOptions] = useState<string[]>(() => readStringList(TAG_STORAGE_KEY));
   const [newLinkValue, setNewLinkValue] = useState('');
   const [newTagValue, setNewTagValue] = useState('');
+  const [openCommentsForContentId, setOpenCommentsForContentId] = useState<string | null>(null);
+  const [commentDraftByContentId, setCommentDraftByContentId] = useState<Record<string, string>>({});
+  const [replyDraftByCommentId, setReplyDraftByCommentId] = useState<Record<string, string>>({});
+  const [replyingToCommentByContentId, setReplyingToCommentByContentId] = useState<Record<string, string | null>>({});
+  const [editingCommentByContentId, setEditingCommentByContentId] = useState<Record<string, string | null>>({});
+  const [editingDraftByCommentId, setEditingDraftByCommentId] = useState<Record<string, string>>({});
+  const [commentBusyKey, setCommentBusyKey] = useState<string | null>(null);
+  const [commentDeleteModal, setCommentDeleteModal] = useState<{ contentId: string; commentId: string } | null>(null);
+  const currentUser = useMemo(() => getLoggedInUser(), []);
 
   async function refresh() {
     setLoading(true);
@@ -695,6 +741,85 @@ const ContentView: React.FC = () => {
     }
   };
 
+  const updateItemComments = (contentId: string, comments: ContentComment[]) => {
+    setItems((prev) =>
+      prev.map((entry) => (entry.contentId === contentId ? { ...entry, comments: Array.isArray(comments) ? comments : [] } : entry))
+    );
+  };
+
+  const handleAddComment = async (item: ContentItem) => {
+    const draft = String(commentDraftByContentId[item.contentId] || '').trim();
+    if (!draft || commentBusyKey) return;
+    setError(null);
+    setCommentBusyKey(`add-${item.contentId}`);
+    try {
+      const response = await apiAddContentComment(item.contentId, draft);
+      updateItemComments(item.contentId, response.comments || []);
+      setCommentDraftByContentId((prev) => ({ ...prev, [item.contentId]: '' }));
+      setToast({ message: 'Comment added.', type: 'success' });
+    } catch (err: any) {
+      setError(err.message || 'Failed to add comment');
+      setToast({ message: err.message || 'Failed to add comment', type: 'error' });
+    } finally {
+      setCommentBusyKey(null);
+    }
+  };
+
+  const handleAddReply = async (item: ContentItem, parentCommentId: string) => {
+    const draft = String(replyDraftByCommentId[parentCommentId] || '').trim();
+    if (!draft || commentBusyKey) return;
+    setError(null);
+    setCommentBusyKey(`reply-${parentCommentId}`);
+    try {
+      const response = await apiAddContentComment(item.contentId, draft, parentCommentId);
+      updateItemComments(item.contentId, response.comments || []);
+      setReplyDraftByCommentId((prev) => ({ ...prev, [parentCommentId]: '' }));
+      setReplyingToCommentByContentId((prev) => ({ ...prev, [item.contentId]: null }));
+      setToast({ message: 'Reply added.', type: 'success' });
+    } catch (err: any) {
+      setError(err.message || 'Failed to add reply');
+      setToast({ message: err.message || 'Failed to add reply', type: 'error' });
+    } finally {
+      setCommentBusyKey(null);
+    }
+  };
+
+  const handleUpdateComment = async (item: ContentItem, comment: ContentComment) => {
+    const draft = String(editingDraftByCommentId[comment.id] || '').trim();
+    if (!draft || commentBusyKey) return;
+    setError(null);
+    setCommentBusyKey(`edit-${comment.id}`);
+    try {
+      const response = await apiUpdateContentComment(item.contentId, comment.id, draft);
+      updateItemComments(item.contentId, response.comments || []);
+      setEditingCommentByContentId((prev) => ({ ...prev, [item.contentId]: null }));
+      setEditingDraftByCommentId((prev) => ({ ...prev, [comment.id]: '' }));
+      setToast({ message: 'Comment updated.', type: 'success' });
+    } catch (err: any) {
+      setError(err.message || 'Failed to update comment');
+      setToast({ message: err.message || 'Failed to update comment', type: 'error' });
+    } finally {
+      setCommentBusyKey(null);
+    }
+  };
+
+  const handleDeleteComment = async (contentId: string, commentId: string) => {
+    if (commentBusyKey) return;
+    setError(null);
+    setCommentBusyKey(`delete-${commentId}`);
+    try {
+      const response = await apiDeleteContentComment(contentId, commentId);
+      updateItemComments(contentId, response.comments || []);
+      setCommentDeleteModal(null);
+      setToast({ message: 'Comment deleted.', type: 'success' });
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete comment');
+      setToast({ message: err.message || 'Failed to delete comment', type: 'error' });
+    } finally {
+      setCommentBusyKey(null);
+    }
+  };
+
   const getPreviewLineClamp = (item: ContentItem) => {
     let lines = 7;
     if (item.updatedAt && item.createdAt && item.updatedAt !== item.createdAt) lines -= 1;
@@ -711,6 +836,16 @@ const ContentView: React.FC = () => {
     const showTypeBadge = activeTab === 'calendar' || isReminderTab;
     const cardTypeLabel = isReminderTab ? reminderCategoryLabel : TYPE_LABEL[item.type];
     const cardTypeBadgeClass = isReminderTab ? TYPE_ACCENT.general.badge : TYPE_ACCENT[item.type].badge;
+    const comments = Array.isArray(item.comments) ? item.comments : [];
+    const topLevelComments = comments.filter((c) => !String(c.parentCommentId || '').trim());
+    const repliesByParentId = comments.reduce<Record<string, ContentComment[]>>((acc, c) => {
+      const parentId = String(c.parentCommentId || '').trim();
+      if (!parentId) return acc;
+      acc[parentId] = acc[parentId] || [];
+      acc[parentId].push(c);
+      return acc;
+    }, {});
+    const isCommentsOpen = openCommentsForContentId === item.contentId;
 
     return (
     <div
@@ -834,6 +969,16 @@ const ContentView: React.FC = () => {
         </div>
       )}
       <div className={`${isExpanded ? 'mt-5' : 'mt-auto'} flex flex-wrap gap-2 pt-4`}>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpenCommentsForContentId((prev) => (prev === item.contentId ? null : item.contentId));
+          }}
+          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-violet-200 hover:text-violet-700"
+        >
+          <MessageSquareText size={14} /> Comments {comments.length > 0 ? `(${comments.length})` : ''}
+        </button>
         <button type="button" onClick={(event) => { event.stopPropagation(); openEdit(item); }} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-violet-200 hover:text-violet-700">
           <Pencil size={14} /> Edit
         </button>
@@ -841,6 +986,269 @@ const ContentView: React.FC = () => {
           <Trash2 size={14} /> Delete
         </button>
       </div>
+      {isCommentsOpen ? (
+        <div className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4" onClick={(event) => event.stopPropagation()}>
+          {comments.length === 0 ? (
+            <p className="text-sm text-slate-500">No comments yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {topLevelComments.map((comment) => {
+                const isEditing = editingCommentByContentId[item.contentId] === comment.id;
+                const canManageComment = String(comment.fromEmpId || '').trim() === currentUser.empId || isAdminRole(currentUser.role);
+                const editDraft = String(editingDraftByCommentId[comment.id] ?? comment.text);
+                const isSaveBusy = commentBusyKey === `edit-${comment.id}`;
+                const isReplying = replyingToCommentByContentId[item.contentId] === comment.id;
+                const replyDraft = String(replyDraftByCommentId[comment.id] || '');
+                const childReplies = repliesByParentId[comment.id] || [];
+                return (
+                  <div key={comment.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                        {userAvatarByEmpId[comment.fromEmpId || ''] ? (
+                          <img
+                            src={userAvatarByEmpId[comment.fromEmpId || '']}
+                            alt=""
+                            className="h-6 w-6 rounded-full object-cover"
+                          />
+                        ) : (
+                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-[10px] font-semibold text-blue-700">
+                            {nameInitials(comment.fromName || '')}
+                          </span>
+                        )}
+                        <span className="font-medium text-slate-700">{comment.fromName || 'Unknown'}</span>
+                        <span>•</span>
+                        <span>
+                          {formatUsDateTime(comment.createdAt)}
+                          {comment.editedAt ? ' (edited)' : ''}
+                        </span>
+                      </div>
+                      {canManageComment ? (
+                        <div className="flex items-center gap-2">
+                          {!isEditing ? (
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-violet-700"
+                              onClick={() => {
+                                setEditingCommentByContentId((prev) => ({ ...prev, [item.contentId]: comment.id }));
+                                setEditingDraftByCommentId((prev) => ({ ...prev, [comment.id]: comment.text || '' }));
+                              }}
+                            >
+                              Edit
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-rose-600"
+                            disabled={!!commentBusyKey}
+                            onClick={() => setCommentDeleteModal({ contentId: item.contentId, commentId: comment.id })}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                    {isEditing ? (
+                      <div className="mt-2 space-y-2">
+                        <textarea
+                          value={editDraft}
+                          onChange={(event) =>
+                            setEditingDraftByCommentId((prev) => ({ ...prev, [comment.id]: event.target.value }))
+                          }
+                          onInput={(event) => autoResizeTextarea(event.currentTarget)}
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-300"
+                          rows={3}
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={!editDraft.trim() || !!commentBusyKey}
+                            onClick={() => handleUpdateComment(item, comment)}
+                          >
+                            {isSaveBusy ? 'Saving...' : 'Save'}
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={!!commentBusyKey}
+                            onClick={() => {
+                              setEditingCommentByContentId((prev) => ({ ...prev, [item.contentId]: null }));
+                              setEditingDraftByCommentId((prev) => ({ ...prev, [comment.id]: '' }));
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{comment.text}</p>
+                    )}
+                    {!isEditing ? (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-slate-600 hover:text-violet-700"
+                          disabled={!!commentBusyKey}
+                          onClick={() =>
+                            setReplyingToCommentByContentId((prev) => ({
+                              ...prev,
+                              [item.contentId]: prev[item.contentId] === comment.id ? null : comment.id,
+                            }))
+                          }
+                        >
+                          Reply
+                        </button>
+                      </div>
+                    ) : null}
+                    {isReplying ? (
+                      <div className="mt-2 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                        <textarea
+                          value={replyDraft}
+                          onChange={(event) =>
+                            setReplyDraftByCommentId((prev) => ({ ...prev, [comment.id]: event.target.value }))
+                          }
+                          onInput={(event) => autoResizeTextarea(event.currentTarget)}
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-300"
+                          rows={2}
+                          placeholder={`Reply to ${comment.fromName || 'comment'}...`}
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={!replyDraft.trim() || !!commentBusyKey}
+                            onClick={() => handleAddReply(item, comment.id)}
+                          >
+                            {commentBusyKey === `reply-${comment.id}` ? 'Replying...' : 'Reply'}
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={!!commentBusyKey}
+                            onClick={() => setReplyingToCommentByContentId((prev) => ({ ...prev, [item.contentId]: null }))}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {childReplies.length > 0 ? (
+                      <div className="mt-3 space-y-2 pl-6">
+                        {childReplies.map((reply) => {
+                          const canManageReply = String(reply.fromEmpId || '').trim() === currentUser.empId || isAdminRole(currentUser.role);
+                          const isReplyEditing = editingCommentByContentId[item.contentId] === reply.id;
+                          const replyEditDraft = String(editingDraftByCommentId[reply.id] ?? reply.text);
+                          return (
+                            <div key={reply.id} className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                  {userAvatarByEmpId[reply.fromEmpId || ''] ? (
+                                    <img src={userAvatarByEmpId[reply.fromEmpId || '']} alt="" className="h-5 w-5 rounded-full object-cover" />
+                                  ) : (
+                                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[9px] font-semibold text-blue-700">
+                                      {nameInitials(reply.fromName || '')}
+                                    </span>
+                                  )}
+                                  <span className="font-medium text-slate-700">{reply.fromName || 'Unknown'}</span>
+                                  <span>•</span>
+                                  <span>
+                                    {formatUsDateTime(reply.createdAt)}
+                                    {reply.editedAt ? ' (edited)' : ''}
+                                  </span>
+                                </div>
+                                {canManageReply ? (
+                                  <div className="flex items-center gap-2">
+                                    {!isReplyEditing ? (
+                                      <button
+                                        type="button"
+                                        className="text-xs font-medium text-violet-700"
+                                        onClick={() => {
+                                          setEditingCommentByContentId((prev) => ({ ...prev, [item.contentId]: reply.id }));
+                                          setEditingDraftByCommentId((prev) => ({ ...prev, [reply.id]: reply.text || '' }));
+                                        }}
+                                      >
+                                        Edit
+                                      </button>
+                                    ) : null}
+                                    <button
+                                      type="button"
+                                      className="text-xs font-medium text-rose-600"
+                                      disabled={!!commentBusyKey}
+                                      onClick={() => setCommentDeleteModal({ contentId: item.contentId, commentId: reply.id })}
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </div>
+                              {isReplyEditing ? (
+                                <div className="mt-2 space-y-2">
+                                  <textarea
+                                    value={replyEditDraft}
+                                    onChange={(event) =>
+                                      setEditingDraftByCommentId((prev) => ({ ...prev, [reply.id]: event.target.value }))
+                                    }
+                                    onInput={(event) => autoResizeTextarea(event.currentTarget)}
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-300"
+                                    rows={2}
+                                  />
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                                      disabled={!replyEditDraft.trim() || !!commentBusyKey}
+                                      onClick={() => handleUpdateComment(item, reply)}
+                                    >
+                                      {commentBusyKey === `edit-${reply.id}` ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                      disabled={!!commentBusyKey}
+                                      onClick={() => {
+                                        setEditingCommentByContentId((prev) => ({ ...prev, [item.contentId]: null }));
+                                        setEditingDraftByCommentId((prev) => ({ ...prev, [reply.id]: '' }));
+                                      }}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{reply.text}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="space-y-2">
+            <textarea
+              value={commentDraftByContentId[item.contentId] || ''}
+              onChange={(event) =>
+                setCommentDraftByContentId((prev) => ({ ...prev, [item.contentId]: event.target.value }))
+              }
+              onInput={(event) => autoResizeTextarea(event.currentTarget)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-300"
+              rows={3}
+              placeholder="Write a comment..."
+            />
+            <button
+              type="button"
+              onClick={() => handleAddComment(item)}
+              disabled={!String(commentDraftByContentId[item.contentId] || '').trim() || !!commentBusyKey}
+              className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {commentBusyKey === `add-${item.contentId}` ? 'Adding...' : 'Add Comment'}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
   };
@@ -1398,6 +1806,36 @@ const ContentView: React.FC = () => {
                   className="rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 px-4 py-2.5 text-sm font-medium text-white shadow-[0_18px_30px_rgba(225,29,72,0.22)]"
                 >
                   Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {commentDeleteModal && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-[0_40px_110px_rgba(15,23,42,0.18)]">
+            <div className="bg-gradient-to-r from-rose-50 to-white px-6 py-5">
+              <h3 className="text-xl font-semibold text-slate-900">Delete comment?</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-500">Do you want to delete this comment?</p>
+            </div>
+            <div className="px-6 py-5">
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={!!commentBusyKey}
+                  onClick={() => setCommentDeleteModal(null)}
+                  className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  No
+                </button>
+                <button
+                  type="button"
+                  disabled={!!commentBusyKey}
+                  onClick={() => handleDeleteComment(commentDeleteModal.contentId, commentDeleteModal.commentId)}
+                  className="rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 px-4 py-2.5 text-sm font-medium text-white shadow-[0_18px_30px_rgba(225,29,72,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {commentBusyKey === `delete-${commentDeleteModal.commentId}` ? 'Processing...' : 'Yes'}
                 </button>
               </div>
             </div>

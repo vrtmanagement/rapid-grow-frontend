@@ -20,6 +20,7 @@ export interface ContentItem {
   channelKey?: string;
   coverImage?: ContentAsset | null;
   attachments: ContentAsset[];
+  comments?: ContentComment[];
   createdBy?: {
     empId?: string;
     name?: string;
@@ -32,6 +33,17 @@ export interface ContentItem {
   };
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ContentComment {
+  id: string;
+  parentCommentId?: string;
+  text: string;
+  fromEmpId?: string;
+  fromName?: string;
+  fromRole?: string;
+  createdAt: string;
+  editedAt?: string;
 }
 
 export interface ContentChannel {
@@ -137,6 +149,35 @@ export async function apiDeleteContent(contentId: string) {
   });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to delete content');
   return res.json() as Promise<{ ok: boolean; contentId: string }>;
+}
+
+export async function apiAddContentComment(contentId: string, text: string, parentCommentId?: string) {
+  const res = await fetch(`${API_BASE}/content/${encodeURIComponent(contentId)}/comments`, {
+    method: 'POST',
+    headers: authHeadersJson(),
+    body: JSON.stringify({ text, ...(parentCommentId ? { parentCommentId } : {}) }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to add comment');
+  return res.json() as Promise<{ comments: ContentComment[] }>;
+}
+
+export async function apiUpdateContentComment(contentId: string, commentId: string, text: string) {
+  const res = await fetch(`${API_BASE}/content/${encodeURIComponent(contentId)}/comments/${encodeURIComponent(commentId)}`, {
+    method: 'PATCH',
+    headers: authHeadersJson(),
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to update comment');
+  return res.json() as Promise<{ comments: ContentComment[] }>;
+}
+
+export async function apiDeleteContentComment(contentId: string, commentId: string) {
+  const res = await fetch(`${API_BASE}/content/${encodeURIComponent(contentId)}/comments/${encodeURIComponent(commentId)}`, {
+    method: 'DELETE',
+    headers: authHeadersJson(),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to delete comment');
+  return res.json() as Promise<{ comments: ContentComment[] }>;
 }
 
 export async function apiListChannels() {
