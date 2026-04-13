@@ -167,6 +167,7 @@ interface GlobalReminderToast {
   route: string;
 }
 
+
 function shouldAutoClearNotification(notification?: Partial<AppNotification> | null): boolean {
   return String(notification?.type || '').trim().toLowerCase() === 'leave_request_review';
 }
@@ -304,6 +305,7 @@ const App: React.FC = () => {
   const shownLeaveToastKeysRef = useRef<Record<string, true>>({});
   const shownTaskToastKeysRef = useRef<Record<string, true>>({});
   const shownReminderToastKeysRef = useRef<Record<string, true>>({});
+  const lastCommunicationUnreadRef = useRef<number | null>(null);
 
   useEffect(() => {
     const syncStoredSession = () => {
@@ -604,6 +606,7 @@ const App: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [globalReminderToast]);
 
+
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -778,6 +781,20 @@ const App: React.FC = () => {
     };
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      lastCommunicationUnreadRef.current = null;
+      return;
+    }
+    if (lastCommunicationUnreadRef.current === null) {
+      lastCommunicationUnreadRef.current = communicationUnreadCount;
+      return;
+    }
+    if (communicationUnreadCount > lastCommunicationUnreadRef.current) {
+    }
+    lastCommunicationUnreadRef.current = communicationUnreadCount;
+  }, [communicationUnreadCount, isAuthenticated]);
+
   const markNotificationRead = useCallback(async (notificationId: string) => {
     if (!notificationId) return null;
 
@@ -941,24 +958,49 @@ const App: React.FC = () => {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    const unreadReminder = notifications.find(
-      (notification) => !notification.isRead && notification.type === 'daily_review_reminder',
-    );
+    const unreadNotification = notifications.find((notification) => !notification.isRead);
+    if (!unreadNotification) return;
 
-    if (!unreadReminder) return;
-
-    const toastKey = `daily-review-reminder:${unreadReminder._id}:${unreadReminder.updatedAt || unreadReminder.createdAt}`;
+    const toastKey = `notification:${unreadNotification._id}:${unreadNotification.updatedAt || unreadNotification.createdAt}`;
     if (shownReminderToastKeysRef.current[toastKey]) return;
 
-    shownReminderToastKeysRef.current[toastKey] = true;
-    setGlobalReminderToast({
+    const reminderToast: GlobalReminderToast = {
       key: toastKey,
-      notificationId: unreadReminder._id,
-      title: unreadReminder.title || 'Review matrix reminder',
-      message: unreadReminder.message || 'Please fill your daily review matrix before the day ends.',
-      route: unreadReminder.route || '/review',
-    });
+      notificationId: unreadNotification._id,
+      title: unreadNotification.title || 'Notification',
+      message: unreadNotification.message || 'You have a new notification.',
+      route: unreadNotification.route || '/review',
+    };
+    shownReminderToastKeysRef.current[toastKey] = true;
+    setGlobalReminderToast(reminderToast);
   }, [notifications]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      lastCommunicationUnreadRef.current = null;
+      return;
+    }
+    if (lastCommunicationUnreadRef.current === null) {
+      lastCommunicationUnreadRef.current = communicationUnreadCount;
+      return;
+    }
+
+    if (communicationUnreadCount > lastCommunicationUnreadRef.current) {
+      const toastKey = `communication:${communicationUnreadCount}:${Date.now()}`;
+      if (!shownReminderToastKeysRef.current[toastKey]) {
+        const communicationToast: GlobalReminderToast = {
+          key: toastKey,
+          notificationId: '',
+          title: 'New communication message',
+          message: 'You received a new message in Communication.',
+          route: '/communication',
+        };
+        shownReminderToastKeysRef.current[toastKey] = true;
+        setGlobalReminderToast(communicationToast);
+      }
+    }
+    lastCommunicationUnreadRef.current = communicationUnreadCount;
+  }, [communicationUnreadCount, isAuthenticated]);
 
   const planningViewsLoading = !appStateHydrated || !goalsHydrated;
   const unreadNotificationCount = notifications.filter((notification) => !notification.isRead).length;
@@ -1052,9 +1094,10 @@ const App: React.FC = () => {
       </p>
       <p className="mt-2 text-base font-semibold text-slate-950">{globalReminderToast.title}</p>
       <p className="mt-1 text-sm leading-6 text-slate-600">{globalReminderToast.message}</p>
-      <p className="mt-3 text-[12px] font-semibold text-brand-red">Open Review Matrix</p>
+      <p className="mt-3 text-[12px] font-semibold text-brand-red">Open Notification</p>
     </button>
   ) : null;
+
 
   const notificationBellElement = (
     <div className="relative">
