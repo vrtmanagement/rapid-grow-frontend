@@ -28,6 +28,8 @@ import FeedbackView from './views/FeedbackView';
 import AttendanceView from './views/AttendanceView';
 import StaffView from './views/StaffView';
 import CommunicationView from './communication/views/CommunicationView';
+import { CommunicationProvider } from './communication/context/CommunicationContext';
+import { GlobalCommunicationNotifications } from './communication/components/GlobalCommunicationNotifications';
 import ContentView from './views/ContentView';
 import ContentCreateView from './views/ContentCreateView';
 import SpacesTaskDetailView from './views/SpacesTaskDetailView';
@@ -1231,10 +1233,12 @@ const App: React.FC = () => {
   if (state.currentUser.role === 'Employee') {
     return (
       <HashRouter>
-        {globalLeaveToastElement}
-        {globalTaskToastElement}
-        {globalReminderToastElement}
-        <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
+        <CommunicationProvider>
+          {globalLeaveToastElement}
+          {globalTaskToastElement}
+          {globalReminderToastElement}
+          <GlobalCommunicationNotifications />
+          <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
           <aside className="w-64 h-full min-h-0 bg-brand-charcoal text-white flex flex-col z-50 shadow-2xl relative shrink-0">
             <div className="absolute top-0 right-0 w-[2px] h-full bg-brand-red opacity-20" />
             <div className="p-6 border-b border-white/5 shrink-0">
@@ -1348,17 +1352,20 @@ const App: React.FC = () => {
               </Routes>
             </div>
           </main>
-        </div>
+          </div>
+        </CommunicationProvider>
       </HashRouter>
     );
   }
 
   return (
     <HashRouter>
-      {globalLeaveToastElement}
-      {globalTaskToastElement}
-      {globalReminderToastElement}
-      <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
+      <CommunicationProvider>
+        {globalLeaveToastElement}
+        {globalTaskToastElement}
+        {globalReminderToastElement}
+        <GlobalCommunicationNotifications />
+        <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
         <aside className={`${isSidebarOpen ? 'w-64' : 'w-24'} h-full min-h-0 bg-brand-charcoal text-white transition-all duration-500 flex flex-col z-50 shadow-2xl relative shrink-0`}>
           <div className="absolute top-0 right-0 w-[2px] h-full bg-brand-red opacity-20"></div>
           
@@ -1508,7 +1515,8 @@ const App: React.FC = () => {
             </Routes>
           </div>
         </main>
-      </div>
+        </div>
+      </CommunicationProvider>
     </HashRouter>
   );
 };
