@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { PlanningState } from '../types';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { BrainCircuit, Zap, AlertCircle, Sparkles, Send, ShieldCheck } from 'lucide-react';
@@ -27,6 +27,7 @@ interface ReflectionRecord {
   updatedAt?: string;
   lastEditedByName?: string;
   lastEditedByEmpId?: string;
+  avatar?: string;
 }
 
 function getIndiaDateKey(offsetDays = 0): string {
@@ -44,13 +45,34 @@ function getIndiaDateKey(offsetDays = 0): string {
   return `${year}-${month}-${day}`;
 }
 
+function resolveAvatarUrl(rawAvatar?: string | null): string | undefined {
+  const avatar = (rawAvatar || '').trim();
+  if (!avatar) return undefined;
+  if (/^(https?:)?\/\//i.test(avatar) || /^data:/i.test(avatar) || /^blob:/i.test(avatar)) return avatar;
+
+  let apiOrigin = '';
+  try {
+    apiOrigin = new URL(API_BASE).origin;
+  } catch {
+    apiOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  }
+
+  if (!apiOrigin) return avatar;
+  if (avatar.startsWith('/')) return `${apiOrigin}${avatar}`;
+  return `${apiOrigin}/${avatar.replace(/^\.?\//, '')}`;
+}
+
 const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }) => {
+  const LOGS_PER_PAGE = 5;
   const [saving, setSaving] = useState(false);
   const [records, setRecords] = useState<ReflectionRecord[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<'me' | 'all' | 'team'>('me');
   const [logFilter, setLogFilter] = useState<'today' | 'yesterday' | 'all'>('all');
+  const [selectedLogDate, setSelectedLogDate] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [employeeAvatarById, setEmployeeAvatarById] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ReflectionRecord | null>(null);
 
@@ -71,11 +93,34 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
     ? records.find(r => r.empId === currentEmpId && r.date === todayKey) || null
     : null;
 
-  const displayedRecords = records.filter((r) => {
-    if (logFilter === 'today') return r.date === todayKey;
-    if (logFilter === 'yesterday') return r.date === yesterdayKey;
-    return true;
-  });
+  const displayedRecords = useMemo(
+    () =>
+      records.filter((r) => {
+        if (selectedLogDate && r.date !== selectedLogDate) return false;
+        if (logFilter === 'today') return r.date === todayKey;
+        if (logFilter === 'yesterday') return r.date === yesterdayKey;
+        return true;
+      }),
+    [records, selectedLogDate, logFilter, todayKey, yesterdayKey],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(displayedRecords.length / LOGS_PER_PAGE));
+
+  const paginatedRecords = useMemo(() => {
+    const safePage = Math.min(Math.max(currentPage, 1), totalPages);
+    const start = (safePage - 1) * LOGS_PER_PAGE;
+    return displayedRecords.slice(start, start + LOGS_PER_PAGE);
+  }, [displayedRecords, currentPage, totalPages, LOGS_PER_PAGE]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [logFilter, selectedLogDate, scope]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const handleChange = (key: keyof typeof state.reflection, val: string) => {
     updateState(prev => ({
@@ -217,6 +262,29 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
   }, []);
 
   useEffect(() => {
+    const loadEmployeeAvatars = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => []);
+        const list = Array.isArray(data) ? data : [];
+        const map: Record<string, string> = {};
+        list.forEach((emp: any) => {
+          const empId = String(emp?.empId || '').trim();
+          const avatar = String(emp?.avatar || '').trim();
+          if (empId && avatar) {
+            map[empId] = avatar;
+          }
+        });
+        setEmployeeAvatarById(map);
+      } catch {
+        setEmployeeAvatarById({});
+      }
+    };
+    loadEmployeeAvatars();
+  }, []);
+
+  useEffect(() => {
     const socket = getSocket();
     const onChanged = (payload: any) => {
       const action = payload?.action;
@@ -346,15 +414,47 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
 
   return (
     <div className="max-w-6xl mx-auto space-y-12 pb-24 animate-in fade-in duration-700">
-      <div className="bg-slate-900 text-white p-8 rounded-2xl flex items-center justify-center gap-8 text-[12px] shadow-2xl border border-white/5 relative overflow-hidden">
+      {/* <div className="bg-slate-900 text-white p-8 rounded-2xl flex items-center justify-center gap-8 text-[12px] shadow-2xl border border-white/5 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-red"></div>
         <span className="text-brand-red">Daily Reflection</span>
         <div className="h-1 w-16 bg-brand-red/20 rounded-full"></div>
         <span className="opacity-60">{state.uiConfig.reflectionSub}</span>
-      </div>
+      </div> */}
+      <div className="lg:col-span-4 space-y-8">
+          {/* <div className="bg-slate-900 p-12 rounded-[2.5rem] text-white space-y-12 shadow-2xl relative overflow-hidden border border-white/5 group">
+            <div className="absolute top-0 right-0 w-2 h-full bg-brand-red"></div>
+            <h3 className="text-2xl text-brand-red relative z-10">Standard Protocol</h3>
+            <div className="flex items-center gap-8 relative z-10">
+              <div className="w-24 h-24 rounded-2xl border-4 border-brand-red flex items-center justify-center text-3xl shadow-2xl bg-white/5">25m</div>
+              <p className="text-[15px] leading-loose text-slate-800">Tactical <br/> Daily Review</p>
+            </div>
+            <div className="h-px bg-white/10 w-full relative z-10"></div>
+            <h3 className="text-2xl text-slate-300 relative z-10">Deep Synthesis</h3>
+            <div className="flex items-center gap-8 relative z-10">
+              <div className="w-24 h-24 rounded-2xl border-4 border-slate-700 flex items-center justify-center text-3xl shadow-2xl bg-white/5">45m</div>
+              <p className="text-[15px] leading-loose text-slate-800">Advanced <br/> Architecture</p>
+            </div>
+          </div> */}
+
+          <div className="bg-white p-12 rounded-[2.5rem] border border-slate-200 shadow-sm space-y-10">
+            <h3 className="text-xl text-red-600">Daily Reflection Habits</h3>
+            <ul className="space-y-8">
+              <HabitItem text="Write what you accomplished today so you end the day with a sense of completion." />
+              <HabitItem text="Note when you felt most energized so you can design more of those moments." />
+              <HabitItem text="Capture your top action items for tomorrow before you log off." />
+              <HabitItem text="Send a quick thank you message or email to someone (including yourself) who deserves it." />
+            </ul>
+            {error && (
+              <p className="mt-3 text-xs text-red-500">
+                {error}
+              </p>
+            )}
+          
+          </div>
+        </div>
 
       <div className="grid lg:grid-cols-12 gap-10">
-        <div className="lg:col-span-8 space-y-8">
+        <div className="lg:col-span-12 space-y-8">
           <div className="bg-white p-16 rounded-[3rem] border border-slate-200 shadow-sm space-y-12 group hover:border-brand-red/30 transition-all">
             <h2 className="text-4xl text-slate-900 flex items-center gap-6">
               End of Day Report
@@ -402,39 +502,7 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
                  placeholder="List the most important tasks you will work on tomorrow so you can start the day with clarity."
                />
             </div>
-          </div>
-        </div>
-
-        <div className="lg:col-span-4 space-y-8">
-          <div className="bg-slate-900 p-12 rounded-[2.5rem] text-white space-y-12 shadow-2xl relative overflow-hidden border border-white/5 group">
-            <div className="absolute top-0 right-0 w-2 h-full bg-brand-red"></div>
-            <h3 className="text-2xl text-brand-red relative z-10">Standard Protocol</h3>
-            <div className="flex items-center gap-8 relative z-10">
-              <div className="w-24 h-24 rounded-2xl border-4 border-brand-red flex items-center justify-center text-3xl shadow-2xl bg-white/5">25m</div>
-              <p className="text-[15px] leading-loose text-slate-800">Tactical <br/> Daily Review</p>
-            </div>
-            <div className="h-px bg-white/10 w-full relative z-10"></div>
-            <h3 className="text-2xl text-slate-300 relative z-10">Deep Synthesis</h3>
-            <div className="flex items-center gap-8 relative z-10">
-              <div className="w-24 h-24 rounded-2xl border-4 border-slate-700 flex items-center justify-center text-3xl shadow-2xl bg-white/5">45m</div>
-              <p className="text-[15px] leading-loose text-slate-800">Advanced <br/> Architecture</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-12 rounded-[2.5rem] border border-slate-200 shadow-sm space-y-10">
-            <h3 className="text-xl text-slate-900">Daily Reflection Habits</h3>
-            <ul className="space-y-8">
-              <HabitItem text="Write what you accomplished today so you end the day with a sense of completion." />
-              <HabitItem text="Note when you felt most energized so you can design more of those moments." />
-              <HabitItem text="Capture your top action items for tomorrow before you log off." />
-              <HabitItem text="Send a quick thank you message or email to someone (including yourself) who deserves it." />
-            </ul>
-            {error && (
-              <p className="mt-3 text-xs text-red-500">
-                {error}
-              </p>
-            )}
-            <button
+          <button
               type="button"
               onClick={handleSave}
               disabled={saving || (!!myTodayRecord && !editingId)}
@@ -445,12 +513,14 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
             </button>
           </div>
         </div>
+
+        
       </div>
 
-      <div className="mt-12 bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-10 space-y-6">
+      <div className="mt-12 bg-gradient-to-br from-white via-white to-red-50/30 rounded-[2.5rem] border border-slate-200 shadow-[0_24px_60px_rgba(15,23,42,0.08)] p-10 space-y-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-wrap">
-            <h3 className="text-xl font-semibold text-slate-900">
+            <h3 className="text-xl font-semibold text-slate-900 tracking-tight">
               Daily Reflection Log
             </h3>
             <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1 text-xs">
@@ -475,6 +545,24 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
               >
                 All logs
               </button>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 shadow-sm">
+              <span className="text-[11px] font-medium text-slate-500">Date</span>
+              <input
+                type="date"
+                value={selectedLogDate}
+                onChange={(e) => setSelectedLogDate(e.target.value)}
+                className="bg-transparent text-xs text-slate-700 outline-none"
+              />
+              {selectedLogDate && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedLogDate('')}
+                  className="text-[11px] text-brand-red hover:text-slate-900"
+                >
+                  Clear
+                </button>
+              )}
             </div>
             {(isAdmin || isLeader) && (
               <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1 text-xs">
@@ -525,17 +613,33 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
         )}
         <div className="space-y-4">
           {loadingList ? (
-            <ReflectionLogSkeleton count={4} />
-          ) : displayedRecords.map((r) => (
+            <ReflectionLogSkeleton count={5} />
+          ) : paginatedRecords.map((r) => (
             <div
               key={r._id}
-              className="border border-slate-200 rounded-2xl p-6 bg-slate-50"
+              className="border border-slate-200 rounded-2xl p-6 bg-white shadow-sm hover:shadow-md transition-all"
             >
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-slate-900">
-                    {r.empName} ({r.empId})
-                  </span>
+                <div className="flex items-center gap-3">
+                  {(() => {
+                    const avatarSrc = resolveAvatarUrl(r.avatar || employeeAvatarById[r.empId]);
+                    const initial = (r.empName || r.empId || 'U').trim().charAt(0).toUpperCase() || 'U';
+                    return avatarSrc ? (
+                      <img
+                        src={avatarSrc}
+                        alt={r.empName}
+                        className="h-10 w-10 rounded-full object-cover border border-slate-200"
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded-full bg-slate-200 text-slate-700 border border-slate-300 flex items-center justify-center text-xs font-semibold">
+                        {initial}
+                      </div>
+                    );
+                  })()}
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-slate-900">
+                      {r.empName} ({r.empId})
+                    </span>
                   <span className="text-xs text-slate-500">
                     {r.role} • {r.date}
                   </span>
@@ -544,6 +648,7 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
                       Edited{r.lastEditedByName ? ` by ${r.lastEditedByName}` : ''}
                     </span>
                   )}
+                </div>
                 </div>
                 {canEditOrDelete(r) && (
                   <div className="flex items-center gap-2 text-xs">
@@ -611,6 +716,35 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
             </div>
           ))}
         </div>
+        {!loadingList && displayedRecords.length > 0 && (
+          <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80">
+            <p className="text-xs text-slate-500">
+              Showing {(currentPage - 1) * LOGS_PER_PAGE + 1}-
+              {Math.min(currentPage * LOGS_PER_PAGE, displayedRecords.length)} of {displayedRecords.length}
+            </p>
+            <div className="inline-flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 rounded-full border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+              >
+                Previous
+              </button>
+              <span className="text-xs text-slate-600 px-2">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPage >= totalPages}
+                className="px-3 py-1.5 rounded-full border border-brand-red/30 text-brand-red hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {confirmDelete && (

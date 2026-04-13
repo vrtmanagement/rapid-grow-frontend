@@ -1,6 +1,7 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { API_BASE, getAuthHeaders } from '../config/api';
+import { useNavigate } from 'react-router-dom';
+import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
 import {
   Plus,
   MessageSquareText,
@@ -52,6 +53,9 @@ interface SpacesTask {
   taskId: string;
   title: string;
   description?: string;
+  documentUrl?: string;
+  documentName?: string;
+  documentMimeType?: string;
   projectId?: string;
   projectTaskId?: string;
   assigneeId?: string;
@@ -83,6 +87,9 @@ const TaskHubTableSkeleton: React.FC<{ customColumnCount: number }> = ({ customC
               <div className="h-4 w-40 rounded-full bg-slate-200" />
               <div className="h-3 w-28 rounded-full bg-slate-100" />
             </div>
+          </td>
+          <td className="px-4 py-4">
+            <div className="h-10 w-full rounded-2xl bg-slate-100" />
           </td>
           <td className="px-4 py-4">
             <div className="h-10 w-full rounded-2xl bg-slate-100" />
@@ -140,6 +147,66 @@ function normalizeRole(role?: BackendRole): BackendRole {
 
 function isSubmittedStatus(status?: string): boolean {
   return String(status || '').trim().toLowerCase() === 'review';
+}
+
+function normalizeTaskStatus(status?: string): TaskStatus {
+  const normalized = String(status || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+
+  if (['todo', 'to_do', 'pending', 'open'].includes(normalized)) return 'todo';
+  if (['doing', 'in_progress', 'progress', 'ongoing'].includes(normalized)) return 'doing';
+  if (['review', 'submitted', 'submit', 'for_review'].includes(normalized)) return 'review';
+  if (['done', 'completed', 'complete', 'closed'].includes(normalized)) return 'done';
+  if (['blocked', 'on_hold', 'hold'].includes(normalized)) return 'blocked';
+
+  return 'todo';
+}
+
+function normalizeTaskForUi(task: SpacesTask): SpacesTask {
+  return {
+    ...task,
+    status: normalizeTaskStatus(task?.status),
+    submittedFromStatus: task?.submittedFromStatus
+      ? normalizeTaskStatus(task.submittedFromStatus)
+      : task?.submittedFromStatus,
+  };
+}
+
+function isImageDocument(task?: Partial<SpacesTask> | null): boolean {
+  if (!task) return false;
+  const mime = String(task.documentMimeType || '').toLowerCase();
+  if (mime.startsWith('image/')) return true;
+  const url = String(task.documentUrl || '').toLowerCase();
+  return /\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/.test(url);
+}
+
+function getDownloadableUrl(url: string): string {
+  return String(url || '').trim();
+}
+
+async function forceDownloadDocument(url: string, fileName?: string) {
+  const href = getDownloadableUrl(url);
+  if (!href) throw new Error('Document URL is missing');
+  const query = new URLSearchParams({
+    url: href,
+    name: fileName || 'task-document',
+  });
+  const response = await fetch(`${API_BASE}/spaces/tasks/document-download?${query.toString()}`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to download document');
+  const blob = await response.blob();
+  const objectUrl = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = fileName || 'task-document';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(objectUrl);
 }
 
 function getReviewerLabel(role?: BackendRole): string {
@@ -665,6 +732,7 @@ interface Props {
 }
 
 const SpacesView: React.FC<Props> = ({ mode }) => {
+  const navigate = useNavigate();
   const generateId = () =>
     (typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? (crypto.randomUUID() as string)
@@ -685,9 +753,12 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const [title, setTitle] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [status, setStatus] = useState<TaskStatus>('todo');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [taskDocumentFile, setTaskDocumentFile] = useState<File | null>(null);
+  const [uploadingTaskDocument, setUploadingTaskDocument] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -713,6 +784,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   const [taskSearch, setTaskSearch] = useState('');
 
   const [editingTask, setEditingTask] = useState<SpacesTask | null>(null);
+  const [editingTaskMode, setEditingTaskMode] = useState<'view' | 'edit'>('view');
   const [editingTaskDraft, setEditingTaskDraft] = useState<Partial<SpacesTask>>({});
 
   const projectNameById = useMemo(() => {
@@ -863,7 +935,11 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       }
       const data = await res.json();
       setColumns(Array.isArray(data?.columns) ? data.columns : []);
-      setTasks(Array.isArray(data?.tasks) ? data.tasks : []);
+      setTasks(
+        Array.isArray(data?.tasks)
+          ? data.tasks.map((task: SpacesTask) => normalizeTaskForUi(task))
+          : [],
+      );
     } catch (e: any) {
       setError(e?.message || 'Failed to load spaces');
     } finally {
@@ -953,13 +1029,13 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       }
 
       if (action === 'task_created' && payload?.task) {
-        const task = payload.task as SpacesTask;
+        const task = normalizeTaskForUi(payload.task as SpacesTask);
         setTasks((prev) => upsertTaskById(prev, task));
         return;
       }
 
       if (action === 'task_updated' && payload?.task) {
-        const task = payload.task as SpacesTask;
+        const task = normalizeTaskForUi(payload.task as SpacesTask);
         setTasks((prev) => prev.map((t) => (t.taskId === task.taskId ? task : t)));
         return;
       }
@@ -1099,7 +1175,8 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
         throw new Error(data.message || 'Failed to update task');
       }
       const updated = await res.json();
-      setTasks((prev) => prev.map((t) => (t.taskId === taskId ? updated : t)));
+      const normalizedUpdated = normalizeTaskForUi(updated as SpacesTask);
+      setTasks((prev) => prev.map((t) => (t.taskId === taskId ? normalizedUpdated : t)));
 
       // If this task is linked to a project task, sync updates into the project charter as well
       if (existing?.projectId && existing?.projectTaskId) {
@@ -1189,6 +1266,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
 
     const now = new Date().toISOString();
     const projectTaskId = `t-${generateId()}`;
+    const descriptionText = description.trim();
     const requestedStatus =
       mode === 'employee' && status === 'done' ? ('review' as TaskStatus) : status;
     const project = selectedProjectId
@@ -1196,6 +1274,36 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       : null;
 
     try {
+      let uploadedDocument: {
+        documentUrl: string;
+        documentName: string;
+        documentMimeType: string;
+      } | null = null;
+
+      if (taskDocumentFile) {
+        setUploadingTaskDocument(true);
+        const formData = new FormData();
+        formData.append('file', taskDocumentFile);
+        const session = getStoredAuthSession();
+        const token = typeof session?.token === 'string' ? session.token : '';
+        const resUpload = await fetch(`${API_BASE}/spaces/tasks/upload-document`, {
+          method: 'POST',
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: formData,
+        });
+        const uploaded = await resUpload.json().catch(() => ({}));
+        if (!resUpload.ok) {
+          throw new Error(uploaded.message || 'Failed to upload task document');
+        }
+        uploadedDocument = {
+          documentUrl: String(uploaded.documentUrl || ''),
+          documentName: String(uploaded.documentName || taskDocumentFile.name || ''),
+          documentMimeType: String(uploaded.documentMimeType || taskDocumentFile.type || ''),
+        };
+      }
+
       if (project) {
         // Persist to backend project tasks so Team Lead/Admin can see it inside the project.
         const resProj = await fetch(`${API_BASE}/project-charters/${project.id}`, {
@@ -1209,7 +1317,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
         const newWorkspaceTask = {
           id: projectTaskId,
           title: t,
-          description: '',
+          description: descriptionText,
           status: requestedStatus,
           priority,
           createdBy: me.id || 'employee',
@@ -1238,6 +1346,10 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           title: t,
+          description: descriptionText,
+          documentUrl: uploadedDocument?.documentUrl || '',
+          documentName: uploadedDocument?.documentName || '',
+          documentMimeType: uploadedDocument?.documentMimeType || '',
           projectId: project?.id || '',
           projectTaskId: project ? projectTaskId : undefined,
           assigneeId,
@@ -1251,16 +1363,19 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
         throw new Error(data.message || 'Failed to create task');
       }
 
-      setTasks((prev) => upsertTaskById(prev, data as SpacesTask));
+      setTasks((prev) => upsertTaskById(prev, normalizeTaskForUi(data as SpacesTask)));
       setTitle('');
+      setDescription('');
       setAssigneeId('');
       setDueDate('');
       setPriority('medium');
       setStatus('todo');
       setSelectedProjectId('');
+      setTaskDocumentFile(null);
     } catch (e: any) {
       setError(e?.message || 'Failed to create task');
     } finally {
+      setUploadingTaskDocument(false);
       setSaving(false);
     }
   };
@@ -1600,6 +1715,16 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
           </div>
         </div>
 
+        <div>
+          <label className="block text-[13px] font-semibold text-slate-700 mb-2">Description</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full min-h-[96px] rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[14px] text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15"
+            placeholder="Add task description..."
+          />
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div className="md:col-span-2">
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Project</label>
@@ -1613,17 +1738,30 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
             />
           </div>
 
-          <div className="flex justify-end">
+          <div>
+            <label className="block text-[13px] font-semibold text-slate-700 mb-2">Document</label>
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
+              onChange={(e) => setTaskDocumentFile(e.target.files?.[0] || null)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-red-50 file:px-3 file:py-1.5 file:text-[12px] file:font-semibold file:text-brand-red"
+            />
+            {taskDocumentFile ? (
+              <p className="mt-1 text-[11px] text-slate-500 truncate">{taskDocumentFile.name}</p>
+            ) : null}
+          </div>
+
+          <div className="flex justify-end md:justify-start">
             <button
               type="button"
               onClick={handleCreate}
-              disabled={saving || !title.trim()}
+              disabled={saving || uploadingTaskDocument || !title.trim()}
               className={`inline-flex items-center gap-2 px-8 py-3 rounded-full bg-brand-red text-white text-[15px] font-black shadow-lg hover:bg-brand-navy transition-colors ${
-                saving || !title.trim() ? 'opacity-60 cursor-not-allowed' : ''
+                saving || uploadingTaskDocument || !title.trim() ? 'opacity-60 cursor-not-allowed' : ''
               }`}
             >
               <Plus size={18} />
-              {saving ? 'Creating...' : 'Create Task'}
+              {uploadingTaskDocument ? 'Uploading...' : saving ? 'Creating...' : 'Create Task'}
             </button>
           </div>
         </div>
@@ -1695,6 +1833,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                 <th className="px-4 py-3 min-w-[140px]">Due date</th>
                 <th className="px-4 py-3 min-w-[140px]">Priority</th>
                 <th className="px-4 py-3 min-w-[140px]">Status</th>
+                <th className="px-4 py-3 min-w-[140px]">Document</th>
                 <th className="px-4 py-3 min-w-[120px]">Comments</th>
                 {columns.map((c) => (
                   <th key={c.id} className="px-4 py-3 min-w-[200px]">
@@ -1788,7 +1927,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                 <TaskHubTableSkeleton customColumnCount={columns.length} />
               ) : sortedTasks.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-10 text-slate-500" colSpan={7 + columns.length}>
+                  <td className="px-4 py-10 text-slate-500" colSpan={8 + columns.length}>
                     No tasks yet.
                   </td>
                 </tr>
@@ -1820,6 +1959,11 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                           (t.createdByName || t.createdByEmpId) ? (
                           <div>
                             Created by: {t.createdByName || t.createdByEmpId}
+                          </div>
+                        ) : null}
+                        {t.description ? (
+                          <div className="text-slate-500 truncate max-w-[360px]" title={t.description}>
+                            Description: {t.description}
                           </div>
                         ) : null}
                       </div>
@@ -1894,6 +2038,29 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                     </td>
 
                     <td className="px-4 py-3">
+                      {t.documentUrl ? (
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await forceDownloadDocument(t.documentUrl || '', t.documentName || undefined);
+                              } catch (e: any) {
+                                setError(e?.message || 'Failed to download document');
+                              }
+                            }}
+                            className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-brand-red hover:bg-red-50"
+                            title="Download document"
+                          >
+                            Download
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[12px] text-slate-400">-</span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3">
                       <button
                         type="button"
                         onClick={() => {
@@ -1959,14 +2126,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                           <button
                             type="button"
                             onClick={() => {
-                              setEditingTask(t);
-                              setEditingTaskDraft({
-                                title: t.title,
-                                assigneeId: t.assigneeId || '',
-                                dueDate: t.dueDate || '',
-                                priority: t.priority,
-                                status: t.status,
-                              });
+                              navigate(`/spaces/task/${t.taskId}`);
                             }}
                             className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-100"
                             title="View task"
@@ -1979,12 +2139,17 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                               onClick={() => {
                                 if (!canEditTask(t) || isLockedDoneRow) return;
                                 setEditingTask(t);
+                                setEditingTaskMode('edit');
                                 setEditingTaskDraft({
                                   title: t.title,
+                                  description: t.description || '',
                                   assigneeId: t.assigneeId || '',
                                   dueDate: t.dueDate || '',
                                   priority: t.priority,
                                   status: t.status,
+                                  documentUrl: t.documentUrl || '',
+                                  documentName: t.documentName || '',
+                                  documentMimeType: t.documentMimeType || '',
                                 });
                               }}
                               disabled={isLockedDoneRow}
@@ -2434,7 +2599,9 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       {editingTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg border border-slate-200 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Edit task</h3>
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">
+              {editingTaskMode === 'view' ? 'Task details' : 'Edit task'}
+            </h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-[13px] font-semibold text-slate-700 mb-1">
@@ -2445,7 +2612,21 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                   onChange={(e) =>
                     setEditingTaskDraft((prev) => ({ ...prev, title: e.target.value }))
                   }
+                  disabled={editingTaskMode === 'view'}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                />
+              </div>
+              <div>
+                <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={editingTaskDraft.description || ''}
+                  onChange={(e) =>
+                    setEditingTaskDraft((prev) => ({ ...prev, description: e.target.value }))
+                  }
+                  disabled={editingTaskMode === 'view'}
+                  className="w-full min-h-[90px] rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red disabled:bg-slate-50"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -2458,6 +2639,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                     onChange={(e) =>
                       setEditingTaskDraft((prev) => ({ ...prev, assigneeId: e.target.value }))
                     }
+                    disabled={editingTaskMode === 'view'}
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
                   >
                     <option value="">Unassigned</option>
@@ -2477,6 +2659,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                     onChange={(value) =>
                       setEditingTaskDraft((prev) => ({ ...prev, dueDate: value }))
                     }
+                    disabled={editingTaskMode === 'view'}
                   />
                 </div>
               </div>
@@ -2493,6 +2676,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                         priority: e.target.value as TaskPriority,
                       }))
                     }
+                    disabled={editingTaskMode === 'view'}
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
                   >
                     <option value="low">Low</option>
@@ -2512,6 +2696,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                         status: e.target.value as TaskStatus,
                       }))
                     }
+                    disabled={editingTaskMode === 'view'}
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
                   >
                     <option value="todo">To Do</option>
@@ -2522,6 +2707,40 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                   </select>
                 </div>
               </div>
+              {editingTaskDraft.documentUrl ? (
+                <div>
+                  <label className="block text-[13px] font-semibold text-slate-700 mb-2">
+                    Document
+                  </label>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[12px] text-slate-700 truncate">
+                        {editingTaskDraft.documentName || 'Attached document'}
+                      </span>
+                      <a
+                        href="#"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          try {
+                            await forceDownloadDocument(
+                              editingTaskDraft.documentUrl || '',
+                              editingTaskDraft.documentName || undefined,
+                            );
+                          } catch (err: any) {
+                            setError(err?.message || 'Failed to download document');
+                          }
+                        }}
+                        className="text-[12px] font-semibold text-brand-red hover:underline"
+                      >
+                        Download
+                      </a>
+                    </div>
+                    <p className="text-[12px] text-slate-500">
+                      Attached file is downloadable from here.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button
@@ -2541,6 +2760,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                   if (!editingTask) return;
                   const updates: Partial<SpacesTask> = {
                     title: editingTaskDraft.title?.trim() || editingTask.title,
+                    description: String(editingTaskDraft.description || '').trim(),
                     assigneeId: editingTaskDraft.assigneeId || '',
                     dueDate: editingTaskDraft.dueDate || '',
                     priority: (editingTaskDraft.priority || editingTask.priority) as TaskPriority,
@@ -2550,6 +2770,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                   setEditingTask(null);
                   setEditingTaskDraft({});
                 }}
+                hidden={editingTaskMode === 'view'}
                 className={`px-5 py-2 rounded-full bg-brand-red text-white text-[13px] font-semibold hover:bg-brand-navy ${
                   !editingTaskDraft.title || !editingTaskDraft.title.trim()
                     ? 'opacity-60 cursor-not-allowed'

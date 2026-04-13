@@ -30,6 +30,7 @@ import StaffView from './views/StaffView';
 import CommunicationView from './communication/views/CommunicationView';
 import ContentView from './views/ContentView';
 import ContentCreateView from './views/ContentCreateView';
+import SpacesTaskDetailView from './views/SpacesTaskDetailView';
 import { apiListConversations } from './communication/api';
 import { getUnreadDirectMessageSourceCount } from './communication/unread';
 import { getSocket } from './realtime/socket';
@@ -1281,6 +1282,7 @@ const App: React.FC = () => {
               <Routes>
                 {hasPower('DASHBOARD_VIEW') && <Route path="/" element={<EmployeeDashboardView />} />}
                 {hasPower('SPACES_VIEW') && <Route path="/spaces" element={<SpacesView mode="employee" />} />}
+                {hasPower('SPACES_VIEW') && <Route path="/spaces/task/:taskId" element={<SpacesTaskDetailView mode="employee" />} />}
                 {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance" element={<AttendanceView mode="employee" />} />}
                 {hasPower('PROFILE_VIEW') && <Route path="/profile" element={<EmployeeProfileView state={state} updateState={updateState} />} />}
                 {hasPower('WORKSPACES_VIEW') && <Route path="/project/:projectId" element={<EmployeeProjectDetailView />} />}
@@ -1433,6 +1435,7 @@ const App: React.FC = () => {
             <Routes>
               {hasPower('DASHBOARD_VIEW') && <Route path="/" element={<DashboardView state={state} loading={planningViewsLoading} />} />}
               {hasPower('SPACES_VIEW') && <Route path="/spaces" element={<SpacesView mode="manager" state={state} updateState={updateState} />} />}
+              {hasPower('SPACES_VIEW') && <Route path="/spaces/task/:taskId" element={<SpacesTaskDetailView mode="manager" />} />}
               {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance" element={<AttendanceView mode="manager" />} />}
               {hasPower('EMPLOYEE_CREATE') && <Route path="/employees/add" element={<AddEmployeeView state={state} />} />}
               {hasPower('PROFILE_VIEW') && <Route path="/profile" element={<ProfileView state={state} updateState={updateState} />} />}
