@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CornerUpLeft, Download, Eye, ExternalLink, FileText, Loader2, MoreVertical, PencilLine, Trash2 } from 'lucide-react';
+import { CornerUpLeft, Download, Eye, FileText, Loader2, MoreVertical, PencilLine, Trash2 } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
 import { MessageActionModal } from './MessageActionModal';
 import { API_BASE } from '../../config/api';
@@ -7,6 +7,33 @@ import { API_BASE } from '../../config/api';
 function formatTime(iso: string) {
   const d = new Date(iso);
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+function formatAttachmentSize(size?: number) {
+  if (!size || Number.isNaN(size)) return null;
+
+  if (size < 1024) return `${size} B`;
+
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = size / 1024;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function getAttachmentBadge(fileName: string, mimeType: string, isImageAttachment: boolean) {
+  if (isImageAttachment) return 'IMG';
+
+  const extension = fileName.includes('.') ? fileName.split('.').pop() : '';
+  if (extension) return extension.slice(0, 4).toUpperCase();
+
+  const subtype = mimeType.split('/')[1];
+  return subtype ? subtype.slice(0, 4).toUpperCase() : 'FILE';
 }
 
 export function MessageBubble({
@@ -34,7 +61,7 @@ export function MessageBubble({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editValue, setEditValue] = useState(message.content || '');
   const [mounted, setMounted] = useState(false);
-  const [actionLoading, setActionLoading] = useState<null | 'open' | 'download'>(null);
+  const [actionLoading, setActionLoading] = useState<null | 'download'>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const bubbleRef = useRef<HTMLDivElement | null>(null);
 
@@ -93,21 +120,19 @@ export function MessageBubble({
   const downloadUrl = message.attachment?.fileId
     ? `${API_BASE}/communication/files/${encodeURIComponent(message.attachment.fileId)}`
     : directFileUrl;
-  const openUrl = message.attachment?.fileId
-    ? `${API_BASE}/communication/files/${encodeURIComponent(message.attachment.fileId)}?download=0`
-    : directFileUrl;
-
-  const triggerOpen = () => {
-    setActionLoading('open');
-    window.open(openUrl, '_blank', 'noopener,noreferrer');
-    window.setTimeout(() => setActionLoading(null), 1200);
-  };
+  const attachmentName = message.attachment?.fileName || 'Attachment';
+  const attachmentMimeType = message.attachment?.mimeType || '';
+  const isImageAttachment = message.type === 'image' || attachmentMimeType.startsWith('image/');
+  const attachmentSize = formatAttachmentSize(message.attachment?.size);
+  const attachmentBadge = getAttachmentBadge(attachmentName, attachmentMimeType, isImageAttachment);
+  const hasDownloadTarget = downloadUrl !== '#';
 
   const triggerDownload = () => {
+    if (!hasDownloadTarget) return;
     setActionLoading('download');
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = message.attachment?.fileName || 'file';
+    link.download = attachmentName || 'file';
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -232,59 +257,79 @@ export function MessageBubble({
               {showSenderName && !isOwn && sender?.name ? (
                 <div className={`text-[11px] font-semibold ${isOwn ? 'text-white/85' : 'text-slate-600'}`}>{sender.name}</div>
               ) : null}
-              {(message.type === 'image' || message.attachment?.mimeType.startsWith('image/')) ? (
-                <div className="group/image relative inline-block">
-                  <img
-                    src={message.fileUrl || message.attachment?.url || ''}
-                    alt={message.attachment?.fileName || 'Image'}
-                    className="max-h-72 w-auto rounded-xl bg-white border border-slate-200 object-contain cursor-pointer"
-                    onClick={triggerDownload}
-                    title="Click to download image"
-                  />
-                  <button
-                    type="button"
-                    onClick={triggerDownload}
-                    title="Download image"
-                    className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-sm opacity-0 transition-opacity group-hover/image:opacity-100"
-                  >
-                    {actionLoading === 'download' ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                  </button>
+              {isImageAttachment ? (
+                <div
+                  className={`w-full max-w-[240px] overflow-hidden rounded-[22px] border ${
+                    isOwn ? 'border-white/20 bg-white/10' : 'border-slate-200 bg-white'
+                  } shadow-[0_14px_34px_rgba(15,23,42,0.12)]`}
+                >
+                  <div className="group/image relative">
+                    <img
+                      src={message.fileUrl || message.attachment?.url || ''}
+                      alt={attachmentName}
+                      className="h-36 w-full bg-slate-100 object-cover"
+                    />
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent opacity-0 transition-opacity duration-200 group-hover/image:opacity-100" />
+                    <button
+                      type="button"
+                      onClick={triggerDownload}
+                      title={`Download ${attachmentName}`}
+                      aria-label={`Download ${attachmentName}`}
+                      disabled={!hasDownloadTarget || actionLoading === 'download'}
+                      className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/60 bg-white/95 text-slate-700 shadow-lg opacity-0 transition-all duration-200 group-hover/image:opacity-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {actionLoading === 'download' ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                    </button>
+                  </div>
+                  <div className={`flex items-center gap-3 px-3 py-2.5 ${isOwn ? 'text-white' : 'text-slate-900'}`}>
+                    <div className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold tracking-[0.18em] ${
+                      isOwn ? 'bg-white/15 text-white/90' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {attachmentBadge}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-[13px] font-semibold">{attachmentName}</div>
+                      <div className={`text-[11px] ${isOwn ? 'text-white/75' : 'text-slate-500'}`}>
+                        {['Image', attachmentSize].filter(Boolean).join(' | ')}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : null}
 
-              {(message.type === 'image' || message.attachment?.mimeType.startsWith('image/')) ? null : (
-                <div className={`rounded-xl border px-3 py-2 ${isOwn ? 'border-white/20 bg-white/10' : 'border-slate-200 bg-slate-50'}`}>
-                  <div className="flex items-center gap-2">
-                    <FileText size={16} className={isOwn ? 'text-white/90' : 'text-slate-600'} />
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-                      {message.attachment?.fileName || 'Attachment'}
-                    </span>
+              {isImageAttachment ? null : (
+                <button
+                  type="button"
+                  onClick={triggerDownload}
+                  disabled={!hasDownloadTarget || actionLoading === 'download'}
+                  title={`Download ${attachmentName}`}
+                  className={`group/file w-full rounded-[22px] border px-3 py-3 text-left transition-all duration-200 ${
+                    isOwn
+                      ? 'border-white/20 bg-white/10 text-white hover:bg-white/15'
+                      : 'border-slate-200 bg-slate-50 text-slate-900 hover:bg-white'
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+                      isOwn ? 'bg-white/15 text-white/90' : 'bg-white text-slate-600 shadow-sm'
+                    }`}>
+                      <FileText size={18} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13px] font-semibold">{attachmentName}</div>
+                      <div className={`text-[11px] ${isOwn ? 'text-white/75' : 'text-slate-500'}`}>
+                        {[attachmentBadge, attachmentSize].filter(Boolean).join(' | ')}
+                      </div>
+                    </div>
+                    <div className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all duration-200 ${
+                      isOwn
+                        ? 'bg-white/15 text-white group-hover/file:bg-white/20'
+                        : 'bg-white text-slate-700 shadow-sm group-hover/file:shadow'
+                    }`}>
+                      {actionLoading === 'download' ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                    </div>
                   </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <button
-                      type="button"
-                      className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold ${
-                        isOwn ? 'bg-white/20 text-white hover:bg-white/25' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
-                      }`}
-                      onClick={triggerOpen}
-                      disabled={actionLoading === 'open'}
-                    >
-                      {actionLoading === 'open' ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
-                      Open
-                    </button>
-                    <button
-                      type="button"
-                      className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold ${
-                        isOwn ? 'bg-white/20 text-white hover:bg-white/25' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
-                      }`}
-                      onClick={triggerDownload}
-                      disabled={actionLoading === 'download'}
-                    >
-                      {actionLoading === 'download' ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                      Download
-                    </button>
-                  </div>
-                </div>
+                </button>
               )}
 
               {message.content ? (

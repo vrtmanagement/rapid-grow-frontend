@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, BellRing, Bot, CalendarDays, ChevronLeft, ChevronRight, FileText, Globe, Hash, Linkedin, Link2, Mail, Pencil, Plus, Sparkles, Trash2, X, Youtube } from 'lucide-react';
 import { apiCreateContent, apiDeleteContent, apiListContent, apiUpdateContent, apiUploadContentFile, ContentAsset, ContentItem, ContentType } from '../services/contentApi';
@@ -181,6 +181,33 @@ function readStringList(storageKey: string) {
   }
 }
 
+function findScrollContainer(node: HTMLElement | null): HTMLElement | Window {
+  let current = node?.parentElement || null;
+  while (current) {
+    const style = window.getComputedStyle(current);
+    const overflowY = style.overflowY;
+    const isScrollable = (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay')
+      && current.scrollHeight > current.clientHeight;
+
+    if (isScrollable) {
+      return current;
+    }
+
+    current = current.parentElement;
+  }
+
+  return window;
+}
+
+function scrollContainerToTop(container: HTMLElement | Window) {
+  if (container === window) {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    return;
+  }
+
+  container.scrollTo({ top: 0, behavior: 'auto' });
+}
+
 function FormattedContentBody({ text, compact = false, clampLines, flat = false }: { text: string; compact?: boolean; clampLines?: number; flat?: boolean }) {
   const hasValue = String(text || '').trim().length > 0;
 
@@ -279,6 +306,7 @@ const ContentView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { dayKey, typeKey, itemKey } = useParams();
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const isDayPage = !!dayKey;
   const selectedType = typeKey && isContentType(typeKey) ? typeKey : null;
   const isTypeDetailPage = isDayPage && !!selectedType;
@@ -444,14 +472,14 @@ const ContentView: React.FC = () => {
     [itemKey, location.search]
   );
   useEffect(() => {
-    if (!isTypeDetailPage || !highlightedItemId || loading) return;
+    if (!isTypeDetailPage || isItemDetailPage || !highlightedItemId || loading) return;
     const timer = window.setTimeout(() => {
       const target = document.getElementById(`content-card-${highlightedItemId}`);
       if (!target) return;
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [highlightedItemId, isTypeDetailPage, loading, selectedTypeItems]);
+  }, [highlightedItemId, isItemDetailPage, isTypeDetailPage, loading, selectedTypeItems]);
   const followEeItems = useMemo(
     () => items.filter((item) => String(item.channelKey || '').toLowerCase() === 'follow-ee'),
     [items]
@@ -495,6 +523,11 @@ const ContentView: React.FC = () => {
   const isReminderTypeDetail = (activeTab === 'follow-ee' || activeTab === 'follow-ega') && !!selectedReminderType;
   const isReminderItemDetail = isReminderTypeDetail && !!selectedReminderItemId;
   const isReminderTab = activeTab === 'follow-ee' || activeTab === 'follow-ega';
+  useEffect(() => {
+    if (loading || (!isItemDetailPage && !isReminderItemDetail)) return;
+    const container = findScrollContainer(rootRef.current);
+    scrollContainerToTop(container);
+  }, [isItemDetailPage, isReminderItemDetail, loading, location.pathname, location.search]);
   const reminderCategoryLabel = 'General';
   const todayKey = useMemo(() => toDateKey(new Date()), []);
   const currentMonthKey = `${monthCursor.getFullYear()}-${String(monthCursor.getMonth() + 1).padStart(2, '0')}`;
@@ -737,7 +770,7 @@ const ContentView: React.FC = () => {
   };
 
   return (
-    <div className="relative -mx-8 -mt-14 w-auto space-y-4 pb-4 lg:-mx-10 lg:-mt-16 xl:-mx-12">
+    <div ref={rootRef} className="relative -mx-8 -mt-14 w-auto space-y-4 pb-4 lg:-mx-10 lg:-mt-16 xl:-mx-12">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 rounded-[2.25rem] bg-[radial-gradient(circle_at_top_left,_rgba(139,92,246,0.12),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(239,68,68,0.08),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.9),_rgba(248,250,252,0.65))]" />
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
 
@@ -996,7 +1029,7 @@ const ContentView: React.FC = () => {
                               type="button"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                navigate(`/content/day/${selectedDate}/type/${group.type}?item=${encodeURIComponent(item.contentId)}`);
+                                navigate(`/content/day/${selectedDate}/type/${group.type}/item/${encodeURIComponent(item.contentId)}`);
                               }}
                               className={`flex w-full items-center gap-3 rounded-[1.1rem] border border-white/80 bg-gradient-to-r px-3.5 py-3 text-left shadow-[0_10px_24px_rgba(15,23,42,0.05)] ring-1 transition hover:-translate-y-[1px] hover:border-slate-200 hover:shadow-[0_14px_28px_rgba(15,23,42,0.08)] ${TYPE_ACCENT[group.type].previewRow}`}
                             >
@@ -1021,7 +1054,7 @@ const ContentView: React.FC = () => {
                           </p>
                           <div className="inline-flex items-center gap-2 text-sm font-medium text-brand-red/80 transition group-hover:text-brand-red">
                             <span className="h-1.5 w-1.5 rounded-full bg-brand-red/60" />
-                            Open details
+                            Show all
                           </div>
                         </div>
                       </div>
