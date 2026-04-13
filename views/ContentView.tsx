@@ -169,6 +169,7 @@ function formatUsDateTime(value?: string) {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: 'Asia/Kolkata',
   });
 }
 
@@ -885,7 +886,12 @@ const ContentView: React.FC = () => {
           </h4>
         </div>
         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
-          {new Date(item.createdAt).toLocaleTimeString()}
+          {new Date(item.createdAt).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'Asia/Kolkata',
+          })}
         </span>
       </div>
       <div className="relative mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-600">

@@ -14,31 +14,34 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMo
     if (!value) return 'N/A';
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return 'N/A';
-    return parsed.toLocaleTimeString(undefined, {
+    return parsed.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kolkata',
     });
   };
 
   const formatFullDate = (isoDate: string) => {
     const parsed = new Date(`${isoDate}T00:00:00`);
-    return parsed.toLocaleDateString(undefined, {
+    return parsed.toLocaleDateString('en-US', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
+      timeZone: 'Asia/Kolkata',
     });
   };
   const getShownMonthLabel = () => {
     if (selectedMonth) {
       const selectedDate = new Date(`${selectedMonth}-01T00:00:00`);
-      return selectedDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      return selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
     }
     if (summary?.start) {
       const startDate = new Date(summary.start);
-      return startDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      return startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
     }
     const now = new Date();
-    return now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
   };
 
   const chartData =

@@ -230,7 +230,7 @@ const FeedbackView: React.FC = () => {
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0">
                       <span className="text-[11px] text-slate-400">
-                        {new Date(item.createdAt).toLocaleString()}
+                        {new Date(item.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })}
                       </span>
                       <div className="flex gap-1">
                         {canModify &&

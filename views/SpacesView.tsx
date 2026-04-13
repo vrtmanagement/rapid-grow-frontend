@@ -315,7 +315,7 @@ const ThemedDatePicker: React.FC<{
   }, [open, compact, forceOpenDown]);
 
   const startOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
-  const monthLabel = viewDate.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+  const monthLabel = viewDate.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
   const selectedDate = parseDateValue(value);
   const today = new Date();
   const triggerClass = compact
@@ -2236,7 +2236,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] text-slate-400">
-                            {new Date(c.createdAt).toLocaleString()}
+                            {new Date(c.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })}
                           </span>
                           {canEditComment && (
                             <>

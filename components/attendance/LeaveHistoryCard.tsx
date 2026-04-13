@@ -73,12 +73,12 @@ const LeaveHistoryCard: React.FC<Props> = ({
               <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3.5 py-1.5 shadow-sm">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">From</span>
                 <span className="text-[1.02rem] font-semibold tracking-[-0.02em] text-slate-900">
-                  {new Date(leave.startDate).toLocaleDateString()}
+                  {new Date(leave.startDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
                 </span>
                 <span className="text-slate-300">•</span>
                 <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">To</span>
                 <span className="text-[1.02rem] font-semibold tracking-[-0.02em] text-slate-900">
-                  {new Date(leave.endDate).toLocaleDateString()}
+                  {new Date(leave.endDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
                 </span>
               </div>
               <span className="inline-flex items-center gap-1 rounded-full bg-brand-red/8 px-3 py-1 text-[11px] font-semibold text-brand-red">
@@ -120,11 +120,11 @@ const LeaveHistoryCard: React.FC<Props> = ({
 
             <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
               <span className="inline-flex items-center rounded-full bg-white/75 px-2.5 py-1 font-medium text-slate-500 shadow-sm">
-                Applied {new Date(leave.createdAt).toLocaleDateString()}
+                Applied {new Date(leave.createdAt).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
               </span>
               {leave.decidedAt ? (
                 <span className="inline-flex items-center rounded-full bg-white/75 px-2.5 py-1 font-medium text-slate-500 shadow-sm">
-                  Updated {new Date(leave.decidedAt).toLocaleDateString()}
+                  Updated {new Date(leave.decidedAt).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
                 </span>
               ) : null}
               {decisionLabel ? (
