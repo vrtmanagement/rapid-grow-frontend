@@ -68,43 +68,6 @@ function messagePreviewFromPayload(type: string, content: string, attachment?: C
   return attachment?.fileName ? `Attachment: ${attachment.fileName}` : 'New attachment';
 }
 
-let sharedNotificationAudioContext: AudioContext | null = null;
-
-function getSharedNotificationAudioContext(): AudioContext | null {
-  if (typeof window === 'undefined') return null;
-  const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-  if (!AudioCtx) return null;
-  if (!sharedNotificationAudioContext) {
-    sharedNotificationAudioContext = new AudioCtx();
-  }
-  return sharedNotificationAudioContext;
-}
-
-function playNotificationSound() {
-  // Best-effort sound: relies on user interaction unlock in modern browsers.
-  const context = getSharedNotificationAudioContext();
-  if (!context) return;
-  try {
-    if (context.state === 'suspended') {
-      void context.resume();
-    }
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.type = 'triangle';
-    oscillator.frequency.setValueAtTime(640, context.currentTime);
-    oscillator.frequency.linearRampToValueAtTime(840, context.currentTime + 0.12);
-    gain.gain.setValueAtTime(0.0001, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.045, context.currentTime + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.2);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start(context.currentTime);
-    oscillator.stop(context.currentTime + 0.2);
-  } catch {
-    // Ignore: sound may be blocked by browser policy.
-  }
-}
-
 function canUseBrowserNotifications(): boolean {
   return typeof window !== 'undefined' && 'Notification' in window;
 }
@@ -158,23 +121,6 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       name: employee.empName || employee.name || 'User',
       role: employee.role || 'EMPLOYEE',
     });
-  }, []);
-
-  useEffect(() => {
-    // Unlock/resume audio after first user interaction for reliable notification sound.
-    const unlock = () => {
-      const context = getSharedNotificationAudioContext();
-      if (!context) return;
-      if (context.state === 'suspended') {
-        void context.resume();
-      }
-    };
-    window.addEventListener('pointerdown', unlock, { passive: true });
-    window.addEventListener('keydown', unlock);
-    return () => {
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
-    };
   }, []);
 
   const loadUsers = useCallback(async () => {
@@ -511,8 +457,6 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
 
         scheduleNotificationAutoDismiss(nextNotification.id);
 
-        playNotificationSound();
-
         if (shouldShowSystemNotification(isTabHidden) && canUseBrowserNotifications()) {
           if (Notification.permission === 'default') {
             Notification.requestPermission().catch(() => {});
@@ -522,7 +466,6 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
               body: nextNotification.messagePreview,
               icon: avatar,
               tag: nextNotification.id,
-              silent: false,
             });
             systemNotification.onclick = () => {
               window.focus();
