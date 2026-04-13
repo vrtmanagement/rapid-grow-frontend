@@ -93,6 +93,16 @@ function playNotificationSound() {
   }
 }
 
+function canUseBrowserNotifications(): boolean {
+  return typeof window !== 'undefined' && 'Notification' in window;
+}
+
+function shouldShowSystemNotification(isTabHidden: boolean): boolean {
+  if (typeof document === 'undefined') return false;
+  // Show outside-browser-app alert when app tab is hidden or window isn't focused.
+  return isTabHidden || !document.hasFocus();
+}
+
 export function CommunicationProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<CommunicationContextValue['currentUser']>(null);
   const [users, setUsers] = useState<ChatUser[]>([]);
@@ -121,6 +131,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   const typingStopTimer = useRef<number | null>(null);
   const lastMessageIdByConversationKeyRef = useRef<Record<string, string>>({});
   const notificationTimersRef = useRef<Record<string, number>>({});
+  const browserNotificationsRef = useRef<Record<string, Notification>>({});
 
   useEffect(() => {
     const stored = getStoredAuth();
@@ -277,6 +288,11 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       window.clearTimeout(timer);
       delete notificationTimersRef.current[notificationId];
     }
+    const systemNotification = browserNotificationsRef.current[notificationId];
+    if (systemNotification) {
+      systemNotification.close();
+      delete browserNotificationsRef.current[notificationId];
+    }
     setNotifications((prev) => prev.filter((item) => item.id !== notificationId));
   }, []);
 
@@ -284,6 +300,8 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     return () => {
       Object.values(notificationTimersRef.current).forEach((timer) => window.clearTimeout(timer));
       notificationTimersRef.current = {};
+      Object.values(browserNotificationsRef.current).forEach((notification) => notification.close());
+      browserNotificationsRef.current = {};
     };
   }, []);
 
@@ -436,6 +454,25 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
         }, 4500);
 
         playNotificationSound();
+
+        if (shouldShowSystemNotification(isTabHidden) && canUseBrowserNotifications()) {
+          if (Notification.permission === 'default') {
+            Notification.requestPermission().catch(() => {});
+          }
+          if (Notification.permission === 'granted') {
+            const systemNotification = new Notification(senderName, {
+              body: nextNotification.messagePreview,
+              icon: avatar,
+              tag: nextNotification.id,
+            });
+            systemNotification.onclick = () => {
+              window.focus();
+              void openNotificationConversation(nextNotification.id);
+              systemNotification.close();
+            };
+            browserNotificationsRef.current[nextNotification.id] = systemNotification;
+          }
+        }
       }
 
       // If the message is for the current conversation, append it.
@@ -787,7 +824,15 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     async (notificationId: string) => {
       const target = notifications.find((item) => item.id === notificationId);
       if (!target) return;
+      const systemNotification = browserNotificationsRef.current[notificationId];
+      if (systemNotification) {
+        systemNotification.close();
+        delete browserNotificationsRef.current[notificationId];
+      }
       dismissNotification(notificationId);
+      if (typeof window !== 'undefined' && !window.location.hash.includes('/communication')) {
+        window.location.hash = '#/communication';
+      }
       await joinByConversationKey(target.conversationKey);
     },
     [dismissNotification, joinByConversationKey, notifications]

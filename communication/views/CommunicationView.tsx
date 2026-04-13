@@ -1,11 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CommunicationProvider } from '../context/CommunicationContext';
 import { useCommunication } from '../context/useCommunication';
 import { AvatarPreviewEntity, AvatarPreviewModal } from '../components/AvatarPreviewModal';
 import { ChatSidebar } from '../components/ChatSidebar';
 import { ChatMessages } from '../components/ChatMessages';
 import { ChatComposer } from '../components/ChatComposer';
-import { NotificationStack } from '../components/NotificationStack';
 import { Mail } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
 
@@ -323,22 +321,11 @@ function CommunicationLayout() {
         entity={previewEntity}
         onClose={() => setPreviewEntity(null)}
       />
-      <NotificationStack
-        notifications={ctx.notifications}
-        onClose={ctx.dismissNotification}
-        onOpen={(notificationId) => {
-          void ctx.openNotificationConversation(notificationId);
-        }}
-      />
     </div>
   );
 }
 
 export default function CommunicationView() {
-  return (
-    <CommunicationProvider>
-      <CommunicationLayout />
-    </CommunicationProvider>
-  );
+  return <CommunicationLayout />;
 }
 
