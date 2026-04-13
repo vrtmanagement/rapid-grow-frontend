@@ -68,13 +68,26 @@ function messagePreviewFromPayload(type: string, content: string, attachment?: C
   return attachment?.fileName ? `Attachment: ${attachment.fileName}` : 'New attachment';
 }
 
+let sharedNotificationAudioContext: AudioContext | null = null;
+
+function getSharedNotificationAudioContext(): AudioContext | null {
+  if (typeof window === 'undefined') return null;
+  const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AudioCtx) return null;
+  if (!sharedNotificationAudioContext) {
+    sharedNotificationAudioContext = new AudioCtx();
+  }
+  return sharedNotificationAudioContext;
+}
+
 function playNotificationSound() {
-  // Use Web Audio so we don't depend on a bundled media file.
-  if (typeof window === 'undefined') return;
+  // Best-effort sound: relies on user interaction unlock in modern browsers.
+  const context = getSharedNotificationAudioContext();
+  if (!context) return;
   try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return;
-    const context = new AudioCtx();
+    if (context.state === 'suspended') {
+      void context.resume();
+    }
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     oscillator.type = 'triangle';
@@ -87,9 +100,8 @@ function playNotificationSound() {
     gain.connect(context.destination);
     oscillator.start(context.currentTime);
     oscillator.stop(context.currentTime + 0.2);
-    window.setTimeout(() => context.close(), 300);
   } catch {
-    // Sound is best-effort only.
+    // Ignore: sound may be blocked by browser policy.
   }
 }
 
@@ -101,6 +113,10 @@ function shouldShowSystemNotification(isTabHidden: boolean): boolean {
   if (typeof document === 'undefined') return false;
   // Show outside-browser-app alert when app tab is hidden or window isn't focused.
   return isTabHidden || !document.hasFocus();
+}
+
+function isDocumentVisible(): boolean {
+  return typeof document !== 'undefined' && document.visibilityState === 'visible';
 }
 
 export function CommunicationProvider({ children }: { children: React.ReactNode }) {
@@ -142,6 +158,23 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       name: employee.empName || employee.name || 'User',
       role: employee.role || 'EMPLOYEE',
     });
+  }, []);
+
+  useEffect(() => {
+    // Unlock/resume audio after first user interaction for reliable notification sound.
+    const unlock = () => {
+      const context = getSharedNotificationAudioContext();
+      if (!context) return;
+      if (context.state === 'suspended') {
+        void context.resume();
+      }
+    };
+    window.addEventListener('pointerdown', unlock, { passive: true });
+    window.addEventListener('keydown', unlock);
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
   }, []);
 
   const loadUsers = useCallback(async () => {
@@ -296,6 +329,24 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     setNotifications((prev) => prev.filter((item) => item.id !== notificationId));
   }, []);
 
+  const scheduleNotificationAutoDismiss = useCallback((notificationId: string, delayMs = 4500) => {
+    const existingTimer = notificationTimersRef.current[notificationId];
+    if (existingTimer) {
+      window.clearTimeout(existingTimer);
+      delete notificationTimersRef.current[notificationId];
+    }
+    if (!isDocumentVisible()) return;
+    notificationTimersRef.current[notificationId] = window.setTimeout(() => {
+      setNotifications((prev) => prev.filter((item) => item.id !== notificationId));
+      delete notificationTimersRef.current[notificationId];
+      const systemNotification = browserNotificationsRef.current[notificationId];
+      if (systemNotification) {
+        systemNotification.close();
+        delete browserNotificationsRef.current[notificationId];
+      }
+    }, delayMs);
+  }, []);
+
   useEffect(() => {
     return () => {
       Object.values(notificationTimersRef.current).forEach((timer) => window.clearTimeout(timer));
@@ -304,6 +355,18 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       browserNotificationsRef.current = {};
     };
   }, []);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!isDocumentVisible()) return;
+      setNotifications((prev) => {
+        prev.forEach((item) => scheduleNotificationAutoDismiss(item.id));
+        return prev;
+      });
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [scheduleNotificationAutoDismiss]);
 
   // Socket listeners
   useEffect(() => {
@@ -446,12 +509,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
           return next;
         });
 
-        const existingTimer = notificationTimersRef.current[nextNotification.id];
-        if (existingTimer) window.clearTimeout(existingTimer);
-        notificationTimersRef.current[nextNotification.id] = window.setTimeout(() => {
-          setNotifications((prev) => prev.filter((item) => item.id !== nextNotification.id));
-          delete notificationTimersRef.current[nextNotification.id];
-        }, 4500);
+        scheduleNotificationAutoDismiss(nextNotification.id);
 
         playNotificationSound();
 
@@ -464,6 +522,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
               body: nextNotification.messagePreview,
               icon: avatar,
               tag: nextNotification.id,
+              silent: false,
             });
             systemNotification.onclick = () => {
               window.focus();
@@ -724,7 +783,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       socket.off('comm:message:deleted', handleMessageDeleted);
       socket.off('comm:unread:cleared', handleUnreadCleared);
     };
-  }, [socket]);
+  }, [scheduleNotificationAutoDismiss, socket]);
 
   const joinByConversationKey = useCallback(
     async (conversationKey: string) => {
