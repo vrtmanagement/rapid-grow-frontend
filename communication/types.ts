@@ -77,3 +77,12 @@ export type ChatMessage = {
   replyTo?: ChatReplyRef | null;
 };
 
+export type ChatNotification = {
+  id: string;
+  conversationKey: string;
+  senderName: string;
+  messagePreview: string;
+  avatar?: string;
+  createdAt: number;
+};
+

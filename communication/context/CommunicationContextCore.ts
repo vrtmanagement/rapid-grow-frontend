@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import { ChatConversationSummary, ChatMessage, ChatUser } from '../types';
+import { ChatConversationSummary, ChatMessage, ChatNotification, ChatUser } from '../types';
 
 export type CommunicationContextValue = {
   currentUser: { id: string; name: string; role: string } | null;
@@ -30,6 +30,10 @@ export type CommunicationContextValue = {
 
   editMessage: (messageId: string, conversationKey: string, newContent: string) => Promise<void>;
   deleteMessage: (messageId: string, conversationKey: string) => Promise<void>;
+
+  notifications: ChatNotification[];
+  dismissNotification: (notificationId: string) => void;
+  openNotificationConversation: (notificationId: string) => Promise<void>;
 };
 
 export const CommunicationContext = createContext<CommunicationContextValue | undefined>(undefined);
