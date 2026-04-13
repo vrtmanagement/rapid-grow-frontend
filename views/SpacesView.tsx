@@ -704,6 +704,20 @@ const TABLE_SELECT_OPTION_CLASS =
 const TABLE_DATE_TRIGGER_CLASS =
   'w-[138px] max-w-full rounded-xl border border-slate-200 bg-white px-4 pr-10 py-2 text-center text-[13px] text-slate-700 outline-none transition-colors hover:border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
+function findScrollableContainer(node: HTMLElement | null): HTMLElement | Window {
+  let current = node?.parentElement || null;
+  while (current) {
+    const style = window.getComputedStyle(current);
+    const overflowY = style.overflowY;
+    const isScrollable =
+      (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') &&
+      current.scrollHeight > current.clientHeight;
+    if (isScrollable) return current;
+    current = current.parentElement;
+  }
+  return window;
+}
+
 function projectCharterPayloadFromBackendProject(proj: any, updatedTasks: any[]) {
   return {
     id: proj.clientProjectId,
@@ -733,6 +747,7 @@ interface Props {
 
 const SpacesView: React.FC<Props> = ({ mode }) => {
   const navigate = useNavigate();
+  const taskHubRootRef = useRef<HTMLDivElement | null>(null);
   const generateId = () =>
     (typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? (crypto.randomUUID() as string)
@@ -782,6 +797,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
 
   const [taskFilterMode, setTaskFilterMode] = useState<TaskFilterMode>('all');
   const [taskSearch, setTaskSearch] = useState('');
+  const [taskPage, setTaskPage] = useState(1);
 
   const [editingTask, setEditingTask] = useState<SpacesTask | null>(null);
   const [editingTaskMode, setEditingTaskMode] = useState<'view' | 'edit'>('view');
@@ -1427,6 +1443,28 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     });
     return copy;
   }, [filteredTasks, mode]);
+  const TASKS_PER_PAGE = 15;
+  const totalTaskPages = Math.max(1, Math.ceil(sortedTasks.length / TASKS_PER_PAGE));
+  const paginatedTasks = useMemo(() => {
+    const start = (taskPage - 1) * TASKS_PER_PAGE;
+    return sortedTasks.slice(start, start + TASKS_PER_PAGE);
+  }, [sortedTasks, taskPage]);
+  const visibleTaskPages = useMemo(() => {
+    const radius = 2;
+    const start = Math.max(1, taskPage - radius);
+    const end = Math.min(totalTaskPages, taskPage + radius);
+    const pages: number[] = [];
+    for (let page = start; page <= end; page += 1) pages.push(page);
+    return pages;
+  }, [taskPage, totalTaskPages]);
+
+  useEffect(() => {
+    setTaskPage(1);
+  }, [taskFilterMode, taskSearch, mode]);
+
+  useEffect(() => {
+    setTaskPage((prev) => Math.min(prev, totalTaskPages));
+  }, [totalTaskPages]);
 
   const getTaskHighlightClass = (t: SpacesTask): string => {
     return getPriorityRowClass(t.priority);
@@ -1595,6 +1633,21 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     [sortedTasks, commentTaskId],
   );
 
+  useEffect(() => {
+    const runScrollReset = () => {
+      const scrollContainer = findScrollableContainer(taskHubRootRef.current);
+      if (scrollContainer === window) {
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      } else {
+        scrollContainer.scrollTo({ top: 0, behavior: 'auto' });
+      }
+    };
+
+    runScrollReset();
+    const rafId = window.requestAnimationFrame(runScrollReset);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [mode]);
+
   const handleAddComment = async () => {
     if (!activeCommentTask || !canCommentOnTask(activeCommentTask) || submittingComment) return;
     const text = commentDraft.trim();
@@ -1632,7 +1685,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-700">
+    <div ref={taskHubRootRef} className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-700">
       <div className="flex items-end justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 mb-3">
@@ -1824,8 +1877,10 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       </div>
 
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
-        <div className="overflow-auto">
-          <table className="w-full text-left border-collapse">
+        <div
+          className="overflow-x-auto overflow-y-visible border-b border-slate-100 [transform:rotateX(180deg)]"
+        >
+          <table className="w-full text-left border-collapse [transform:rotateX(180deg)]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr className="text-[12px] font-bold text-slate-600 uppercase tracking-[0.12em]">
                 <th className="px-4 py-3 min-w-[220px]">Name</th>
@@ -1932,7 +1987,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
                   </td>
                 </tr>
               ) : (
-                sortedTasks.map((t) => {
+                paginatedTasks.map((t) => {
                   const canEdit = canEditTask(t);
                   const isLockedDoneRow = isTaskLocked(t);
                   return (
@@ -2182,6 +2237,45 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
             </tbody>
           </table>
         </div>
+        {!spacesLoading && sortedTasks.length > 0 ? (
+          <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-3">
+            <p className="text-[12px] text-slate-500">
+              Showing {(taskPage - 1) * TASKS_PER_PAGE + 1}-{Math.min(taskPage * TASKS_PER_PAGE, sortedTasks.length)} of {sortedTasks.length}
+            </p>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setTaskPage((prev) => Math.max(1, prev - 1))}
+                disabled={taskPage === 1}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Prev
+              </button>
+              {visibleTaskPages.map((page) => (
+                <button
+                  key={`task-page-${page}`}
+                  type="button"
+                  onClick={() => setTaskPage(page)}
+                  className={`rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition ${
+                    page === taskPage
+                      ? 'border-brand-red bg-brand-red text-white'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setTaskPage((prev) => Math.min(totalTaskPages, prev + 1))}
+                disabled={taskPage === totalTaskPages}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {activeCommentTask && (
