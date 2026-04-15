@@ -694,6 +694,8 @@ const ContentView: React.FC = () => {
   const isReminderTypeDetail = (activeTab === 'follow-ee' || activeTab === 'follow-ega') && !!selectedReminderType;
   const isReminderItemDetail = isReminderTypeDetail && !!selectedReminderItemId;
   const isReminderTab = activeTab === 'follow-ee' || activeTab === 'follow-ega';
+  const isInlineDetailPage = isItemDetailPage || isReminderItemDetail;
+  const inlineDetailItem = isItemDetailPage ? selectedItem : isReminderItemDetail ? selectedReminderItem : null;
   useEffect(() => {
     if (loading || (!isItemDetailPage && !isReminderItemDetail)) return;
     const container = findScrollContainer(rootRef.current);
@@ -770,7 +772,7 @@ const ContentView: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!isItemDetailPage || !selectedItem) return;
+    if (!isInlineDetailPage || !inlineDetailItem) return;
     if (skipNextAutoInlineEditRef.current) {
       skipNextAutoInlineEditRef.current = false;
       return;
@@ -778,9 +780,9 @@ const ContentView: React.FC = () => {
     const editMode = String(new URLSearchParams(location.search).get('edit') || '').trim().toLowerCase();
     const shouldAutoOpenInlineEdit = editMode === '1' || editMode === 'true' || editMode === 'yes';
     if (!shouldAutoOpenInlineEdit) return;
-    if (editingItem?.contentId === selectedItem.contentId) return;
-    openEdit(selectedItem, { inline: true });
-  }, [editingItem?.contentId, isItemDetailPage, location.search, selectedItem]);
+    if (editingItem?.contentId === inlineDetailItem.contentId) return;
+    openEdit(inlineDetailItem, { inline: true });
+  }, [editingItem?.contentId, inlineDetailItem, isInlineDetailPage, location.search]);
 
   const clearInlineEditQueryParam = () => {
     const params = new URLSearchParams(location.search);
@@ -996,7 +998,7 @@ const ContentView: React.FC = () => {
       return acc;
     }, {});
     const isCommentsOpen = openCommentsForContentId === item.contentId;
-    const isInlineEditing = isExpanded && isItemDetailPage && editingItem?.contentId === item.contentId;
+    const isInlineEditing = isExpanded && isInlineDetailPage && editingItem?.contentId === item.contentId;
 
     return (
     <div
@@ -1193,7 +1195,16 @@ const ContentView: React.FC = () => {
                 navigate(`/content/day/${selectedDate}/type/${item.type}/item/${item.contentId}?edit=1`);
                 return;
               }
-              openEdit(item, { inline: isExpanded && isItemDetailPage });
+              if (isReminderTypeDetail && !isReminderItemDetail) {
+                const params = new URLSearchParams(location.search);
+                params.set('tab', activeTab);
+                params.set('reminderType', selectedReminderType || item.type);
+                params.set('reminderItem', item.contentId);
+                params.set('edit', '1');
+                navigate(`/content?${params.toString()}`);
+                return;
+              }
+              openEdit(item, { inline: isExpanded && isInlineDetailPage });
             }}
             className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-violet-200 hover:text-violet-700"
           >
