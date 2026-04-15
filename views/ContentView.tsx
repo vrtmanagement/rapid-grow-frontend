@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowRight, BellRing, Bot, CalendarDays, ChevronLeft, ChevronRight, Download, FileText, Globe, Hash, Linkedin, Link2, Mail, MessageSquareText, Pencil, Plus, Sparkles, Trash2, X, Youtube } from 'lucide-react';
+import { ArrowRight, BellRing, Bot, CalendarDays, Check, ChevronLeft, ChevronRight, Download, FileText, Globe, Hash, Linkedin, Link2, Mail, MessageSquareText, Pencil, Plus, Sparkles, Trash2, X, Youtube } from 'lucide-react';
 import { apiAddContentComment, apiCreateContent, apiDeleteContent, apiDeleteContentComment, apiDeleteContentDraft, apiGetContentDraft, apiListContent, apiUpdateContent, apiUpdateContentComment, apiUploadContentFile, ContentAsset, ContentComment, ContentDraftMode, ContentDraftRecord, ContentItem, ContentType } from '../services/contentApi';
 import { apiListUsers } from '../communication/api';
 import Toast from '../components/ui/Toast';
@@ -176,8 +176,17 @@ function formatUsDateTime(value?: string) {
 }
 
 function autoResizeTextarea(target: HTMLTextAreaElement) {
+  const container = findScrollContainer(target);
+  const previousContainerScrollTop = container === window ? window.scrollY : container.scrollTop;
+  const previousTextareaScrollTop = target.scrollTop;
   target.style.height = 'auto';
   target.style.height = `${target.scrollHeight}px`;
+  target.scrollTop = previousTextareaScrollTop;
+  if (container === window) {
+    window.scrollTo({ top: previousContainerScrollTop, behavior: 'auto' });
+  } else {
+    container.scrollTop = previousContainerScrollTop;
+  }
 }
 
 function renderStyledDescription(text: string) {
@@ -399,6 +408,9 @@ const ContentView: React.FC = () => {
   const location = useLocation();
   const { dayKey, typeKey, itemKey } = useParams();
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const inlineEditTitleRef = useRef<HTMLTextAreaElement | null>(null);
+  const inlineEditDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const skipNextAutoInlineEditRef = useRef(false);
   const isDayPage = !!dayKey;
   const selectedType = typeKey && isContentType(typeKey) ? typeKey : null;
   const isTypeDetailPage = isDayPage && !!selectedType;
@@ -521,6 +533,15 @@ const ContentView: React.FC = () => {
     const timer = window.setTimeout(() => setToast(null), 2600);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (!(isItemDetailPage && editingItem)) return;
+    const timer = window.setTimeout(() => {
+      if (inlineEditTitleRef.current) autoResizeTextarea(inlineEditTitleRef.current);
+      if (inlineEditDescriptionRef.current) autoResizeTextarea(inlineEditDescriptionRef.current);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [editingItem?.contentId, isItemDetailPage]);
 
   useEffect(() => {
     const incomingToast = (location.state as any)?.contentToast;
@@ -738,14 +759,41 @@ const ContentView: React.FC = () => {
     persistAutoOptions(linkOptions, tagOptions.filter((entry) => entry !== value));
   };
 
-  const openEdit = (item: ContentItem) => {
+  const openEdit = (item: ContentItem, options?: { inline?: boolean }) => {
     setEditingItem(item);
     setTitle(item.title || '');
     setDescription(item.description || '');
     setType(item.type);
     setContentDate(item.contentDate || item.createdAt.slice(0, 10));
     setAttachments(Array.isArray(item.attachments) ? item.attachments : []);
-    setShowModal(true);
+    setShowModal(!options?.inline);
+  };
+
+  useEffect(() => {
+    if (!isItemDetailPage || !selectedItem) return;
+    if (skipNextAutoInlineEditRef.current) {
+      skipNextAutoInlineEditRef.current = false;
+      return;
+    }
+    const editMode = String(new URLSearchParams(location.search).get('edit') || '').trim().toLowerCase();
+    const shouldAutoOpenInlineEdit = editMode === '1' || editMode === 'true' || editMode === 'yes';
+    if (!shouldAutoOpenInlineEdit) return;
+    if (editingItem?.contentId === selectedItem.contentId) return;
+    openEdit(selectedItem, { inline: true });
+  }, [editingItem?.contentId, isItemDetailPage, location.search, selectedItem]);
+
+  const clearInlineEditQueryParam = () => {
+    const params = new URLSearchParams(location.search);
+    if (!params.has('edit')) return;
+    params.delete('edit');
+    const nextSearch = params.toString();
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : '',
+      },
+      { replace: true }
+    );
   };
 
   const handleAttachmentUpload = async (files: FileList | null) => {
@@ -794,6 +842,32 @@ const ContentView: React.FC = () => {
       }
       setSelectedDate(contentDate);
       setShowModal(false);
+    } catch (err: any) {
+      setError(err.message || 'Failed to save content');
+      setToast({ message: err.message || 'Failed to save content', type: 'error' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleInlineSave = async (item: ContentItem) => {
+    if (!title.trim()) return setError('Title is required');
+    if (!contentDate) return setError('Date is required');
+    setSubmitting(true);
+    setError(null);
+    try {
+      const updated = await apiUpdateContent(item.contentId, {
+        title: title.trim(),
+        description,
+        type,
+        contentDate,
+        attachments,
+      });
+      setItems((prev) => prev.map((entry) => (entry.contentId === item.contentId ? updated.item : entry)));
+      skipNextAutoInlineEditRef.current = true;
+      setEditingItem(null);
+      clearInlineEditQueryParam();
+      setToast({ message: 'Content updated successfully.', type: 'success' });
     } catch (err: any) {
       setError(err.message || 'Failed to save content');
       setToast({ message: err.message || 'Failed to save content', type: 'error' });
@@ -909,7 +983,11 @@ const ContentView: React.FC = () => {
     const cardTypeLabel = isReminderTab ? reminderCategoryLabel : TYPE_LABEL[item.type];
     const cardTypeBadgeClass = isReminderTab ? TYPE_ACCENT.general.badge : TYPE_ACCENT[item.type].badge;
     const comments = Array.isArray(item.comments) ? item.comments : [];
-    const topLevelComments = comments.filter((c) => !String(c.parentCommentId || '').trim());
+    const commentIds = new Set(comments.map((comment) => String(comment.id || '').trim()).filter(Boolean));
+    const topLevelComments = comments.filter((comment) => {
+      const parentId = String(comment.parentCommentId || '').trim();
+      return !parentId || !commentIds.has(parentId);
+    });
     const repliesByParentId = comments.reduce<Record<string, ContentComment[]>>((acc, c) => {
       const parentId = String(c.parentCommentId || '').trim();
       if (!parentId) return acc;
@@ -918,6 +996,7 @@ const ContentView: React.FC = () => {
       return acc;
     }, {});
     const isCommentsOpen = openCommentsForContentId === item.contentId;
+    const isInlineEditing = isExpanded && isItemDetailPage && editingItem?.contentId === item.contentId;
 
     return (
     <div
@@ -944,17 +1023,29 @@ const ContentView: React.FC = () => {
           {showTypeBadge ? (
             <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${cardTypeBadgeClass}`}>{cardTypeLabel}</span>
           ) : null}
-          <h4
-            className="text-lg font-semibold text-slate-900"
-            style={isExpanded ? undefined : {
-              display: '-webkit-box',
-              WebkitBoxOrient: 'vertical',
-              WebkitLineClamp: 2,
-              overflow: 'hidden',
-            }}
-          >
-            {item.title}
-          </h4>
+          {isInlineEditing ? (
+            <textarea
+              ref={inlineEditTitleRef}
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              onInput={(event) => autoResizeTextarea(event.currentTarget)}
+              rows={1}
+              placeholder="Content title"
+              className="w-full resize-none overflow-hidden bg-transparent text-lg font-semibold text-slate-900 outline-none"
+            />
+          ) : (
+            <h4
+              className="text-lg font-semibold text-slate-900"
+              style={isExpanded ? undefined : {
+                display: '-webkit-box',
+                WebkitBoxOrient: 'vertical',
+                WebkitLineClamp: 2,
+                overflow: 'hidden',
+              }}
+            >
+              {item.title}
+            </h4>
+          )}
         </div>
         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
           {new Date(item.createdAt).toLocaleTimeString('en-US', {
@@ -985,7 +1076,21 @@ const ContentView: React.FC = () => {
           </div>
         ) : null}
       </div>
-      <FormattedContentBody text={item.description} compact clampLines={isExpanded ? undefined : getPreviewLineClamp(item)} flat />
+      {isInlineEditing ? (
+        <div className="mt-3 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-slate-50/65 p-3">
+          <textarea
+            ref={inlineEditDescriptionRef}
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            onInput={(event) => autoResizeTextarea(event.currentTarget)}
+            rows={7}
+            className="w-full resize-none bg-transparent text-sm leading-6 text-slate-700 outline-none"
+            placeholder="No description"
+          />
+        </div>
+      ) : (
+        <FormattedContentBody text={item.description} compact clampLines={isExpanded ? undefined : getPreviewLineClamp(item)} flat />
+      )}
       {item.attachments?.length > 0 && (
         <div
           className="mt-4 space-y-2.5"
@@ -1056,9 +1161,45 @@ const ContentView: React.FC = () => {
         >
           <MessageSquareText size={14} /> Comments {comments.length > 0 ? `(${comments.length})` : ''}
         </button>
-        <button type="button" onClick={(event) => { event.stopPropagation(); openEdit(item); }} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-violet-200 hover:text-violet-700">
-          <Pencil size={14} /> Edit
-        </button>
+        {isInlineEditing ? (
+          <>
+            <button
+              type="button"
+              onClick={(event) => { event.stopPropagation(); void handleInlineSave(item); }}
+              disabled={submitting}
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-fuchsia-600 to-violet-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Check size={14} /> {submitting ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                skipNextAutoInlineEditRef.current = true;
+                setEditingItem(null);
+                clearInlineEditQueryParam();
+              }}
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300"
+            >
+              <X size={14} /> Cancel
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (isTypeDetailPage && !isItemDetailPage && !isReminderTab) {
+                navigate(`/content/day/${selectedDate}/type/${item.type}/item/${item.contentId}?edit=1`);
+                return;
+              }
+              openEdit(item, { inline: isExpanded && isItemDetailPage });
+            }}
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-violet-200 hover:text-violet-700"
+          >
+            <Pencil size={14} /> Edit
+          </button>
+        )}
         <button type="button" onClick={(event) => { event.stopPropagation(); setDeleteTarget(item); }} className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50/70 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100">
           <Trash2 size={14} /> Delete
         </button>
