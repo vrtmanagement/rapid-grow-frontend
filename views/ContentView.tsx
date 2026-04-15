@@ -1191,6 +1191,14 @@ const ContentView: React.FC = () => {
             type="button"
             onClick={(event) => {
               event.stopPropagation();
+              if (isReminderTab) {
+                const params = new URLSearchParams();
+                params.set('mode', activeTab);
+                params.set('date', item.contentDate || selectedDate);
+                params.set('editId', item.contentId);
+                navigate(`/content/new?${params.toString()}`);
+                return;
+              }
               if (isTypeDetailPage && !isItemDetailPage && !isReminderTab) {
                 navigate(`/content/day/${selectedDate}/type/${item.type}/item/${item.contentId}?edit=1`);
                 return;
