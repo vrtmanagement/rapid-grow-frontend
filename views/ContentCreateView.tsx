@@ -139,11 +139,10 @@ function formatMonthLabel(value: Date) {
   return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(value);
 }
 
-function hasNonEmptyDraft(payload: { title: string; description: string; contentDate: string; attachments: ContentAsset[] }) {
+function hasNonEmptyDraft(payload: { title: string; description: string; attachments: ContentAsset[] }) {
   return Boolean(
     payload.title.trim() ||
     payload.description.trim() ||
-    payload.contentDate.trim() ||
     (payload.attachments && payload.attachments.length > 0)
   );
 }
@@ -424,7 +423,7 @@ const ContentCreateView: React.FC = () => {
     latestDraftSaveRef.current = saveId;
     const timer = window.setTimeout(async () => {
       try {
-        if (!hasNonEmptyDraft(payload)) {
+        if (!hasNonEmptyDraft({ title, description, attachments })) {
           await apiDeleteContentDraft(draftMode);
           if (latestDraftSaveRef.current === saveId) setAutosaveStatus('idle');
           return;
