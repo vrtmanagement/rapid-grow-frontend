@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, FileText, Globe, Hash, Link2, Linkedin, Mail, Sparkles, X } from 'lucide-react';
-import { apiCreateContent, apiUploadContentFile, ContentAsset, ContentType } from '../services/contentApi';
+import { apiCreateContent, apiDeleteContentDraft, apiGetContentDraft, apiUploadContentFile, apiUpsertContentDraft, ContentAsset, ContentDraftMode, ContentType } from '../services/contentApi';
 import Toast from '../components/ui/Toast';
 
 const LINK_STORAGE_KEY = 'rapidgrow-content-links-v1';
 const TAG_STORAGE_KEY = 'rapidgrow-content-tags-v1';
+const CONTENT_CREATE_DRAFT_STORAGE_PREFIX = 'rapidgrow-content-create-draft-v1';
 
 function getInitialDate(search: string) {
   const value = new URLSearchParams(search).get('date') || '';
@@ -138,6 +139,15 @@ function formatMonthLabel(value: Date) {
   return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(value);
 }
 
+function hasNonEmptyDraft(payload: { title: string; description: string; contentDate: string; attachments: ContentAsset[] }) {
+  return Boolean(
+    payload.title.trim() ||
+    payload.description.trim() ||
+    payload.contentDate.trim() ||
+    (payload.attachments && payload.attachments.length > 0)
+  );
+}
+
 function getCalendarDays(viewDate: Date) {
   const startOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
   const startWeekday = startOfMonth.getDay();
@@ -189,6 +199,11 @@ const ContentCreateView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const latestDraftSaveRef = useRef(0);
+  const draftStorageKey = `${CONTENT_CREATE_DRAFT_STORAGE_PREFIX}:${mode}`;
+  const draftMode = mode as ContentDraftMode;
 
   const donePath = useMemo(() => {
     if (isFollowMode) return `/content?tab=${mode}`;
@@ -300,6 +315,12 @@ const ContentCreateView: React.FC = () => {
         coverImage: null,
         attachments,
       });
+      localStorage.removeItem(draftStorageKey);
+      try {
+        await apiDeleteContentDraft(draftMode);
+      } catch {
+        // Ignore draft cleanup errors after successful final save.
+      }
       navigate(donePath, {
         state: {
           contentToast: {
@@ -328,6 +349,95 @@ const ContentCreateView: React.FC = () => {
       setCalendarMonth(activeDate);
     }
   }, [contentDate]);
+
+  useEffect(() => {
+    let active = true;
+    setDraftHydrated(false);
+    setAutosaveStatus('idle');
+
+    const applyDraft = (draft: any) => {
+      if (!draft || typeof draft !== 'object') return;
+      if (typeof draft.title === 'string') setTitle(draft.title);
+      if (typeof draft.description === 'string') setDescription(draft.description);
+      if (typeof draft.type === 'string' && CONTENT_TYPE_OPTIONS.some((option) => option.value === draft.type)) {
+        setType(draft.type as ContentType);
+      }
+      if (typeof draft.contentDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(draft.contentDate)) {
+        setContentDate(draft.contentDate);
+      }
+      if (Array.isArray(draft.attachments)) {
+        setAttachments(draft.attachments as ContentAsset[]);
+      }
+    };
+
+    const readLocalDraft = () => {
+      try {
+        const raw = localStorage.getItem(draftStorageKey);
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    };
+
+    async function hydrateDraft() {
+      try {
+        const response = await apiGetContentDraft(draftMode);
+        if (!active) return;
+        if (response?.draft) {
+          applyDraft(response.draft);
+          localStorage.setItem(draftStorageKey, JSON.stringify(response.draft));
+          setDraftHydrated(true);
+          return;
+        }
+        // Server explicitly has no draft for this mode, so clear local fallback copy too.
+        localStorage.removeItem(draftStorageKey);
+        setDraftHydrated(true);
+        return;
+      } catch {
+        // Fallback to local draft when API is not available.
+      }
+
+      if (!active) return;
+      applyDraft(readLocalDraft());
+      setDraftHydrated(true);
+    }
+
+    hydrateDraft();
+    return () => {
+      active = false;
+    };
+  }, [draftMode, draftStorageKey]);
+
+  useEffect(() => {
+    if (!draftHydrated || submitting) return;
+    const payload = { title, description, type, contentDate, attachments };
+    const timer = window.setTimeout(() => {
+      localStorage.setItem(draftStorageKey, JSON.stringify(payload));
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [attachments, contentDate, description, draftHydrated, draftStorageKey, submitting, title, type]);
+
+  useEffect(() => {
+    if (!draftHydrated || submitting) return;
+    const payload = { title, description, type, contentDate, attachments };
+    const saveId = latestDraftSaveRef.current + 1;
+    latestDraftSaveRef.current = saveId;
+    const timer = window.setTimeout(async () => {
+      try {
+        if (!hasNonEmptyDraft(payload)) {
+          await apiDeleteContentDraft(draftMode);
+          if (latestDraftSaveRef.current === saveId) setAutosaveStatus('idle');
+          return;
+        }
+        if (latestDraftSaveRef.current === saveId) setAutosaveStatus('saving');
+        await apiUpsertContentDraft(draftMode, payload);
+        if (latestDraftSaveRef.current === saveId) setAutosaveStatus('saved');
+      } catch {
+        if (latestDraftSaveRef.current === saveId) setAutosaveStatus('error');
+      }
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [attachments, contentDate, description, draftHydrated, draftMode, submitting, title, type]);
 
   useEffect(() => {
     const textarea = descriptionTextareaRef.current;
@@ -787,6 +897,15 @@ const ContentCreateView: React.FC = () => {
           </div>
         )}
         <div className="flex justify-end gap-2">
+          <div className="mr-auto self-center text-xs text-slate-500">
+            {autosaveStatus === 'saving'
+              ? 'Auto-saving draft...'
+              : autosaveStatus === 'saved'
+                ? 'Draft auto-saved'
+                : autosaveStatus === 'error'
+                  ? 'Draft save failed, retrying on next change'
+                  : 'Draft auto-save is on'}
+          </div>
           <Link to={donePath} className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700">Cancel</Link>
           <button type="submit" disabled={submitting} className="rounded-2xl bg-gradient-to-r from-fuchsia-600 to-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow-[0_18px_30px_rgba(139,92,246,0.24)] disabled:opacity-60">
             {submitting ? 'Saving...' : 'Save Content'}
