@@ -269,7 +269,6 @@ function hasServerDraftContent(draft?: ContentDraftRecord | null) {
   return Boolean(
     String(draft.title || '').trim() ||
     String(draft.description || '').trim() ||
-    String(draft.contentDate || '').trim() ||
     (Array.isArray(draft.attachments) && draft.attachments.length > 0),
   );
 }
