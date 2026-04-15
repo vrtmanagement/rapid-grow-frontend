@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, FileText, Globe, Hash, Link2, Linkedin, Mail, Sparkles, X } from 'lucide-react';
-import { apiCreateContent, apiDeleteContentDraft, apiGetContentDraft, apiUploadContentFile, apiUpsertContentDraft, ContentAsset, ContentDraftMode, ContentType } from '../services/contentApi';
+import { apiCreateContent, apiDeleteContentDraft, apiGetContent, apiGetContentDraft, apiUpdateContent, apiUploadContentFile, apiUpsertContentDraft, ContentAsset, ContentDraftMode, ContentType } from '../services/contentApi';
 import Toast from '../components/ui/Toast';
 
 const LINK_STORAGE_KEY = 'rapidgrow-content-links-v1';
@@ -17,6 +17,11 @@ function getMode(search: string) {
   const mode = new URLSearchParams(search).get('mode') || 'calendar';
   if (mode === 'follow-ee' || mode === 'follow-ega') return mode;
   return 'calendar';
+}
+
+function getEditContentId(search: string) {
+  const value = String(new URLSearchParams(search).get('editId') || '').trim();
+  return value || null;
 }
 
 function readStringList(storageKey: string, fallback: string[]) {
@@ -172,6 +177,8 @@ const ContentCreateView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const mode = getMode(location.search);
+  const editContentId = getEditContentId(location.search);
+  const isEditMode = !!editContentId;
   const isFollowMode = mode === 'follow-ee' || mode === 'follow-ega';
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -200,6 +207,7 @@ const ContentCreateView: React.FC = () => {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [draftHydrated, setDraftHydrated] = useState(false);
+  const [loadingEditItem, setLoadingEditItem] = useState(false);
   const latestDraftSaveRef = useRef(0);
   const draftStorageKey = `${CONTENT_CREATE_DRAFT_STORAGE_PREFIX}:${mode}`;
   const draftMode = mode as ContentDraftMode;
@@ -305,15 +313,26 @@ const ContentCreateView: React.FC = () => {
     setSubmitting(true);
     setError(null);
     try {
-      await apiCreateContent({
-        title: title.trim(),
-        description,
-        type: isFollowMode ? 'newsletter' : type,
-        contentDate,
-        channelKey: isFollowMode ? mode : type,
-        coverImage: null,
-        attachments,
-      });
+      if (isEditMode && editContentId) {
+        await apiUpdateContent(editContentId, {
+          title: title.trim(),
+          description,
+          type: isFollowMode ? 'newsletter' : type,
+          contentDate,
+          channelKey: isFollowMode ? mode : type,
+          attachments,
+        });
+      } else {
+        await apiCreateContent({
+          title: title.trim(),
+          description,
+          type: isFollowMode ? 'newsletter' : type,
+          contentDate,
+          channelKey: isFollowMode ? mode : type,
+          coverImage: null,
+          attachments,
+        });
+      }
       localStorage.removeItem(draftStorageKey);
       try {
         await apiDeleteContentDraft(draftMode);
@@ -323,7 +342,9 @@ const ContentCreateView: React.FC = () => {
       navigate(donePath, {
         state: {
           contentToast: {
-            message: isFollowMode ? 'Reminder saved successfully.' : 'Content saved successfully.',
+            message: isEditMode
+              ? (isFollowMode ? 'Reminder updated successfully.' : 'Content updated successfully.')
+              : (isFollowMode ? 'Reminder saved successfully.' : 'Content saved successfully.'),
             type: 'success',
           },
         },
@@ -350,6 +371,40 @@ const ContentCreateView: React.FC = () => {
   }, [contentDate]);
 
   useEffect(() => {
+    if (!isEditMode || !editContentId) return;
+    let active = true;
+    setLoadingEditItem(true);
+    setError(null);
+    async function hydrateEditItem() {
+      try {
+        const response = await apiGetContent(editContentId);
+        if (!active || !response?.item) return;
+        const item = response.item;
+        setTitle(String(item.title || ''));
+        setDescription(String(item.description || ''));
+        setType(item.type);
+        setContentDate(String(item.contentDate || '').trim() || new Date().toISOString().slice(0, 10));
+        setAttachments(Array.isArray(item.attachments) ? item.attachments : []);
+      } catch (err: any) {
+        if (!active) return;
+        setError(err?.message || 'Failed to load content for editing');
+        setToast({ message: err?.message || 'Failed to load content for editing', type: 'error' });
+      } finally {
+        if (active) {
+          setLoadingEditItem(false);
+          setDraftHydrated(true);
+          setAutosaveStatus('idle');
+        }
+      }
+    }
+    hydrateEditItem();
+    return () => {
+      active = false;
+    };
+  }, [editContentId, isEditMode]);
+
+  useEffect(() => {
+    if (isEditMode) return;
     let active = true;
     setDraftHydrated(false);
     setAutosaveStatus('idle');
@@ -405,19 +460,19 @@ const ContentCreateView: React.FC = () => {
     return () => {
       active = false;
     };
-  }, [draftMode, draftStorageKey]);
+  }, [draftMode, draftStorageKey, isEditMode]);
 
   useEffect(() => {
-    if (!draftHydrated || submitting) return;
+    if (isEditMode || !draftHydrated || submitting) return;
     const payload = { title, description, type, contentDate, attachments };
     const timer = window.setTimeout(() => {
       localStorage.setItem(draftStorageKey, JSON.stringify(payload));
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [attachments, contentDate, description, draftHydrated, draftStorageKey, submitting, title, type]);
+  }, [attachments, contentDate, description, draftHydrated, draftStorageKey, isEditMode, submitting, title, type]);
 
   useEffect(() => {
-    if (!draftHydrated || submitting) return;
+    if (isEditMode || !draftHydrated || submitting) return;
     const payload = { title, description, type, contentDate, attachments };
     const saveId = latestDraftSaveRef.current + 1;
     latestDraftSaveRef.current = saveId;
@@ -436,7 +491,7 @@ const ContentCreateView: React.FC = () => {
       }
     }, 1200);
     return () => window.clearTimeout(timer);
-  }, [attachments, contentDate, description, draftHydrated, draftMode, submitting, title, type]);
+  }, [attachments, contentDate, description, draftHydrated, draftMode, isEditMode, submitting, title, type]);
 
   useEffect(() => {
     const textarea = descriptionTextareaRef.current;
@@ -897,7 +952,9 @@ const ContentCreateView: React.FC = () => {
         )}
         <div className="flex justify-end gap-2">
           <div className="mr-auto self-center text-xs text-slate-500">
-            {autosaveStatus === 'saving'
+            {isEditMode
+              ? (loadingEditItem ? 'Loading content...' : 'Editing existing content')
+              : autosaveStatus === 'saving'
               ? 'Auto-saving draft...'
               : autosaveStatus === 'saved'
                 ? 'Draft auto-saved'
@@ -907,7 +964,7 @@ const ContentCreateView: React.FC = () => {
           </div>
           <Link to={donePath} className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700">Cancel</Link>
           <button type="submit" disabled={submitting} className="rounded-2xl bg-gradient-to-r from-fuchsia-600 to-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow-[0_18px_30px_rgba(139,92,246,0.24)] disabled:opacity-60">
-            {submitting ? 'Saving...' : 'Save Content'}
+            {submitting ? 'Saving...' : isEditMode ? 'Update Content' : 'Save Content'}
           </button>
         </div>
       </form>
