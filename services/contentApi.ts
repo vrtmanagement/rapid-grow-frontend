@@ -1,6 +1,7 @@
 import { API_BASE } from '../config/api';
 
 export type ContentType = 'general' | 'linkedin' | 'youtube' | 'website' | 'newsletter';
+export type ContentDraftMode = 'calendar' | 'follow-ee' | 'follow-ega' | 'auto-add';
 
 export interface ContentAsset {
   fileId: string;
@@ -58,6 +59,19 @@ export interface ContentChannel {
   };
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ContentDraftPayload {
+  title: string;
+  description: string;
+  type: ContentType;
+  contentDate: string;
+  attachments: ContentAsset[];
+}
+
+export interface ContentDraftRecord extends ContentDraftPayload {
+  mode: ContentDraftMode;
+  updatedAt?: string;
 }
 
 function getAuthToken(): string | null {
@@ -194,4 +208,31 @@ export async function apiCreateChannel(payload: { title: string; subtitle?: stri
   });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to create channel');
   return res.json() as Promise<{ channel: ContentChannel }>;
+}
+
+export async function apiGetContentDraft(mode: ContentDraftMode) {
+  const res = await fetch(`${API_BASE}/content/drafts/${encodeURIComponent(mode)}`, {
+    headers: authHeadersJson(),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load content draft');
+  return res.json() as Promise<{ draft: ContentDraftRecord | null }>;
+}
+
+export async function apiUpsertContentDraft(mode: ContentDraftMode, payload: ContentDraftPayload) {
+  const res = await fetch(`${API_BASE}/content/drafts/${encodeURIComponent(mode)}`, {
+    method: 'PUT',
+    headers: authHeadersJson(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to save content draft');
+  return res.json() as Promise<{ draft: ContentDraftRecord }>;
+}
+
+export async function apiDeleteContentDraft(mode: ContentDraftMode) {
+  const res = await fetch(`${API_BASE}/content/drafts/${encodeURIComponent(mode)}`, {
+    method: 'DELETE',
+    headers: authHeadersJson(),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to delete content draft');
+  return res.json() as Promise<{ ok: boolean }>;
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, BellRing, Bot, CalendarDays, ChevronLeft, ChevronRight, Download, FileText, Globe, Hash, Linkedin, Link2, Mail, MessageSquareText, Pencil, Plus, Sparkles, Trash2, X, Youtube } from 'lucide-react';
-import { apiAddContentComment, apiCreateContent, apiDeleteContent, apiDeleteContentComment, apiListContent, apiUpdateContent, apiUpdateContentComment, apiUploadContentFile, ContentAsset, ContentComment, ContentItem, ContentType } from '../services/contentApi';
+import { apiAddContentComment, apiCreateContent, apiDeleteContent, apiDeleteContentComment, apiDeleteContentDraft, apiGetContentDraft, apiListContent, apiUpdateContent, apiUpdateContentComment, apiUploadContentFile, ContentAsset, ContentComment, ContentDraftMode, ContentDraftRecord, ContentItem, ContentType } from '../services/contentApi';
 import { apiListUsers } from '../communication/api';
 import Toast from '../components/ui/Toast';
 
@@ -33,6 +33,8 @@ const WEEK_DAY_HEADER_CLASS = [
 
 const LINK_STORAGE_KEY = 'rapidgrow-content-links-v1';
 const TAG_STORAGE_KEY = 'rapidgrow-content-tags-v1';
+const CONTENT_VIEW_DRAFTS_KEY = 'rapidgrow-content-view-drafts-v1';
+const CONTENT_CREATE_DRAFT_STORAGE_PREFIX = 'rapidgrow-content-create-draft-v1';
 type ContentTab = 'calendar' | 'follow-ee' | 'follow-ega' | 'auto-add';
 
 function isContentType(value: string): value is ContentType {
@@ -251,6 +253,27 @@ function readStringList(storageKey: string) {
   }
 }
 
+function readContentViewDrafts() {
+  try {
+    const raw = localStorage.getItem(CONTENT_VIEW_DRAFTS_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed as { newLinkValue?: string; newTagValue?: string };
+  } catch {
+    return {};
+  }
+}
+
+function hasServerDraftContent(draft?: ContentDraftRecord | null) {
+  if (!draft) return false;
+  return Boolean(
+    String(draft.title || '').trim() ||
+    String(draft.description || '').trim() ||
+    String(draft.contentDate || '').trim() ||
+    (Array.isArray(draft.attachments) && draft.attachments.length > 0),
+  );
+}
+
 function findScrollContainer(node: HTMLElement | null): HTMLElement | Window {
   let current = node?.parentElement || null;
   while (current) {
@@ -404,8 +427,9 @@ const ContentView: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [linkOptions, setLinkOptions] = useState<string[]>(() => readStringList(LINK_STORAGE_KEY));
   const [tagOptions, setTagOptions] = useState<string[]>(() => readStringList(TAG_STORAGE_KEY));
-  const [newLinkValue, setNewLinkValue] = useState('');
-  const [newTagValue, setNewTagValue] = useState('');
+  const initialDrafts = useMemo(() => readContentViewDrafts(), []);
+  const [newLinkValue, setNewLinkValue] = useState(String(initialDrafts.newLinkValue || ''));
+  const [newTagValue, setNewTagValue] = useState(String(initialDrafts.newTagValue || ''));
   const [openCommentsForContentId, setOpenCommentsForContentId] = useState<string | null>(null);
   const [commentDraftByContentId, setCommentDraftByContentId] = useState<Record<string, string>>({});
   const [replyDraftByCommentId, setReplyDraftByCommentId] = useState<Record<string, string>>({});
@@ -414,6 +438,8 @@ const ContentView: React.FC = () => {
   const [editingDraftByCommentId, setEditingDraftByCommentId] = useState<Record<string, string>>({});
   const [commentBusyKey, setCommentBusyKey] = useState<string | null>(null);
   const [commentDeleteModal, setCommentDeleteModal] = useState<{ contentId: string; commentId: string } | null>(null);
+  const [savedDrafts, setSavedDrafts] = useState<Partial<Record<ContentDraftMode, ContentDraftRecord | null>>>({});
+  const [deletingDraftMode, setDeletingDraftMode] = useState<ContentDraftMode | null>(null);
   const currentUser = useMemo(() => getLoggedInUser(), []);
 
   async function refresh() {
@@ -432,6 +458,39 @@ const ContentView: React.FC = () => {
   useEffect(() => {
     refresh();
   }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    async function loadDrafts() {
+      const modes: ContentDraftMode[] = ['calendar', 'follow-ee', 'follow-ega'];
+      try {
+        const responses = await Promise.all(
+          modes.map(async (mode) => {
+            try {
+              const result = await apiGetContentDraft(mode);
+              return [mode, result.draft || null] as const;
+            } catch {
+              return [mode, null] as const;
+            }
+          }),
+        );
+        if (disposed) return;
+        const next: Partial<Record<ContentDraftMode, ContentDraftRecord | null>> = {};
+        responses.forEach(([mode, draft]) => {
+          next[mode] = draft;
+        });
+        setSavedDrafts(next);
+      } catch {
+        if (!disposed) {
+          setSavedDrafts({});
+        }
+      }
+    }
+    loadDrafts();
+    return () => {
+      disposed = true;
+    };
+  }, [location.key]);
 
   useEffect(() => {
     let disposed = false;
@@ -487,6 +546,19 @@ const ContentView: React.FC = () => {
   useEffect(() => {
     setActiveTab(getInitialTab(location.search));
   }, [location.search]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      localStorage.setItem(
+        CONTENT_VIEW_DRAFTS_KEY,
+        JSON.stringify({
+          newLinkValue,
+          newTagValue,
+        }),
+      );
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [newLinkValue, newTagValue]);
 
   const monthDays = useMemo(() => {
     const year = monthCursor.getFullYear();
@@ -1292,6 +1364,66 @@ const ContentView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {Object.entries(savedDrafts).some(([, draft]) => hasServerDraftContent(draft || null)) && (
+        <div className="w-full max-w-full rounded-[1.6rem] border border-violet-100 bg-white px-4 py-4 shadow-[0_14px_36px_rgba(15,23,42,0.06)]">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-violet-700">Saved drafts</h3>
+            <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-medium text-violet-700">
+              Resume unsaved content
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
+            {(['calendar', 'follow-ee', 'follow-ega'] as ContentDraftMode[]).map((mode) => {
+              const draft = savedDrafts[mode] || null;
+              if (!hasServerDraftContent(draft)) return null;
+              const modeLabel = mode === 'calendar' ? 'Calendar' : mode === 'follow-ee' ? 'Follow Reminder EE' : 'Follow Reminder EGA';
+              return (
+                <div
+                  key={mode}
+                  className="relative rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-violet-300 hover:bg-violet-50/40"
+                >
+                  <button
+                    type="button"
+                    onClick={async (event) => {
+                      event.stopPropagation();
+                      if (deletingDraftMode) return;
+                      setDeletingDraftMode(mode);
+                      try {
+                        await apiDeleteContentDraft(mode);
+                        localStorage.removeItem(`${CONTENT_CREATE_DRAFT_STORAGE_PREFIX}:${mode}`);
+                        setSavedDrafts((prev) => ({ ...prev, [mode]: null }));
+                        setToast({ message: 'Draft deleted.', type: 'success' });
+                      } catch (err: any) {
+                        setToast({ message: err?.message || 'Failed to delete draft', type: 'error' });
+                      } finally {
+                        setDeletingDraftMode(null);
+                      }
+                    }}
+                    className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    title="Delete draft"
+                    aria-label="Delete draft"
+                    disabled={deletingDraftMode === mode}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/content/new?mode=${encodeURIComponent(mode)}&date=${encodeURIComponent(draft?.contentDate || selectedDate || toDateKey(new Date()))}`)}
+                    className="block w-full pr-8 text-left"
+                  >
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{modeLabel}</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-slate-900">{String(draft?.title || 'Untitled draft')}</p>
+                  <p className="mt-1 line-clamp-2 text-xs text-slate-500">
+                    {String(draft?.description || 'No description yet')}
+                  </p>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {activeTab === 'calendar' && !isDayPage && (
       <div className="w-full max-w-full rounded-[1.8rem] border border-white/70 bg-white shadow-[0_22px_56px_rgba(15,23,42,0.08)]">
