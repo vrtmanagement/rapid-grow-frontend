@@ -19,6 +19,7 @@ interface AnalysisEmailTemplate {
 
 export interface TrimetrixAnalysisResult {
   fileName: string;
+  personName?: string;
   discTypes: string[];
   communication: AnalysisCommunicationItem[];
   recommendation?: AnalysisRecommendation;

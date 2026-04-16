@@ -54,6 +54,9 @@ const AnalysisView: React.FC = () => {
       {result && (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm text-slate-500">Report: {result.fileName}</p>
+          {result.personName && (
+            <p className="mt-1 text-sm text-slate-600">Person: {result.personName}</p>
+          )}
           <p className="mt-2 text-base font-medium text-slate-900">
             DISC Type: {result.discTypes.length ? result.discTypes.join(', ') : 'Not detected'}
           </p>
