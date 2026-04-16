@@ -37,6 +37,7 @@ import { apiListConversations } from './communication/api';
 import { getUnreadDirectMessageSourceCount } from './communication/unread';
 import { getSocket } from './realtime/socket';
 import PermissionsView from './views/PermissionsView';
+import AnalysisView from './views/AnalysisView';
 import { mapBackendRoleToUiRole } from './config/permissions';
 import { usePermissions } from './context/usePermissions';
 import AccessDenied from './components/AccessDenied';
@@ -50,8 +51,8 @@ import {
 
 const SUPER_ADMIN_EMAIL = 'superadmin@example.com';
 const DEFAULT_POWERS: Record<string, string[]> = {
-  SUPER_ADMIN: ['EMPLOYEE_CREATE', 'EMPLOYEE_UPDATE', 'EMPLOYEE_DELETE', 'EMPLOYEE_LIST', 'DASHBOARD_VIEW', 'EXECUTION_MATRIX_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'CONTENT_VIEW', 'FEEDBACK_VIEW', 'STAFF_VIEW', 'PERMISSIONS_MANAGE'],
-  ADMIN: ['EMPLOYEE_CREATE', 'EMPLOYEE_UPDATE', 'EMPLOYEE_DELETE', 'EMPLOYEE_LIST', 'DASHBOARD_VIEW', 'EXECUTION_MATRIX_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'CONTENT_VIEW', 'FEEDBACK_VIEW', 'STAFF_VIEW', 'PERMISSIONS_MANAGE'],
+  SUPER_ADMIN: ['EMPLOYEE_CREATE', 'EMPLOYEE_UPDATE', 'EMPLOYEE_DELETE', 'EMPLOYEE_LIST', 'DASHBOARD_VIEW', 'EXECUTION_MATRIX_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'CONTENT_VIEW', 'ANALYSIS_VIEW', 'FEEDBACK_VIEW', 'STAFF_VIEW', 'PERMISSIONS_MANAGE'],
+  ADMIN: ['EMPLOYEE_CREATE', 'EMPLOYEE_UPDATE', 'EMPLOYEE_DELETE', 'EMPLOYEE_LIST', 'DASHBOARD_VIEW', 'EXECUTION_MATRIX_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'CONTENT_VIEW', 'ANALYSIS_VIEW', 'FEEDBACK_VIEW', 'STAFF_VIEW', 'PERMISSIONS_MANAGE'],
   TEAM_LEAD: ['EMPLOYEE_CREATE', 'EMPLOYEE_UPDATE', 'EMPLOYEE_LIST', 'DASHBOARD_VIEW', 'EXECUTION_MATRIX_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'CONTENT_VIEW', 'STAFF_VIEW'],
   EMPLOYEE: ['DASHBOARD_VIEW', 'EXECUTION_MATRIX_VIEW', 'WORKSPACES_VIEW', 'SPACES_VIEW', 'ATTENDANCE_VIEW', 'YEARLY_VIEW', 'QUARTERLY_VIEW', 'MONTHLY_VIEW', 'WEEKLY_VIEW', 'DAILY_VIEW', 'REFLECTION_VIEW', 'PROFILE_VIEW', 'COMMUNICATION_VIEW', 'CONTENT_VIEW', 'STAFF_VIEW'],
 };
@@ -1417,6 +1418,9 @@ const App: React.FC = () => {
             )}
             {hasPower('COMMUNICATION_VIEW') && <SidebarLink to="/communication" icon={<Mail size={20}/>} label={communicationUnreadCount > 0 ? `Communication (${communicationUnreadCount})` : 'Communication'} collapsed={!isSidebarOpen} />}
             {hasPower('CONTENT_VIEW') && <SidebarLink to="/content" icon={<FileText size={20} />} label="Content" collapsed={!isSidebarOpen} />}
+            {isAdmin && hasPower('ANALYSIS_VIEW') && (
+              <SidebarLink to="/analysis" icon={<Settings size={20} />} label="Analysis" collapsed={!isSidebarOpen} />
+            )}
             {isAdmin && hasPower('FEEDBACK_VIEW') && (
               <SidebarLink to="/feedback" icon={<Mail size={20}/>} label="Feedback" collapsed={!isSidebarOpen} />
             )}
@@ -1503,6 +1507,7 @@ const App: React.FC = () => {
               {hasPower('CONTENT_VIEW') && <Route path="/content/day/:dayKey/type/:typeKey" element={<ContentView />} />}
               {hasPower('CONTENT_VIEW') && <Route path="/content/day/:dayKey/type/:typeKey/item/:itemKey" element={<ContentView />} />}
               {hasPower('CONTENT_VIEW') && <Route path="/content/new" element={<ContentCreateView />} />}
+              {isAdmin && hasPower('ANALYSIS_VIEW') && <Route path="/analysis" element={<AnalysisView />} />}
               {isAdmin && hasPower('FEEDBACK_VIEW') && <Route path="/feedback" element={<FeedbackView />} />}
               {isAdmin && (
                 <Route
