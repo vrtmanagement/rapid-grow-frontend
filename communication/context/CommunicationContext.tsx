@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { apiCreateTeam, apiDeleteTeam, apiHistory, apiListConversations, apiListUsers, apiMarkAsRead, apiUpdateTeam, apiUploadFile } from '../api';
+import { apiCreateTeam, apiDeleteTeam, apiHistory, apiListConversations, apiListUsers, apiMarkAsRead, apiUpdateTeam, apiUploadFile, apiClearChat } from '../api';
 import { API_BASE } from '../../config/api';
 import { ChatConversationSummary, ChatMessage, ChatUser, ChatAttachment, ChatReplyRef, ChatNotification } from '../types';
 import { getUnreadDirectMessageSourceCount } from '../unread';
@@ -1102,6 +1102,26 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     [socket]
   );
 
+  const clearChat = useCallback(
+    async (conversationKey: string) => {
+      if (!conversationKey) return;
+      try {
+        setMessages([]);
+        await apiClearChat(conversationKey);
+        await loadConversations();
+        socket.emit(
+          'comm:chat:clear',
+          { conversationKey },
+          () => {}
+        );
+      } catch (e: any) {
+        setError(e?.message || 'Failed to clear chat');
+        throw e;
+      }
+    },
+    [loadConversations, socket]
+  );
+
   const notifyTyping = useCallback(
     (conversationKey: string) => {
       if (!conversationKey) return;
@@ -1143,6 +1163,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     notifyTyping,
     editMessage,
     deleteMessage,
+    clearChat,
     notifications,
     dismissNotification,
     openNotificationConversation,

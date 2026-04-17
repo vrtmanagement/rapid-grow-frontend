@@ -30,6 +30,7 @@ export type CommunicationContextValue = {
 
   editMessage: (messageId: string, conversationKey: string, newContent: string) => Promise<void>;
   deleteMessage: (messageId: string, conversationKey: string) => Promise<void>;
+  clearChat: (conversationKey: string) => Promise<void>;
 
   notifications: ChatNotification[];
   dismissNotification: (notificationId: string) => void;
