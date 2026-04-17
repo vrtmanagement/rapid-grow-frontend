@@ -27,6 +27,30 @@ function ChatMessagesSkeleton() {
   );
 }
 
+function TypingBubble({ label }: { label?: string | null }) {
+  return (
+    <div className="flex justify-start my-2">
+      <div className="max-w-[78vw] rounded-3xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+        {label ? (
+          <div className="mb-1 text-[11px] font-semibold text-slate-600">{label}</div>
+        ) : null}
+        <div className="flex items-center gap-1.5">
+          {[0, 1, 2].map((dot) => (
+            <span
+              key={dot}
+              className="h-2 w-2 rounded-full bg-slate-400 animate-bounce"
+              style={{
+                animationDelay: `${dot * 0.15}s`,
+                animationDuration: '0.9s',
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ChatMessages({
   currentUserId,
   messages,
@@ -60,15 +84,9 @@ export function ChatMessages({
     <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-6">
       <div className="w-full">
         <div className="mb-4">
-          {typingUserNames.length > 0 ? (
-            <div className="text-sm text-slate-600">
-              {typingUserNames.join(', ')} typing...
-            </div>
-          ) : (
-            <div className="text-xs text-slate-500">
-              Chatting in <span className="font-semibold text-slate-700">{selectedConversationTitle}</span>
-            </div>
-          )}
+          <div className="text-xs text-slate-500">
+            Chatting in <span className="font-semibold text-slate-700">{selectedConversationTitle}</span>
+          </div>
         </div>
 
         {messagesLoading ? (
@@ -97,6 +115,9 @@ export function ChatMessages({
                 />
               );
             })}
+            {typingUserNames.length > 0 ? (
+              <TypingBubble label={isGroupChat ? typingUserNames.join(', ') : null} />
+            ) : null}
           </div>
         )}
 

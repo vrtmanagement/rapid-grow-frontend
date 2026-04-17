@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { API_BASE, getAuthHeaders } from '../config/api';
-import { Pencil, Trash2, UserCircle } from 'lucide-react';
-import { usePermissions } from '../context/usePermissions';
+import { Pencil, Trash2 } from 'lucide-react';
+import Toast from '../components/ui/Toast';
 import AccessDenied from '../components/AccessDenied';
 import { StaffTableSkeleton } from '../components/ui/Skeleton';
-import Toast from '../components/ui/Toast';
+import { usePermissions } from '../context/usePermissions';
+import { API_BASE, getAuthHeaders } from '../config/api';
 
 type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | string;
 
@@ -39,7 +39,9 @@ function getBackendInfo() {
 function resolveAvatarUrl(rawAvatar?: string | null): string | undefined {
   const avatar = (rawAvatar || '').trim();
   if (!avatar) return undefined;
-  if (/^(https?:)?\/\//i.test(avatar) || /^data:/i.test(avatar) || /^blob:/i.test(avatar)) return avatar;
+  if (/^(https?:)?\/\//i.test(avatar) || /^data:/i.test(avatar) || /^blob:/i.test(avatar)) {
+    return avatar;
+  }
 
   let apiOrigin = '';
   try {
@@ -53,11 +55,36 @@ function resolveAvatarUrl(rawAvatar?: string | null): string | undefined {
   return `${apiOrigin}/${avatar.replace(/^\.?\//, '')}`;
 }
 
+function formatRoleLabel(role?: BackendRole) {
+  const normalized = String(role || 'EMPLOYEE').toUpperCase();
+  return normalized.replace(/_/g, ' ');
+}
+
+function getRoleBadgeClass(role?: BackendRole) {
+  switch (String(role || '').toUpperCase()) {
+    case 'SUPER_ADMIN':
+      return 'border border-brand-red/15 bg-brand-red/8 text-brand-red';
+    case 'ADMIN':
+      return 'border border-amber-100 bg-amber-50 text-amber-700';
+    case 'TEAM_LEAD':
+      return 'border border-blue-100 bg-blue-50 text-blue-700';
+    default:
+      return 'border border-slate-200 bg-slate-100 text-slate-700';
+  }
+}
+
+function getStatusBadgeClass(status?: string) {
+  return String(status || '').toLowerCase() === 'active'
+    ? 'border border-emerald-100 bg-emerald-50 text-emerald-700'
+    : 'border border-slate-200 bg-slate-100 text-slate-600';
+}
+
 const StaffView: React.FC = () => {
   const { hasPermission } = usePermissions();
   const backendInfo = useMemo(() => getBackendInfo(), []);
   const backendRole = backendInfo.role;
   const backendEmpId = backendInfo.empId;
+
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,11 +100,9 @@ const StaffView: React.FC = () => {
     if (!hasPermission('EMPLOYEE_UPDATE')) return false;
     if (isAdmin) return true;
     if (isTeamLead) {
-      // Team lead can edit themselves and employees
       if (backendEmpId && row.empId === backendEmpId) return true;
       return (row.role || '').toUpperCase() === 'EMPLOYEE';
     }
-    // Employee can edit their own record (for password change)
     if (backendEmpId && row.empId === backendEmpId) return true;
     return false;
   };
@@ -86,11 +111,9 @@ const StaffView: React.FC = () => {
     if (!hasPermission('EMPLOYEE_DELETE')) return false;
     if (isAdmin) return true;
     if (isTeamLead) {
-      // Team lead can delete themselves and employees
       if (backendEmpId && row.empId === backendEmpId) return true;
       return (row.role || '').toUpperCase() === 'EMPLOYEE';
     }
-    // Employee: allow deleting only themselves (if backend permits)
     if (backendEmpId && row.empId === backendEmpId) return true;
     return false;
   };
@@ -158,6 +181,7 @@ const StaffView: React.FC = () => {
       if (!body.password || !String(body.password).trim()) {
         delete body.password;
       }
+
       const res = await fetch(`${API_BASE}/employees/${editing._id}`, {
         method: 'PATCH',
         headers: getAuthHeaders(),
@@ -167,6 +191,7 @@ const StaffView: React.FC = () => {
       if (!res.ok) {
         throw new Error(data.message || 'Failed to update staff');
       }
+
       setRows((prev) => prev.map((r) => (r._id === data._id ? data : r)));
       setToast({ type: 'success', message: 'User details updated successfully.' });
       setEditing(null);
@@ -197,49 +222,73 @@ const StaffView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-700">
+    <div className="mx-auto max-w-6xl space-y-8 animate-in fade-in duration-700">
       {toast && <Toast type={toast.type} message={toast.message} />}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <div className="h-1.5 w-8 bg-brand-red rounded-full" />
-            <span className="text-[15px] text-slate-500">Staff Directory</span>
+
+      <div className="rounded-[28px] border border-slate-200/80 bg-white/90 px-7 py-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="h-1.5 w-8 rounded-full bg-brand-red" />
+              <span className="text-[13px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Staff Directory
+              </span>
+            </div>
+            <h2 className="text-[38px] font-semibold leading-none tracking-[-0.03em] text-slate-900">
+              Staff
+            </h2>
+            <p className="mt-3 max-w-2xl text-[15px] leading-7 text-slate-500">
+              View all Admins, Team Leads, and Employees in one clean directory.
+            </p>
           </div>
-          <h2 className="text-4xl text-slate-900 leading-none">Staff</h2>
-          <p className="text-slate-500 text-lg mt-3">
-            View all Admins, Team Leads, and Employees.
-          </p>
+
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-[13px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Refresh
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={load}
-          disabled={loading}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          Refresh
-        </button>
       </div>
 
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-[15px]">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[14px] text-red-700 shadow-sm">
           {error}
         </div>
       )}
 
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+      <div className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
+        <div className="border-b border-slate-200 bg-slate-50/80 px-6 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-[18px] font-semibold tracking-[-0.02em] text-slate-900">
+                Team members
+              </h3>
+              <p className="mt-1 text-[14px] text-slate-500">
+                Review employee details, roles, departments, and current status.
+              </p>
+            </div>
+            <div className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-500 shadow-sm">
+              {loading ? 'Loading' : `${rows.length} members`}
+            </div>
+          </div>
+        </div>
+
         <div className="overflow-auto">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr className="text-[12px] font-bold text-slate-600 uppercase tracking-[0.12em]">
-                <th className="px-4 py-3 min-w-[200px]">Name</th>
-                <th className="px-4 py-3 min-w-[120px]">Emp ID</th>
-                <th className="px-4 py-3 min-w-[140px]">Role</th>
-                <th className="px-4 py-3 min-w-[160px]">Designation</th>
-                <th className="px-4 py-3 min-w-[160px]">Department</th>
-                <th className="px-4 py-3 min-w-[200px]">Email</th>
-                <th className="px-4 py-3 min-w-[140px]">Phone</th>
-                <th className="px-4 py-3 min-w-[100px]">Status</th>
-                <th className="px-4 py-3 w-[120px] text-right">Actions</th>
+          <table className="w-full border-collapse text-left">
+            <thead className="border-b border-slate-200 bg-white">
+              <tr className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                <th className="min-w-[240px] px-6 py-4">Name</th>
+                <th className="min-w-[120px] px-4 py-4">Emp ID</th>
+                <th className="min-w-[140px] px-4 py-4">Role</th>
+                <th className="min-w-[160px] px-4 py-4">Designation</th>
+                <th className="min-w-[160px] px-4 py-4">Department</th>
+                <th className="min-w-[220px] px-4 py-4">Email</th>
+                <th className="min-w-[140px] px-4 py-4">Phone</th>
+                <th className="min-w-[120px] px-4 py-4">Status</th>
+                <th className="w-[130px] px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -247,7 +296,7 @@ const StaffView: React.FC = () => {
                 <StaffTableSkeleton rows={6} />
               ) : rows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-10 text-slate-500" colSpan={9}>
+                  <td className="px-6 py-16 text-center text-[15px] text-slate-500" colSpan={9}>
                     No staff found.
                   </td>
                 </tr>
@@ -256,55 +305,74 @@ const StaffView: React.FC = () => {
                   const editable = canEditRow(row);
                   const avatarSrc =
                     resolveAvatarUrl(row.avatar) ||
-                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent((row.empName || 'User').replace(/\s/g, ''))}`;
+                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+                      (row.empName || 'User').replace(/\s/g, ''),
+                    )}`;
+
                   return (
-                    <tr key={row._id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 overflow-hidden rounded-full border border-slate-200 bg-slate-50 shadow-sm">
-                            <img src={avatarSrc} alt={row.empName} className="h-full w-full object-cover" />
+                    <tr
+                      key={row._id}
+                      className="border-b border-slate-100 transition hover:bg-slate-50/60"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3.5">
+                          <div className="h-11 w-11 overflow-hidden rounded-full border border-slate-200 bg-slate-50 shadow-sm">
+                            <img
+                              src={avatarSrc}
+                              alt={row.empName}
+                              className="h-full w-full object-cover"
+                            />
                           </div>
-                          <div>
-                            <div className="text-[14px] font-semibold text-slate-900">
+                          <div className="min-w-0">
+                            <div className="truncate text-[14px] font-semibold text-slate-900">
                               {row.empName}
+                            </div>
+                            <div className="mt-0.5 text-[12px] text-slate-500">
+                              {row.designation || 'Team member'}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-[13px] text-slate-700">{row.empId}</td>
-                      <td className="px-4 py-3 text-[13px] text-slate-700">
-                        {(row.role || '').toUpperCase()}
+                      <td className="px-4 py-4 text-[13px] font-medium text-slate-700">
+                        {row.empId}
                       </td>
-                      <td className="px-4 py-3 text-[13px] text-slate-700">
-                        {row.designation || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-[13px] text-slate-700">
-                        {row.department || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-[13px] text-slate-700">
-                        {row.email || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-[13px] text-slate-700">
-                        {row.phone || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-[13px]">
+                      <td className="px-4 py-4">
                         <span
-                          className={`inline-flex px-2 py-1 rounded-full text-[11px] font-semibold ${
-                            (row.status || '').toLowerCase() === 'active'
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : 'bg-slate-100 text-slate-600'
-                          }`}
+                          className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] ${getRoleBadgeClass(
+                            row.role,
+                          )}`}
                         >
-                          {row.status || '—'}
+                          {formatRoleLabel(row.role)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-4 text-[13px] text-slate-700">
+                        {row.designation || '--'}
+                      </td>
+                      <td className="px-4 py-4 text-[13px] text-slate-700">
+                        {row.department || '--'}
+                      </td>
+                      <td className="px-4 py-4 text-[13px] text-slate-700">
+                        {row.email || '--'}
+                      </td>
+                      <td className="px-4 py-4 text-[13px] text-slate-700">
+                        {row.phone || '--'}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold capitalize ${getStatusBadgeClass(
+                            row.status,
+                          )}`}
+                        >
+                          {row.status || '--'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
                         {editable ? (
                           <div className="inline-flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => handleStartEdit(row)}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-100"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-100"
                               title="Edit"
                             >
                               <Pencil size={14} />
@@ -313,7 +381,7 @@ const StaffView: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => setDeleting(row)}
-                                className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-red-100 text-red-500 hover:bg-red-50"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-100 bg-white text-red-500 shadow-sm transition hover:bg-red-50"
                                 title="Delete"
                               >
                                 <Trash2 size={14} />
@@ -334,14 +402,22 @@ const StaffView: React.FC = () => {
       </div>
 
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg border border-slate-200 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Edit staff</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-[28px] border border-slate-200 bg-white p-7 shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
+            <div className="mb-6">
+              <h3 className="text-[22px] font-semibold tracking-[-0.02em] text-slate-900">
+                Edit staff
+              </h3>
+              <p className="mt-1 text-[14px] text-slate-500">
+                Update employee information while keeping the existing access rules intact.
+              </p>
+            </div>
+
             <div className="space-y-4">
               {!(backendEmpId && editing.empId === backendEmpId && !isAdmin && !isTeamLead) && (
                 <>
                   <div>
-                    <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+                    <label className="mb-1 block text-[13px] font-semibold text-slate-700">
                       Name
                     </label>
                     <input
@@ -349,12 +425,13 @@ const StaffView: React.FC = () => {
                       onChange={(e) =>
                         setEditDraft((prev) => ({ ...prev, empName: e.target.value }))
                       }
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
                     />
                   </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+                      <label className="mb-1 block text-[13px] font-semibold text-slate-700">
                         Designation
                       </label>
                       <input
@@ -362,11 +439,11 @@ const StaffView: React.FC = () => {
                         onChange={(e) =>
                           setEditDraft((prev) => ({ ...prev, designation: e.target.value }))
                         }
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
                       />
                     </div>
                     <div>
-                      <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+                      <label className="mb-1 block text-[13px] font-semibold text-slate-700">
                         Department
                       </label>
                       <input
@@ -374,13 +451,14 @@ const StaffView: React.FC = () => {
                         onChange={(e) =>
                           setEditDraft((prev) => ({ ...prev, department: e.target.value }))
                         }
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
                       />
                     </div>
                   </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+                      <label className="mb-1 block text-[13px] font-semibold text-slate-700">
                         Email
                       </label>
                       <input
@@ -388,11 +466,11 @@ const StaffView: React.FC = () => {
                         onChange={(e) =>
                           setEditDraft((prev) => ({ ...prev, email: e.target.value }))
                         }
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
                       />
                     </div>
                     <div>
-                      <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+                      <label className="mb-1 block text-[13px] font-semibold text-slate-700">
                         Phone
                       </label>
                       <input
@@ -400,13 +478,14 @@ const StaffView: React.FC = () => {
                         onChange={(e) =>
                           setEditDraft((prev) => ({ ...prev, phone: e.target.value }))
                         }
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
                       />
                     </div>
                   </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+                      <label className="mb-1 block text-[13px] font-semibold text-slate-700">
                         Status
                       </label>
                       <select
@@ -414,7 +493,7 @@ const StaffView: React.FC = () => {
                         onChange={(e) =>
                           setEditDraft((prev) => ({ ...prev, status: e.target.value }))
                         }
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
                       >
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
@@ -422,7 +501,7 @@ const StaffView: React.FC = () => {
                     </div>
                     {isAdmin && (
                       <div>
-                        <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+                        <label className="mb-1 block text-[13px] font-semibold text-slate-700">
                           Role
                         </label>
                         <select
@@ -433,7 +512,7 @@ const StaffView: React.FC = () => {
                               role: e.target.value as BackendRole,
                             }))
                           }
-                          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
                         >
                           <option value="SUPER_ADMIN">SUPER_ADMIN</option>
                           <option value="ADMIN">ADMIN</option>
@@ -445,8 +524,9 @@ const StaffView: React.FC = () => {
                   </div>
                 </>
               )}
+
               <div>
-                <label className="block text-[13px] font-semibold text-slate-700 mb-1">
+                <label className="mb-1 block text-[13px] font-semibold text-slate-700">
                   New password
                 </label>
                 <input
@@ -455,7 +535,7 @@ const StaffView: React.FC = () => {
                   onChange={(e) =>
                     setEditDraft((prev) => ({ ...prev, password: e.target.value }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
                   placeholder={
                     backendEmpId && editing.empId === backendEmpId && !isAdmin && !isTeamLead
                       ? 'Enter your new password'
@@ -464,6 +544,7 @@ const StaffView: React.FC = () => {
                 />
               </div>
             </div>
+
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
@@ -471,14 +552,14 @@ const StaffView: React.FC = () => {
                   setEditing(null);
                   setEditDraft({});
                 }}
-                className="px-4 py-2 rounded-full border border-slate-200 text-[13px] text-slate-700 hover:bg-slate-50"
+                className="rounded-full border border-slate-200 px-4 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleSave}
-                className="px-5 py-2 rounded-full bg-brand-red text-white text-[13px] font-semibold hover:bg-brand-navy"
+                className="rounded-full bg-brand-red px-5 py-2 text-[13px] font-semibold text-white transition hover:bg-brand-navy"
               >
                 Save
               </button>
@@ -488,24 +569,26 @@ const StaffView: React.FC = () => {
       )}
 
       {deleting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm border border-slate-200 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Delete staff</h3>
-            <p className="text-[14px] text-slate-600 mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
+            <h3 className="mb-2 text-[22px] font-semibold tracking-[-0.02em] text-slate-900">
+              Delete staff
+            </h3>
+            <p className="mb-6 text-[14px] leading-6 text-slate-600">
               Are you sure you want to delete &quot;{deleting.empName}&quot; ({deleting.empId})?
             </p>
             <div className="flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setDeleting(null)}
-                className="px-4 py-2 rounded-full border border-slate-200 text-[13px] text-slate-700 hover:bg-slate-50"
+                className="rounded-full border border-slate-200 px-4 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleDelete}
-                className="px-5 py-2 rounded-full bg-brand-red text-white text-[13px] font-semibold hover:bg-brand-navy"
+                className="rounded-full bg-brand-red px-5 py-2 text-[13px] font-semibold text-white transition hover:bg-brand-navy"
               >
                 Delete
               </button>
@@ -518,4 +601,3 @@ const StaffView: React.FC = () => {
 };
 
 export default StaffView;
-
