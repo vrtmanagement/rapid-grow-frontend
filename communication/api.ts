@@ -121,3 +121,16 @@ export async function apiMarkAsRead({
   return res.json() as Promise<{ updated: number; unreadCount: number }>;
 }
 
+export async function apiClearChat(conversationKey: string) {
+  const res = await fetch(`${API_BASE}/communication/messages/clear-chat`, {
+    method: 'POST',
+    headers: authHeadersJson(),
+    body: JSON.stringify({ conversationKey }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to clear chat');
+  }
+  return res.json() as Promise<{ ok: boolean; clearedCount: number }>;
+}
+

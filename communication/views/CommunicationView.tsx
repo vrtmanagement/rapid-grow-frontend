@@ -4,6 +4,7 @@ import { AvatarPreviewEntity, AvatarPreviewModal } from '../components/AvatarPre
 import { ChatSidebar } from '../components/ChatSidebar';
 import { ChatMessages } from '../components/ChatMessages';
 import { ChatComposer } from '../components/ChatComposer';
+import { ChatHeaderMenu } from '../components/ChatHeaderMenu';
 import { Mail } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
 
@@ -90,6 +91,7 @@ function CommunicationLayout() {
   const canCompose = !!currentUser && !!selectedConversationKey;
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
   const [previewEntity, setPreviewEntity] = useState<AvatarPreviewEntity | null>(null);
+  const [isClearingChat, setIsClearingChat] = useState(false);
   useEffect(() => {
     setReplyToMessage(null);
   }, [selectedConversationKey]);
@@ -305,9 +307,23 @@ function CommunicationLayout() {
               </div>
             </div>
 
-            <div className="shrink-0 text-right">
+            <div className="shrink-0 flex items-center gap-2">
               {selectedConversation?.type === 'channel' ? (
-                <div className="text-xs text-slate-500">Online now: {selectedConversation.onlineCount ?? 0}</div>
+                <div className="text-xs text-slate-500 px-3">Online now: {selectedConversation.onlineCount ?? 0}</div>
+              ) : null}
+              {selectedConversationKey ? (
+                <ChatHeaderMenu
+                  onClearChat={async () => {
+                    if (!selectedConversationKey) return;
+                    setIsClearingChat(true);
+                    try {
+                      await ctx.clearChat(selectedConversationKey);
+                    } finally {
+                      setIsClearingChat(false);
+                    }
+                  }}
+                  isLoading={isClearingChat}
+                />
               ) : null}
             </div>
           </div>
