@@ -1240,30 +1240,30 @@ const App: React.FC = () => {
           {globalReminderToastElement}
           <GlobalCommunicationNotifications />
           <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
-          <aside className="w-64 h-full min-h-0 bg-brand-charcoal text-white flex flex-col z-50 shadow-2xl relative shrink-0">
+          <aside className="w-52 h-full min-h-0 bg-brand-charcoal text-white flex flex-col z-50 shadow-2xl relative shrink-0">
             <div className="absolute top-0 right-0 w-[2px] h-full bg-brand-red opacity-20" />
-            <div className="p-6 border-b border-white/5 shrink-0">
-              <div className="flex items-center gap-3">
+            <div className="px-3.5 py-4 border-b border-white/5 shrink-0">
+              <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 bg-brand-red flex items-center justify-center rounded shadow-lg">
                   <span className="text-white text-lg">RG</span>
                 </div>
-                <span className="text-md text-brand-red">Employee Portal</span>
+                <span className="text-[15px] font-medium text-brand-red truncate">Employee Portal</span>
               </div>
             </div>
-            <nav className="flex-1 min-h-0 py-6 space-y-2 overflow-y-auto overflow-x-hidden px-4">
+            <nav className="flex-1 min-h-0 py-3.5 space-y-1 overflow-y-auto overflow-x-hidden px-2.5">
               {hasPower('DASHBOARD_VIEW') && <SidebarLink to="/" icon={<LayoutDashboard size={20} />} label={state.uiConfig.dashboardTitle} collapsed={false} />}
               {hasPower('SPACES_VIEW') && <SidebarLink to="/spaces" icon={<Database size={20} />} label={taskCount > 0 ? `TaskHub (${taskCount})` : 'TaskHub'} collapsed={false} />}
               {hasPower('ATTENDANCE_VIEW') && <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={false} />}
-              <div className="h-px bg-white/5 mx-4 my-6"></div>
+              <div className="h-px bg-white/5 mx-2.5 my-3.5"></div>
               {visionNavItems.map((item) =>
                 hasPower(item.power) ? (
                   <SidebarLink key={item.to} to={item.to} icon={item.icon} label={item.label} collapsed={false} />
                 ) : null,
               )}
-              <div className="h-px bg-white/5 mx-4 my-6"></div>
+              <div className="h-px bg-white/5 mx-2.5 my-3.5"></div>
               {hasPower('DAILY_VIEW') && <SidebarLink to="/daily" icon={<Clock size={20}/>} label={state.uiConfig.dailyTitle} collapsed={false} />}
               {hasPower('REFLECTION_VIEW') && <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={false} />}
-              <div className="h-px bg-white/5 mx-4 my-6"></div>
+              <div className="h-px bg-white/5 mx-2.5 my-3.5"></div>
               {hasPower('COMMUNICATION_VIEW') && <SidebarLink to="/communication" icon={<Mail size={20}/>} label={communicationUnreadCount > 0 ? `Communication (${communicationUnreadCount})` : 'Communication'} collapsed={false} />}
               {hasPower('CONTENT_VIEW') && <SidebarLink to="/content" icon={<FileText size={20}/>} label="Content" collapsed={false} />}
               {hasPower('STAFF_VIEW') && <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={false} />}
@@ -1367,33 +1367,33 @@ const App: React.FC = () => {
         {globalReminderToastElement}
         <GlobalCommunicationNotifications />
         <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
-        <aside className={`${isSidebarOpen ? 'w-64' : 'w-24'} h-full min-h-0 bg-brand-charcoal text-white transition-all duration-500 flex flex-col z-50 shadow-2xl relative shrink-0`}>
+        <aside className={`${isSidebarOpen ? 'w-52' : 'w-[72px]'} h-full min-h-0 bg-brand-charcoal text-white transition-all duration-500 flex flex-col z-50 shadow-2xl relative shrink-0`}>
           <div className="absolute top-0 right-0 w-[2px] h-full bg-brand-red opacity-20"></div>
           
-          <div className="p-4 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="px-3.5 py-4 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <div className="w-10 h-10 bg-brand-red flex items-center justify-center rounded shadow-lg shrink-0">
                 <span className="text-white text-lg">RG</span>
               </div>
-              {isSidebarOpen && <span className="text-md text-brand-red truncate">{state.uiConfig.sidebarLogoName}</span>}
+              {isSidebarOpen && <span className="text-[15px] font-medium text-brand-red truncate">{state.uiConfig.sidebarLogoName}</span>}
             </div>
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors shrink-0"
+              className="p-1.5 rounded-md hover:bg-white/10 text-slate-400 hover:text-white transition-colors shrink-0"
               title={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
               aria-label={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
             >
-              <Menu size={20} />
+              <Menu size={17} />
             </button>
           </div>
-          <nav className="flex-1 min-h-0 py-6 space-y-2 overflow-y-auto overflow-x-hidden px-4">
+          <nav className="flex-1 min-h-0 py-3.5 space-y-1 overflow-y-auto overflow-x-hidden px-2.5">
             {hasPower('DASHBOARD_VIEW') && <SidebarLink to="/" icon={<LayoutDashboard size={20}/>} label={isSuperAdmin ? 'Dashboard' : state.uiConfig.dashboardTitle} collapsed={!isSidebarOpen} />}
             {!isSuperAdmin && (
               <>
                 {hasPower('WORKSPACES_VIEW') && <SidebarLink to="/workspaces" icon={<Briefcase size={20}/>} label={state.uiConfig.operationsTitle} collapsed={!isSidebarOpen} />}
                 {hasPower('SPACES_VIEW') && <SidebarLink to="/spaces" icon={<Database size={20} />} label={taskCount > 0 ? `TaskHub (${taskCount})` : 'TaskHub'} collapsed={!isSidebarOpen} />}
                 {hasPower('ATTENDANCE_VIEW') && <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />}
-                <div className="h-px bg-white/5 mx-4 my-6"></div>
+                <div className="h-px bg-white/5 mx-2.5 my-3.5"></div>
                 {visionNavItems.map((item) =>
                   hasPower(item.power) ? (
                     <SidebarLink
@@ -1407,7 +1407,7 @@ const App: React.FC = () => {
                 )}
                 {hasPower('DAILY_VIEW') && <SidebarLink to="/daily" icon={<Clock size={20}/>} label={state.uiConfig.dailyTitle} collapsed={!isSidebarOpen} />}
                 {hasPower('REFLECTION_VIEW') && <SidebarLink to="/reflection" icon={<BrainCircuit size={20}/>} label={state.uiConfig.reflectionTitle} collapsed={!isSidebarOpen} />}
-                <div className="h-px bg-white/5 mx-4 my-6"></div>
+                <div className="h-px bg-white/5 mx-2.5 my-3.5"></div>
               </>
             )}
             {hasPower('EMPLOYEE_CREATE') && (
@@ -1536,11 +1536,11 @@ const SidebarLink: React.FC<{ to: string; icon: any; label: string; collapsed: b
     ? location.pathname === '/content' || location.pathname.startsWith('/content/day/') || location.pathname.startsWith('/content/new')
     : location.pathname === to;
   return (
-    <Link to={to} className={`flex items-center gap-6 px-7 py-5 rounded transition-all group ${isActive ? 'bg-brand-red text-white shadow-xl' : 'text-slate-500 hover:bg-white/5 hover:text-white'} ${collapsed ? 'justify-center px-0' : ''}`}>
-      <div className={`${isActive ? 'scale-110 text-white' : 'opacity-70 text-slate-500 group-hover:text-brand-red group-hover:opacity-100'} transition-transform shrink-0`}>{icon}</div>
+    <Link to={to} className={`flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all group ${isActive ? 'bg-brand-red text-white shadow-xl' : 'text-slate-500 hover:bg-white/5 hover:text-white'} ${collapsed ? 'justify-center px-0 py-2.5' : ''}`}>
+      <div className={`${isActive ? 'scale-105 text-white' : 'opacity-70 text-slate-500 group-hover:text-brand-red group-hover:opacity-100'} transition-transform shrink-0`}>{icon}</div>
       {!collapsed && (isActive
-        ? <span className="text-[14px] text-white truncate">{label}</span>
-        : <span className="text-[14px] truncate group-hover:text-brand-red">{label}</span>
+        ? <span className="text-[13px] font-medium tracking-[-0.01em] text-white truncate">{label}</span>
+        : <span className="text-[13px] font-medium tracking-[-0.01em] truncate group-hover:text-brand-red">{label}</span>
       )}
     </Link>
   );

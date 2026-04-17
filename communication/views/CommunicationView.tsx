@@ -40,6 +40,23 @@ function CommunicationMobileSkeleton() {
   );
 }
 
+function TypingDots() {
+  return (
+    <span className="inline-flex items-center gap-1" aria-hidden="true">
+      {[0, 1, 2].map((dot) => (
+        <span
+          key={dot}
+          className="h-1.5 w-1.5 rounded-full bg-emerald-500/80 animate-bounce"
+          style={{
+            animationDelay: `${dot * 0.15}s`,
+            animationDuration: '0.9s',
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
 function CommunicationLayout() {
   const ctx = useCommunication();
   const { currentUser, users, conversations, usersLoading, conversationsLoading, selectedConversationKey, selectedConversation, messages, messagesLoading } = ctx;
@@ -60,6 +77,14 @@ function CommunicationLayout() {
       .map((id) => usersById.get(id)?.name)
       .filter(Boolean) as string[];
   }, [ctx.typingUserIds, usersById]);
+  const liveSelectedDmUser =
+    selectedConversation?.type === 'dm' && selectedConversation.otherUser
+      ? usersById.get(selectedConversation.otherUser.id) || selectedConversation.otherUser
+      : null;
+  const activeDmTypingUserName =
+    selectedConversation?.type === 'dm'
+      ? typingUserNames[0] || null
+      : null;
 
   const selectedTitle = selectedConversation?.title || 'Select a conversation';
   const canCompose = !!currentUser && !!selectedConversationKey;
@@ -205,16 +230,16 @@ function CommunicationLayout() {
           <div className="h-16 border-b border-slate-200 bg-white px-5 flex items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-3">
-                {selectedConversation?.type === 'dm' && selectedConversation.otherUser ? (
+                {selectedConversation?.type === 'dm' && liveSelectedDmUser ? (
                   <button
                     type="button"
                     onClick={() =>
                       setPreviewEntity(
-                        selectedConversation.otherUser
+                        liveSelectedDmUser
                           ? {
-                              name: selectedConversation.otherUser.name,
-                              avatar: selectedConversation.otherUser.avatar,
-                              subtitle: selectedConversation.otherUser.online ? 'Online now' : 'Offline',
+                              name: liveSelectedDmUser.name,
+                              avatar: liveSelectedDmUser.avatar,
+                              subtitle: liveSelectedDmUser.online ? 'Online now' : 'Offline',
                             }
                           : null
                       )
@@ -223,10 +248,10 @@ function CommunicationLayout() {
                   >
                     <img
                       src={
-                        selectedConversation.otherUser.avatar ||
-                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(selectedConversation.otherUser.name.replace(/\s/g, ''))}`
+                        liveSelectedDmUser.avatar ||
+                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(liveSelectedDmUser.name.replace(/\s/g, ''))}`
                       }
-                      alt={selectedConversation.otherUser.name}
+                      alt={liveSelectedDmUser.name}
                       className="h-full w-full object-cover"
                     />
                   </button>
@@ -252,15 +277,26 @@ function CommunicationLayout() {
                 )}
                 <div className="min-w-0">
                   <div className="text-lg font-bold text-slate-900 truncate">{selectedTitle}</div>
-                  <div className="text-xs text-slate-500 truncate">
-                    {selectedConversation?.type === 'dm' && selectedConversation.otherUser ? (
-                      selectedConversation.otherUser.online ? (
-                        <>Online • {selectedConversation.otherUser.name}</>
+                  <div className="text-xs text-slate-500">
+                    {selectedConversation?.type === 'dm' && liveSelectedDmUser ? (
+                      activeDmTypingUserName ? (
+                        <div className="inline-flex max-w-full items-center gap-2 truncate text-emerald-600">
+                          <span className="truncate">{activeDmTypingUserName} is typing</span>
+                          <TypingDots />
+                        </div>
+                      ) : liveSelectedDmUser.online ? (
+                        <>
+                          Online <span aria-hidden="true">&bull;</span> {liveSelectedDmUser.name}
+                        </>
                       ) : (
-                        <>Offline • {selectedConversation.otherUser.name}</>
+                        <>
+                          Offline <span aria-hidden="true">&bull;</span> {liveSelectedDmUser.name}
+                        </>
                       )
                     ) : selectedConversation?.type === 'channel' ? (
-                      <>Team • {selectedConversation.title}</>
+                      <>
+                        Team <span aria-hidden="true">&bull;</span> {selectedConversation.title}
+                      </>
                     ) : (
                       <>Pick a chat from the left</>
                     )}
@@ -328,4 +364,3 @@ function CommunicationLayout() {
 export default function CommunicationView() {
   return <CommunicationLayout />;
 }
-
