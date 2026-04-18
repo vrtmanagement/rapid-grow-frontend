@@ -237,6 +237,15 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
         .map(mapMessage)
         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
       setMessages(mapped);
+      if (mapped.length === 0) {
+        setConversations((prev) =>
+          prev.map((conversation) =>
+            conversation.conversationKey === conversationKey
+              ? { ...conversation, lastMessagePreview: '', lastMessageAt: null }
+              : conversation
+          )
+        );
+      }
     } catch (e: any) {
       setError(e?.message || 'Failed to load messages');
       setMessages([]);
