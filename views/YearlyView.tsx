@@ -122,6 +122,9 @@ const YearlyView: React.FC<Props> = ({ state, updateState, loading = false }) =>
           </button>
         )}
       </div>
+      <p className="text-sm text-slate-500">
+        Example goals: Increase sales, grow team, improve revenue.
+      </p>
 
       {isAdmin && isAddingNew && (
         <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
