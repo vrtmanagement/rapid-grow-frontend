@@ -30,7 +30,7 @@ function ChatMessagesSkeleton() {
 function TypingBubble({ label }: { label?: string | null }) {
   return (
     <div className="flex justify-start my-2">
-      <div className="max-w-[78vw] rounded-3xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+      <div className="relative max-w-[78vw] rounded-3xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
         {label ? (
           <div className="mb-1 text-[11px] font-semibold text-slate-600">{label}</div>
         ) : null}
@@ -45,6 +45,23 @@ function TypingBubble({ label }: { label?: string | null }) {
               }}
             />
           ))}
+        </div>
+        <div className="pointer-events-none absolute bottom-[2px] -left-[11px] h-[14px] w-[18px]">
+          <svg
+            viewBox="0 0 18 14"
+            className="h-full w-full"
+            aria-hidden="true"
+            style={{ transform: 'scaleX(-1)' }}
+          >
+            <path
+              d="M1 1C7 1 9.5 3.4 10.6 6.8C11.6 9.8 13.9 12 17 13C12.3 13.2 8.7 12.3 5.8 10.2C3.3 8.4 1.8 5.8 1 1Z"
+              fill="#ffffff"
+              stroke="#e2e8f0"
+              strokeWidth="1"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          </svg>
         </div>
       </div>
     </div>

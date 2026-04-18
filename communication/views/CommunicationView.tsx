@@ -109,6 +109,8 @@ function CommunicationLayout() {
             conversations={conversations}
             loading={communicationLoading}
             selectedConversationKey={selectedConversationKey}
+            selectedConversationType={selectedConversation?.type || null}
+            typingUserIds={ctx.typingUserIds}
             onSelectTeam={(conversationKey) => ctx.joinByConversationKey(conversationKey)}
             onStartDmWithUser={(uid) => ctx.startDmWithUser(uid)}
             onCreateTeam={(name, memberIds) => ctx.createTeam(name, memberIds)}
@@ -283,17 +285,13 @@ function CommunicationLayout() {
                     {selectedConversation?.type === 'dm' && liveSelectedDmUser ? (
                       activeDmTypingUserName ? (
                         <div className="inline-flex max-w-full items-center gap-2 truncate text-emerald-600">
-                          <span className="truncate">{activeDmTypingUserName} is typing</span>
+                          <span className="truncate">Typing</span>
                           <TypingDots />
                         </div>
                       ) : liveSelectedDmUser.online ? (
-                        <>
-                          Online <span aria-hidden="true">&bull;</span> {liveSelectedDmUser.name}
-                        </>
+                        <>Online</>
                       ) : (
-                        <>
-                          Offline <span aria-hidden="true">&bull;</span> {liveSelectedDmUser.name}
-                        </>
+                        <>Offline</>
                       )
                     ) : selectedConversation?.type === 'channel' ? (
                       <>

@@ -119,6 +119,17 @@ export function MessageBubble({
     : isOwn
     ? 'bg-brand-red text-white border-brand-red/20 shadow-[0_8px_24px_rgba(236,72,71,0.15)]'
     : 'bg-white text-slate-900 border-slate-200 shadow-[0_8px_24px_rgba(15,23,42,0.06)]';
+  const tailFillColor = message.deleted
+    ? 'rgba(252, 165, 165, 0.3)'
+    : isOwn
+    ? '#ec4847'
+    : '#ffffff';
+  const tailStrokeColor = message.deleted
+    ? '#fca5a5'
+    : isOwn
+    ? '#ec4847'
+    : '#e2e8f0';
+  const bubbleShapeClass = isOwn ? 'rounded-[30px] rounded-br-[12px]' : 'rounded-[30px] rounded-bl-[12px]';
 
   const timeTone = isOwn ? 'text-white/80' : 'text-slate-500';
   const directFileUrl = message.fileUrl || message.attachment?.url || '#';
@@ -219,7 +230,7 @@ export function MessageBubble({
             ) : null}
           </div>
 
-          <div ref={bubbleRef} className={`relative max-w-[78vw] rounded-3xl border ${bubbleBase} px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 ${isOwn ? 'pr-12' : ''}`}>
+          <div ref={bubbleRef} className={`relative max-w-[78vw] border ${bubbleBase} ${bubbleShapeClass} px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 ${isOwn ? 'pr-12' : ''}`}>
           {!message.deleted && message.replyTo ? (
             <div className={`mb-2 rounded-xl border px-3 py-2 ${isOwn ? 'border-white/30 bg-white/15' : 'border-slate-200 bg-slate-100/70'}`}>
               <div className={`text-[10px] font-semibold ${isOwn ? 'text-white/90' : 'text-slate-600'}`}>
@@ -364,6 +375,23 @@ export function MessageBubble({
                   {message.tick.state === 'seen' ? <Eye size={12} /> : message.tick.state === 'delivered' ? '✓✓' : '✓'}
                 </span>
               ) : null}
+            </div>
+            <div className={`pointer-events-none absolute bottom-0 h-[22px] w-[30px] ${isOwn ? '-right-[10px]' : '-left-[10px]'}`}>
+              <svg
+                viewBox="0 0 30 22"
+                className="h-full w-full"
+                aria-hidden="true"
+                style={isOwn ? undefined : { transform: 'scaleX(-1)' }}
+              >
+                <path
+                  d="M2 2C11 2 16 5 19 9C22 13 25 18 29 20C22 20.4 16.4 18.8 11.8 15.4C7.6 12.2 4.4 8 2 2Z"
+                  fill={tailFillColor}
+                  stroke={tailStrokeColor}
+                  strokeWidth="1"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              </svg>
             </div>
           </div>
         </div>
