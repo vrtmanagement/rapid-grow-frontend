@@ -17,6 +17,8 @@ export function ChatSidebar({
   conversations,
   loading,
   selectedConversationKey,
+  selectedConversationType,
+  typingUserIds,
   onSelectTeam,
   onStartDmWithUser,
   onCreateTeam,
@@ -31,6 +33,8 @@ export function ChatSidebar({
   conversations: ChatConversationSummary[];
   loading?: boolean;
   selectedConversationKey: string | null;
+  selectedConversationType?: ChatConversationSummary['type'] | null;
+  typingUserIds?: Record<string, true>;
   onSelectTeam: (conversationKey: string) => Promise<void>;
   onStartDmWithUser: (otherUserId: string) => Promise<void>;
   onCreateTeam: (name: string, memberIds: string[], avatar?: string | null) => Promise<void>;
@@ -281,6 +285,7 @@ export function ChatSidebar({
               dmByUserId.get(u.id)?.conversationKey === selectedConversationKey;
 
             const dm = dmByUserId.get(u.id);
+            const showTypingStatus = !!active && selectedConversationType === 'dm' && !!typingUserIds?.[u.id];
             return (
               <button
                 key={u.id}
@@ -316,7 +321,9 @@ export function ChatSidebar({
                       <div className="text-sm font-semibold text-slate-900 truncate">{u.name}</div>
                       <div className="text-[11px] text-slate-500 shrink-0">{roleLabel(u.roleGroup)}</div>
                     </div>
-                    <div className="text-xs text-slate-500 truncate">{dm?.lastMessagePreview || 'Start chat'}</div>
+                    <div className={`text-xs truncate ${showTypingStatus ? 'font-medium text-emerald-600' : 'text-slate-500'}`}>
+                      {showTypingStatus ? 'Typing...' : (dm?.lastMessagePreview || 'Start chat')}
+                    </div>
                   </div>
                   {dm && typeof dm.unreadCount === 'number' && dm.unreadCount > 0 ? (
                     <span className="inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-full bg-brand-red px-2 py-0.5 text-[11px] font-bold text-white">
