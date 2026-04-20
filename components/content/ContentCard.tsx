@@ -66,8 +66,9 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
   const clickHref = options?.clickHref || `/content/day/${selectedDate}/type/${item.type}/item/${item.contentId}`;
   const isExpanded = !!options?.expanded;
   const showTypeBadge = activeTab === 'calendar' || isReminderTab;
+  const scheduleAccentType = activeTab === 'content-schedule' ? 'newsletter' : item.type;
   const cardTypeLabel = isReminderTab ? reminderCategoryLabel : TYPE_LABEL[item.type];
-  const cardTypeBadgeClass = isReminderTab ? TYPE_ACCENT.general.badge : TYPE_ACCENT[item.type].badge;
+  const cardTypeBadgeClass = isReminderTab ? TYPE_ACCENT.general.badge : TYPE_ACCENT[scheduleAccentType].badge;
   const comments: ContentComment[] = Array.isArray(item.comments) ? item.comments : [];
   const commentIds = new Set(comments.map((comment) => String(comment.id || '').trim()).filter(Boolean));
   const topLevelComments = comments.filter((comment) => {
@@ -99,11 +100,11 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
       } : undefined}
       className={`relative flex ${isExpanded ? 'h-auto min-h-0' : 'h-[430px]'} flex-col overflow-hidden rounded-[1.9rem] border bg-white/95 p-5 shadow-[0_22px_56px_rgba(15,23,42,0.08)] transition-all duration-300 ${
         isHighlighted
-          ? TYPE_ACCENT[item.type].highlight
+          ? TYPE_ACCENT[scheduleAccentType].highlight
           : 'border-white/80'
       } ${isClickable ? 'cursor-pointer hover:-translate-y-[2px] hover:border-slate-200 hover:shadow-[0_26px_60px_rgba(15,23,42,0.10)]' : ''}`}
     >
-      <div className={`pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r ${TYPE_ACCENT[item.type].tone}`} />
+      <div className={`pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r ${TYPE_ACCENT[scheduleAccentType].tone}`} />
       <div className="relative flex items-start justify-between gap-4">
         <div className={`min-w-0 ${showTypeBadge ? 'space-y-3' : 'space-y-0'}`}>
           {showTypeBadge ? (
@@ -294,6 +295,10 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
                 params.set('reminderItem', item.contentId);
                 params.set('edit', '1');
                 navigate(`/content?${params.toString()}`);
+                return;
+              }
+              if (activeTab === 'content-schedule' && !isExpanded) {
+                navigate(`/content?tab=content-schedule&scheduleItem=${encodeURIComponent(item.contentId)}&edit=1`);
                 return;
               }
               openEdit(item, { inline: isExpanded && isInlineDetailPage });

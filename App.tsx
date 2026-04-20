@@ -1388,7 +1388,7 @@ const App: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-16 bg-slate-100/30">
               <Routes>
                 {hasPower('DASHBOARD_VIEW') && <Route path="/" element={<EmployeeDashboardView />} />}
-                {hasPower('SPACES_VIEW') && <Route path="/spaces" element={<SpacesView mode="employee" />} />}
+                {hasPower('SPACES_VIEW') && <Route path="/spaces" element={<SpacesView mode="employee" state={state} updateState={updateState} />} />}
                 {hasPower('SPACES_VIEW') && <Route path="/spaces/task/:taskId" element={<SpacesTaskDetailView mode="employee" />} />}
                 {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance" element={<AttendanceView mode="employee" />} />}
                 {hasPower('PROFILE_VIEW') && <Route path="/profile" element={<EmployeeProfileView state={state} updateState={updateState} />} />}

@@ -2,7 +2,6 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BellRing, CalendarDays, Check, ChevronLeft, ChevronRight, Hash, Link2, Plus } from 'lucide-react';
 import { ContentDraftMode } from '../../services/contentApi';
-import MomentsList from './MomentsList';
 
 type ContentMainPanelsProps = {
   ctx: any;
@@ -55,8 +54,10 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
     setNewTagValue,
     addAutoTag,
     removeAutoTag,
-    momentDate,
-    setMomentDate,
+    momentFromDate,
+    setMomentFromDate,
+    momentToDate,
+    setMomentToDate,
     momentTopic,
     setMomentTopic,
     momentText,
@@ -68,9 +69,7 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
     handleMomentSave,
     editingMomentId,
     resetMomentForm,
-    momentEntries,
-    openMomentEdit,
-    setMomentDeleteTargetId,
+    scheduleItems,
     isReminderTypeDetail,
     isReminderItemDetail,
     selectedReminderType,
@@ -78,6 +77,9 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
     selectedReminderItem,
     selectedReminderTypeItems,
     activeReminderItems,
+    selectedScheduleItemId,
+    selectedScheduleItem,
+    isScheduleItemDetail,
     ScheduleDatePicker,
   } = ctx;
 
@@ -415,6 +417,24 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
         </div>
       ) : activeTab === 'content-schedule' ? (
         <div className="space-y-4">
+          <div className="rounded-[2rem] border border-white/70 bg-white/90 px-5 py-3 shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-slate-400">
+              <button
+                type="button"
+                onClick={() => navigate('/content?tab=content-schedule')}
+                className="transition hover:text-slate-700"
+              >
+                Content Schedule
+              </button>
+              {showScheduleForm || isScheduleItemDetail ? <span>/</span> : null}
+              {showScheduleForm ? (
+                <span className="text-amber-700">{editingMomentId ? 'Edit Schedule' : 'Add Schedule'}</span>
+              ) : null}
+              {!showScheduleForm && isScheduleItemDetail ? (
+                <span className="text-amber-700">Schedule Detail</span>
+              ) : null}
+            </div>
+          </div>
           {showScheduleForm ? (
             <div className="rounded-[2rem] border border-white/70 bg-white/90 px-5 py-4 shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -448,8 +468,12 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label className="block text-[13px] font-semibold text-slate-700">Date</label>
-                  <ScheduleDatePicker value={momentDate} onChange={setMomentDate} />
+                  <label className="block text-[13px] font-semibold text-slate-700">From date</label>
+                  <ScheduleDatePicker value={momentFromDate} onChange={setMomentFromDate} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[13px] font-semibold text-slate-700">To date</label>
+                  <ScheduleDatePicker value={momentToDate} onChange={setMomentToDate} />
                 </div>
                 <div className="space-y-1.5">
                   <label className="block text-[13px] font-semibold text-slate-700">Topic</label>
@@ -506,18 +530,32 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
             </div>
           )}
 
-          {momentEntries.length === 0 ? (
+          {!showScheduleForm && scheduleItems.length === 0 ? (
             <div className="rounded-[1.8rem] border border-dashed border-slate-300 bg-white/80 px-6 py-10 text-center shadow-sm">
               <h4 className="text-lg font-semibold text-slate-900">No schedule here</h4>
               <p className="mt-2 text-sm text-slate-500">Click Add Schedule to create one.</p>
             </div>
-          ) : (
-            <MomentsList
-              momentEntries={momentEntries}
-              onEdit={openMomentEdit}
-              onDelete={setMomentDeleteTargetId}
-            />
-          )}
+          ) : !showScheduleForm && isScheduleItemDetail ? (
+            selectedScheduleItem ? (
+              <div className="w-full">
+                {renderContentCard(selectedScheduleItem, { expanded: true })}
+              </div>
+            ) : (
+              <div className="rounded-[1.8rem] border border-dashed border-slate-300 bg-white/80 px-6 py-10 text-center shadow-sm">
+                <h4 className="text-lg font-semibold text-slate-900">Schedule item not found</h4>
+                <p className="mt-2 text-sm text-slate-500">Go back to schedule list and select another card.</p>
+              </div>
+            )
+          ) : !showScheduleForm ? (
+            <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+              {scheduleItems.map((item: any) =>
+                renderContentCard(item, {
+                  clickable: true,
+                  clickHref: `/content?tab=content-schedule&scheduleItem=${encodeURIComponent(item.contentId)}`,
+                })
+              )}
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="space-y-4">

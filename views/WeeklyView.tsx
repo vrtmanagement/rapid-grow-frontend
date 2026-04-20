@@ -19,6 +19,13 @@ const sortMonths = (goals: Goal[]) =>
     (a, b) => monthSlotSortKey(a.timeline) - monthSlotSortKey(b.timeline) || a.id.localeCompare(b.id),
   );
 
+const formatDateKey = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const WeeklyView: React.FC<Props> = ({ state, updateState, loading = false }) => {
   const isAdmin = state.currentUser.role === 'Admin';
   const [expandedYearIds, setExpandedYearIds] = useState<Record<string, boolean>>({});
@@ -70,7 +77,15 @@ const WeeklyView: React.FC<Props> = ({ state, updateState, loading = false }) =>
     const details = draft?.details || '';
     if (!text) return;
     const id = `w-${generateId()}`;
-    const weeklyGoal: Goal = { id, text, completed: false, level: 'week', parentId: monthId, details, timeline: '' };
+    const weeklyGoal: Goal = {
+      id,
+      text,
+      completed: false,
+      level: 'week',
+      parentId: monthId,
+      details,
+      timeline: formatDateKey(new Date()),
+    };
     const seededDays: Goal[] = Array.from({ length: 7 }).map((_, idx) => ({
       id: `d-${id}-${idx + 1}`,
       text: `Day ${idx + 1}`,
@@ -85,9 +100,9 @@ const WeeklyView: React.FC<Props> = ({ state, updateState, loading = false }) =>
     }));
     try {
       await saveGoal(weeklyGoal);
-      await Promise.all(seededDays.map((day) => saveGoal(day)));
       setNewWeeklyDraftByMonth((prev) => ({ ...prev, [monthId]: { text: '', details: '' } }));
       setIsAddingByMonth((prev) => ({ ...prev, [monthId]: false }));
+      await Promise.all(seededDays.map((day) => saveGoal(day)));
     } catch (e) {
       console.error(e);
     }

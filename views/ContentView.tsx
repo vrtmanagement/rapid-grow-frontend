@@ -22,7 +22,6 @@ import {
   isContentType,
   isImageAsset,
   LINK_STORAGE_KEY,
-  MomentEntry,
   readContentViewDrafts,
   readStringList,
   ScheduleDatePicker,
@@ -43,7 +42,7 @@ import {
 
 const ContentView: React.FC = () => {
   const MOMENT_DRAFT_STORAGE_KEY = 'rapidgrow-content-moment-draft-v1';
-  type ScheduleDraftRecord = { date: string; topic: string; text: string };
+  type ScheduleDraftRecord = { fromDate: string; toDate: string; topic: string; text: string };
   const navigate = useNavigate();
   const location = useLocation();
   const { dayKey, typeKey, itemKey } = useParams();
@@ -81,14 +80,14 @@ const ContentView: React.FC = () => {
   const initialDrafts = useMemo(() => readContentViewDrafts(), []);
   const [newLinkValue, setNewLinkValue] = useState(String(initialDrafts.newLinkValue || ''));
   const [newTagValue, setNewTagValue] = useState(String(initialDrafts.newTagValue || ''));
-  const [momentDate, setMomentDate] = useState<string>(toDateKey(new Date()));
+  const [momentFromDate, setMomentFromDate] = useState<string>(toDateKey(new Date()));
+  const [momentToDate, setMomentToDate] = useState<string>(toDateKey(new Date()));
   const [momentTopic, setMomentTopic] = useState('');
   const [momentText, setMomentText] = useState('');
   const [editingMomentId, setEditingMomentId] = useState<string | null>(null);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [scheduleAutosaveStatus, setScheduleAutosaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraftRecord | null>(null);
-  const [momentDeleteTargetId, setMomentDeleteTargetId] = useState<string | null>(null);
   const [openCommentsForContentId, setOpenCommentsForContentId] = useState<string | null>(null);
   const [commentDraftByContentId, setCommentDraftByContentId] = useState<Record<string, string>>({});
   const [replyDraftByCommentId, setReplyDraftByCommentId] = useState<Record<string, string>>({});
@@ -234,14 +233,16 @@ const ContentView: React.FC = () => {
       if (!raw) return;
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== 'object') return;
-      const date = String(parsed.date || '').trim();
+      const fromDate = String(parsed.fromDate || parsed.date || '').trim();
+      const toDate = String(parsed.toDate || '').trim();
       const topic = String(parsed.topic || '');
       const text = String(parsed.text || '');
-      if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) setMomentDate(date);
+      if (fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate)) setMomentFromDate(fromDate);
+      if (toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate)) setMomentToDate(toDate);
       if (topic) setMomentTopic(topic);
       if (text) setMomentText(text);
-      if (date || topic || text) {
-        setScheduleDraft({ date, topic, text });
+      if (fromDate || toDate || topic || text) {
+        setScheduleDraft({ fromDate, toDate, topic, text });
         setScheduleAutosaveStatus('saved');
       }
     } catch {
@@ -251,7 +252,8 @@ const ContentView: React.FC = () => {
 
   useEffect(() => {
     const payload = {
-      date: momentDate,
+      fromDate: momentFromDate,
+      toDate: momentToDate,
       topic: momentTopic,
       text: momentText,
     };
@@ -275,7 +277,7 @@ const ContentView: React.FC = () => {
       }
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [MOMENT_DRAFT_STORAGE_KEY, momentDate, momentText, momentTopic]);
+  }, [MOMENT_DRAFT_STORAGE_KEY, momentFromDate, momentToDate, momentText, momentTopic]);
 
   const monthDays = useMemo(() => {
     const year = monthCursor.getFullYear();
@@ -331,18 +333,16 @@ const ContentView: React.FC = () => {
     () => (selectedType ? selectedDayItems.filter((item) => item.type === selectedType) : []),
     [selectedDayItems, selectedType]
   );
-  const scheduleEntries = useMemo<MomentEntry[]>(
+  const scheduleItems = useMemo(
     () =>
       items
         .filter((item) => String(item.channelKey || '').toLowerCase() === 'content-schedule')
-        .map((item) => ({
-          id: item.contentId,
-          date: item.contentDate || item.createdAt.slice(0, 10),
-          topic: item.title || '',
-          text: item.description || '',
-          createdAt: item.createdAt || '',
-        }))
-        .sort((a, b) => `${b.date}${b.createdAt}`.localeCompare(`${a.date}${a.createdAt}`)),
+        .slice()
+        .sort((a, b) => {
+          const aKey = `${a.contentDate || a.createdAt?.slice(0, 10) || ''}${a.createdAt || ''}`;
+          const bKey = `${b.contentDate || b.createdAt?.slice(0, 10) || ''}${b.createdAt || ''}`;
+          return bKey.localeCompare(aKey);
+        }),
     [items]
   );
   const selectedItem = useMemo(
@@ -402,11 +402,26 @@ const ContentView: React.FC = () => {
     () => (selectedReminderItemId ? selectedReminderTypeItems.find((item) => item.contentId === selectedReminderItemId) || null : null),
     [selectedReminderItemId, selectedReminderTypeItems]
   );
+  const selectedScheduleItemId = useMemo(
+    () => String(new URLSearchParams(location.search).get('scheduleItem') || '').trim(),
+    [location.search]
+  );
+  const selectedScheduleItem = useMemo(
+    () => (selectedScheduleItemId ? scheduleItems.find((item) => item.contentId === selectedScheduleItemId) || null : null),
+    [selectedScheduleItemId, scheduleItems]
+  );
+  const isScheduleItemDetail = activeTab === 'content-schedule' && !!selectedScheduleItemId;
   const isReminderTypeDetail = (activeTab === 'follow-ee' || activeTab === 'follow-ega') && !!selectedReminderType;
   const isReminderItemDetail = isReminderTypeDetail && !!selectedReminderItemId;
   const isReminderTab = activeTab === 'follow-ee' || activeTab === 'follow-ega';
-  const isInlineDetailPage = isItemDetailPage || isReminderItemDetail;
-  const inlineDetailItem = isItemDetailPage ? selectedItem : isReminderItemDetail ? selectedReminderItem : null;
+  const isInlineDetailPage = isItemDetailPage || isReminderItemDetail || isScheduleItemDetail;
+  const inlineDetailItem = isItemDetailPage
+    ? selectedItem
+    : isReminderItemDetail
+    ? selectedReminderItem
+    : isScheduleItemDetail
+    ? selectedScheduleItem
+    : null;
   useEffect(() => {
     if (loading || (!isItemDetailPage && !isReminderItemDetail)) return;
     const container = findScrollContainer(rootRef.current);
@@ -441,38 +456,51 @@ const ContentView: React.FC = () => {
   };
 
   const resetMomentForm = () => {
-    setMomentDate(toDateKey(new Date()));
+    const today = toDateKey(new Date());
+    setMomentFromDate(today);
+    setMomentToDate(today);
     setMomentTopic('');
     setMomentText('');
     setEditingMomentId(null);
   };
 
+  const buildScheduleDescription = (fromDate: string, toDate: string, rawText: string) => {
+    const details = String(rawText || '');
+    return `From: ${fromDate}\nTo: ${toDate}\n\n${details}`;
+  };
+
   const handleMomentSave = async () => {
-    const date = momentDate.trim();
-    const topic = momentTopic.trim();
-    const text = momentText.trim();
-    if (!date || !text) {
-      setToast({ message: 'Date and moment are required.', type: 'error' });
+    const fromDate = momentFromDate.trim();
+    const toDate = momentToDate.trim();
+    const topic = momentTopic;
+    const text = momentText;
+    if (!fromDate || !toDate || !String(text || '').trim()) {
+      setToast({ message: 'From date, to date and moment are required.', type: 'error' });
       return;
     }
+    if (fromDate > toDate) {
+      setToast({ message: 'From date must be before or equal to to date.', type: 'error' });
+      return;
+    }
+    const descriptionWithRange = buildScheduleDescription(fromDate, toDate, text);
     setSubmitting(true);
     try {
       if (editingMomentId) {
         const updated = await apiUpdateContent(editingMomentId, {
-          title: topic || 'Schedule',
-          description: text,
+          title: String(topic || '').trim() ? topic : 'Schedule',
+          description: descriptionWithRange,
           type: 'general',
-          contentDate: date,
+          contentDate: fromDate,
           channelKey: 'content-schedule',
         });
         setItems((prev) => prev.map((entry) => (entry.contentId === editingMomentId ? updated.item : entry)));
         setToast({ message: 'Schedule updated successfully.', type: 'success' });
       } else {
         const created = await apiCreateContent({
-          title: topic || 'Schedule',
-          description: text,
+          title: String(topic || '').trim() ? topic : 'Schedule',
+          description: descriptionWithRange,
           type: 'general',
-          contentDate: date,
+          contentDate: fromDate,
           channelKey: 'content-schedule',
           coverImage: null,
           attachments: [],
@@ -485,34 +513,11 @@ const ContentView: React.FC = () => {
       setScheduleDraft(null);
       setScheduleAutosaveStatus('idle');
       setShowScheduleForm(false);
+      navigate('/content?tab=content-schedule', { replace: true });
     } catch (err: any) {
       setToast({ message: err?.message || 'Failed to save schedule', type: 'error' });
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const openMomentEdit = (entry: MomentEntry) => {
-    setShowScheduleForm(true);
-    setEditingMomentId(entry.id);
-    setMomentDate(entry.date);
-    setMomentTopic(entry.topic);
-    setMomentText(entry.text);
-  };
-
-  const deleteMoment = async (id: string) => {
-    try {
-      await apiDeleteContent(id);
-      setItems((prev) => prev.filter((entry) => entry.contentId !== id));
-      if (editingMomentId === id) {
-        resetMomentForm();
-      }
-      setToast({ message: 'Schedule deleted.', type: 'success' });
-    } catch (err: any) {
-      setToast({ message: err?.message || 'Failed to delete schedule', type: 'error' });
-    }
-    if (editingMomentId === id) {
-      resetMomentForm();
     }
   };
 
@@ -935,7 +940,9 @@ const ContentView: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setActiveTab('content-schedule');
-                    setMomentDate(scheduleDraft.date || toDateKey(new Date()));
+                    const defaultDate = toDateKey(new Date());
+                    setMomentFromDate(scheduleDraft.fromDate || defaultDate);
+                    setMomentToDate(scheduleDraft.toDate || scheduleDraft.fromDate || defaultDate);
                     setMomentTopic(scheduleDraft.topic || '');
                     setMomentText(scheduleDraft.text || '');
                     setShowScheduleForm(true);
@@ -1002,8 +1009,10 @@ const ContentView: React.FC = () => {
           setNewTagValue,
           addAutoTag,
           removeAutoTag,
-          momentDate,
-          setMomentDate,
+          momentFromDate,
+          setMomentFromDate,
+          momentToDate,
+          setMomentToDate,
           momentTopic,
           setMomentTopic,
           momentText,
@@ -1015,10 +1024,7 @@ const ContentView: React.FC = () => {
           handleMomentSave,
           editingMomentId,
           resetMomentForm,
-          momentEntries: scheduleEntries,
-          openMomentEdit,
-          deleteMoment,
-          setMomentDeleteTargetId,
+          scheduleItems,
           isReminderTypeDetail,
           isReminderItemDetail,
           selectedReminderType,
@@ -1026,6 +1032,9 @@ const ContentView: React.FC = () => {
           selectedReminderItem,
           selectedReminderTypeItems,
           activeReminderItems,
+          selectedScheduleItemId,
+          selectedScheduleItem,
+          isScheduleItemDetail,
           ScheduleDatePicker,
         }}
       />
@@ -1114,19 +1123,6 @@ const ContentView: React.FC = () => {
           confirmClassName="rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 px-4 py-2.5 text-sm font-medium text-white shadow-[0_18px_30px_rgba(225,29,72,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
           onCancel={() => setCommentDeleteModal(null)}
           onConfirm={() => handleDeleteComment(commentDeleteModal.contentId, commentDeleteModal.commentId)}
-        />
-      )}
-      {momentDeleteTargetId && (
-        <ConfirmDialog
-          title="Delete schedule?"
-          description="Do you want to delete this schedule?"
-          confirmLabel="Yes"
-          cancelLabel="No"
-          onCancel={() => setMomentDeleteTargetId(null)}
-          onConfirm={async () => {
-            await deleteMoment(momentDeleteTargetId);
-            setMomentDeleteTargetId(null);
-          }}
         />
       )}
       {toast && <Toast message={toast.message} type={toast.type} />}
