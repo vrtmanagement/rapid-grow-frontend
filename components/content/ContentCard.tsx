@@ -40,6 +40,7 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
     location,
     selectedReminderType,
     openEdit,
+    openScheduleEditForm,
     setDeleteTarget,
     editingCommentByContentId,
     currentUser,
@@ -284,6 +285,14 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
                 navigate(`/content/new?${params.toString()}`);
                 return;
               }
+              if (activeTab === 'calendar') {
+                const params = new URLSearchParams();
+                params.set('mode', 'calendar');
+                params.set('date', item.contentDate || selectedDate);
+                params.set('editId', item.contentId);
+                navigate(`/content/new?${params.toString()}`);
+                return;
+              }
               if (isTypeDetailPage && !isItemDetailPage && !isReminderTab) {
                 navigate(`/content/day/${selectedDate}/type/${item.type}/item/${item.contentId}?edit=1`);
                 return;
@@ -297,8 +306,8 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
                 navigate(`/content?${params.toString()}`);
                 return;
               }
-              if (activeTab === 'content-schedule' && !isExpanded) {
-                navigate(`/content?tab=content-schedule&scheduleItem=${encodeURIComponent(item.contentId)}&edit=1`);
+              if (activeTab === 'content-schedule') {
+                openScheduleEditForm(item);
                 return;
               }
               openEdit(item, { inline: isExpanded && isInlineDetailPage });

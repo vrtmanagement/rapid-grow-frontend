@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BellRing, CalendarDays, Check, ChevronLeft, ChevronRight, Hash, Link2, Plus } from 'lucide-react';
 import { ContentDraftMode } from '../../services/contentApi';
@@ -8,6 +8,7 @@ type ContentMainPanelsProps = {
 };
 
 const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
+  const scheduleTextAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const {
     activeTab,
     isDayPage,
@@ -82,6 +83,14 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
     isScheduleItemDetail,
     ScheduleDatePicker,
   } = ctx;
+
+  useEffect(() => {
+    if (!showScheduleForm || !scheduleTextAreaRef.current) return;
+    const timer = window.setTimeout(() => {
+      if (scheduleTextAreaRef.current) autoResizeTextarea(scheduleTextAreaRef.current);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [showScheduleForm, momentText, autoResizeTextarea]);
 
   return (
     <>
@@ -475,7 +484,7 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
                   <label className="block text-[13px] font-semibold text-slate-700">To date</label>
                   <ScheduleDatePicker value={momentToDate} onChange={setMomentToDate} />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 md:col-span-2">
                   <label className="block text-[13px] font-semibold text-slate-700">Topic</label>
                   <input
                     type="text"
@@ -488,6 +497,7 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
                 <div className="space-y-1.5 md:col-span-2">
                   <label className="block text-[13px] font-semibold text-slate-700">Description / Moment</label>
                   <textarea
+                    ref={scheduleTextAreaRef}
                     value={momentText}
                     onChange={(event) => setMomentText(event.target.value)}
                     onInput={(event) => autoResizeTextarea(event.currentTarget)}
