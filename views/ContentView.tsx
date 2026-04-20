@@ -99,6 +99,7 @@ const ContentView: React.FC = () => {
   const [commentDeleteModal, setCommentDeleteModal] = useState<{ contentId: string; commentId: string } | null>(null);
   const [savedDrafts, setSavedDrafts] = useState<Partial<Record<ContentDraftMode, ContentDraftRecord | null>>>({});
   const [deletingDraftMode, setDeletingDraftMode] = useState<ContentDraftMode | null>(null);
+  const scheduleEditBaselineRef = useRef<ScheduleDraftRecord | null>(null);
   const currentUser = useMemo(() => getLoggedInUser(), []);
 
   async function refresh() {
@@ -260,6 +261,7 @@ const ContentView: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!showScheduleForm) return;
     const payload = {
       fromDate: momentFromDate,
       toDate: momentToDate,
@@ -269,10 +271,22 @@ const ContentView: React.FC = () => {
     // Treat schedule draft as meaningful only when user entered topic/text.
     // Date is always prefilled, so it should not create an "untitled" draft by itself.
     const hasDraft = Boolean(momentTopic.trim() || momentText.trim());
+    const baseline = scheduleEditBaselineRef.current;
+    const isUnchangedFromBaseline = Boolean(
+      baseline
+      && baseline.fromDate === payload.fromDate
+      && baseline.toDate === payload.toDate
+      && baseline.topic === payload.topic
+      && baseline.text === payload.text
+    );
     const timer = window.setTimeout(() => {
       if (!hasDraft) {
         localStorage.removeItem(MOMENT_DRAFT_STORAGE_KEY);
         setScheduleDraft(null);
+        setScheduleAutosaveStatus('idle');
+        return;
+      }
+      if (isUnchangedFromBaseline) {
         setScheduleAutosaveStatus('idle');
         return;
       }
@@ -286,7 +300,7 @@ const ContentView: React.FC = () => {
       }
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [MOMENT_DRAFT_STORAGE_KEY, momentFromDate, momentToDate, momentText, momentTopic]);
+  }, [MOMENT_DRAFT_STORAGE_KEY, momentFromDate, momentToDate, momentText, momentTopic, showScheduleForm]);
 
   const monthDays = useMemo(() => {
     const year = monthCursor.getFullYear();
@@ -471,6 +485,7 @@ const ContentView: React.FC = () => {
     setMomentTopic('');
     setMomentText('');
     setEditingMomentId(null);
+    scheduleEditBaselineRef.current = null;
   };
 
   const buildScheduleDescription = (fromDate: string, toDate: string, rawText: string) => {
@@ -501,6 +516,13 @@ const ContentView: React.FC = () => {
   const openScheduleEditForm = (item: ContentItem) => {
     const fallbackDate = String(item.contentDate || item.createdAt?.slice(0, 10) || toDateKey(new Date()));
     const parsed = parseScheduleDescription(String(item.description || ''), fallbackDate);
+    scheduleEditBaselineRef.current = {
+      fromDate: parsed.fromDate,
+      toDate: parsed.toDate,
+      topic: String(item.title || ''),
+      text: parsed.text,
+    };
+    setScheduleAutosaveStatus('idle');
     setShowScheduleForm(true);
     setEditingMomentId(item.contentId);
     setMomentFromDate(parsed.fromDate);
