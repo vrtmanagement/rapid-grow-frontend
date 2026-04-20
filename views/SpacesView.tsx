@@ -876,6 +876,13 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     ],
     [assignableEmployees, me.id],
   );
+  const viewerRole = normalizeRole(me.role);
+  const assignmentHint =
+    viewerRole === 'SUPER_ADMIN' || viewerRole === 'ADMIN'
+      ? 'Admin: you can assign tasks to anyone.'
+      : viewerRole === 'TEAM_LEAD'
+        ? 'Team Lead: assign to yourself or employees.'
+        : 'Employee: assign tasks only to yourself.';
 
   const priorityOptions = useMemo(
     () => [
@@ -1719,6 +1726,16 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
       )}
 
       <div className="bg-white p-8 rounded-3xl shadow-2xl border border-slate-200 space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+          <p className="text-[13px] text-slate-700">{assignmentHint}</p>
+          <button
+            type="button"
+            onClick={() => setAssigneeId(me.id || '')}
+            className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Assign to me
+          </button>
+        </div>
         <div className="grid grid-cols-1 lg:grid-cols-6 gap-4">
           <div className="lg:col-span-2">
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Task *</label>
@@ -1740,6 +1757,9 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
               disabled={employeesLoading}
               forceOpenDown={true}
             />
+            <div className="mt-1 text-[11px] text-slate-500">
+              {assigneeId ? `Assigned: ${employeeNameById.get(assigneeId) || assigneeId}` : 'Currently unassigned'}
+            </div>
           </div>
 
           <div>

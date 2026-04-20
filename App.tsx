@@ -8,6 +8,7 @@ import {
   Mail, Settings, Zap, ShieldAlert, Check, Database, LogOut, UserPlus, Bell, FileText, HardDrive
 } from 'lucide-react';
 import { PlanningState, Goal, ReflectionData, TeamMember, ProfileData, EmailLog, UserRole, UIConfig } from './types';
+import { MONTH_SLOT_LABELS } from './planning/goalHierarchy';
 import { BrandingLogo, HOURS } from './constants';
 import YearlyView from './views/YearlyView';
 import QuarterlyView from './views/QuarterlyView';
@@ -221,7 +222,40 @@ const normalizeGoalHierarchy = (state: PlanningState): PlanningState => {
   }
 
   const quarterIds = new Set(quarterlyGoals.map((q) => q.id));
-  const monthlyGoals = state.monthlyGoals.filter((m) => m.parentId && quarterIds.has(m.parentId));
+
+  const monthlyGoals: Goal[] = [];
+  for (const quarter of quarterlyGoals) {
+    const raw = state.monthlyGoals.filter((m) => m.parentId === quarter.id);
+    const byTimeline = new Map<string, Goal>();
+    const orphans: Goal[] = [];
+    for (const m of raw) {
+      const label = m.timeline || '';
+      if (MONTH_SLOT_LABELS.includes(label as (typeof MONTH_SLOT_LABELS)[number]) && !byTimeline.has(label)) {
+        byTimeline.set(label, m);
+      } else {
+        orphans.push(m);
+      }
+    }
+    for (const label of MONTH_SLOT_LABELS) {
+      const existing = byTimeline.get(label);
+      if (existing) {
+        monthlyGoals.push(existing);
+      } else if (orphans.length) {
+        const next = orphans.shift()!;
+        monthlyGoals.push({ ...next, parentId: quarter.id, timeline: label });
+      } else {
+        monthlyGoals.push({
+          id: `${quarter.id.toLowerCase()}-${label.toLowerCase()}`,
+          text: '',
+          completed: false,
+          level: 'month',
+          parentId: quarter.id,
+          timeline: label,
+        });
+      }
+    }
+    monthlyGoals.push(...orphans);
+  }
   const monthIds = new Set(monthlyGoals.map((m) => m.id));
   const weeklyGoals = state.weeklyGoals.filter((w) => w.parentId && monthIds.has(w.parentId));
   const weekIds = new Set(weeklyGoals.map((w) => w.id));
@@ -431,7 +465,19 @@ const App: React.FC = () => {
             };
           } catch (_e) { /* ignore */ }
         }
-        setState(normalizeGoalHierarchy({ ...parsed, currentUser }));
+        // Goals are API-sourced; avoid hydrating stale local goal trees.
+        setState((prev) =>
+          normalizeGoalHierarchy({
+            ...prev,
+            ...parsed,
+            yearlyGoals: prev.yearlyGoals,
+            quarterlyGoals: prev.quarterlyGoals,
+            monthlyGoals: prev.monthlyGoals,
+            weeklyGoals: prev.weeklyGoals,
+            dailyGoals: prev.dailyGoals,
+            currentUser,
+          }),
+        );
       }
     } catch (e) {
       console.error("Restore failed", e);
@@ -452,7 +498,15 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-      const serialized = JSON.stringify(state);
+      // Persist UI/session conveniences only. Goals are persisted via API endpoints.
+      const serialized = JSON.stringify({
+        ...state,
+        yearlyGoals: [],
+        quarterlyGoals: [],
+        monthlyGoals: [],
+        weeklyGoals: [],
+        dailyGoals: [],
+      });
       localStorage.setItem('rapidgrow-os-v1', serialized);
     } catch (e) {
       console.error('Failed to persist rapidgrow-os state', e);
@@ -1343,7 +1397,7 @@ const App: React.FC = () => {
                 {hasPower('YEARLY_VIEW') && <Route path="/yearly" element={<YearlyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
                 {hasPower('QUARTERLY_VIEW') && <Route path="/quarterly" element={<QuarterlyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
                 {hasPower('MONTHLY_VIEW') && <Route path="/monthly" element={<MonthlyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
-                {hasPower('WEEKLY_VIEW') && <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} />} />}
+                {hasPower('WEEKLY_VIEW') && <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
                 {hasPower('DAILY_VIEW') && <Route path="/daily" element={<DailyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
                 {hasPower('REFLECTION_VIEW') && <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
                 {hasPower('REFLECTION_VIEW') && <Route path="/review" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
@@ -1499,7 +1553,7 @@ const App: React.FC = () => {
               {hasPower('YEARLY_VIEW') && <Route path="/yearly" element={<YearlyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
               {hasPower('QUARTERLY_VIEW') && <Route path="/quarterly" element={<QuarterlyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
               {hasPower('MONTHLY_VIEW') && <Route path="/monthly" element={<MonthlyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
-              {hasPower('WEEKLY_VIEW') && <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} />} />}
+              {hasPower('WEEKLY_VIEW') && <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
               {hasPower('DAILY_VIEW') && <Route path="/daily" element={<DailyView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
               {hasPower('REFLECTION_VIEW') && <Route path="/reflection" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />}
               {hasPower('REFLECTION_VIEW') && <Route path="/review" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />}

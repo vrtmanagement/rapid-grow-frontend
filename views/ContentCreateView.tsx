@@ -528,6 +528,24 @@ const ContentCreateView: React.FC = () => {
   const panelClass = 'rounded-[1.25rem] border border-slate-200 bg-white p-3 shadow-[0_10px_30px_rgba(15,23,42,0.04)] sm:p-4';
   const inputBaseClass = 'w-full rounded-[0.95rem] border bg-slate-50/70 px-3.5 py-2.5 text-[15px] text-slate-700 outline-none transition';
   const pickerButtonClass = 'flex w-full items-center justify-between rounded-[0.95rem] border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-left transition hover:border-violet-200 hover:bg-white';
+  const autosaveMessage = isEditMode
+    ? (loadingEditItem ? 'Loading content...' : 'Editing existing content')
+    : autosaveStatus === 'saving'
+      ? 'Auto-saving draft...'
+      : autosaveStatus === 'saved'
+        ? 'Draft auto-saved'
+        : autosaveStatus === 'error'
+          ? 'Draft save failed, retrying on next change'
+          : 'Draft auto-save is on';
+  const autosaveToneClass = isEditMode
+    ? 'border-slate-200 bg-slate-50 text-slate-600'
+    : autosaveStatus === 'error'
+      ? 'border-rose-200 bg-rose-50 text-rose-700'
+      : autosaveStatus === 'saved'
+        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+        : autosaveStatus === 'saving'
+          ? 'border-amber-200 bg-amber-50 text-amber-700'
+          : 'border-violet-200 bg-violet-50 text-violet-700';
 
   return (
     <div className="relative -mx-4 -mt-8 space-y-3 px-4 pb-6 sm:-mx-6 sm:-mt-10 sm:px-6 lg:-mx-16 lg:-mt-20 lg:px-8">
@@ -561,6 +579,9 @@ const ContentCreateView: React.FC = () => {
           <ArrowRight size={14} className="rotate-180" />
           Back
         </Link>
+        <div className={`rounded-full border px-3 py-1.5 text-xs font-medium ${autosaveToneClass}`}>
+          {autosaveMessage}
+        </div>
       </div>
 
       <form onSubmit={handleSave} className="space-y-3 rounded-[1.5rem] border border-slate-200/80 bg-white/95 p-3 shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:p-4 lg:p-5">
@@ -951,17 +972,7 @@ const ContentCreateView: React.FC = () => {
           </div>
         )}
         <div className="flex justify-end gap-2">
-          <div className="mr-auto self-center text-xs text-slate-500">
-            {isEditMode
-              ? (loadingEditItem ? 'Loading content...' : 'Editing existing content')
-              : autosaveStatus === 'saving'
-              ? 'Auto-saving draft...'
-              : autosaveStatus === 'saved'
-                ? 'Draft auto-saved'
-                : autosaveStatus === 'error'
-                  ? 'Draft save failed, retrying on next change'
-                  : 'Draft auto-save is on'}
-          </div>
+          <div className="mr-auto self-center text-xs text-slate-500">{autosaveMessage}</div>
           <Link to={donePath} className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700">Cancel</Link>
           <button type="submit" disabled={submitting} className="rounded-2xl bg-gradient-to-r from-fuchsia-600 to-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow-[0_18px_30px_rgba(139,92,246,0.24)] disabled:opacity-60">
             {submitting ? 'Saving...' : isEditMode ? 'Update Content' : 'Save Content'}

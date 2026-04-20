@@ -4,6 +4,7 @@ import { PlanningState, Goal } from '../types';
 import { Plus, Trash2, Target } from 'lucide-react';
 import { removeGoal, saveGoal } from '../services/goalApi';
 import { PageHeaderSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
+import VisionFlowNav from '../components/planning/VisionFlowNav';
 
 interface Props {
   state: PlanningState;
@@ -87,6 +88,7 @@ const YearlyView: React.FC<Props> = ({ state, updateState, loading = false }) =>
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto space-y-6 pb-16">
+        <VisionFlowNav subtitle={state.uiConfig.yearlySub} />
         <PageHeaderSkeleton />
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, index) => (
@@ -114,17 +116,24 @@ const YearlyView: React.FC<Props> = ({ state, updateState, loading = false }) =>
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-16">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl text-slate-900">{state.uiConfig.yearlyTitle}</h2>
+      <VisionFlowNav subtitle={state.uiConfig.yearlySub} />
+      <div className="flex flex-col gap-4 rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/90 px-6 py-7 shadow-sm sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-3xl font-semibold tracking-tight text-slate-900">{state.uiConfig.yearlyTitle}</h2>
+          <p className="mt-2 max-w-xl text-sm text-slate-500">
+            Start here: each yearly goal automatically gets Q1–Q4. Example themes: revenue, team, product, culture.
+          </p>
+        </div>
         {isAdmin && (
-          <button onClick={() => setIsAddingNew(true)} className="px-4 py-2 rounded-lg bg-brand-red text-white flex items-center gap-2">
-            <Plus size={16} /> Add Yearly Goal
+          <button
+            type="button"
+            onClick={() => setIsAddingNew(true)}
+            className="shrink-0 rounded-xl bg-brand-red px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-brand-red/20 flex items-center justify-center gap-2 hover:opacity-95"
+          >
+            <Plus size={16} /> Add yearly goal
           </button>
         )}
       </div>
-      <p className="text-sm text-slate-500">
-        Example goals: Increase sales, grow team, improve revenue.
-      </p>
 
       {isAdmin && isAddingNew && (
         <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
@@ -154,7 +163,7 @@ const YearlyView: React.FC<Props> = ({ state, updateState, loading = false }) =>
         {state.yearlyGoals.map((goal) => {
           const progress = getProgress(goal.id);
           return (
-            <div key={goal.id} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+            <div key={goal.id} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex-1">
                   <textarea

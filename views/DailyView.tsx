@@ -1,10 +1,12 @@
 
-import React, { useEffect, useState } from 'react';
-import { PlanningState } from '../types';
-import { Clock, Star, ListCheck, Pin, Link2 } from 'lucide-react';
-import { PriorityStamp } from '../constants';
-import { API_BASE, getAuthHeaders } from '../config/api';
+import React, { useEffect, useMemo, useState } from 'react';
+import { PlanningState, Goal } from '../types';
+import { CheckCircle2, UserPlus2, Star } from 'lucide-react';
+import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
 import { Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
+import VisionFlowNav from '../components/planning/VisionFlowNav';
+import { saveGoal } from '../services/goalApi';
+import { Link, useLocation } from 'react-router-dom';
 
 interface Props {
   state: PlanningState;
@@ -19,6 +21,13 @@ interface SpacesTaskSummary {
   dueDate: string;
   priority: string;
   status: string;
+  customFields?: Record<string, string>;
+}
+
+interface EmployeeOption {
+  empId: string;
+  empName: string;
+  role?: string;
 }
 
 function getLoggedInEmpId(): string {
@@ -32,21 +41,60 @@ function getLoggedInEmpId(): string {
   }
 }
 
+function getLoggedInEmployeeMeta() {
+  const session = getStoredAuthSession();
+  const emp = session?.employee || {};
+  return {
+    empId: String(emp.empId || emp._id || ''),
+    empName: String(emp.empName || ''),
+    role: String(emp.role || '').toUpperCase(),
+  };
+}
+
 const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => {
   const [topTasks, setTopTasks] = useState<SpacesTaskSummary[]>([]);
+  const [allSpacesTasks, setAllSpacesTasks] = useState<SpacesTaskSummary[]>([]);
+  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const [assignDraftByDay, setAssignDraftByDay] = useState<
+    Record<string, { title: string; assigneeId: string; dueDate: string; priority: string; status: string }>
+  >({});
+  const [assigningDayTaskId, setAssigningDayTaskId] = useState<string>('');
+  const [dailyError, setDailyError] = useState<string>('');
+  const [onlySelectedWeek, setOnlySelectedWeek] = useState(false);
   const isAdmin = state.currentUser.role === 'Admin';
+  const location = useLocation();
+  const selectedWeekId = new URLSearchParams(location.search).get('weekId') || '';
+  const me = getLoggedInEmployeeMeta();
+
+  const assignableEmployees = useMemo(() => {
+    const map = new Map<string, EmployeeOption>();
+    employees.forEach((e) => map.set(e.empId, e));
+    if (me.empId) {
+      map.set(me.empId, { empId: me.empId, empName: me.empName || 'You', role: me.role || 'EMPLOYEE' });
+    }
+    const list = Array.from(map.values());
+    if (me.role === 'SUPER_ADMIN' || me.role === 'ADMIN') return list;
+    if (me.role === 'TEAM_LEAD') {
+      return list.filter((e) => {
+        const r = String(e.role || '').toUpperCase();
+        return e.empId === me.empId || r === 'EMPLOYEE' || !r;
+      });
+    }
+    return list.filter((e) => e.empId === me.empId);
+  }, [employees, me.empId, me.empName, me.role]);
 
   useEffect(() => {
+    let active = true;
     const empId = getLoggedInEmpId();
-    if (!empId) return;
 
     const loadTasks = async () => {
       try {
         const res = await fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() });
         if (!res.ok) return;
         const data = await res.json().catch(() => ({}));
-        const tasks: any[] = Array.isArray(data?.tasks) ? data.tasks : [];
-
+        const tasks: SpacesTaskSummary[] = Array.isArray(data?.tasks) ? data.tasks : [];
+        if (!active) return;
+        setAllSpacesTasks(tasks);
         const meTasks = tasks.filter(
           (t) =>
             t.assigneeId === empId &&
@@ -61,14 +109,9 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
             const d = new Date(`${dStr}T00:00:00`);
             if (isNaN(d.getTime())) return null;
             return {
-              taskId: t.taskId,
-              title: t.title || '',
-              assigneeId: t.assigneeId || '',
-              dueDate: dStr,
-              priority: t.priority || 'medium',
-              status: t.status || 'todo',
+              ...t,
               _due: d.getTime(),
-            } as any;
+            } as SpacesTaskSummary & { _due: number };
           })
           .filter(Boolean) as (SpacesTaskSummary & { _due: number })[];
 
@@ -79,133 +122,363 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
       }
     };
 
+    const loadEmployees = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => []);
+        const list = Array.isArray(data) ? data : [];
+        if (!active) return;
+        setEmployees(
+          list.map((e: any) => ({
+            empId: String(e.empId || e._id || ''),
+            empName: String(e.empName || e.name || ''),
+            role: String(e.role || ''),
+          })),
+        );
+      } catch {
+        // ignore errors for employee list
+      }
+    };
+
     loadTasks();
+    loadEmployees();
+    const timer = window.setInterval(loadTasks, 15000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
   }, []);
-  const handlePriorityChange = (idx: number, val: string) => {
-    updateState(prev => {
-      const newP = [...prev.dailyPriorities];
-      newP[idx] = val;
-      return { ...prev, dailyPriorities: newP };
-    });
-  };
-
-  const handleScheduleChange = (idx: number, activity: string) => {
-    updateState(prev => {
-      const newS = [...prev.schedule];
-      newS[idx] = { ...newS[idx], activity };
-      return { ...prev, schedule: newS };
-    });
-  };
-
   const toggleDaily = (id: string) => {
     if (!isAdmin) return;
-    updateState((prev) => ({
-      ...prev,
-      dailyGoals: prev.dailyGoals.map((d) => (d.id === id ? { ...d, completed: !d.completed } : d)),
-    }));
+    let nextGoal: Goal | null = null;
+    updateState((prev) => {
+      const nextDaily = prev.dailyGoals.map((d) => {
+        if (d.id !== id) return d;
+        nextGoal = { ...d, completed: !d.completed };
+        return nextGoal;
+      });
+      return {
+        ...prev,
+        dailyGoals: nextDaily,
+      };
+    });
+    if (nextGoal) {
+      saveGoal(nextGoal).catch((e) => {
+        console.error(e);
+        setDailyError('Failed to save day progress. Please refresh and retry.');
+      });
+    }
   };
 
   const updateDailyText = (id: string, text: string) => {
     if (!isAdmin) return;
+    let nextGoal: Goal | null = null;
+    updateState((prev) => {
+      const nextDaily = prev.dailyGoals.map((d) => {
+        if (d.id !== id) return d;
+        nextGoal = { ...d, text };
+        return nextGoal;
+      });
+      return {
+        ...prev,
+        dailyGoals: nextDaily,
+      };
+    });
+    if (nextGoal) {
+      saveGoal(nextGoal).catch((e) => {
+        console.error(e);
+        setDailyError('Failed to save day title. Please refresh and retry.');
+      });
+    }
+  };
+
+  const createDaysForWeek = async (weekId: string) => {
+    if (!isAdmin) return;
+    const current = state.dailyGoals.filter((d) => d.parentId === weekId);
+    if (current.length > 0) return;
+    const generated = Array.from({ length: 7 }).map((_, idx) => ({
+      id: `d-${weekId}-${idx + 1}`,
+      text: `Day ${idx + 1}`,
+      completed: false,
+      level: 'day' as const,
+      parentId: weekId,
+    }));
     updateState((prev) => ({
       ...prev,
-      dailyGoals: prev.dailyGoals.map((d) => (d.id === id ? { ...d, text } : d)),
+      dailyGoals: [...prev.dailyGoals, ...generated],
     }));
+    try {
+      await Promise.all(generated.map((g) => saveGoal(g)));
+    } catch (e) {
+      console.error(e);
+      setDailyError('Failed to persist generated days. Please try again.');
+    }
+  };
+
+  const createTaskFromDay = async (day: Goal, week: Goal) => {
+    const draft = assignDraftByDay[day.id];
+    const title = (draft?.title || day.text || '').trim();
+    const assigneeId = (draft?.assigneeId || me.empId || '').trim();
+    const dueDate = String(draft?.dueDate || '').trim();
+    const priority = String(draft?.priority || 'medium').trim() || 'medium';
+    const status = String(draft?.status || 'todo').trim() || 'todo';
+    if (!title) {
+      setDailyError('Task title is required.');
+      return;
+    }
+    if (!assigneeId) {
+      setDailyError('Assignee is required.');
+      return;
+    }
+    setAssigningDayTaskId(day.id);
+    setDailyError('');
+    try {
+      const res = await fetch(`${API_BASE}/spaces/tasks`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          title,
+          assigneeId,
+          dueDate,
+          priority,
+          status,
+          description: `Created from Daily plan: ${week.text || 'Weekly Goal'}`,
+          customFields: {
+            dailyGoalId: day.id,
+            weeklyGoalId: week.id,
+            dailyGoalText: day.text || '',
+          },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.message || 'Failed to create task from daily goal');
+      }
+      setAssignDraftByDay((prev) => ({
+        ...prev,
+        [day.id]: { title: day.text || '', assigneeId: me.empId || '', dueDate: '', priority: 'medium', status: 'todo' },
+      }));
+      // refresh task linkage immediately
+      setAllSpacesTasks((prev) => [data, ...prev]);
+    } catch (e: any) {
+      setDailyError(e?.message || 'Failed to create task');
+    } finally {
+      setAssigningDayTaskId('');
+    }
+  };
+
+  const getWeekBreadcrumb = (weekId: string): string => {
+    const week = state.weeklyGoals.find((w) => w.id === weekId);
+    const month = week ? state.monthlyGoals.find((m) => m.id === week.parentId) : undefined;
+    const quarter = month ? state.quarterlyGoals.find((q) => q.id === month.parentId) : undefined;
+    const year = quarter ? state.yearlyGoals.find((y) => y.id === quarter.parentId) : undefined;
+    return [year?.text || 'Year', quarter?.timeline || 'Q?', month?.timeline || 'M?', 'Week']
+      .filter(Boolean)
+      .join(' > ');
   };
 
   const dailyGroups = state.weeklyGoals.map((week) => ({
     week,
     days: state.dailyGoals.filter((d) => d.parentId === week.id),
   }));
+  const orderedGroups = selectedWeekId
+    ? [...dailyGroups].sort((a, b) => (a.week.id === selectedWeekId ? -1 : b.week.id === selectedWeekId ? 1 : 0))
+    : dailyGroups;
+  const visibleGroups = onlySelectedWeek && selectedWeekId
+    ? orderedGroups.filter((g) => g.week.id === selectedWeekId)
+    : orderedGroups;
+
+  useEffect(() => {
+    const doneByDayId = new Map<string, boolean>();
+    allSpacesTasks.forEach((task) => {
+      const linkedDayId = String(task?.customFields?.dailyGoalId || '').trim();
+      if (!linkedDayId) return;
+      if (String(task.status || '').toLowerCase() === 'done') {
+        doneByDayId.set(linkedDayId, true);
+      } else if (!doneByDayId.has(linkedDayId)) {
+        doneByDayId.set(linkedDayId, false);
+      }
+    });
+    if (!doneByDayId.size) return;
+
+    const changed: Goal[] = [];
+    updateState((prev) => {
+      const nextDaily = prev.dailyGoals.map((d) => {
+        if (!doneByDayId.has(d.id)) return d;
+        const shouldComplete = !!doneByDayId.get(d.id);
+        if (d.completed === shouldComplete) return d;
+        const next = { ...d, completed: shouldComplete };
+        changed.push(next);
+        return next;
+      });
+      if (!changed.length) return prev;
+      return { ...prev, dailyGoals: nextDaily };
+    });
+    if (changed.length) {
+      Promise.all(changed.map((g) => saveGoal(g))).catch((e) => {
+        console.error(e);
+        setDailyError('Task sync happened, but day status save failed.');
+      });
+    }
+  }, [allSpacesTasks, updateState]);
+
+  useEffect(() => {
+    setOnlySelectedWeek(!!selectedWeekId);
+  }, [selectedWeekId]);
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-500">
-        <div className="lg:col-span-5 space-y-8">
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-pulse">
-            <Skeleton className="h-6 w-56 mb-4" />
-            <div className="space-y-4 max-h-[420px]">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div key={`daily-group-${index}`} className="border border-slate-100 rounded-xl p-3 space-y-3">
-                  <Skeleton className="h-4 w-40" />
-                  <div className="space-y-2">
-                    {Array.from({ length: 3 }).map((__, itemIndex) => (
-                      <div key={`daily-item-${index}-${itemIndex}`} className="flex items-center gap-2">
-                        <SkeletonBlock className="h-4 w-4 rounded" />
-                        <Skeleton className="h-4 w-full" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+      <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
+        <VisionFlowNav subtitle={state.uiConfig.dailySub} />
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm animate-pulse">
+          <div className="flex items-center justify-between mb-4">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-6 w-28" />
           </div>
-
-          <div className="bg-white p-8 rounded-[3rem] border border-slate-200 shadow-sm animate-pulse">
-            <div className="flex items-center gap-3 mb-6">
-              <SkeletonBlock className="h-6 w-6 rounded-full" />
-              <Skeleton className="h-6 w-52" />
-            </div>
-            <div className="space-y-4">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <div key={`priority-skeleton-${index}`} className="flex items-center gap-4">
-                  <SkeletonBlock className="h-8 w-8 rounded-full" />
-                  <Skeleton className="h-5 w-full" />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-brand-indigo/5 p-8 rounded-[3rem] border-2 border-brand-indigo/10 space-y-4 animate-pulse">
-            <div className="flex items-center gap-3">
-              <SkeletonBlock className="h-6 w-6 rounded-full" />
-              <Skeleton className="h-6 w-44" />
-            </div>
-            <SkeletonBlock className="h-[200px] w-full rounded-2xl bg-white" />
-          </div>
-        </div>
-
-        <div className="lg:col-span-7 bg-white rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden flex flex-col animate-pulse">
-          <div className="bg-slate-50 p-6 border-b border-slate-200 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <SkeletonBlock className="h-6 w-6 rounded-full" />
-              <Skeleton className="h-6 w-48" />
-            </div>
-            <Skeleton className="h-4 w-24" />
-          </div>
-          <div className="flex-1 divide-y divide-slate-100">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <div key={`schedule-skeleton-${index}`} className="flex">
-                <div className="w-24 px-4 py-6 bg-slate-50 border-r border-slate-100 flex items-center justify-center shrink-0">
-                  <Skeleton className="h-4 w-12" />
-                </div>
-                <div className="flex-1 p-4 flex items-center">
-                  <Skeleton className="h-5 w-full" />
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="rounded-xl border border-slate-100 p-4">
+                <Skeleton className="h-3 w-20 mb-2" />
+                <Skeleton className="h-6 w-16" />
               </div>
             ))}
           </div>
-          <div className="p-8 bg-slate-50 border-t border-slate-200">
-            <Skeleton className="h-4 w-40 mb-4" />
-            <SkeletonBlock className="h-[120px] w-full rounded-2xl bg-white" />
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm animate-pulse">
+          <Skeleton className="h-6 w-56 mb-4" />
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="rounded-xl border border-slate-100 p-4 space-y-2">
+                <Skeleton className="h-4 w-1/2" />
+                <SkeletonBlock className="h-8 w-full rounded-lg" />
+                <SkeletonBlock className="h-8 w-full rounded-lg" />
+              </div>
+            ))}
           </div>
         </div>
       </div>
     );
   }
 
+  const totalVisibleDays = visibleGroups.reduce((sum, g) => sum + g.days.length, 0);
+  const completedVisibleDays = visibleGroups.reduce(
+    (sum, g) => sum + g.days.filter((d) => d.completed).length,
+    0,
+  );
+  const mappedWeekCount = visibleGroups.filter((g) => g.days.length > 0).length;
+  const completionPercent = totalVisibleDays ? Math.round((completedVisibleDays / totalVisibleDays) * 100) : 0;
+
   return (
-    <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-500">
-      <div className="lg:col-span-5 space-y-8">
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg text-slate-800 mb-4">Daily Protocol by Weekly Goal</h3>
-          <div className="space-y-4 max-h-[420px] overflow-y-auto">
-            {dailyGroups.map(({ week, days }) => (
-              <div key={week.id} className="border border-slate-100 rounded-xl p-3">
-                <div className="text-sm font-medium text-slate-700 mb-2">{week.text || 'Untitled Weekly Goal'}</div>
-                <div className="space-y-2">
-                  {days.map((day) => (
-                    <label key={day.id} className="flex items-center gap-2">
+    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
+      <VisionFlowNav subtitle={state.uiConfig.dailySub} />
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-xl font-semibold text-slate-900">Daily Control Center</h3>
+            <p className="text-sm text-slate-500 mt-1">
+              Two clear actions: complete day checklist and assign each day to TaskHub.
+            </p>
+          </div>
+          <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm">
+            <CheckCircle2 size={15} className="text-emerald-500 mr-2" />
+            <span className="font-semibold text-slate-800">{completionPercent}%</span>
+            <span className="text-slate-500 ml-1">complete</span>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Visible weeks</div>
+            <div className="text-lg font-semibold text-slate-900">{visibleGroups.length}</div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Mapped weeks</div>
+            <div className="text-lg font-semibold text-slate-900">{mappedWeekCount}</div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Daily done</div>
+            <div className="text-lg font-semibold text-slate-900">{completedVisibleDays}/{totalVisibleDays}</div>
+          </div>
+        </div>
+        <div className="mt-4 h-2 rounded-full bg-slate-100 overflow-hidden">
+          <div className="h-full rounded-full bg-gradient-to-r from-brand-red to-rose-500" style={{ width: `${completionPercent}%` }} />
+        </div>
+        {selectedWeekId && (
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-brand-red/20 bg-red-50/40 px-3 py-2">
+            <div className="text-xs text-slate-700">
+              Opened from Weekly focus. Week ID: <span className="font-semibold">{selectedWeekId}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-xs text-slate-600 flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={onlySelectedWeek}
+                  onChange={(e) => setOnlySelectedWeek(e.target.checked)}
+                />
+                Show only this week
+              </label>
+              <Link to="/daily" className="text-xs font-medium text-brand-red hover:underline">
+                Clear filter
+              </Link>
+            </div>
+          </div>
+        )}
+        {dailyError && (
+          <div className="mt-3 text-xs rounded-md border border-red-200 bg-red-50 text-red-700 px-2.5 py-2">
+            {dailyError}
+          </div>
+        )}
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Star size={16} className="text-amber-500 fill-current" />
+            <h5 className="text-sm font-semibold text-slate-800">Top 5 Priorities For Today</h5>
+          </div>
+          <div className="space-y-2">
+            {topTasks.length > 0
+              ? topTasks.slice(0, 5).map((t, i) => (
+                  <div key={t.taskId} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+                    <div className="font-medium text-slate-800">{i + 1}. {t.title}</div>
+                    <div className="text-slate-500 mt-0.5">
+                      Due: {t.dueDate || '—'} · Priority: {t.priority} · Status: {t.status}
+                    </div>
+                  </div>
+                ))
+              : state.dailyPriorities.map((p, i) => (
+                  <div key={i} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+                    {i + 1}. {p || 'Set a top priority'}
+                  </div>
+                ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h4 className="text-lg font-semibold text-slate-900">Daily Execution Rows</h4>
+            <p className="text-xs text-slate-500">Check a day when done, or assign it to TaskHub in one click.</p>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600">
+            <UserPlus2 size={14} className="text-brand-red" />
+            Task assignment enabled
+          </div>
+        </div>
+        <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+          {visibleGroups.map(({ week, days }) => (
+            <div key={week.id} className="rounded-2xl border border-slate-200 bg-slate-50/40 p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">{week.text || 'Untitled Weekly Goal'}</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">{getWeekBreadcrumb(week.id)}</div>
+                </div>
+                <div className="text-[11px] rounded-full bg-white border border-slate-200 px-2 py-1 text-slate-600">
+                  {days.filter((d) => d.completed).length}/{days.length || 7} done
+                </div>
+              </div>
+              <div className="space-y-2.5">
+                {days.map((day) => (
+                  <div key={day.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                    <label className="flex items-center gap-2">
                       <input type="checkbox" checked={day.completed} onChange={() => toggleDaily(day.id)} disabled={!isAdmin} />
                       <input
                         type="text"
@@ -215,127 +488,136 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
                         className="flex-1 bg-transparent border-b border-slate-200 outline-none text-sm"
                       />
                     </label>
-                  ))}
-                  {!days.length && <div className="text-xs text-slate-500">No days mapped.</div>}
-                </div>
-              </div>
-            ))}
-            {!dailyGroups.length && <div className="text-sm text-slate-500">No weekly goals found.</div>}
-          </div>
-        </div>
-
-        <div className="bg-white p-8 rounded-[3rem] border border-slate-200 shadow-sm relative overflow-hidden group hover:border-brand-indigo/30 transition-all">
-          <div className="absolute top-4 right-4 rotate-12">
-            <PriorityStamp />
-          </div>
-          <div className="flex items-center gap-3 mb-6">
-            <Star className="text-amber-400 fill-current" size={24} />
-            <h3 className="text-xl text-slate-800">Top 5 Priorities For Today</h3>
-          </div>
-          <div className="space-y-4">
-            {topTasks.length > 0
-              ? topTasks.map((t, i) => (
-                  <div key={t.taskId} className="flex flex-col gap-1 group/item">
-                    <div className="flex items-center gap-4">
-                      <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center font-bold text-md shrink-0 group-focus-within/item:bg-brand-gradient group-focus-within/item:text-white transition-all">
-                        {i + 1}
-                      </span>
-                      <div className="flex-1">
-                        <div className="font-medium text-slate-800">{t.title}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
-                          Due: {t.dueDate || '—'} · Priority: {t.priority}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              : state.dailyPriorities.map((p, i) => (
-                  <div key={i} className="flex flex-col gap-1 group/item">
-                    <div className="flex items-center gap-4">
-                      <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center font-bold text-md shrink-0 group-focus-within/item:bg-brand-gradient group-focus-within/item:text-white transition-all">
-                        {i + 1}
-                      </span>
+                    <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
                       <input
                         type="text"
-                        value={p}
-                        onChange={(e) => handlePriorityChange(i, e.target.value)}
-                        className="flex-1 border-b-2 border-slate-100 py-2 focus:border-brand-indigo outline-none font-medium text-slate-700 transition-all bg-transparent"
-                        placeholder="Identify key output..."
+                        value={assignDraftByDay[day.id]?.title ?? day.text ?? ''}
+                        onChange={(e) =>
+                          setAssignDraftByDay((prev) => ({
+                            ...prev,
+                            [day.id]: {
+                              title: e.target.value,
+                              assigneeId: prev[day.id]?.assigneeId || me.empId || '',
+                              dueDate: prev[day.id]?.dueDate || '',
+                              priority: prev[day.id]?.priority || 'medium',
+                              status: prev[day.id]?.status || 'todo',
+                            },
+                          }))
+                        }
+                        className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none"
+                        placeholder="Task title for TaskHub"
                       />
-                      <div className="opacity-0 group-hover/item:opacity-100 transition-opacity">
-                        <Link2 size={12} className="text-brand-indigo" />
-                      </div>
+                      <select
+                        value={assignDraftByDay[day.id]?.assigneeId ?? me.empId ?? ''}
+                        onChange={(e) =>
+                          setAssignDraftByDay((prev) => ({
+                            ...prev,
+                            [day.id]: {
+                              title: prev[day.id]?.title ?? day.text ?? '',
+                              assigneeId: e.target.value,
+                              dueDate: prev[day.id]?.dueDate || '',
+                              priority: prev[day.id]?.priority || 'medium',
+                              status: prev[day.id]?.status || 'todo',
+                            },
+                          }))
+                        }
+                        className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
+                      >
+                        {assignableEmployees.map((emp) => (
+                          <option key={emp.empId} value={emp.empId}>
+                            {emp.empName || emp.empId}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="date"
+                        value={assignDraftByDay[day.id]?.dueDate ?? ''}
+                        onChange={(e) =>
+                          setAssignDraftByDay((prev) => ({
+                            ...prev,
+                            [day.id]: {
+                              title: prev[day.id]?.title ?? day.text ?? '',
+                              assigneeId: prev[day.id]?.assigneeId || me.empId || '',
+                              dueDate: e.target.value,
+                              priority: prev[day.id]?.priority || 'medium',
+                              status: prev[day.id]?.status || 'todo',
+                            },
+                          }))
+                        }
+                        className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
+                      />
+                      <select
+                        value={assignDraftByDay[day.id]?.priority ?? 'medium'}
+                        onChange={(e) =>
+                          setAssignDraftByDay((prev) => ({
+                            ...prev,
+                            [day.id]: {
+                              title: prev[day.id]?.title ?? day.text ?? '',
+                              assigneeId: prev[day.id]?.assigneeId || me.empId || '',
+                              dueDate: prev[day.id]?.dueDate || '',
+                              priority: e.target.value,
+                              status: prev[day.id]?.status || 'todo',
+                            },
+                          }))
+                        }
+                        className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
+                      >
+                        <option value="low">Priority: Low</option>
+                        <option value="medium">Priority: Medium</option>
+                        <option value="high">Priority: High</option>
+                      </select>
+                      <select
+                        value={assignDraftByDay[day.id]?.status ?? 'todo'}
+                        onChange={(e) =>
+                          setAssignDraftByDay((prev) => ({
+                            ...prev,
+                            [day.id]: {
+                              title: prev[day.id]?.title ?? day.text ?? '',
+                              assigneeId: prev[day.id]?.assigneeId || me.empId || '',
+                              dueDate: prev[day.id]?.dueDate || '',
+                              priority: prev[day.id]?.priority || 'medium',
+                              status: e.target.value,
+                            },
+                          }))
+                        }
+                        className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
+                      >
+                        <option value="todo">Status: To Do</option>
+                        <option value="doing">Status: Doing</option>
+                        <option value="review">Status: Review</option>
+                        <option value="blocked">Status: Blocked</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => createTaskFromDay(day, week)}
+                        disabled={assigningDayTaskId === day.id}
+                        className="rounded-md bg-brand-red text-white text-xs font-medium px-2 py-1.5 disabled:opacity-60 md:col-span-3"
+                      >
+                        {assigningDayTaskId === day.id ? 'Assigning...' : 'Assign to employee'}
+                      </button>
                     </div>
                   </div>
                 ))}
-          </div>
-          <div className="mt-6 pt-6 border-t border-slate-50 flex justify-between items-center">
-             <span className="text-[15px] text-slate-800">Strategy Check</span>
-             <p className="text-[9px] text-slate-800">Link priorities to weekly goals for maximum impact.</p>
-          </div>
-        </div>
-
-        <div className="bg-brand-indigo/5 p-8 rounded-[3rem] border-2 border-brand-indigo/10 space-y-4 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-brand-indigo/5 rounded-full -mr-16 -mt-16"></div>
-          <div className="flex items-center gap-3 mb-2 relative z-10">
-            <Pin className="text-brand-indigo" size={24} />
-            <h3 className="text-xl text-brand-indigo">Main Goals Of The Day</h3>
-          </div>
-          <textarea 
-            placeholder="What single thing will make today a victory?"
-            className="w-full bg-white border border-brand-indigo/20 rounded-2xl p-6 text-lg text-brand-indigo shadow-sm min-h-[200px] outline-none focus:ring-8 focus:ring-brand-indigo/10 transition-all relative z-10"
-          />
-        </div>
-
-        <div className="bg-slate-950 p-8 rounded-[3rem] text-white shadow-2xl relative overflow-hidden group border border-white/5">
-           <div className="absolute inset-0 bg-brand-gradient opacity-0 group-hover:opacity-10 transition-opacity"></div>
-           <h4 className="text-[15px] text-brand-indigo mb-4 flex items-center gap-2">
-             <ListCheck size={14} />
-             Productivity hack
-           </h4>
-           <p className="text-md text-slate-300 leading-relaxed  relative z-10">"Time-boxing isn't about filling every minute. It's about protecting the minutes that matter most. Block your deep work first."</p>
-        </div>
-      </div>
-
-      <div className="lg:col-span-7 bg-white rounded-[3rem] border border-slate-200 shadow-xl overflow-hidden flex flex-col">
-        <div className="bg-slate-50 p-6 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Clock className="text-brand-indigo" size={24} />
-            <h3 className="text-xl text-slate-800">Time Boxing Schedule</h3>
-          </div>
-          <div className="text-[15px] text-slate-800">March 25, {state.currentYear}</div>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto max-h-[800px] divide-y divide-slate-100 no-scrollbar">
-          {state.schedule.map((slot, i) => (
-            <div key={i} className="flex group relative">
-                <div className="w-24 px-4 py-6 bg-slate-50 text-[15px] text-slate-800 border-r border-slate-100 flex items-center justify-center shrink-0 group-hover:bg-slate-100 transition-colors">
-                {slot.time}
-              </div>
-              <div className="flex-1 p-2 flex items-center">
-                <input 
-                  type="text"
-                  value={slot.activity}
-                  onChange={(e) => handleScheduleChange(i, e.target.value)}
-                  className="w-full h-full p-4 text-md font-semibold text-slate-700 bg-transparent border-none outline-none group-hover:bg-brand-indigo/5 transition-colors rounded-xl placeholder:text-slate-400"
-                  placeholder="Scheduled block..."
-                />
-                <div className="absolute right-6 opacity-0 group-hover:opacity-40 pointer-events-none">
-                  <Clock size={14} className="text-brand-indigo" />
-                </div>
+                {!days.length && (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2.5">
+                    <div className="text-xs text-slate-500">No days mapped.</div>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => createDaysForWeek(week.id)}
+                        className="text-xs px-2.5 py-1 rounded-md bg-brand-red text-white"
+                      >
+                        Generate 7 days
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))}
+          {!visibleGroups.length && <div className="text-sm text-slate-500">No weekly goals found.</div>}
         </div>
-
-        <div className="p-8 bg-slate-50 border-t border-slate-200">
-           <label className="text-[15px] text-slate-800 block mb-4">Daily Notes & Observations</label>
-           <textarea 
-             className="w-full bg-white border border-slate-200 rounded-2xl p-6 text-md text-slate-600 min-h-[120px] outline-none focus:border-brand-indigo transition-all shadow-inner"
-             placeholder="Jot down quick thoughts, calls to make, or things that pop up..."
-           />
-        </div>
-      </div>
+      </section>
     </div>
   );
 };
