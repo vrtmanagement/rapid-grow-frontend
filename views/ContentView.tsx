@@ -182,13 +182,13 @@ const ContentView: React.FC = () => {
   }, [toast]);
 
   useEffect(() => {
-    if (!(isItemDetailPage && editingItem)) return;
+    if (!editingItem) return;
     const timer = window.setTimeout(() => {
       if (inlineEditTitleRef.current) autoResizeTextarea(inlineEditTitleRef.current);
       if (inlineEditDescriptionRef.current) autoResizeTextarea(inlineEditDescriptionRef.current);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [editingItem?.contentId, isItemDetailPage]);
+  }, [editingItem?.contentId, location.search]);
 
   useEffect(() => {
     const incomingToast = (location.state as any)?.contentToast;
@@ -565,12 +565,16 @@ const ContentView: React.FC = () => {
 
   useEffect(() => {
     if (!isInlineDetailPage || !inlineDetailItem) return;
-    if (skipNextAutoInlineEditRef.current) {
-      skipNextAutoInlineEditRef.current = false;
-      return;
-    }
     const editMode = String(new URLSearchParams(location.search).get('edit') || '').trim().toLowerCase();
     const shouldAutoOpenInlineEdit = editMode === '1' || editMode === 'true' || editMode === 'yes';
+    if (skipNextAutoInlineEditRef.current) {
+      // Do not block explicit edit URLs; only skip implicit auto-open.
+      if (!shouldAutoOpenInlineEdit) {
+        skipNextAutoInlineEditRef.current = false;
+        return;
+      }
+      skipNextAutoInlineEditRef.current = false;
+    }
     if (!shouldAutoOpenInlineEdit) return;
     if (editingItem?.contentId === inlineDetailItem.contentId) return;
     openEdit(inlineDetailItem, { inline: true });
