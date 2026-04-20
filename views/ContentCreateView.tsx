@@ -200,6 +200,7 @@ const ContentCreateView: React.FC = () => {
   const typePickerWrapRef = useRef<HTMLDivElement | null>(null);
   const datePickerWrapRef = useRef<HTMLDivElement | null>(null);
   const descriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const descriptionHeightRef = useRef(0);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -496,8 +497,15 @@ const ContentCreateView: React.FC = () => {
   useEffect(() => {
     const textarea = descriptionTextareaRef.current;
     if (!textarea) return;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.max(textarea.scrollHeight, window.innerHeight * 0.7)}px`;
+    const previousWindowScrollY = window.scrollY;
+    const previousTextareaScrollTop = textarea.scrollTop;
+    const currentHeight = descriptionHeightRef.current || textarea.clientHeight || 0;
+    const desiredHeight = Math.max(textarea.scrollHeight, window.innerHeight * 0.7);
+    const nextHeight = Math.max(currentHeight, desiredHeight);
+    textarea.style.height = `${nextHeight}px`;
+    descriptionHeightRef.current = nextHeight;
+    textarea.scrollTop = previousTextareaScrollTop;
+    window.scrollTo({ top: previousWindowScrollY, behavior: 'auto' });
   }, [description]);
 
   useEffect(() => {

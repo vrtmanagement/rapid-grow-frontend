@@ -49,6 +49,7 @@ const ContentView: React.FC = () => {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inlineEditTitleRef = useRef<HTMLTextAreaElement | null>(null);
   const inlineEditDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const modalDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const skipNextAutoInlineEditRef = useRef(false);
   const isDayPage = !!dayKey;
   const selectedType = typeKey && isContentType(typeKey) ? typeKey : null;
@@ -189,6 +190,14 @@ const ContentView: React.FC = () => {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [editingItem?.contentId, location.search]);
+
+  useEffect(() => {
+    if (!showModal || !modalDescriptionRef.current) return;
+    const timer = window.setTimeout(() => {
+      if (modalDescriptionRef.current) autoResizeTextarea(modalDescriptionRef.current);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [showModal, description]);
 
   useEffect(() => {
     const incomingToast = (location.state as any)?.contentToast;
@@ -467,6 +476,37 @@ const ContentView: React.FC = () => {
   const buildScheduleDescription = (fromDate: string, toDate: string, rawText: string) => {
     const details = String(rawText || '');
     return `From: ${fromDate}\nTo: ${toDate}\n\n${details}`;
+  };
+
+  const parseScheduleDescription = (rawDescription: string, fallbackDate: string) => {
+    const description = String(rawDescription || '');
+    const pattern = /^From:\s*(\d{4}-\d{2}-\d{2})\s*\nTo:\s*(\d{4}-\d{2}-\d{2})\s*\n?([\s\S]*)$/i;
+    const match = description.match(pattern);
+    if (!match) {
+      return {
+        fromDate: fallbackDate,
+        toDate: fallbackDate,
+        text: description,
+      };
+    }
+    const [, fromDate, toDate, trailingText] = match;
+    const text = String(trailingText || '').replace(/^\n+/, '');
+    return {
+      fromDate: fromDate || fallbackDate,
+      toDate: toDate || fromDate || fallbackDate,
+      text,
+    };
+  };
+
+  const openScheduleEditForm = (item: ContentItem) => {
+    const fallbackDate = String(item.contentDate || item.createdAt?.slice(0, 10) || toDateKey(new Date()));
+    const parsed = parseScheduleDescription(String(item.description || ''), fallbackDate);
+    setShowScheduleForm(true);
+    setEditingMomentId(item.contentId);
+    setMomentFromDate(parsed.fromDate);
+    setMomentToDate(parsed.toDate);
+    setMomentTopic(String(item.title || ''));
+    setMomentText(parsed.text);
   };
 
   const handleMomentSave = async () => {
@@ -765,7 +805,7 @@ const ContentView: React.FC = () => {
   };
 
   const getPreviewLineClamp = (item: ContentItem) => {
-    let lines = 7;
+    let lines = activeTab === 'content-schedule' ? 10 : 7;
     if (item.updatedAt && item.createdAt && item.updatedAt !== item.createdAt) lines -= 1;
     if ((item.attachments?.length || 0) > 0) lines -= 1;
     if (String(item.title || '').trim().length > 42) lines -= 1;
@@ -807,6 +847,7 @@ const ContentView: React.FC = () => {
           location,
           selectedReminderType,
           openEdit,
+          openScheduleEditForm,
           setDeleteTarget,
           editingCommentByContentId,
           currentUser,
@@ -1069,7 +1110,15 @@ const ContentView: React.FC = () => {
                 </select>
                 <input type="date" value={contentDate} onChange={(e) => setContentDate(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100" />
               </div>
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={8} placeholder="Description" className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 text-[15px] leading-7 outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100" />
+              <textarea
+                ref={modalDescriptionRef}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                onInput={(event) => autoResizeTextarea(event.currentTarget)}
+                rows={1}
+                placeholder="Description"
+                className="min-h-[240px] w-full resize-none overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 text-[15px] leading-7 outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+              />
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50/70 px-4 py-3 text-sm font-medium text-violet-700">
                 <FileText size={16} />
                 {uploadingAttachment ? 'Uploading files...' : 'Add files'}
