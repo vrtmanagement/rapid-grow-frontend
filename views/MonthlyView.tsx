@@ -1,9 +1,11 @@
 
 import React, { useState } from 'react';
 import { PlanningState, Goal } from '../types';
-import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2, Eraser } from 'lucide-react';
 import { removeGoal, saveGoal } from '../services/goalApi';
 import { PageHeaderSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
+import VisionFlowNav from '../components/planning/VisionFlowNav';
+import { isMonthSlotLabel, monthSlotDisplayName, monthSlotSortKey } from '../planning/goalHierarchy';
 
 interface Props {
   state: PlanningState;
@@ -17,40 +19,11 @@ const MonthlyView: React.FC<Props> = ({ state, updateState, loading = false }) =
   const [expandedQuarterIds, setExpandedQuarterIds] = useState<Record<string, boolean>>({});
   const [editingIds, setEditingIds] = useState<Record<string, boolean>>({});
   const [drafts, setDrafts] = useState<Record<string, { text: string; details: string }>>({});
-  const [newMonthlyDraftByQuarter, setNewMonthlyDraftByQuarter] = useState<Record<string, { text: string; details: string }>>({});
-  const [isAddingByQuarter, setIsAddingByQuarter] = useState<Record<string, boolean>>({});
 
-  const generateId = () =>
-    (typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? (crypto.randomUUID() as string)
-      : Math.random().toString(36).slice(2));
-
-  const handleAddProject = async (quarterId: string) => {
-    if (!hasAdminPower) return;
-    const draft = newMonthlyDraftByQuarter[quarterId];
-    const text = (draft?.text || '').trim();
-    const details = draft?.details || '';
-    if (!text) return;
-    const newProject: Goal = {
-      id: `m-${generateId()}`,
-      text,
-      completed: false,
-      level: 'month',
-      details,
-      parentId: quarterId
-    };
-    updateState(prev => ({
-      ...prev,
-      monthlyGoals: [...prev.monthlyGoals, newProject]
-    }));
-    try {
-      await saveGoal(newProject);
-      setNewMonthlyDraftByQuarter((prev) => ({ ...prev, [quarterId]: { text: '', details: '' } }));
-      setIsAddingByQuarter((prev) => ({ ...prev, [quarterId]: false }));
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  const sortMonths = (goals: Goal[]) =>
+    [...goals].sort(
+      (a, b) => monthSlotSortKey(a.timeline) - monthSlotSortKey(b.timeline) || a.id.localeCompare(b.id),
+    );
 
   const handleRemoveProject = (id: string) => {
     if (!hasAdminPower) return;
@@ -68,18 +41,29 @@ const MonthlyView: React.FC<Props> = ({ state, updateState, loading = false }) =
 
   const handleGoalChange = (id: string, text: string) => {
     if (!hasAdminPower) return;
-    updateState(prev => ({
+    updateState((prev) => ({
       ...prev,
-      monthlyGoals: prev.monthlyGoals.map(g => g.id === id ? { ...g, text } : g)
+      monthlyGoals: prev.monthlyGoals.map((g) => (g.id === id ? { ...g, text } : g)),
     }));
   };
 
   const handleDetailsChange = (id: string, details: string) => {
     if (!hasAdminPower) return;
-    updateState(prev => ({
+    updateState((prev) => ({
       ...prev,
-      monthlyGoals: prev.monthlyGoals.map(g => g.id === id ? { ...g, details } : g)
+      monthlyGoals: prev.monthlyGoals.map((g) => (g.id === id ? { ...g, details } : g)),
     }));
+  };
+
+  const clearMonth = async (goal: Goal) => {
+    if (!hasAdminPower) return;
+    handleGoalChange(goal.id, '');
+    handleDetailsChange(goal.id, '');
+    try {
+      await saveGoal({ ...goal, text: '', details: '' });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const groupedByYear = state.yearlyGoals.map((yearly) => ({
@@ -89,13 +73,14 @@ const MonthlyView: React.FC<Props> = ({ state, updateState, loading = false }) =
       .sort((a, b) => (a.timeline || '').localeCompare(b.timeline || ''))
       .map((quarter) => ({
         quarter,
-        months: state.monthlyGoals.filter((m) => m.parentId === quarter.id),
+        months: sortMonths(state.monthlyGoals.filter((m) => m.parentId === quarter.id)),
       })),
   }));
 
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto space-y-5 pb-16">
+        <VisionFlowNav subtitle={state.uiConfig.monthlySub} />
         <PageHeaderSkeleton />
         {Array.from({ length: 2 }).map((_, index) => (
           <div key={`monthly-skeleton-${index}`} className="bg-white rounded-2xl border border-slate-200 overflow-hidden animate-pulse">
@@ -120,7 +105,6 @@ const MonthlyView: React.FC<Props> = ({ state, updateState, loading = false }) =
                     <Skeleton className="h-3 w-10" />
                   </div>
                   <div className="px-4 pb-4 space-y-3">
-                    <SkeletonBlock className="h-9 w-36 rounded-lg" />
                     <div className="border border-slate-200 rounded-xl p-4 space-y-3">
                       <Skeleton className="h-4 w-full" />
                       <SkeletonBlock className="h-16 w-full rounded-lg" />
@@ -137,7 +121,13 @@ const MonthlyView: React.FC<Props> = ({ state, updateState, loading = false }) =
 
   return (
     <div className="max-w-5xl mx-auto space-y-5 pb-16">
-      <h2 className="text-3xl text-slate-900">{state.uiConfig.monthlyTitle}</h2>
+      <VisionFlowNav subtitle={state.uiConfig.monthlySub} />
+      <div className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/90 px-6 py-7 shadow-sm">
+        <h2 className="text-3xl font-semibold tracking-tight text-slate-900">{state.uiConfig.monthlyTitle}</h2>
+        <p className="mt-2 max-w-2xl text-sm text-slate-500">
+          Each quarter has three month slots. Add weekly goals inside a month; daily steps are created automatically for each week.
+        </p>
+      </div>
       {groupedByYear.map(({ yearly, quarters }) => {
         const yearExpanded = expandedYearIds[yearly.id] ?? true;
         const allMonths = quarters.flatMap((q) => q.months);
@@ -145,108 +135,80 @@ const MonthlyView: React.FC<Props> = ({ state, updateState, loading = false }) =
           ? Math.round((allMonths.filter((m) => m.completed).length / allMonths.length) * 100)
           : 0;
         return (
-          <div key={yearly.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div key={yearly.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
             <button
               type="button"
               onClick={() => setExpandedYearIds((prev) => ({ ...prev, [yearly.id]: !yearExpanded }))}
-              className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50"
+              className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50/80"
             >
               <div className="flex items-center gap-2">
                 {yearExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 <div className="text-left">
-                  <div className="text-xs text-slate-500">Yearly Vision</div>
-                  <div className="text-slate-900">{yearly.text || 'Untitled Yearly Goal'}</div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-slate-400">Yearly vision</div>
+                  <div className="text-slate-900 font-medium">{yearly.text || 'Untitled yearly goal'}</div>
                 </div>
               </div>
-              <div className="text-sm text-slate-600">{yearlyProgress}% complete</div>
+              <div className="text-sm font-medium text-slate-600">{yearlyProgress}%</div>
             </button>
             {yearExpanded && (
               <div className="px-5 pb-5 space-y-3">
                 {quarters.map(({ quarter, months }) => {
                   const isExpanded = expandedQuarterIds[quarter.id] ?? false;
-                  const progress = months.length ? Math.round((months.filter((m) => m.completed).length / months.length) * 100) : 0;
+                  const progress = months.length
+                    ? Math.round((months.filter((m) => m.completed).length / months.length) * 100)
+                    : 0;
                   return (
-                    <div key={quarter.id} className="border border-slate-200 rounded-xl overflow-hidden">
+                    <div key={quarter.id} className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50/30">
                       <button
                         type="button"
                         onClick={() => setExpandedQuarterIds((prev) => ({ ...prev, [quarter.id]: !isExpanded }))}
-                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50"
+                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/80"
                       >
                         <div className="flex items-center gap-2 text-left">
                           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                          <div className="text-slate-800">{quarter.timeline}: {quarter.text || 'Untitled Quarterly Goal'}</div>
+                          <div>
+                            <span className="text-xs font-semibold text-brand-red">{quarter.timeline}</span>
+                            <span className="text-slate-800"> · {quarter.text || 'Quarter focus'}</span>
+                          </div>
                         </div>
-                        <div className="text-xs text-slate-500">{progress}%</div>
+                        <div className="text-xs font-medium text-slate-500">{progress}%</div>
                       </button>
                       {isExpanded && (
                         <div className="px-4 pb-4 space-y-3">
-                          {hasAdminPower && (
-                            <>
-                              {!isAddingByQuarter[quarter.id] ? (
-                                <button
-                                  onClick={() => {
-                                    setIsAddingByQuarter((prev) => ({ ...prev, [quarter.id]: true }));
-                                    setNewMonthlyDraftByQuarter((prev) => ({
-                                      ...prev,
-                                      [quarter.id]: prev[quarter.id] || { text: '', details: '' },
-                                    }));
-                                  }}
-                                  className="px-3 py-2 rounded-lg bg-brand-red text-white flex items-center gap-2 text-sm"
-                                >
-                                  <Plus size={14} /> Add Monthly Goal
-                                </button>
-                              ) : (
-                                <div className="border border-slate-200 rounded-xl p-3 space-y-2">
-                                  <textarea
-                                    value={newMonthlyDraftByQuarter[quarter.id].text}
-                                    onChange={(e) =>
-                                      setNewMonthlyDraftByQuarter((prev) => ({
-                                        ...prev,
-                                        [quarter.id]: { text: e.target.value, details: prev[quarter.id]?.details || '' },
-                                      }))
-                                    }
-                                    placeholder="Monthly goal"
-                                    className="w-full resize-none outline-none bg-transparent"
-                                    rows={2}
-                                  />
-                                  <textarea
-                                    value={newMonthlyDraftByQuarter[quarter.id].details}
-                                    onChange={(e) =>
-                                      setNewMonthlyDraftByQuarter((prev) => ({
-                                        ...prev,
-                                        [quarter.id]: { text: prev[quarter.id]?.text || '', details: e.target.value },
-                                      }))
-                                    }
-                                    placeholder="Monthly goal notes"
-                                    className="w-full resize-none outline-none bg-slate-50 rounded-lg p-2"
-                                    rows={2}
-                                  />
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={() => handleAddProject(quarter.id)}
-                                      className="px-3 py-1 text-xs rounded bg-brand-red text-white"
-                                    >
-                                      Save
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        setIsAddingByQuarter((prev) => ({ ...prev, [quarter.id]: false }));
-                                        setNewMonthlyDraftByQuarter((prev) => ({
-                                          ...prev,
-                                          [quarter.id]: { text: '', details: '' },
-                                        }));
-                                      }}
-                                      className="px-3 py-1 text-xs rounded bg-slate-100 text-slate-700"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </>
-                          )}
                           {months.map((goal) => (
-                            <div key={goal.id} className="border border-slate-200 rounded-xl p-4 space-y-2">
+                            <div
+                              key={goal.id}
+                              className="border border-slate-200 rounded-xl bg-white p-4 space-y-2 shadow-[0_1px_0_rgba(15,23,42,0.04)]"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="inline-flex items-center rounded-full bg-slate-900 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
+                                  {monthSlotDisplayName(goal.timeline)}
+                                </span>
+                                {hasAdminPower && (
+                                  <div className="flex items-center gap-2">
+                                    {(goal.text || goal.details) && isMonthSlotLabel(goal.timeline) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => clearMonth(goal)}
+                                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                                      >
+                                        <Eraser size={12} />
+                                        Clear
+                                      </button>
+                                    )}
+                                    {!isMonthSlotLabel(goal.timeline) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveProject(goal.id)}
+                                        className="p-2 text-slate-400 hover:text-brand-red"
+                                        title="Remove extra month"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                               <div className="flex items-start gap-2">
                                 <textarea
                                   readOnly={!hasAdminPower || !editingIds[goal.id]}
@@ -257,18 +219,23 @@ const MonthlyView: React.FC<Props> = ({ state, updateState, loading = false }) =
                                       [goal.id]: { text: e.target.value, details: prev[goal.id]?.details ?? goal.details ?? '' },
                                     }))
                                   }
-                                  placeholder="Monthly goal"
-                                  className="flex-1 resize-none outline-none bg-transparent"
+                                  placeholder="What must be true by the end of this month?"
+                                  className="flex-1 resize-none outline-none bg-transparent text-slate-800 placeholder:text-slate-400"
                                   rows={2}
                                 />
                                 {hasAdminPower && (
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 shrink-0">
                                     {!editingIds[goal.id] ? (
-                                      <button onClick={() => setEditingIds((prev) => ({ ...prev, [goal.id]: true }))} className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-700">
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingIds((prev) => ({ ...prev, [goal.id]: true }))}
+                                        className="px-2 py-1 text-xs rounded-lg bg-slate-100 text-slate-700"
+                                      >
                                         Edit
                                       </button>
                                     ) : (
                                       <button
+                                        type="button"
                                         onClick={async () => {
                                           const text = drafts[goal.id]?.text ?? goal.text;
                                           const details = drafts[goal.id]?.details ?? goal.details ?? '';
@@ -277,14 +244,11 @@ const MonthlyView: React.FC<Props> = ({ state, updateState, loading = false }) =
                                           await saveGoal({ ...goal, text, details }).catch((e) => console.error(e));
                                           setEditingIds((prev) => ({ ...prev, [goal.id]: false }));
                                         }}
-                                        className="px-2 py-1 text-xs rounded bg-brand-red text-white"
+                                        className="px-2 py-1 text-xs rounded-lg bg-brand-red text-white"
                                       >
                                         Save
                                       </button>
                                     )}
-                                    <button onClick={() => handleRemoveProject(goal.id)} className="p-2 text-slate-500 hover:text-brand-red">
-                                      <Trash2 size={14} />
-                                    </button>
                                   </div>
                                 )}
                               </div>
@@ -297,13 +261,12 @@ const MonthlyView: React.FC<Props> = ({ state, updateState, loading = false }) =
                                     [goal.id]: { text: prev[goal.id]?.text ?? goal.text, details: e.target.value },
                                   }))
                                 }
-                                placeholder="Monthly goal notes"
-                                className="w-full resize-none outline-none bg-slate-50 rounded-lg p-2"
+                                placeholder="Notes, metrics, or dependencies"
+                                className="w-full resize-none outline-none bg-slate-50 rounded-lg p-2 text-sm text-slate-700 placeholder:text-slate-400"
                                 rows={2}
                               />
                             </div>
                           ))}
-                          {!months.length && <div className="text-sm text-slate-500">No monthly goals yet.</div>}
                         </div>
                       )}
                     </div>
