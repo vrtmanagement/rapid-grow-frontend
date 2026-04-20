@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
+import { Goal, PlanningState } from '../types';
+import { saveGoal } from '../services/goalApi';
 import {
   Plus,
   MessageSquareText,
@@ -48,6 +50,8 @@ interface SpacesComment {
 type TaskStatus = 'todo' | 'doing' | 'review' | 'done' | 'blocked';
 type TaskPriority = 'low' | 'medium' | 'high';
 type TaskFilterMode = 'all' | 'me' | 'assigned';
+type CreatePanelTab = 'add-task' | 'top-priorities' | 'weekly-tasks';
+type WeeklyRangeFilter = 'this-week' | 'next-week' | 'two-weeks' | 'month';
 
 interface SpacesTask {
   taskId: string;
@@ -743,9 +747,11 @@ function projectCharterPayloadFromBackendProject(proj: any, updatedTasks: any[])
 
 interface Props {
   mode: SpacesMode;
+  state?: PlanningState;
+  updateState?: (updater: (prev: PlanningState) => PlanningState) => void;
 }
 
-const SpacesView: React.FC<Props> = ({ mode }) => {
+const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const navigate = useNavigate();
   const taskHubRootRef = useRef<HTMLDivElement | null>(null);
   const generateId = () =>
@@ -777,6 +783,26 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [createPanelTab, setCreatePanelTab] = useState<CreatePanelTab>('add-task');
+  const [weeklyError, setWeeklyError] = useState('');
+  const [assignDraftByDay, setAssignDraftByDay] = useState<
+    Record<
+      string,
+      {
+        title: string;
+        assigneeId: string;
+        dueDate: string;
+        priority: string;
+        status: string;
+        description: string;
+        projectId: string;
+      }
+    >
+  >({});
+  const [assigningDayTaskId, setAssigningDayTaskId] = useState('');
+  const [selectedDayByWeek, setSelectedDayByWeek] = useState<Record<string, string>>({});
+  const [weeklyTaskDocumentByDay, setWeeklyTaskDocumentByDay] = useState<Record<string, File | null>>({});
+  const [weeklyRangeFilter, setWeeklyRangeFilter] = useState<WeeklyRangeFilter>('this-week');
 
   const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
@@ -877,6 +903,7 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     [assignableEmployees, me.id],
   );
   const viewerRole = normalizeRole(me.role);
+  const canManageWeeklyRows = viewerRole === 'SUPER_ADMIN' || viewerRole === 'ADMIN' || viewerRole === 'TEAM_LEAD';
   const assignmentHint =
     viewerRole === 'SUPER_ADMIN' || viewerRole === 'ADMIN'
       ? 'Admin: you can assign tasks to anyone.'
@@ -1450,6 +1477,245 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
     });
     return copy;
   }, [filteredTasks, mode]);
+  const topPriorityTasks = useMemo(() => {
+    const pending = tasks.filter((task) => task.status !== 'done');
+    const priorityRank: Record<TaskPriority, number> = {
+      high: 0,
+      medium: 1,
+      low: 2,
+    };
+    return [...pending]
+      .sort((a, b) => {
+        const priorityDiff = priorityRank[a.priority] - priorityRank[b.priority];
+        if (priorityDiff !== 0) return priorityDiff;
+        const aDue = parseDateValue(a.dueDate)?.getTime() || Number.MAX_SAFE_INTEGER;
+        const bDue = parseDateValue(b.dueDate)?.getTime() || Number.MAX_SAFE_INTEGER;
+        if (aDue !== bDue) return aDue - bDue;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      })
+      .slice(0, 5);
+  }, [tasks]);
+
+  const weeklyTaskGroups = useMemo(() => {
+    if (!state) return [];
+    return state.weeklyGoals.map((week) => ({
+      week,
+      days: state.dailyGoals.filter((d) => d.parentId === week.id),
+    }));
+  }, [state]);
+
+  const getWeekBreadcrumb = (weekId: string): string => {
+    if (!state) return 'Year > Q? > M? > Week';
+    const week = state.weeklyGoals.find((w) => w.id === weekId);
+    const month = week ? state.monthlyGoals.find((m) => m.id === week.parentId) : undefined;
+    const quarter = month ? state.quarterlyGoals.find((q) => q.id === month.parentId) : undefined;
+    const year = quarter ? state.yearlyGoals.find((y) => y.id === quarter.parentId) : undefined;
+    return [year?.text || 'Year', quarter?.timeline || 'Q?', month?.timeline || 'M?', 'Week']
+      .filter(Boolean)
+      .join(' > ');
+  };
+
+  const getWeekStartDate = (week: Goal, days: Goal[]): Date => {
+    const fromTimeline = parseDateValue(String(week.timeline || '').trim());
+    if (fromTimeline) return fromTimeline;
+    const dayIds = new Set(days.map((d) => d.id));
+    const earliestDue = tasks
+      .filter((task) => dayIds.has(String(task?.customFields?.dailyGoalId || '').trim()))
+      .map((task) => parseDateValue(task.dueDate))
+      .filter((d): d is Date => !!d)
+      .sort((a, b) => a.getTime() - b.getTime())[0];
+    return earliestDue || new Date();
+  };
+
+  const getDayDisplay = (startDate: Date, index: number) => {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + index);
+    return {
+      weekday: date.toLocaleDateString(undefined, { weekday: 'long' }),
+      dateText: date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }),
+    };
+  };
+
+  const getSundayStart = (date: Date): Date => {
+    const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    normalized.setDate(normalized.getDate() - normalized.getDay());
+    return normalized;
+  };
+
+  const filteredWeeklyTaskGroups = useMemo(() => {
+    if (!weeklyTaskGroups.length) return weeklyTaskGroups;
+    const now = new Date();
+    const currentWeekStart = getSundayStart(now);
+    const currentWeekEnd = new Date(currentWeekStart);
+    currentWeekEnd.setDate(currentWeekStart.getDate() + 6);
+
+    const nextWeekStart = new Date(currentWeekStart);
+    nextWeekStart.setDate(currentWeekStart.getDate() + 7);
+    const nextWeekEnd = new Date(nextWeekStart);
+    nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
+
+    const twoWeeksEnd = new Date(currentWeekStart);
+    twoWeeksEnd.setDate(currentWeekStart.getDate() + 13);
+
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    return weeklyTaskGroups.filter(({ week, days }) => {
+      const weekStart = getSundayStart(getWeekStartDate(week, days));
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+
+      if (weeklyRangeFilter === 'this-week') {
+        return weekStart <= currentWeekEnd && weekEnd >= currentWeekStart;
+      }
+      if (weeklyRangeFilter === 'next-week') {
+        return weekStart <= nextWeekEnd && weekEnd >= nextWeekStart;
+      }
+      if (weeklyRangeFilter === 'two-weeks') {
+        return weekStart <= twoWeeksEnd && weekEnd >= currentWeekStart;
+      }
+      return weekStart <= monthEnd && weekEnd >= currentWeekStart;
+    });
+  }, [weeklyTaskGroups, weeklyRangeFilter]);
+
+  const createDaysForWeek = async (weekId: string) => {
+    if (!state || !updateState || !canManageWeeklyRows) return;
+    const current = state.dailyGoals.filter((d) => d.parentId === weekId);
+    if (current.length > 0) return;
+    const generated = Array.from({ length: 7 }).map((_, idx) => ({
+      id: `d-${weekId}-${idx + 1}`,
+      text: `Day ${idx + 1}`,
+      completed: false,
+      level: 'day' as const,
+      parentId: weekId,
+    }));
+    updateState((prev) => ({
+      ...prev,
+      dailyGoals: [...prev.dailyGoals, ...generated],
+    }));
+    try {
+      await Promise.all(generated.map((g) => saveGoal(g)));
+    } catch (e) {
+      console.error(e);
+      setWeeklyError('Failed to persist generated days. Please try again.');
+    }
+  };
+
+  const toggleDaily = (id: string) => {
+    if (!state || !updateState || !canManageWeeklyRows) return;
+    let nextGoal: Goal | null = null;
+    updateState((prev) => {
+      const nextDaily = prev.dailyGoals.map((d) => {
+        if (d.id !== id) return d;
+        nextGoal = { ...d, completed: !d.completed };
+        return nextGoal;
+      });
+      return {
+        ...prev,
+        dailyGoals: nextDaily,
+      };
+    });
+    if (nextGoal) {
+      saveGoal(nextGoal).catch((e) => {
+        console.error(e);
+        setWeeklyError('Failed to save day progress. Please refresh and retry.');
+      });
+    }
+  };
+
+  const createTaskFromDay = async (day: Goal, week: Goal) => {
+    const draft = assignDraftByDay[day.id];
+    const titleValue = (draft?.title || day.text || '').trim();
+    const assignee = (draft?.assigneeId || me.id || '').trim();
+    const dueDateValue = String(draft?.dueDate || '').trim();
+    const priorityValue = String(draft?.priority || 'medium').trim() || 'medium';
+    const statusValue = String(draft?.status || 'todo').trim() || 'todo';
+    const descriptionValue = String(draft?.description || '').trim();
+    const projectIdValue = String(draft?.projectId || '').trim();
+    const taskDocumentFile = weeklyTaskDocumentByDay[day.id] || null;
+    if (!titleValue || !assignee) {
+      setWeeklyError('Task title and assignee are required.');
+      return;
+    }
+    setAssigningDayTaskId(day.id);
+    setWeeklyError('');
+    try {
+      let uploadedDocument: {
+        documentUrl: string;
+        documentName: string;
+        documentMimeType: string;
+      } | null = null;
+
+      if (taskDocumentFile) {
+        const formData = new FormData();
+        formData.append('file', taskDocumentFile);
+        const session = getStoredAuthSession();
+        const token = typeof session?.token === 'string' ? session.token : '';
+        const resUpload = await fetch(`${API_BASE}/spaces/tasks/upload-document`, {
+          method: 'POST',
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: formData,
+        });
+        const uploaded = await resUpload.json().catch(() => ({}));
+        if (!resUpload.ok) {
+          throw new Error(uploaded.message || 'Failed to upload task document');
+        }
+        uploadedDocument = {
+          documentUrl: String(uploaded.documentUrl || ''),
+          documentName: String(uploaded.documentName || taskDocumentFile.name || ''),
+          documentMimeType: String(uploaded.documentMimeType || taskDocumentFile.type || ''),
+        };
+      }
+
+      const res = await fetch(`${API_BASE}/spaces/tasks`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          title: titleValue,
+          description: descriptionValue || `Created from Daily plan: ${week.text || 'Weekly Goal'}`,
+          documentUrl: uploadedDocument?.documentUrl || '',
+          documentName: uploadedDocument?.documentName || '',
+          documentMimeType: uploadedDocument?.documentMimeType || '',
+          projectId: projectIdValue || '',
+          assigneeId: assignee,
+          dueDate: dueDateValue,
+          priority: priorityValue,
+          status: statusValue,
+          customFields: {
+            dailyGoalId: day.id,
+            weeklyGoalId: week.id,
+            dailyGoalText: day.text || '',
+          },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.message || 'Failed to create task from daily goal');
+      }
+      setAssignDraftByDay((prev) => ({
+        ...prev,
+        [day.id]: {
+          title: day.text || '',
+          assigneeId: me.id || '',
+          dueDate: '',
+          priority: 'medium',
+          status: 'todo',
+          description: '',
+          projectId: '',
+        },
+      }));
+      setWeeklyTaskDocumentByDay((prev) => ({
+        ...prev,
+        [day.id]: null,
+      }));
+      setTasks((prev) => [normalizeTaskForUi(data as SpacesTask), ...prev]);
+    } catch (e: any) {
+      setWeeklyError(e?.message || 'Failed to create task');
+    } finally {
+      setAssigningDayTaskId('');
+    }
+  };
   const TASKS_PER_PAGE = 15;
   const totalTaskPages = Math.max(1, Math.ceil(sortedTasks.length / TASKS_PER_PAGE));
   const paginatedTasks = useMemo(() => {
@@ -1472,6 +1738,23 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
   useEffect(() => {
     setTaskPage((prev) => Math.min(prev, totalTaskPages));
   }, [totalTaskPages]);
+
+  useEffect(() => {
+    setSelectedDayByWeek((prev) => {
+      if (!weeklyTaskGroups.length) return prev;
+      let changed = false;
+      const next = { ...prev };
+      weeklyTaskGroups.forEach(({ week, days }) => {
+        if (!days.length) return;
+        const selected = next[week.id];
+        if (!selected || !days.some((d) => d.id === selected)) {
+          next[week.id] = days[0].id;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [weeklyTaskGroups]);
 
   const getTaskHighlightClass = (t: SpacesTask): string => {
     return getPriorityRowClass(t.priority);
@@ -1725,119 +2008,565 @@ const SpacesView: React.FC<Props> = ({ mode }) => {
         </div>
       )}
 
-      <div className="bg-white p-8 rounded-3xl shadow-2xl border border-slate-200 space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
-          <p className="text-[13px] text-slate-700">{assignmentHint}</p>
+      <div className="space-y-4">
+        <div className="inline-flex rounded-full border border-slate-200 bg-white p-1">
           <button
             type="button"
-            onClick={() => setAssigneeId(me.id || '')}
-            className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            onClick={() => setCreatePanelTab('add-task')}
+            className={`px-4 py-1.5 text-[13px] rounded-full transition-colors ${
+              createPanelTab === 'add-task'
+                ? 'bg-slate-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
           >
-            Assign to me
+            Add Task
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreatePanelTab('top-priorities')}
+            className={`px-4 py-1.5 text-[13px] rounded-full transition-colors ${
+              createPanelTab === 'top-priorities'
+                ? 'bg-slate-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Top Priorities
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreatePanelTab('weekly-tasks')}
+            className={`px-4 py-1.5 text-[13px] rounded-full transition-colors ${
+              createPanelTab === 'weekly-tasks'
+                ? 'bg-slate-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Weekly Tasks
           </button>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-6 gap-4">
-          <div className="lg:col-span-2">
-            <label className="block text-[13px] font-semibold text-slate-700 mb-2">Task *</label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className={CREATE_INPUT_CLASS}
-              placeholder="Task name"
-            />
-          </div>
 
-          <div>
-            <label className="block text-[13px] font-semibold text-slate-700 mb-2">Assignee</label>
-            <ThemedSelect
-              value={assigneeId}
-              onChange={setAssigneeId}
-              options={createAssigneeOptions}
-              placeholder="Unassigned"
-              disabled={employeesLoading}
-              forceOpenDown={true}
-            />
-            <div className="mt-1 text-[11px] text-slate-500">
-              {assigneeId ? `Assigned: ${employeeNameById.get(assigneeId) || assigneeId}` : 'Currently unassigned'}
+        {createPanelTab === 'add-task' ? (
+          <div className="bg-white p-8 rounded-3xl shadow-2xl border border-slate-200 space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+              <p className="text-[13px] text-slate-700">{assignmentHint}</p>
+              <button
+                type="button"
+                onClick={() => setAssigneeId(me.id || '')}
+                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Assign to me
+              </button>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-6 gap-4">
+              <div className="lg:col-span-2">
+                <label className="block text-[13px] font-semibold text-slate-700 mb-2">Task *</label>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className={CREATE_INPUT_CLASS}
+                  placeholder="Task name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[13px] font-semibold text-slate-700 mb-2">Assignee</label>
+                <ThemedSelect
+                  value={assigneeId}
+                  onChange={setAssigneeId}
+                  options={createAssigneeOptions}
+                  placeholder="Unassigned"
+                  disabled={employeesLoading}
+                  forceOpenDown={true}
+                />
+                <div className="mt-1 text-[11px] text-slate-500">
+                  {assigneeId ? `Assigned: ${employeeNameById.get(assigneeId) || assigneeId}` : 'Currently unassigned'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[13px] font-semibold text-slate-700 mb-2">Due date</label>
+                <ThemedDatePicker value={dueDate} onChange={setDueDate} forceOpenDown={true} />
+              </div>
+
+              <div>
+                <label className="block text-[13px] font-semibold text-slate-700 mb-2">Priority</label>
+                <ThemedSelect
+                  value={priority}
+                  onChange={(value) => setPriority(value as TaskPriority)}
+                  options={priorityOptions}
+                  forceOpenDown={true}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[13px] font-semibold text-slate-700 mb-2">Status</label>
+                <ThemedSelect
+                  value={status}
+                  onChange={(value) => setStatus(value as TaskStatus)}
+                  options={statusOptions}
+                  forceOpenDown={true}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[13px] font-semibold text-slate-700 mb-2">Description</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full min-h-[96px] rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[14px] text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15"
+                placeholder="Add task description..."
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <div className="md:col-span-2">
+                <label className="block text-[13px] font-semibold text-slate-700 mb-2">Project</label>
+                <ThemedSelect
+                  value={selectedProjectId}
+                  onChange={setSelectedProjectId}
+                  options={projectSelectOptions}
+                  placeholder="No project"
+                  disabled={projectsLoading}
+                  forceOpenDown={true}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[13px] font-semibold text-slate-700 mb-2">Document</label>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
+                  onChange={(e) => setTaskDocumentFile(e.target.files?.[0] || null)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-red-50 file:px-3 file:py-1.5 file:text-[12px] file:font-semibold file:text-brand-red"
+                />
+                {taskDocumentFile ? (
+                  <p className="mt-1 text-[11px] text-slate-500 truncate">{taskDocumentFile.name}</p>
+                ) : null}
+              </div>
+
+              <div className="flex justify-end md:justify-start">
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={saving || uploadingTaskDocument || !title.trim()}
+                  className={`inline-flex items-center gap-2 px-8 py-3 rounded-full bg-brand-red text-white text-[15px] font-black shadow-lg hover:bg-brand-navy transition-colors ${
+                    saving || uploadingTaskDocument || !title.trim() ? 'opacity-60 cursor-not-allowed' : ''
+                  }`}
+                >
+                  <Plus size={18} />
+                  {uploadingTaskDocument ? 'Uploading...' : saving ? 'Creating...' : 'Create Task'}
+                </button>
+              </div>
             </div>
           </div>
-
-          <div>
-            <label className="block text-[13px] font-semibold text-slate-700 mb-2">Due date</label>
-            <ThemedDatePicker value={dueDate} onChange={setDueDate} forceOpenDown={true} />
+        ) : createPanelTab === 'top-priorities' ? (
+          <div className="bg-white p-6 rounded-3xl shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <p className="text-sm font-semibold text-slate-900">Top 5 Priorities For Today</p>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                {topPriorityTasks.length} active
+              </span>
+            </div>
+            <div className="space-y-2">
+              {topPriorityTasks.length > 0 ? (
+                topPriorityTasks.map((task, index) => (
+                  <label key={task.taskId} className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                    <input
+                      type="checkbox"
+                      checked={task.status === 'done'}
+                      onChange={(e) => patchTask(task.taskId, { status: e.target.checked ? 'done' : 'todo' })}
+                      className="mt-0.5 h-4 w-4"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-slate-800 truncate">
+                        {index + 1}. {task.title || 'Untitled task'}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        Due: {task.dueDate || '—'} · Priority: {task.priority} · Status: {task.status}
+                      </div>
+                    </div>
+                  </label>
+                ))
+              ) : (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">
+                  No active priorities available.
+                </div>
+              )}
+            </div>
           </div>
-
-          <div>
-            <label className="block text-[13px] font-semibold text-slate-700 mb-2">Priority</label>
-            <ThemedSelect
-              value={priority}
-              onChange={(value) => setPriority(value as TaskPriority)}
-              options={priorityOptions}
-              forceOpenDown={true}
-            />
+        ) : (
+          <div className="bg-white p-6 rounded-3xl shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h4 className="text-lg font-semibold text-slate-900">Daily Execution Rows</h4>
+                <p className="text-xs text-slate-500">Check a day when done, or assign it to TaskHub in one click.</p>
+              </div>
+            </div>
+            {weeklyError && (
+              <div className="text-xs rounded-md border border-red-200 bg-red-50 text-red-700 px-2.5 py-2">
+                {weeklyError}
+              </div>
+            )}
+            {!state || !updateState ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+                Weekly planning data is not available in this view.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="inline-flex rounded-full border border-slate-200 bg-white p-1">
+                  <button
+                    type="button"
+                    onClick={() => setWeeklyRangeFilter('this-week')}
+                    className={`px-3 py-1.5 text-[12px] rounded-full transition-colors ${
+                      weeklyRangeFilter === 'this-week'
+                        ? 'bg-slate-900 text-white'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    This Week
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWeeklyRangeFilter('next-week')}
+                    className={`px-3 py-1.5 text-[12px] rounded-full transition-colors ${
+                      weeklyRangeFilter === 'next-week'
+                        ? 'bg-slate-900 text-white'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    Next Week
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWeeklyRangeFilter('two-weeks')}
+                    className={`px-3 py-1.5 text-[12px] rounded-full transition-colors ${
+                      weeklyRangeFilter === 'two-weeks'
+                        ? 'bg-slate-900 text-white'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    2 Weeks
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWeeklyRangeFilter('month')}
+                    className={`px-3 py-1.5 text-[12px] rounded-full transition-colors ${
+                      weeklyRangeFilter === 'month'
+                        ? 'bg-slate-900 text-white'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    This Month
+                  </button>
+                </div>
+                {filteredWeeklyTaskGroups.map(({ week, days }) => (
+                  <div key={week.id} className="rounded-2xl border border-slate-200 bg-slate-50/40 p-4">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">{week.text || 'Untitled Weekly Goal'}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">{getWeekBreadcrumb(week.id)}</div>
+                      </div>
+                      <div className="text-[11px] rounded-full bg-white border border-slate-200 px-2 py-1 text-slate-600">
+                        {days.filter((d) => d.completed).length}/{days.length || 7} done
+                      </div>
+                    </div>
+                    {!!days.length && (
+                      <>
+                        <div className="rounded-xl border border-slate-200 bg-white p-3">
+                          <div className="flex flex-wrap gap-2.5">
+                            {days.slice(0, 7).map((day, idx) => {
+                              const selectedDayId = selectedDayByWeek[week.id] || days[0].id;
+                              const isSelected = selectedDayId === day.id;
+                              const startDate = getSundayStart(getWeekStartDate(week, days));
+                              const dayInfo = getDayDisplay(startDate, idx);
+                              return (
+                                <button
+                                  key={day.id}
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedDayByWeek((prev) => ({
+                                      ...prev,
+                                      [week.id]: day.id,
+                                    }))
+                                  }
+                                  className={`rounded-md border px-3 py-2 text-left transition ${
+                                    isSelected
+                                      ? 'border-brand-red bg-red-50 text-brand-red'
+                                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                                  }`}
+                                >
+                                  <div className="text-[11px] font-semibold uppercase tracking-wide">{dayInfo.weekday}</div>
+                                  <div className="text-xs mt-0.5">{dayInfo.dateText}</div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        {(() => {
+                          const selectedDayId = selectedDayByWeek[week.id] || days[0].id;
+                          const selectedDay = days.find((d) => d.id === selectedDayId) || days[0];
+                          const assignmentsForDay = tasks.filter(
+                            (task) => String(task?.customFields?.dailyGoalId || '').trim() === selectedDay.id,
+                          );
+                          return (
+                            <div className="mt-2 rounded-xl border border-slate-200 bg-white p-4">
+                              <label className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedDay.completed}
+                                  onChange={() => toggleDaily(selectedDay.id)}
+                                  disabled={!canManageWeeklyRows}
+                                />
+                                <input
+                                  type="text"
+                                  value={selectedDay.text}
+                                  readOnly
+                                  className="flex-1 bg-transparent border-b border-slate-200 outline-none text-sm"
+                                />
+                              </label>
+                              <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div>
+                                  <label className="block text-[13px] font-semibold text-slate-700 mb-2">Task *</label>
+                                  <input
+                                    type="text"
+                                    value={assignDraftByDay[selectedDay.id]?.title ?? selectedDay.text ?? ''}
+                                    onChange={(e) =>
+                                      setAssignDraftByDay((prev) => ({
+                                        ...prev,
+                                        [selectedDay.id]: {
+                                          title: e.target.value,
+                                          assigneeId: prev[selectedDay.id]?.assigneeId || me.id || '',
+                                          dueDate: prev[selectedDay.id]?.dueDate || '',
+                                          priority: prev[selectedDay.id]?.priority || 'medium',
+                                          status: prev[selectedDay.id]?.status || 'todo',
+                                          description: prev[selectedDay.id]?.description || '',
+                                          projectId: prev[selectedDay.id]?.projectId || '',
+                                        },
+                                      }))
+                                    }
+                                    className={CREATE_INPUT_CLASS}
+                                    placeholder="Task name"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[13px] font-semibold text-slate-700 mb-2">Assignee</label>
+                                  <ThemedSelect
+                                    value={assignDraftByDay[selectedDay.id]?.assigneeId ?? me.id ?? ''}
+                                    onChange={(value) =>
+                                      setAssignDraftByDay((prev) => ({
+                                        ...prev,
+                                        [selectedDay.id]: {
+                                          title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
+                                          assigneeId: value,
+                                          dueDate: prev[selectedDay.id]?.dueDate || '',
+                                          priority: prev[selectedDay.id]?.priority || 'medium',
+                                          status: prev[selectedDay.id]?.status || 'todo',
+                                          description: prev[selectedDay.id]?.description || '',
+                                          projectId: prev[selectedDay.id]?.projectId || '',
+                                        },
+                                      }))
+                                    }
+                                    options={createAssigneeOptions}
+                                    placeholder="Unassigned"
+                                    disabled={employeesLoading}
+                                    forceOpenDown={true}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[13px] font-semibold text-slate-700 mb-2">Due date</label>
+                                  <ThemedDatePicker
+                                    value={assignDraftByDay[selectedDay.id]?.dueDate ?? ''}
+                                    onChange={(value) =>
+                                      setAssignDraftByDay((prev) => ({
+                                        ...prev,
+                                        [selectedDay.id]: {
+                                          title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
+                                          assigneeId: prev[selectedDay.id]?.assigneeId || me.id || '',
+                                          dueDate: value,
+                                          priority: prev[selectedDay.id]?.priority || 'medium',
+                                          status: prev[selectedDay.id]?.status || 'todo',
+                                          description: prev[selectedDay.id]?.description || '',
+                                          projectId: prev[selectedDay.id]?.projectId || '',
+                                        },
+                                      }))
+                                    }
+                                    forceOpenDown={true}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[13px] font-semibold text-slate-700 mb-2">Priority</label>
+                                  <ThemedSelect
+                                    value={assignDraftByDay[selectedDay.id]?.priority ?? 'medium'}
+                                    onChange={(value) =>
+                                      setAssignDraftByDay((prev) => ({
+                                        ...prev,
+                                        [selectedDay.id]: {
+                                          title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
+                                          assigneeId: prev[selectedDay.id]?.assigneeId || me.id || '',
+                                          dueDate: prev[selectedDay.id]?.dueDate || '',
+                                          priority: value,
+                                          status: prev[selectedDay.id]?.status || 'todo',
+                                          description: prev[selectedDay.id]?.description || '',
+                                          projectId: prev[selectedDay.id]?.projectId || '',
+                                        },
+                                      }))
+                                    }
+                                    options={priorityOptions}
+                                    forceOpenDown={true}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[13px] font-semibold text-slate-700 mb-2">Status</label>
+                                  <ThemedSelect
+                                    value={assignDraftByDay[selectedDay.id]?.status ?? 'todo'}
+                                    onChange={(value) =>
+                                      setAssignDraftByDay((prev) => ({
+                                        ...prev,
+                                        [selectedDay.id]: {
+                                          title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
+                                          assigneeId: prev[selectedDay.id]?.assigneeId || me.id || '',
+                                          dueDate: prev[selectedDay.id]?.dueDate || '',
+                                          priority: prev[selectedDay.id]?.priority || 'medium',
+                                          status: value,
+                                          description: prev[selectedDay.id]?.description || '',
+                                          projectId: prev[selectedDay.id]?.projectId || '',
+                                        },
+                                      }))
+                                    }
+                                    options={statusOptions}
+                                    forceOpenDown={true}
+                                  />
+                                </div>
+                              </div>
+                              <div className="mt-3">
+                                <label className="block text-[13px] font-semibold text-slate-700 mb-2">Description</label>
+                                <textarea
+                                  value={assignDraftByDay[selectedDay.id]?.description ?? ''}
+                                  onChange={(e) =>
+                                    setAssignDraftByDay((prev) => ({
+                                      ...prev,
+                                      [selectedDay.id]: {
+                                        title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
+                                        assigneeId: prev[selectedDay.id]?.assigneeId || me.id || '',
+                                        dueDate: prev[selectedDay.id]?.dueDate || '',
+                                        priority: prev[selectedDay.id]?.priority || 'medium',
+                                        status: prev[selectedDay.id]?.status || 'todo',
+                                        description: e.target.value,
+                                        projectId: prev[selectedDay.id]?.projectId || '',
+                                      },
+                                    }))
+                                  }
+                                  className="w-full min-h-[96px] rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[14px] text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15"
+                                  placeholder="Add task description..."
+                                />
+                              </div>
+                              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                                <div className="md:col-span-2">
+                                  <label className="block text-[13px] font-semibold text-slate-700 mb-2">Project</label>
+                                  <ThemedSelect
+                                    value={assignDraftByDay[selectedDay.id]?.projectId ?? ''}
+                                    onChange={(value) =>
+                                      setAssignDraftByDay((prev) => ({
+                                        ...prev,
+                                        [selectedDay.id]: {
+                                          title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
+                                          assigneeId: prev[selectedDay.id]?.assigneeId || me.id || '',
+                                          dueDate: prev[selectedDay.id]?.dueDate || '',
+                                          priority: prev[selectedDay.id]?.priority || 'medium',
+                                          status: prev[selectedDay.id]?.status || 'todo',
+                                          description: prev[selectedDay.id]?.description || '',
+                                          projectId: value,
+                                        },
+                                      }))
+                                    }
+                                    options={projectSelectOptions}
+                                    placeholder="No project"
+                                    disabled={projectsLoading}
+                                    forceOpenDown={true}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[13px] font-semibold text-slate-700 mb-2">Document</label>
+                                  <input
+                                    type="file"
+                                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
+                                    onChange={(e) =>
+                                      setWeeklyTaskDocumentByDay((prev) => ({
+                                        ...prev,
+                                        [selectedDay.id]: e.target.files?.[0] || null,
+                                      }))
+                                    }
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-red-50 file:px-3 file:py-1.5 file:text-[12px] file:font-semibold file:text-brand-red"
+                                  />
+                                  {weeklyTaskDocumentByDay[selectedDay.id] ? (
+                                    <p className="mt-1 text-[11px] text-slate-500 truncate">{weeklyTaskDocumentByDay[selectedDay.id]?.name}</p>
+                                  ) : null}
+                                </div>
+                                <div className="md:col-span-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => createTaskFromDay(selectedDay, week)}
+                                    disabled={assigningDayTaskId === selectedDay.id}
+                                    className="inline-flex items-center gap-2 px-8 py-3 rounded-full bg-brand-red text-white text-[15px] font-black shadow-lg hover:bg-brand-navy transition-colors disabled:opacity-60"
+                                  >
+                                    <Plus size={18} />
+                                    {assigningDayTaskId === selectedDay.id ? 'Assigning...' : 'Create Task'}
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2.5">
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                                  Assigned employees and tasks for this day
+                                </div>
+                                <div className="space-y-1.5">
+                                  {assignmentsForDay.length ? (
+                                    assignmentsForDay.map((task) => (
+                                      <div
+                                        key={task.taskId}
+                                        className="rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700"
+                                      >
+                                        <div className="font-medium text-slate-800">{task.title || 'Untitled task'}</div>
+                                        <div className="text-slate-500 mt-0.5">
+                                          {employeeNameById.get(task.assigneeId || '') || task.assigneeId || 'Unassigned'} · {task.status || 'todo'} · {task.priority || 'medium'}
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="text-xs text-slate-500">No task assigned for this day yet.</div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </>
+                    )}
+                    {!days.length && (
+                      <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2.5 mt-2">
+                        <div className="text-xs text-slate-500">No days mapped.</div>
+                        {canManageWeeklyRows && (
+                          <button
+                            type="button"
+                            onClick={() => createDaysForWeek(week.id)}
+                            className="text-xs px-2.5 py-1 rounded-md bg-brand-red text-white hover:bg-brand-navy transition-colors"
+                          >
+                            Generate 7 days
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {!filteredWeeklyTaskGroups.length && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">
+                    No weekly goals found for selected filter.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-
-          <div>
-            <label className="block text-[13px] font-semibold text-slate-700 mb-2">Status</label>
-            <ThemedSelect
-              value={status}
-              onChange={(value) => setStatus(value as TaskStatus)}
-              options={statusOptions}
-              forceOpenDown={true}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-[13px] font-semibold text-slate-700 mb-2">Description</label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full min-h-[96px] rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[14px] text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15"
-            placeholder="Add task description..."
-          />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-          <div className="md:col-span-2">
-            <label className="block text-[13px] font-semibold text-slate-700 mb-2">Project</label>
-            <ThemedSelect
-              value={selectedProjectId}
-              onChange={setSelectedProjectId}
-              options={projectSelectOptions}
-              placeholder="No project"
-              disabled={projectsLoading}
-              forceOpenDown={true}
-            />
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-semibold text-slate-700 mb-2">Document</label>
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
-              onChange={(e) => setTaskDocumentFile(e.target.files?.[0] || null)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-red-50 file:px-3 file:py-1.5 file:text-[12px] file:font-semibold file:text-brand-red"
-            />
-            {taskDocumentFile ? (
-              <p className="mt-1 text-[11px] text-slate-500 truncate">{taskDocumentFile.name}</p>
-            ) : null}
-          </div>
-
-          <div className="flex justify-end md:justify-start">
-            <button
-              type="button"
-              onClick={handleCreate}
-              disabled={saving || uploadingTaskDocument || !title.trim()}
-              className={`inline-flex items-center gap-2 px-8 py-3 rounded-full bg-brand-red text-white text-[15px] font-black shadow-lg hover:bg-brand-navy transition-colors ${
-                saving || uploadingTaskDocument || !title.trim() ? 'opacity-60 cursor-not-allowed' : ''
-              }`}
-            >
-              <Plus size={18} />
-              {uploadingTaskDocument ? 'Uploading...' : saving ? 'Creating...' : 'Create Task'}
-            </button>
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

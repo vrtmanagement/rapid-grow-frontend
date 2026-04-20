@@ -1,5 +1,5 @@
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PlanningState, Goal } from '../types';
 import { CheckCircle2, UserPlus2, Star } from 'lucide-react';
 import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
@@ -51,6 +51,28 @@ function getLoggedInEmployeeMeta() {
   };
 }
 
+const parseDateKey = (raw: string): Date | null => {
+  const value = String(raw || '').trim();
+  if (!value) return null;
+  const isoDateMatch = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const parsed = isoDateMatch ? new Date(`${value}T00:00:00`) : new Date(value);
+  if (isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+};
+
+const formatDateKey = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getSundayStart = (date: Date): Date => {
+  const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  normalized.setDate(normalized.getDate() - normalized.getDay());
+  return normalized;
+};
+
 const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => {
   const [topTasks, setTopTasks] = useState<SpacesTaskSummary[]>([]);
   const [allSpacesTasks, setAllSpacesTasks] = useState<SpacesTaskSummary[]>([]);
@@ -59,9 +81,13 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
     Record<string, { title: string; assigneeId: string; dueDate: string; priority: string; status: string }>
   >({});
   const [assigningDayTaskId, setAssigningDayTaskId] = useState<string>('');
+  const [updatingTopTaskId, setUpdatingTopTaskId] = useState<string>('');
   const [dailyError, setDailyError] = useState<string>('');
   const [onlySelectedWeek, setOnlySelectedWeek] = useState(false);
-  const isAdmin = state.currentUser.role === 'Admin';
+  const [selectedDayByWeek, setSelectedDayByWeek] = useState<Record<string, string>>({});
+  const currentUserRole = String(state.currentUser.role || '').toUpperCase();
+  const isAdmin = currentUserRole === 'ADMIN' || currentUserRole === 'SUPER_ADMIN';
+  const autoSeededWeekIdsRef = useRef<Set<string>>(new Set());
   const location = useLocation();
   const selectedWeekId = new URLSearchParams(location.search).get('weekId') || '';
   const me = getLoggedInEmployeeMeta();
@@ -82,6 +108,14 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
     }
     return list.filter((e) => e.empId === me.empId);
   }, [employees, me.empId, me.empName, me.role]);
+
+  const employeeNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    assignableEmployees.forEach((emp) => {
+      map.set(emp.empId, emp.empName || emp.empId);
+    });
+    return map;
+  }, [assignableEmployees]);
 
   useEffect(() => {
     let active = true;
@@ -278,6 +312,55 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
       .join(' > ');
   };
 
+  const getWeekStartDate = (week: Goal, days: Goal[]): Date => {
+    const fromTimeline = parseDateKey(String(week.timeline || '').trim());
+    if (fromTimeline) return fromTimeline;
+
+    const dayIds = new Set(days.map((d) => d.id));
+    const linkedDueDates = allSpacesTasks
+      .filter((task) => dayIds.has(String(task?.customFields?.dailyGoalId || '').trim()))
+      .map((task) => parseDateKey(task.dueDate || ''))
+      .filter((d): d is Date => !!d)
+      .sort((a, b) => a.getTime() - b.getTime());
+    if (linkedDueDates.length) return linkedDueDates[0];
+
+    return new Date();
+  };
+
+  const getDayDisplay = (startDate: Date, index: number) => {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + index);
+    return {
+      weekday: date.toLocaleDateString(undefined, { weekday: 'long' }),
+      dateText: date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }),
+    };
+  };
+
+  const updateTaskStatus = async (taskId: string, status: string) => {
+    const previousTasks = allSpacesTasks;
+    setDailyError('');
+    setUpdatingTopTaskId(taskId);
+    setAllSpacesTasks((prev) => prev.map((t) => (t.taskId === taskId ? { ...t, status } : t)));
+    try {
+      const res = await fetch(`${API_BASE}/spaces/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload?.message || 'Failed to update task status');
+      }
+      const updated = await res.json().catch(() => ({}));
+      setAllSpacesTasks((prev) => prev.map((t) => (t.taskId === taskId ? { ...t, ...updated } : t)));
+    } catch (e: any) {
+      setAllSpacesTasks(previousTasks);
+      setDailyError(e?.message || 'Failed to update task status');
+    } finally {
+      setUpdatingTopTaskId('');
+    }
+  };
+
   const dailyGroups = state.weeklyGoals.map((week) => ({
     week,
     days: state.dailyGoals.filter((d) => d.parentId === week.id),
@@ -288,6 +371,26 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
   const visibleGroups = onlySelectedWeek && selectedWeekId
     ? orderedGroups.filter((g) => g.week.id === selectedWeekId)
     : orderedGroups;
+
+  useEffect(() => {
+    setSelectedDayByWeek((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      const todayKey = formatDateKey(new Date());
+      visibleGroups.forEach(({ week, days }) => {
+        if (!days.length) return;
+        const alreadySelected = next[week.id];
+        const stillValid = alreadySelected && days.some((d) => d.id === alreadySelected);
+        if (!stillValid) {
+          const startDate = getSundayStart(getWeekStartDate(week, days));
+          const todayIndex = days.findIndex((_, idx) => formatDateKey(new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + idx)) === todayKey);
+          next[week.id] = todayIndex >= 0 ? days[todayIndex].id : days[0].id;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [visibleGroups]);
 
   useEffect(() => {
     const doneByDayId = new Map<string, boolean>();
@@ -326,6 +429,21 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
   useEffect(() => {
     setOnlySelectedWeek(!!selectedWeekId);
   }, [selectedWeekId]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const weeksMissingDays = visibleGroups.filter(
+      ({ week, days }) => !days.length && !autoSeededWeekIdsRef.current.has(week.id),
+    );
+    if (!weeksMissingDays.length) return;
+
+    weeksMissingDays.forEach(({ week }) => {
+      autoSeededWeekIdsRef.current.add(week.id);
+      createDaysForWeek(week.id).catch(() => {
+        autoSeededWeekIdsRef.current.delete(week.id);
+      });
+    });
+  }, [isAdmin, visibleGroups]);
 
   if (loading) {
     return (
@@ -428,18 +546,34 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
             {dailyError}
           </div>
         )}
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
-          <div className="flex items-center gap-2 mb-3">
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-rose-50 via-white to-slate-50 p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
             <Star size={16} className="text-amber-500 fill-current" />
             <h5 className="text-sm font-semibold text-slate-800">Top 5 Priorities For Today</h5>
+            </div>
+            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
+              {topTasks.slice(0, 5).length} active
+            </span>
           </div>
           <div className="space-y-2">
             {topTasks.length > 0
               ? topTasks.slice(0, 5).map((t, i) => (
-                  <div key={t.taskId} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
-                    <div className="font-medium text-slate-800">{i + 1}. {t.title}</div>
-                    <div className="text-slate-500 mt-0.5">
-                      Due: {t.dueDate || '—'} · Priority: {t.priority} · Status: {t.status}
+                  <div key={t.taskId} className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={String(t.status || '').toLowerCase() === 'done'}
+                        onChange={(e) => updateTaskStatus(t.taskId, e.target.checked ? 'done' : 'todo')}
+                        disabled={updatingTopTaskId === t.taskId}
+                        className="mt-0.5 h-4 w-4"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-slate-800 truncate">{i + 1}. {t.title}</div>
+                        <div className="text-slate-500 mt-0.5">
+                          Due: {t.dueDate || '—'} · Priority: {t.priority} · Status: {t.status}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -463,9 +597,9 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
             Task assignment enabled
           </div>
         </div>
-        <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+        <div className="space-y-5">
           {visibleGroups.map(({ week, days }) => (
-            <div key={week.id} className="rounded-2xl border border-slate-200 bg-slate-50/40 p-4">
+            <div key={week.id} className="rounded-2xl border border-slate-200 bg-slate-50/40 p-5">
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                   <div className="text-sm font-semibold text-slate-900">{week.text || 'Untitled Weekly Goal'}</div>
@@ -476,128 +610,202 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
                 </div>
               </div>
               <div className="space-y-2.5">
-                {days.map((day) => (
-                  <div key={day.id} className="rounded-xl border border-slate-200 bg-white p-3">
-                    <label className="flex items-center gap-2">
-                      <input type="checkbox" checked={day.completed} onChange={() => toggleDaily(day.id)} disabled={!isAdmin} />
-                      <input
-                        type="text"
-                        value={day.text}
-                        onChange={(e) => updateDailyText(day.id, e.target.value)}
-                        readOnly={!isAdmin}
-                        className="flex-1 bg-transparent border-b border-slate-200 outline-none text-sm"
-                      />
-                    </label>
-                    <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
-                      <input
-                        type="text"
-                        value={assignDraftByDay[day.id]?.title ?? day.text ?? ''}
-                        onChange={(e) =>
-                          setAssignDraftByDay((prev) => ({
-                            ...prev,
-                            [day.id]: {
-                              title: e.target.value,
-                              assigneeId: prev[day.id]?.assigneeId || me.empId || '',
-                              dueDate: prev[day.id]?.dueDate || '',
-                              priority: prev[day.id]?.priority || 'medium',
-                              status: prev[day.id]?.status || 'todo',
-                            },
-                          }))
-                        }
-                        className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none"
-                        placeholder="Task title for TaskHub"
-                      />
-                      <select
-                        value={assignDraftByDay[day.id]?.assigneeId ?? me.empId ?? ''}
-                        onChange={(e) =>
-                          setAssignDraftByDay((prev) => ({
-                            ...prev,
-                            [day.id]: {
-                              title: prev[day.id]?.title ?? day.text ?? '',
-                              assigneeId: e.target.value,
-                              dueDate: prev[day.id]?.dueDate || '',
-                              priority: prev[day.id]?.priority || 'medium',
-                              status: prev[day.id]?.status || 'todo',
-                            },
-                          }))
-                        }
-                        className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
-                      >
-                        {assignableEmployees.map((emp) => (
-                          <option key={emp.empId} value={emp.empId}>
-                            {emp.empName || emp.empId}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="date"
-                        value={assignDraftByDay[day.id]?.dueDate ?? ''}
-                        onChange={(e) =>
-                          setAssignDraftByDay((prev) => ({
-                            ...prev,
-                            [day.id]: {
-                              title: prev[day.id]?.title ?? day.text ?? '',
-                              assigneeId: prev[day.id]?.assigneeId || me.empId || '',
-                              dueDate: e.target.value,
-                              priority: prev[day.id]?.priority || 'medium',
-                              status: prev[day.id]?.status || 'todo',
-                            },
-                          }))
-                        }
-                        className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
-                      />
-                      <select
-                        value={assignDraftByDay[day.id]?.priority ?? 'medium'}
-                        onChange={(e) =>
-                          setAssignDraftByDay((prev) => ({
-                            ...prev,
-                            [day.id]: {
-                              title: prev[day.id]?.title ?? day.text ?? '',
-                              assigneeId: prev[day.id]?.assigneeId || me.empId || '',
-                              dueDate: prev[day.id]?.dueDate || '',
-                              priority: e.target.value,
-                              status: prev[day.id]?.status || 'todo',
-                            },
-                          }))
-                        }
-                        className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
-                      >
-                        <option value="low">Priority: Low</option>
-                        <option value="medium">Priority: Medium</option>
-                        <option value="high">Priority: High</option>
-                      </select>
-                      <select
-                        value={assignDraftByDay[day.id]?.status ?? 'todo'}
-                        onChange={(e) =>
-                          setAssignDraftByDay((prev) => ({
-                            ...prev,
-                            [day.id]: {
-                              title: prev[day.id]?.title ?? day.text ?? '',
-                              assigneeId: prev[day.id]?.assigneeId || me.empId || '',
-                              dueDate: prev[day.id]?.dueDate || '',
-                              priority: prev[day.id]?.priority || 'medium',
-                              status: e.target.value,
-                            },
-                          }))
-                        }
-                        className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
-                      >
-                        <option value="todo">Status: To Do</option>
-                        <option value="doing">Status: Doing</option>
-                        <option value="review">Status: Review</option>
-                        <option value="blocked">Status: Blocked</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => createTaskFromDay(day, week)}
-                        disabled={assigningDayTaskId === day.id}
-                        className="rounded-md bg-brand-red text-white text-xs font-medium px-2 py-1.5 disabled:opacity-60 md:col-span-3"
-                      >
-                        {assigningDayTaskId === day.id ? 'Assigning...' : 'Assign to employee'}
-                      </button>
+                {days.length > 0 && (
+                  <>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="flex flex-wrap gap-2.5">
+                        {days.slice(0, 7).map((day, index) => {
+                          const selectedDayId = selectedDayByWeek[week.id] || days[0].id;
+                          const isSelected = selectedDayId === day.id;
+                          const startDate = getSundayStart(getWeekStartDate(week, days));
+                          const dayInfo = getDayDisplay(startDate, index);
+                          return (
+                            <button
+                              key={day.id}
+                              type="button"
+                              onClick={() =>
+                                setSelectedDayByWeek((prev) => ({
+                                  ...prev,
+                                  [week.id]: day.id,
+                                }))
+                              }
+                              className={`rounded-md border px-3 py-2 text-left transition ${
+                                isSelected
+                                  ? 'border-brand-red bg-red-50 text-brand-red'
+                                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                              }`}
+                            >
+                              <div className="text-[11px] font-semibold uppercase tracking-wide">{dayInfo.weekday}</div>
+                              <div className="text-xs mt-0.5">{dayInfo.dateText}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                    {(() => {
+                      const selectedDayId = selectedDayByWeek[week.id] || days[0].id;
+                      const selectedDay = days.find((d) => d.id === selectedDayId) || days[0];
+                      const startDate = getSundayStart(getWeekStartDate(week, days));
+                      const selectedIndex = Math.max(0, days.findIndex((d) => d.id === selectedDay.id));
+                      const selectedDayInfo = getDayDisplay(startDate, selectedIndex);
+                      const assignmentsForDay = allSpacesTasks.filter(
+                        (task) => String(task?.customFields?.dailyGoalId || '').trim() === selectedDay.id,
+                      );
+                      return (
+                        <div className="rounded-xl border border-slate-200 bg-white p-4">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedDay.completed}
+                              onChange={() => toggleDaily(selectedDay.id)}
+                              disabled={!isAdmin}
+                            />
+                            <input
+                              type="text"
+                              value={selectedDay.text}
+                              onChange={(e) => updateDailyText(selectedDay.id, e.target.value)}
+                              readOnly={!isAdmin}
+                              className="flex-1 bg-transparent border-b border-slate-200 outline-none text-sm"
+                            />
+                          </label>
+                          <div className="mt-1 text-[11px] text-slate-500">
+                            {selectedDayInfo.weekday} · {selectedDayInfo.dateText}
+                          </div>
+                          <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <input
+                              type="text"
+                              value={assignDraftByDay[selectedDay.id]?.title ?? selectedDay.text ?? ''}
+                              onChange={(e) =>
+                                setAssignDraftByDay((prev) => ({
+                                  ...prev,
+                                  [selectedDay.id]: {
+                                    title: e.target.value,
+                                    assigneeId: prev[selectedDay.id]?.assigneeId || me.empId || '',
+                                    dueDate: prev[selectedDay.id]?.dueDate || '',
+                                    priority: prev[selectedDay.id]?.priority || 'medium',
+                                    status: prev[selectedDay.id]?.status || 'todo',
+                                  },
+                                }))
+                              }
+                              className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none"
+                              placeholder="Task title for TaskHub"
+                            />
+                            <select
+                              value={assignDraftByDay[selectedDay.id]?.assigneeId ?? me.empId ?? ''}
+                              onChange={(e) =>
+                                setAssignDraftByDay((prev) => ({
+                                  ...prev,
+                                  [selectedDay.id]: {
+                                    title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
+                                    assigneeId: e.target.value,
+                                    dueDate: prev[selectedDay.id]?.dueDate || '',
+                                    priority: prev[selectedDay.id]?.priority || 'medium',
+                                    status: prev[selectedDay.id]?.status || 'todo',
+                                  },
+                                }))
+                              }
+                              className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
+                            >
+                              {assignableEmployees.map((emp) => (
+                                <option key={emp.empId} value={emp.empId}>
+                                  {emp.empName || emp.empId}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="date"
+                              value={assignDraftByDay[selectedDay.id]?.dueDate ?? ''}
+                              onChange={(e) =>
+                                setAssignDraftByDay((prev) => ({
+                                  ...prev,
+                                  [selectedDay.id]: {
+                                    title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
+                                    assigneeId: prev[selectedDay.id]?.assigneeId || me.empId || '',
+                                    dueDate: e.target.value,
+                                    priority: prev[selectedDay.id]?.priority || 'medium',
+                                    status: prev[selectedDay.id]?.status || 'todo',
+                                  },
+                                }))
+                              }
+                              className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
+                            />
+                            <select
+                              value={assignDraftByDay[selectedDay.id]?.priority ?? 'medium'}
+                              onChange={(e) =>
+                                setAssignDraftByDay((prev) => ({
+                                  ...prev,
+                                  [selectedDay.id]: {
+                                    title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
+                                    assigneeId: prev[selectedDay.id]?.assigneeId || me.empId || '',
+                                    dueDate: prev[selectedDay.id]?.dueDate || '',
+                                    priority: e.target.value,
+                                    status: prev[selectedDay.id]?.status || 'todo',
+                                  },
+                                }))
+                              }
+                              className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
+                            >
+                              <option value="low">Priority: Low</option>
+                              <option value="medium">Priority: Medium</option>
+                              <option value="high">Priority: High</option>
+                            </select>
+                            <select
+                              value={assignDraftByDay[selectedDay.id]?.status ?? 'todo'}
+                              onChange={(e) =>
+                                setAssignDraftByDay((prev) => ({
+                                  ...prev,
+                                  [selectedDay.id]: {
+                                    title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
+                                    assigneeId: prev[selectedDay.id]?.assigneeId || me.empId || '',
+                                    dueDate: prev[selectedDay.id]?.dueDate || '',
+                                    priority: prev[selectedDay.id]?.priority || 'medium',
+                                    status: e.target.value,
+                                  },
+                                }))
+                              }
+                              className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
+                            >
+                              <option value="todo">Status: To Do</option>
+                              <option value="doing">Status: Doing</option>
+                              <option value="review">Status: Review</option>
+                              <option value="blocked">Status: Blocked</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => createTaskFromDay(selectedDay, week)}
+                              disabled={assigningDayTaskId === selectedDay.id}
+                              className="rounded-md bg-brand-red text-white text-xs font-medium px-2 py-1.5 disabled:opacity-60 md:col-span-3"
+                            >
+                              {assigningDayTaskId === selectedDay.id ? 'Assigning...' : 'Assign to employee'}
+                            </button>
+                          </div>
+                          <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2.5">
+                            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                              Assigned employees and tasks for this day
+                            </div>
+                            <div className="space-y-1.5">
+                              {assignmentsForDay.length ? (
+                                assignmentsForDay.map((task) => (
+                                  <div
+                                    key={task.taskId}
+                                    className="rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700"
+                                  >
+                                    <div className="font-medium text-slate-800">{task.title || 'Untitled task'}</div>
+                                    <div className="text-slate-500 mt-0.5">
+                                      {employeeNameById.get(task.assigneeId) || task.assigneeId || 'Unassigned'} · {task.status || 'todo'} · {task.priority || 'medium'}
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-xs text-slate-500">No task assigned for this day yet.</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </>
+                )}
                 {!days.length && (
                   <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2.5">
                     <div className="text-xs text-slate-500">No days mapped.</div>
