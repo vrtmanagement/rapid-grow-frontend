@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
-import { Goal, PlanningState } from '../types';
+import { Goal, PlanningState, WorkspaceTask } from '../types';
 import { saveGoal } from '../services/goalApi';
 import { RefreshCw } from 'lucide-react';
 import { getSocket } from '../realtime/socket';
@@ -242,6 +242,81 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
 
   const upsertTaskById = (prev: SpacesTask[], incoming: SpacesTask): SpacesTask[] =>
     upsertTaskByIdHelper(prev, incoming);
+
+  const syncProjectTaskInState = useCallback(
+    (projectId: string | undefined, projectTaskId: string | undefined, updates: Partial<WorkspaceTask>) => {
+      if (!updateState || !projectId || !projectTaskId) return;
+
+      updateState((prev) => ({
+        ...prev,
+        workspaces: prev.workspaces.map((workspace) => ({
+          ...workspace,
+          projects: workspace.projects.map((project) => {
+            if (project.id !== projectId) return project;
+
+            let changed = false;
+            const nextTasks = (project.tasks || []).map((task) => {
+              if (task.id !== projectTaskId) return task;
+              changed = true;
+              return { ...task, ...updates };
+            });
+
+            return changed ? { ...project, tasks: nextTasks } : project;
+          }),
+        })),
+      }));
+    },
+    [updateState],
+  );
+
+  const appendProjectTaskToState = useCallback(
+    (projectId: string | undefined, task: WorkspaceTask) => {
+      if (!updateState || !projectId) return;
+
+      updateState((prev) => ({
+        ...prev,
+        workspaces: prev.workspaces.map((workspace) => ({
+          ...workspace,
+          projects: workspace.projects.map((project) => {
+            if (project.id !== projectId) return project;
+            if ((project.tasks || []).some((existingTask) => existingTask.id === task.id)) {
+              return project;
+            }
+            return {
+              ...project,
+              tasks: [...(project.tasks || []), task],
+            };
+          }),
+        })),
+      }));
+    },
+    [updateState],
+  );
+
+  const removeProjectTaskFromState = useCallback(
+    (projectId: string | undefined, projectTaskId: string | undefined) => {
+      if (!updateState || !projectId || !projectTaskId) return;
+
+      updateState((prev) => ({
+        ...prev,
+        workspaces: prev.workspaces.map((workspace) => ({
+          ...workspace,
+          projects: workspace.projects.map((project) => {
+            if (project.id !== projectId) return project;
+            const nextTasks = (project.tasks || []).filter((task) => task.id !== projectTaskId);
+            if (nextTasks.length === (project.tasks || []).length) {
+              return project;
+            }
+            return {
+              ...project,
+              tasks: nextTasks,
+            };
+          }),
+        })),
+      }));
+    },
+    [updateState],
+  );
 
   const loadSpaces = async () => {
     setSpacesLoading(true);
@@ -529,9 +604,84 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
           console.error('Failed to sync Spaces task to project charter', e);
         }
       }
+
+      syncProjectTaskInState(
+        normalizedUpdated.projectId || existing?.projectId,
+        normalizedUpdated.projectTaskId || existing?.projectTaskId,
+        {
+          title: normalizedUpdated.title,
+          description: normalizedUpdated.description,
+          status: normalizedUpdated.status,
+          priority: normalizedUpdated.priority,
+          assigneeId: normalizedUpdated.assigneeId || undefined,
+          dueDate: normalizedUpdated.dueDate || undefined,
+          updatedAt: normalizedUpdated.updatedAt || new Date().toISOString(),
+        },
+      );
       return true;
     } catch (e: any) {
       setError(e?.message || 'Failed to update task');
+      loadSpaces();
+      return false;
+    }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    setError(null);
+    const existing = tasks.find((task) => task.taskId === taskId) || null;
+    if (!existing) return true;
+
+    setTasks((prev) => prev.filter((task) => task.taskId !== taskId));
+
+    let backendProject: any = null;
+    let existingProjectTasks: any[] = [];
+
+    try {
+      if (existing.projectId && existing.projectTaskId) {
+        const resProject = await fetch(`${API_BASE}/project-charters/${existing.projectId}`, {
+          headers: getAuthHeaders(),
+        });
+        if (!resProject.ok) {
+          throw new Error('Failed to load project details');
+        }
+
+        backendProject = await resProject.json().catch(() => ({}));
+        existingProjectTasks = Array.isArray(backendProject?.tasks) ? backendProject.tasks : [];
+        const updatedProjectTasks = existingProjectTasks.filter(
+          (projectTask: any) => String(projectTask?.id || '').trim() !== String(existing.projectTaskId || '').trim(),
+        );
+
+        const resSaveProject = await fetch(`${API_BASE}/project-charters`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(projectCharterPayloadFromBackendProject(backendProject, updatedProjectTasks)),
+        });
+        if (!resSaveProject.ok) {
+          const data = await resSaveProject.json().catch(() => ({}));
+          throw new Error(data.message || 'Failed to sync project task deletion');
+        }
+      }
+
+      const res = await fetch(`${API_BASE}/spaces/tasks/${taskId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (backendProject && existing.projectId && existing.projectTaskId) {
+          await fetch(`${API_BASE}/project-charters`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(projectCharterPayloadFromBackendProject(backendProject, existingProjectTasks)),
+          }).catch(() => undefined);
+        }
+        throw new Error(data.message || 'Failed to delete task');
+      }
+
+      removeProjectTaskFromState(existing.projectId, existing.projectTaskId);
+      return true;
+    } catch (e: any) {
+      setError(e?.message || 'Failed to delete task');
       loadSpaces();
       return false;
     }
@@ -639,6 +789,8 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
           const data = await resSave.json().catch(() => ({}));
           throw new Error(data.message || 'Failed to create task under project');
         }
+
+        appendProjectTaskToState(project.id, newWorkspaceTask);
       }
 
       const res = await fetch(`${API_BASE}/spaces/tasks`, {
@@ -1056,7 +1208,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     }
   };
 
-  const mainSectionsProps = { setCreatePanelTab, createPanelTab, assignmentHint, setAssigneeId, me, title, setTitle, assigneeId, createAssigneeOptions, employeesLoading, employeeNameById, dueDate, setDueDate, priority, setPriority, priorityOptions, status, setStatus, statusOptions, description, setDescription, selectedProjectId, setSelectedProjectId, projectSelectOptions, projectsLoading, setTaskDocumentFile, taskDocumentFile, handleCreate, saving, uploadingTaskDocument, topPriorityTasks, patchTask, weeklyError, state, updateState, setWeeklyRangeFilter, weeklyRangeFilter, filteredWeeklyTaskGroups, getWeekBreadcrumb: getWeekBreadcrumbForView, selectedDayByWeek, getSundayStart, getWeekStartDate: getWeekStartDateForView, getDayDisplay, setSelectedDayByWeek, tasks, toggleDaily, canManageWeeklyRows, assignDraftByDay, setAssignDraftByDay, setWeeklyTaskDocumentByDay, weeklyTaskDocumentByDay, createTaskFromDay, assigningDayTaskId, createDaysForWeek, setTaskFilterMode, taskFilterMode, taskSearch, setTaskSearch, columns, isRenamingColumnId, renameDraft, setRenameDraft, setIsRenamingColumnId, setActiveColumnMenuId, sortedTasks, setColumns, setError, activeColumnMenuId, setColumnToDelete, handleAddColumn, spacesLoading, paginatedTasks, canEditTask, isTaskLocked, getTaskRowClasses, projectNameById, mode, assigneeOptionsForTask, canEditDueDate, canChangeStatus, forceDownloadDocument, canCommentOnTask, setCommentTaskId, setModalStatus, canValidateTask, canDeleteTask, handleApproveTask, handleRejectTask, navigate, setEditingTask, setEditingTaskMode, setEditingTaskDraft, setDeleteTaskModal, taskPage, TASKS_PER_PAGE, setTaskPage, visibleTaskPages, totalTaskPages, API_BASE, getAuthHeaders, activeCommentTask, setCommentDraft, commentDraft, editingCommentId, setEditingCommentId, editCommentDraft, setEditCommentDraft, setTasks, modalStatus, handleAddComment, submittingComment, columnToDelete, commentToDeleteId, setCommentToDeleteId, deleteTaskModal, rejectTaskModal, rejectFeedbackDraft, setRejectFeedbackDraft, rejectingTask, confirmRejectTask, editingTask, editingTaskMode, editingTaskDraft, assignableEmployees };
+  const mainSectionsProps = { setCreatePanelTab, createPanelTab, assignmentHint, setAssigneeId, me, title, setTitle, assigneeId, createAssigneeOptions, employeesLoading, employeeNameById, dueDate, setDueDate, priority, setPriority, priorityOptions, status, setStatus, statusOptions, description, setDescription, selectedProjectId, setSelectedProjectId, projectSelectOptions, projectsLoading, setTaskDocumentFile, taskDocumentFile, handleCreate, saving, uploadingTaskDocument, topPriorityTasks, patchTask, deleteTask, weeklyError, state, updateState, setWeeklyRangeFilter, weeklyRangeFilter, filteredWeeklyTaskGroups, getWeekBreadcrumb: getWeekBreadcrumbForView, selectedDayByWeek, getSundayStart, getWeekStartDate: getWeekStartDateForView, getDayDisplay, setSelectedDayByWeek, tasks, toggleDaily, canManageWeeklyRows, assignDraftByDay, setAssignDraftByDay, setWeeklyTaskDocumentByDay, weeklyTaskDocumentByDay, createTaskFromDay, assigningDayTaskId, createDaysForWeek, setTaskFilterMode, taskFilterMode, taskSearch, setTaskSearch, columns, isRenamingColumnId, renameDraft, setRenameDraft, setIsRenamingColumnId, setActiveColumnMenuId, sortedTasks, setColumns, setError, activeColumnMenuId, setColumnToDelete, handleAddColumn, spacesLoading, paginatedTasks, canEditTask, isTaskLocked, getTaskRowClasses, projectNameById, mode, assigneeOptionsForTask, canEditDueDate, canChangeStatus, forceDownloadDocument, canCommentOnTask, setCommentTaskId, setModalStatus, canValidateTask, canDeleteTask, handleApproveTask, handleRejectTask, navigate, setEditingTask, setEditingTaskMode, setEditingTaskDraft, setDeleteTaskModal, taskPage, TASKS_PER_PAGE, setTaskPage, visibleTaskPages, totalTaskPages, API_BASE, getAuthHeaders, activeCommentTask, setCommentDraft, commentDraft, editingCommentId, setEditingCommentId, editCommentDraft, setEditCommentDraft, setTasks, modalStatus, handleAddComment, submittingComment, columnToDelete, commentToDeleteId, setCommentToDeleteId, deleteTaskModal, rejectTaskModal, rejectFeedbackDraft, setRejectFeedbackDraft, rejectingTask, confirmRejectTask, editingTask, editingTaskMode, editingTaskDraft, assignableEmployees };
 
   return (
     <div ref={taskHubRootRef} className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-700">

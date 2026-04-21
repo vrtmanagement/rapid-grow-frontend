@@ -58,7 +58,24 @@ export interface ReflectionData {
 }
 
 export type TaskStatus = 'todo' | 'doing' | 'review' | 'done' | 'blocked';
-export type ProjectStatus = 'draft' | 'ready' | 'launched' | 'completed' | 'archived';
+export type ProjectStatus =
+  | 'Planning'
+  | 'Active'
+  | 'Completed'
+  | 'draft'
+  | 'ready'
+  | 'launched'
+  | 'completed'
+  | 'archived';
+export type ProjectPriority =
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'critical'
+  | 'Low'
+  | 'Medium'
+  | 'High'
+  | 'Critical';
 
 export interface TeamMember {
   id: string;
@@ -77,6 +94,32 @@ export interface ProjectTeamMember {
   id: string;
   name: string;
   role: string;
+  avatar?: string;
+  email?: string;
+  designation?: string;
+  department?: string;
+}
+
+export interface ProjectTeamLeadGroup {
+  id: string;
+  lead: ProjectTeamMember;
+  members: ProjectTeamMember[];
+}
+
+export interface ProjectTeamHierarchy {
+  projectManager: ProjectTeamMember | null;
+  teamLeads: ProjectTeamLeadGroup[];
+  unassignedMembers?: ProjectTeamMember[];
+}
+
+export interface ProjectActivityItem {
+  id: string;
+  type: string;
+  title: string;
+  description?: string;
+  actorId?: string;
+  actorName?: string;
+  createdAt: string;
 }
 
 export interface TaskMessage {
@@ -89,6 +132,7 @@ export interface TaskMessage {
 
 export interface WorkspaceTask {
   id: string;
+  projectId?: string;
   title: string;
   description?: string;
   messages?: TaskMessage[];
@@ -119,6 +163,10 @@ export interface WorkspaceProject {
   id: string;
   name: string;
   status: ProjectStatus;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+  priority?: ProjectPriority;
   dateCreated: string;
   businessCase: string;
   problemStatement: string;
@@ -132,6 +180,8 @@ export interface WorkspaceProject {
   leadRole?: string;
   smeList: ProjectTeamMember[];
   projectTeam?: ProjectTeamMember[];
+  team?: ProjectTeamHierarchy;
+  activity?: ProjectActivityItem[];
   phases: ProjectPhases;
   tasks: WorkspaceTask[];
 }

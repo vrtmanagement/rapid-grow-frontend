@@ -42,6 +42,7 @@ const SpacesTaskModals: React.FC<any> = (props) => {
     assignableEmployees,
     forceDownloadDocument,
     patchTask,
+    deleteTask,
     setEditingTask,
   } = props;
 
@@ -247,10 +248,7 @@ const SpacesTaskModals: React.FC<any> = (props) => {
                 type="button"
                 onClick={async () => {
                   try {
-                    const res = await fetch(`${API_BASE}/spaces/tasks/${deleteTaskModal.taskId}`, { method: 'DELETE', headers: getAuthHeaders() });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error(data.message || 'Failed to delete task');
-                    setTasks((prev: any[]) => prev.filter((x: any) => x.taskId !== deleteTaskModal.taskId));
+                    await deleteTask(deleteTaskModal.taskId);
                   } catch (e: any) {
                     setError(e?.message || 'Failed to delete task');
                   } finally {
