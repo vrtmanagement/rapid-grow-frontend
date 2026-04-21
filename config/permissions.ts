@@ -24,7 +24,8 @@ export type PermissionKey =
   | 'ANALYSIS_VIEW'
   | 'FEEDBACK_VIEW'
   | 'STAFF_VIEW'
-  | 'PERMISSIONS_MANAGE';
+  | 'PERMISSIONS_MANAGE'
+  | 'CRM_VIEW';
 
 export const ROLE_LABELS: Record<BackendRole, string> = {
   SUPER_ADMIN: 'Super Admin',
