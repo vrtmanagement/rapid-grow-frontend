@@ -1,12 +1,14 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PlanningState, Goal } from '../types';
-import { CheckCircle2, UserPlus2, Star } from 'lucide-react';
+import { CheckCircle2, UserPlus2 } from 'lucide-react';
 import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
 import { Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 import VisionFlowNav from '../components/planning/VisionFlowNav';
+import DailyTopPrioritiesCard from '../components/planning/DailyTopPrioritiesCard';
+import SelectedWeekFilterBanner from '../components/planning/SelectedWeekFilterBanner';
 import { saveGoal } from '../services/goalApi';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 
 interface Props {
   state: PlanningState;
@@ -521,69 +523,22 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
         <div className="mt-4 h-2 rounded-full bg-slate-100 overflow-hidden">
           <div className="h-full rounded-full bg-gradient-to-r from-brand-red to-rose-500" style={{ width: `${completionPercent}%` }} />
         </div>
-        {selectedWeekId && (
-          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-brand-red/20 bg-red-50/40 px-3 py-2">
-            <div className="text-xs text-slate-700">
-              Opened from Weekly focus. Week ID: <span className="font-semibold">{selectedWeekId}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <label className="text-xs text-slate-600 flex items-center gap-1.5">
-                <input
-                  type="checkbox"
-                  checked={onlySelectedWeek}
-                  onChange={(e) => setOnlySelectedWeek(e.target.checked)}
-                />
-                Show only this week
-              </label>
-              <Link to="/daily" className="text-xs font-medium text-brand-red hover:underline">
-                Clear filter
-              </Link>
-            </div>
-          </div>
-        )}
+        <SelectedWeekFilterBanner
+          selectedWeekId={selectedWeekId}
+          onlySelectedWeek={onlySelectedWeek}
+          onToggleOnlySelectedWeek={setOnlySelectedWeek}
+        />
         {dailyError && (
           <div className="mt-3 text-xs rounded-md border border-red-200 bg-red-50 text-red-700 px-2.5 py-2">
             {dailyError}
           </div>
         )}
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-gradient-to-br from-rose-50 via-white to-slate-50 p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <div className="flex items-center gap-2">
-            <Star size={16} className="text-amber-500 fill-current" />
-            <h5 className="text-sm font-semibold text-slate-800">Top 5 Priorities For Today</h5>
-            </div>
-            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
-              {topTasks.slice(0, 5).length} active
-            </span>
-          </div>
-          <div className="space-y-2">
-            {topTasks.length > 0
-              ? topTasks.slice(0, 5).map((t, i) => (
-                  <div key={t.taskId} className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
-                    <div className="flex items-start gap-2">
-                      <input
-                        type="checkbox"
-                        checked={String(t.status || '').toLowerCase() === 'done'}
-                        onChange={(e) => updateTaskStatus(t.taskId, e.target.checked ? 'done' : 'todo')}
-                        disabled={updatingTopTaskId === t.taskId}
-                        className="mt-0.5 h-4 w-4"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-slate-800 truncate">{i + 1}. {t.title}</div>
-                        <div className="text-slate-500 mt-0.5">
-                          Due: {t.dueDate || '—'} · Priority: {t.priority} · Status: {t.status}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              : state.dailyPriorities.map((p, i) => (
-                  <div key={i} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
-                    {i + 1}. {p || 'Set a top priority'}
-                  </div>
-                ))}
-          </div>
-        </div>
+        <DailyTopPrioritiesCard
+          topTasks={topTasks}
+          dailyPriorities={state.dailyPriorities}
+          updatingTopTaskId={updatingTopTaskId}
+          onToggleTaskStatus={(taskId, done) => updateTaskStatus(taskId, done ? 'done' : 'todo')}
+        />
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">

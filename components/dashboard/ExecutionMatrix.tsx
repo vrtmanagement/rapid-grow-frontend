@@ -12,6 +12,15 @@ import {
 } from 'lucide-react';
 import { API_BASE, getAuthHeaders } from '../../config/api';
 import { getSocket } from '../../realtime/socket';
+import { STATIC_EXECUTION_ROWS } from './executionMatrixData';
+import {
+  TARGET_SCORE,
+  ALL_DEPARTMENTS_VALUE,
+  ALL_DEPARTMENTS_LABEL,
+  CURATED_DEPARTMENTS,
+  buildWeekOptions,
+  buildDepartmentOptions,
+} from './executionMatrixUtils';
 
 type TrendDirection = 'up' | 'down' | 'stable';
 
@@ -55,144 +64,6 @@ interface EmployeeDepartment {
   department?: string;
 }
 
-const TARGET_SCORE = 75;
-const ALL_DEPARTMENTS_VALUE = 'all';
-const ALL_DEPARTMENTS_LABEL = 'All Departments';
-const CURATED_DEPARTMENTS = [
-  'Engineering',
-  'Product Management',
-  'Design',
-  'Human Resources',
-  'Finance',
-  'Sales',
-  'Marketing',
-  'Operations',
-  'Customer Success',
-  'Business Development',
-] as const;
-const STATIC_EXECUTION_ROWS: PerformanceRow[] = [
-  {
-    employeeId: 'EMP-1001',
-    name: 'Aarav Sharma',
-    department: 'Operations',
-    weeklyScore: 91,
-    trend: 'up',
-    trendDelta: 4.8,
-    rank: 1,
-    rankDelta: 1,
-    tasksAssigned: 14,
-    tasksCompleted: 13,
-    onTimeTasks: 12,
-    onTimePercentage: 92,
-    consistencyScore: 100,
-    qualityScore: 89,
-    lastActivityAt: new Date().toISOString(),
-    liveScoreDelta: 2.4,
-    daily: { Mon: 86, Tue: 88, Wed: 93, Thu: 95, Fri: 92, Sat: 0, Sun: 0 },
-    dailyBreakdown: {
-      Mon: { date: '2026-03-30', score: 86, tasksAssigned: 3, tasksCompleted: 3, onTimeTasks: 3, onTimePercentage: 100, consistencyScore: 100, qualityScore: 88, hasData: true },
-      Tue: { date: '2026-03-31', score: 88, tasksAssigned: 2, tasksCompleted: 2, onTimeTasks: 2, onTimePercentage: 100, consistencyScore: 100, qualityScore: 87, hasData: true },
-      Wed: { date: '2026-04-01', score: 93, tasksAssigned: 3, tasksCompleted: 3, onTimeTasks: 2, onTimePercentage: 67, consistencyScore: 100, qualityScore: 92, hasData: true },
-      Thu: { date: '2026-04-02', score: 95, tasksAssigned: 3, tasksCompleted: 3, onTimeTasks: 3, onTimePercentage: 100, consistencyScore: 100, qualityScore: 90, hasData: true },
-      Fri: { date: '2026-04-03', score: 92, tasksAssigned: 3, tasksCompleted: 2, onTimeTasks: 2, onTimePercentage: 100, consistencyScore: 100, qualityScore: 89, hasData: true },
-      Sat: { date: '2026-04-04', score: 0, tasksAssigned: 0, tasksCompleted: 0, onTimeTasks: 0, onTimePercentage: 0, consistencyScore: 0, qualityScore: null, hasData: false },
-      Sun: { date: '2026-04-05', score: 0, tasksAssigned: 0, tasksCompleted: 0, onTimeTasks: 0, onTimePercentage: 0, consistencyScore: 0, qualityScore: null, hasData: false },
-    },
-  },
-  {
-    employeeId: 'EMP-1002',
-    name: 'Priya Nair',
-    department: 'Product',
-    weeklyScore: 84,
-    trend: 'up',
-    trendDelta: 1.6,
-    rank: 2,
-    rankDelta: 0,
-    tasksAssigned: 12,
-    tasksCompleted: 10,
-    onTimeTasks: 9,
-    onTimePercentage: 90,
-    consistencyScore: 80,
-    qualityScore: 93,
-    lastActivityAt: new Date(Date.now() - 1000 * 60 * 14).toISOString(),
-    liveScoreDelta: 1.2,
-    daily: { Mon: 79, Tue: 82, Wed: 0, Thu: 88, Fri: 90, Sat: 0, Sun: 0 },
-    dailyBreakdown: {
-      Mon: { date: '2026-03-30', score: 79, tasksAssigned: 3, tasksCompleted: 2, onTimeTasks: 2, onTimePercentage: 100, consistencyScore: 100, qualityScore: 90, hasData: true },
-      Tue: { date: '2026-03-31', score: 82, tasksAssigned: 2, tasksCompleted: 2, onTimeTasks: 1, onTimePercentage: 50, consistencyScore: 100, qualityScore: 94, hasData: true },
-      Wed: { date: '2026-04-01', score: 0, tasksAssigned: 0, tasksCompleted: 0, onTimeTasks: 0, onTimePercentage: 0, consistencyScore: 0, qualityScore: null, hasData: false },
-      Thu: { date: '2026-04-02', score: 88, tasksAssigned: 4, tasksCompleted: 3, onTimeTasks: 3, onTimePercentage: 100, consistencyScore: 100, qualityScore: 95, hasData: true },
-      Fri: { date: '2026-04-03', score: 90, tasksAssigned: 3, tasksCompleted: 3, onTimeTasks: 3, onTimePercentage: 100, consistencyScore: 100, qualityScore: 93, hasData: true },
-      Sat: { date: '2026-04-04', score: 0, tasksAssigned: 0, tasksCompleted: 0, onTimeTasks: 0, onTimePercentage: 0, consistencyScore: 0, qualityScore: null, hasData: false },
-      Sun: { date: '2026-04-05', score: 0, tasksAssigned: 0, tasksCompleted: 0, onTimeTasks: 0, onTimePercentage: 0, consistencyScore: 0, qualityScore: null, hasData: false },
-    },
-  },
-  {
-    employeeId: 'EMP-1003',
-    name: 'Rohan Verma',
-    department: 'Operations',
-    weeklyScore: 72,
-    trend: 'down',
-    trendDelta: -3.1,
-    rank: 3,
-    rankDelta: -1,
-    tasksAssigned: 11,
-    tasksCompleted: 8,
-    onTimeTasks: 6,
-    onTimePercentage: 75,
-    consistencyScore: 80,
-    qualityScore: 81,
-    lastActivityAt: new Date(Date.now() - 1000 * 60 * 48).toISOString(),
-    liveScoreDelta: -2.3,
-    daily: { Mon: 65, Tue: 70, Wed: 74, Thu: 76, Fri: 69, Sat: 0, Sun: 0 },
-    dailyBreakdown: {
-      Mon: { date: '2026-03-30', score: 65, tasksAssigned: 2, tasksCompleted: 1, onTimeTasks: 1, onTimePercentage: 100, consistencyScore: 100, qualityScore: 80, hasData: true },
-      Tue: { date: '2026-03-31', score: 70, tasksAssigned: 2, tasksCompleted: 2, onTimeTasks: 1, onTimePercentage: 50, consistencyScore: 100, qualityScore: 82, hasData: true },
-      Wed: { date: '2026-04-01', score: 74, tasksAssigned: 3, tasksCompleted: 2, onTimeTasks: 2, onTimePercentage: 100, consistencyScore: 100, qualityScore: 83, hasData: true },
-      Thu: { date: '2026-04-02', score: 76, tasksAssigned: 2, tasksCompleted: 2, onTimeTasks: 1, onTimePercentage: 50, consistencyScore: 100, qualityScore: 79, hasData: true },
-      Fri: { date: '2026-04-03', score: 69, tasksAssigned: 2, tasksCompleted: 1, onTimeTasks: 1, onTimePercentage: 100, consistencyScore: 100, qualityScore: 81, hasData: true },
-      Sat: { date: '2026-04-04', score: 0, tasksAssigned: 0, tasksCompleted: 0, onTimeTasks: 0, onTimePercentage: 0, consistencyScore: 0, qualityScore: null, hasData: false },
-      Sun: { date: '2026-04-05', score: 0, tasksAssigned: 0, tasksCompleted: 0, onTimeTasks: 0, onTimePercentage: 0, consistencyScore: 0, qualityScore: null, hasData: false },
-    },
-  },
-];
-
-function getWeekStart(date: Date) {
-  const next = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  const weekday = next.getUTCDay();
-  const diff = weekday === 0 ? -6 : 1 - weekday;
-  next.setUTCDate(next.getUTCDate() + diff);
-  return next;
-}
-
-function formatDateKey(date: Date) {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function buildWeekOptions(count = 6) {
-  const start = getWeekStart(new Date());
-  return Array.from({ length: count }).map((_, index) => {
-    const weekStart = new Date(start.getTime());
-    weekStart.setUTCDate(weekStart.getUTCDate() - index * 7);
-    const weekEnd = new Date(weekStart.getTime());
-    weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
-
-    return {
-      value: formatDateKey(weekStart),
-      label:
-        index === 0
-          ? 'This Week'
-          : `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} - ${weekEnd.toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              timeZone: 'UTC',
-            })}`,
-    };
-  });
-}
 
 function getBarTone(score: number) {
   if (score >= TARGET_SCORE) {
@@ -270,27 +141,6 @@ function getStaticExecutionRows(selectedDepartment: string) {
       ...row,
       rank: index + 1,
     }));
-}
-
-function normalizeDepartmentLabel(value: string) {
-  return value.replace(/\s+/g, ' ').trim();
-}
-
-function buildDepartmentOptions(values: string[]) {
-  const uniqueDepartments = new Map<string, string>();
-
-  values.forEach((value) => {
-    const normalized = normalizeDepartmentLabel(String(value || ''));
-    if (!normalized) return;
-    if (normalized.toLocaleLowerCase() === ALL_DEPARTMENTS_LABEL.toLocaleLowerCase()) return;
-
-    const key = normalized.toLocaleLowerCase();
-    if (!uniqueDepartments.has(key)) {
-      uniqueDepartments.set(key, normalized);
-    }
-  });
-
-  return Array.from(uniqueDepartments.values()).sort((a, b) => a.localeCompare(b));
 }
 
 const ExecutionMatrix: React.FC = () => {
