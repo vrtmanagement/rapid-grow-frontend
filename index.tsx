@@ -4,8 +4,9 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { PermissionProvider } from './context/PermissionContext';
 
-if (typeof window !== 'undefined' && !window.location.hash && window.location.pathname === '/review') {
-  window.location.replace(`${window.location.origin}/#/review`);
+if (typeof window !== 'undefined' && !window.location.hash && window.location.pathname !== '/') {
+  const nextPath = `${window.location.pathname}${window.location.search || ''}`;
+  window.location.replace(`${window.location.origin}/#${nextPath}`);
 }
 
 const rootElement = document.getElementById('root');
