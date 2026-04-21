@@ -5,6 +5,7 @@ import { API_BASE, getAuthHeaders } from '../config/api';
 import { BrainCircuit, Zap, AlertCircle, Sparkles, Send, ShieldCheck } from 'lucide-react';
 import { getSocket } from '../realtime/socket';
 import { ReflectionLogSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
+import ReflectionHabitsCard from '../components/reflection/ReflectionHabitsCard';
 
 interface Props {
   state: PlanningState;
@@ -436,21 +437,7 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
             </div>
           </div> */}
 
-          <div className="bg-white p-12 rounded-[2.5rem] border border-slate-200 shadow-sm space-y-10">
-            <h3 className="text-xl text-red-600">Daily Reflection Habits</h3>
-            <ul className="space-y-8">
-              <HabitItem text="Write what you accomplished today so you end the day with a sense of completion." />
-              <HabitItem text="Note when you felt most energized so you can design more of those moments." />
-              <HabitItem text="Capture your top action items for tomorrow before you log off." />
-              <HabitItem text="Send a quick thank you message or email to someone (including yourself) who deserves it." />
-            </ul>
-            {error && (
-              <p className="mt-3 text-xs text-red-500">
-                {error}
-              </p>
-            )}
-          
-          </div>
+          <ReflectionHabitsCard error={error} />
         </div>
 
       <div className="grid lg:grid-cols-12 gap-10">
@@ -796,13 +783,6 @@ const ReflectionField = ({ label, helper, value, onChange, icon }: any) => (
       placeholder="Execute deep thought process here..."
     />
   </div>
-);
-
-const HabitItem = ({ text }: { text: string }) => (
-  <li className="flex gap-6 text-md text-slate-600 font-medium leading-relaxed ">
-    <div className="w-2.5 h-2.5 rounded-full bg-brand-red shrink-0 mt-2 shadow-sm"></div>
-    {text}
-  </li>
 );
 
 export default ReflectionView;

@@ -3,11 +3,20 @@ import { useLocation } from 'react-router-dom';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { ChevronDown } from 'lucide-react';
 import AttendanceHeader from '../components/attendance/AttendanceHeader';
-import AttendanceSummaryCards from '../components/attendance/AttendanceSummaryCards';
-import AttendancePresenceChart from '../components/attendance/AttendancePresenceChart';
-import AttendanceLiveSession from '../components/attendance/AttendanceLiveSession';
 import LeaveManagementPanel from '../components/attendance/LeaveManagementPanel';
 import AttendanceHistoryModal from '../components/attendance/AttendanceHistoryModal';
+import TeamAttendanceSection from '../components/attendance/TeamAttendanceSection';
+import {
+  AttendanceEmployeeOption,
+  TeamAttendanceSummary,
+  LeaveActorProfile,
+  readStoredLeaveNotificationState,
+  getDefaultMonthValue,
+  getLocalDateKey,
+  parseAttendanceBackendContext,
+  getBrowserGeolocationDescription,
+} from '../components/attendance/attendanceViewUtils';
+import AttendanceOverviewGrid from '../components/attendance/AttendanceOverviewGrid';
 import { getSocket } from '../realtime/socket';
 import { usePermissions } from '../context/usePermissions';
 import {
@@ -22,41 +31,6 @@ import {
 
 interface Props {
   mode?: 'manager' | 'employee';
-}
-
-interface AttendanceEmployeeOption {
-  empId: string;
-  empName: string;
-  role: string;
-  designation?: string;
-  department?: string;
-}
-
-interface TeamAttendanceSummary {
-  total: number;
-  present: number;
-  absent: number;
-}
-
-interface LeaveActorProfile {
-  empName: string;
-  empId: string;
-  designation?: string;
-  department?: string;
-}
-
-function readStoredLeaveNotificationState(storageKey: string): Record<string, boolean> {
-  if (typeof window === 'undefined') return {};
-
-  try {
-    const stored = window.localStorage.getItem(storageKey);
-    if (!stored) return {};
-
-    const parsed = JSON.parse(stored);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
 }
 
 const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
@@ -101,27 +75,10 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
 
   const isEmployeePortal = mode === 'employee';
 
-  const rawAdmin = typeof window !== 'undefined' ? localStorage.getItem('rapidgrow-admin') : null;
-  let backendRole: string | null = null;
-  let backendEmpId = '';
-  if (rawAdmin) {
-    try {
-      const parsed = JSON.parse(rawAdmin);
-      backendRole = parsed?.employee?.role || null;
-      backendEmpId = String(parsed?.employee?.empId || '').trim();
-    } catch {
-      backendRole = null;
-      backendEmpId = '';
-    }
-  }
-
-  const isBackendAdminRole = backendRole === 'ADMIN' || backendRole === 'SUPER_ADMIN';
-  const isBackendApproverRole = isBackendAdminRole || backendRole === 'TEAM_LEAD';
-  const leaveViewerRole: 'employee' | 'team_lead' | 'admin' = isBackendAdminRole
-    ? 'admin'
-    : backendRole === 'TEAM_LEAD'
-      ? 'team_lead'
-      : 'employee';
+  const { backendEmpId, isBackendAdminRole, isBackendApproverRole, leaveViewerRole } = useMemo(
+    () => parseAttendanceBackendContext(),
+    [],
+  );
   const leaveNotificationStorageKey = `rapidgrow-leave-notifications:${leaveViewerRole}:${backendEmpId || 'anonymous'}:${mode}`;
   const clearedLeaveNotificationStorageKey = `rapidgrow-leave-notifications-cleared:${leaveViewerRole}:${backendEmpId || 'anonymous'}:${mode}`;
   const [readLeaveNotificationIds, setReadLeaveNotificationIds] = useState<Record<string, boolean>>(() =>
@@ -176,19 +133,6 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const formatLeaveActorMeta = useCallback((profile: LeaveActorProfile) => {
     return [profile.designation, profile.department].filter(Boolean).join(' | ');
   }, []);
-
-  const getDefaultMonthValue = () => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  };
-
-  const getLocalDateKey = (value: string | Date) => {
-    const date = value instanceof Date ? value : new Date(value);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
 
   const attachEmployeeNames = useCallback(async (leaves: LeaveRequest[]): Promise<LeaveRequest[]> => {
     if (!leaves.length) return leaves;
@@ -544,30 +488,13 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     };
   }, [loadLeaves]);
 
-  const getBrowserLocation = async (): Promise<string | null> => {
-    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return null;
-    return new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const { latitude, longitude, accuracy } = pos.coords;
-          const desc = `Lat:${latitude.toFixed(6)}, Lng:${longitude.toFixed(6)}, ±${Math.round(
-            accuracy || 0,
-          )}m`;
-          resolve(desc);
-        },
-        () => resolve(null),
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
-      );
-    });
-  };
-
   const handleLogin = async () => {
     setLoginLoading(true);
     setSessionError(null);
     try {
       let resolvedLocation = locationInput;
       try {
-        const geoLocation = await getBrowserLocation();
+        const geoLocation = await getBrowserGeolocationDescription();
         if (geoLocation) {
           resolvedLocation = geoLocation;
           setLocationInput(geoLocation);
@@ -928,67 +855,26 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       />
 
       {activeView === 'attendance' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-8 space-y-6">
-            <AttendanceSummaryCards
-              summary={summary}
-              range={range}
-              todayMinutes={todayInfo.minutes}
-              todayColor={todayInfo.color}
-              leaveDaysInRange={leaveDaysInRange}
-              loading={attendancePageLoading}
-            />
-            <AttendancePresenceChart
-              summary={summary}
-              loading={attendancePageLoading}
-              selectedMonth={selectedMonth}
-            />
-          </div>
-
-          <div className="lg:col-span-4 space-y-6">
-            <AttendanceLiveSession
-              activeSession={activeSession}
-              locationInput={locationInput}
-              onLocationChange={setLocationInput}
-              onLogin={handleLogin}
-              onLogout={handleLogout}
-              loginLoading={loginLoading}
-              logoutLoading={logoutLoading}
-              errorMessage={sessionError}
-              loading={attendancePageLoading}
-            />
-            {canReviewTeamAttendance && (
-              <div className="rounded-[30px] border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-navy p-6 text-white shadow-[0_18px_44px_rgba(15,23,42,0.18)]">
-                <h4 className="text-lg font-semibold text-white">Today attendance</h4>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  Shows how many team members logged in today.
-                </p>
-                {teamAttendanceSummaryLoading ? (
-                  <div className="mt-5 grid grid-cols-3 gap-3">
-                    <div className="rounded-xl bg-white/5 px-3 py-4 text-center text-sm text-slate-400">...</div>
-                    <div className="rounded-xl bg-white/5 px-3 py-4 text-center text-sm text-slate-400">...</div>
-                    <div className="rounded-xl bg-white/5 px-3 py-4 text-center text-sm text-slate-400">...</div>
-                  </div>
-                ) : (
-                  <div className="mt-5 grid grid-cols-3 gap-3">
-                    <div className="rounded-xl bg-emerald-500/10 px-3 py-4 text-center">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">Present</p>
-                      <p className="mt-2 text-2xl font-semibold text-white">{teamAttendanceSummary?.present ?? 0}</p>
-                    </div>
-                    <div className="rounded-xl bg-rose-500/10 px-3 py-4 text-center">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200">Absent</p>
-                      <p className="mt-2 text-2xl font-semibold text-white">{teamAttendanceSummary?.absent ?? 0}</p>
-                    </div>
-                    <div className="rounded-xl bg-white/5 px-3 py-4 text-center">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">Total</p>
-                      <p className="mt-2 text-2xl font-semibold text-white">{teamAttendanceSummary?.total ?? 0}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        <AttendanceOverviewGrid
+          summary={summary}
+          range={range}
+          todayMinutes={todayInfo.minutes}
+          todayColor={todayInfo.color}
+          leaveDaysInRange={leaveDaysInRange}
+          attendancePageLoading={attendancePageLoading}
+          selectedMonth={selectedMonth}
+          activeSession={activeSession}
+          locationInput={locationInput}
+          onLocationChange={setLocationInput}
+          onLogin={handleLogin}
+          onLogout={handleLogout}
+          loginLoading={loginLoading}
+          logoutLoading={logoutLoading}
+          sessionError={sessionError}
+          canReviewTeamAttendance={canReviewTeamAttendance}
+          teamAttendanceSummaryLoading={teamAttendanceSummaryLoading}
+          teamAttendanceSummary={teamAttendanceSummary}
+        />
       ) : (
         <div className="space-y-6">
           <LeaveManagementPanel
@@ -1026,220 +912,30 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         />
       )}
 
-      {activeView === 'attendance' && canReviewTeamAttendance && (
-        <section className="space-y-6">
-          <div className="rounded-[32px] border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-navy px-6 py-6 text-white shadow-[0_22px_60px_rgba(15,23,42,0.18)] md:px-8">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <div className="mb-3 flex items-center gap-2">
-                  <div className="h-1.5 w-8 rounded-full bg-brand-red" />
-                  <span className="text-[15px] text-slate-300">Employee Attendance</span>
-                </div>
-                <h3 className="text-2xl font-semibold text-white">Team member attendance</h3>
-                <p className="mt-2 text-[15px] text-slate-300">
-                  Review any employee&apos;s monthly attendance without changing the current dashboard flow.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:min-w-[520px]">
-                <label className="block">
-                  <span className="mb-2 block text-[13px] font-semibold text-slate-200">Select employee</span>
-                  <div className="relative" ref={employeePickerRef}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmployeePickerOpen((prev) => !prev);
-                        setMonthPickerOpen(false);
-                      }}
-                      className="flex w-full items-center justify-between rounded-2xl border border-white/12 bg-white/12 px-4 py-3 text-left text-[15px] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] outline-none transition-all hover:bg-white/16 focus:border-white/25 focus:bg-white/16 focus:ring-2 focus:ring-white/10"
-                    >
-                      <span className="truncate pr-4">{selectedEmployeeLabel}</span>
-                      <ChevronDown
-                        size={18}
-                        className={`shrink-0 text-slate-300 transition-transform ${employeePickerOpen ? 'rotate-180' : ''}`}
-                      />
-                    </button>
-
-                    {employeePickerOpen && (
-                      <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
-                        <div className="max-h-64 overflow-y-auto py-2">
-                          {employeeOptions.length === 0 ? (
-                            <div className="px-4 py-3 text-sm text-slate-500">No employees found</div>
-                          ) : (
-                            employeeOptions.map((employee) => {
-                              const isSelected = employee.empId === selectedEmployeeEmpId;
-                              return (
-                                <button
-                                  key={employee.empId}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedEmployeeEmpId(employee.empId);
-                                    setEmployeePickerOpen(false);
-                                  }}
-                                  className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors ${
-                                    isSelected
-                                      ? 'bg-rose-50 text-slate-900'
-                                      : 'text-slate-700 hover:bg-slate-50'
-                                  }`}
-                                >
-                                  <span className="truncate pr-4">{employee.empName} ({employee.empId})</span>
-                                  {isSelected && <span className="text-xs font-semibold text-brand-red">Selected</span>}
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-[13px] font-semibold text-slate-200">Select month</span>
-                  <div className="relative" ref={monthPickerRef}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMonthPickerOpen((prev) => !prev);
-                        setEmployeePickerOpen(false);
-                      }}
-                      className="flex w-full items-center justify-between rounded-2xl border border-white/12 bg-white/12 px-4 py-3 text-left text-[15px] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] outline-none transition-all hover:bg-white/16 focus:border-white/25 focus:bg-white/16 focus:ring-2 focus:ring-white/10"
-                    >
-                      <span className="truncate pr-4">{selectedEmployeeMonthLabel}</span>
-                      <ChevronDown
-                        size={18}
-                        className={`shrink-0 text-slate-300 transition-transform ${monthPickerOpen ? 'rotate-180' : ''}`}
-                      />
-                    </button>
-
-                    {monthPickerOpen && (
-                      <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
-                        <div className="max-h-64 overflow-y-auto py-2">
-                          {employeeMonthOptions.map((month) => {
-                            const isSelected = month.value === selectedEmployeeMonth;
-                            return (
-                              <button
-                                key={month.value}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedEmployeeMonth(month.value);
-                                  setMonthPickerOpen(false);
-                                }}
-                                className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors ${
-                                  isSelected
-                                    ? 'bg-rose-50 text-slate-900'
-                                    : 'text-slate-700 hover:bg-slate-50'
-                                }`}
-                              >
-                                <span>{month.label}</span>
-                                {isSelected && <span className="text-xs font-semibold text-brand-red">Selected</span>}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            {selectedEmployee ? (
-              <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-white/10 pt-5">
-                <div className="inline-flex items-center rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white">
-                  {selectedEmployee.empName}
-                </div>
-                <div className="inline-flex items-center rounded-full bg-amber-400/12 px-4 py-2 text-sm font-medium text-amber-100">
-                  {selectedEmployee.designation || 'Employee'}
-                </div>
-                <div className="inline-flex items-center rounded-full bg-white/5 px-4 py-2 text-sm font-medium text-slate-300">
-                  {selectedEmployee.department || selectedEmployee.role}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {selectedEmployeeEmpId ? (
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-              <div className="space-y-6 lg:col-span-8">
-                <AttendanceSummaryCards
-                  summary={employeeSummary}
-                  range="month"
-                  todayMinutes={selectedEmployeeTodayInfo.minutes}
-                  todayColor={selectedEmployeeTodayInfo.color}
-                  leaveDaysInRange={0}
-                  loading={employeeAttendanceLoading}
-                />
-                <AttendancePresenceChart
-                  summary={employeeSummary}
-                  loading={employeeAttendanceLoading}
-                  selectedMonth={selectedEmployeeMonth}
-                />
-              </div>
-
-              <div className="lg:col-span-4">
-                <div className="space-y-6">
-                  <div className="rounded-[30px] border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-navy p-6 text-white shadow-[0_18px_44px_rgba(15,23,42,0.18)]">
-                    <h4 className="text-lg font-semibold text-white">Attendance selection</h4>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">
-                      Use the employee and month selectors above to review monthly attendance in a focused way.
-                    </p>
-                    <div className="mt-6 space-y-4">
-                      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Employee</p>
-                        <p className="mt-2 text-base font-semibold text-white">
-                          {selectedEmployee?.empName || 'Select an employee'}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-300">
-                          {selectedEmployee?.empId || 'No employee selected'}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Month</p>
-                        <p className="mt-2 text-base font-semibold text-white">
-                          {employeeMonthOptions.find((month) => month.value === selectedEmployeeMonth)?.label || 'Select month'}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                        <h5 className="text-lg font-semibold text-white">Monthly attendance</h5>
-                        <p className="mt-2 text-sm leading-6 text-slate-300">
-                          Shows the selected employee&apos;s monthly attendance with Sundays excluded from total working days.
-                        </p>
-                        {employeeAttendanceLoading ? (
-                          <div className="mt-5 grid grid-cols-3 gap-3">
-                            <div className="rounded-xl bg-white/5 px-3 py-4 text-center text-sm text-slate-400">...</div>
-                            <div className="rounded-xl bg-white/5 px-3 py-4 text-center text-sm text-slate-400">...</div>
-                            <div className="rounded-xl bg-white/5 px-3 py-4 text-center text-sm text-slate-400">...</div>
-                          </div>
-                        ) : (
-                          <div className="mt-5 grid grid-cols-3 gap-3">
-                            <div className="rounded-xl bg-emerald-500/10 px-3 py-4 text-center">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">Present</p>
-                              <p className="mt-2 text-2xl font-semibold text-white">{selectedEmployeeMonthlyAttendance.present}</p>
-                            </div>
-                            <div className="rounded-xl bg-rose-500/10 px-3 py-4 text-center">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200">Absent</p>
-                              <p className="mt-2 text-2xl font-semibold text-white">{selectedEmployeeMonthlyAttendance.absent}</p>
-                            </div>
-                            <div className="rounded-xl bg-white/5 px-3 py-4 text-center">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">Total</p>
-                              <p className="mt-2 text-2xl font-semibold text-white">{selectedEmployeeMonthlyAttendance.total}</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/80 px-6 py-10 text-center text-slate-500 shadow-sm">
-              No employee is available for attendance review.
-            </div>
-          )}
-        </section>
-      )}
+      {activeView === 'attendance' ? (
+        <TeamAttendanceSection
+          canReviewTeamAttendance={canReviewTeamAttendance}
+          employeePickerOpen={employeePickerOpen}
+          monthPickerOpen={monthPickerOpen}
+          employeePickerRef={employeePickerRef}
+          monthPickerRef={monthPickerRef}
+          setEmployeePickerOpen={setEmployeePickerOpen}
+          setMonthPickerOpen={setMonthPickerOpen}
+          employeeOptions={employeeOptions}
+          selectedEmployeeEmpId={selectedEmployeeEmpId}
+          selectedEmployeeMonth={selectedEmployeeMonth}
+          selectedEmployeeLabel={selectedEmployeeLabel}
+          selectedEmployeeMonthLabel={selectedEmployeeMonthLabel}
+          selectedEmployee={selectedEmployee}
+          employeeMonthOptions={employeeMonthOptions}
+          employeeSummary={employeeSummary}
+          employeeAttendanceLoading={employeeAttendanceLoading}
+          selectedEmployeeTodayInfo={selectedEmployeeTodayInfo}
+          selectedEmployeeMonthlyAttendance={selectedEmployeeMonthlyAttendance}
+          setSelectedEmployeeEmpId={setSelectedEmployeeEmpId}
+          setSelectedEmployeeMonth={setSelectedEmployeeMonth}
+        />
+      ) : null}
     </div>
   );
 };
