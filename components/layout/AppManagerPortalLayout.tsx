@@ -17,6 +17,7 @@ import {
   UserPlus,
   FileText,
   HardDrive,
+  UsersRound,
 } from 'lucide-react';
 import { PlanningState } from '../../types';
 import YearlyView from '../../views/YearlyView';
@@ -41,6 +42,8 @@ import ContentCreateView from '../../views/ContentCreateView';
 import SpacesTaskDetailView from '../../views/SpacesTaskDetailView';
 import PermissionsView from '../../views/PermissionsView';
 import AnalysisView from '../../views/AnalysisView';
+import CRMPage from '../../views/CRMPage';
+import CRMLeadDetailPage from '../../views/CRMLeadDetailPage';
 import AccessDenied from '../AccessDenied';
 import { SidebarLink, SidebarToggleButton } from './SidebarPrimitives';
 import { NotificationBellMenu, UserAccountMenu } from './AppTopbarControls';
@@ -219,6 +222,9 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
             {hasPower('STAFF_VIEW') && (
               <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={!isSidebarOpen} />
             )}
+            {hasPower('CRM_VIEW') && (
+              <SidebarLink to="/crm" icon={<UsersRound size={20} />} label="CRM" collapsed={!isSidebarOpen} />
+            )}
           </nav>
         </aside>
 
@@ -306,6 +312,8 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {isAdmin && hasPower('FEEDBACK_VIEW') && <Route path="/feedback" element={<FeedbackView />} />}
               {isAdmin && <Route path="/permissions" element={<PermissionsView canEdit={true} />} />}
               {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView />} />}
+              {hasPower('CRM_VIEW') && <Route path="/crm" element={<CRMPage />} />}
+              {hasPower('CRM_VIEW') && <Route path="/crm/lead/:leadId" element={<CRMLeadDetailPage />} />}
               <Route path="*" element={<AccessDenied />} />
             </Routes>
           </div>
