@@ -17,6 +17,9 @@ const CREATE_SELECT_OPTION_CLASS =
 const TABLE_SELECT_TRIGGER_CLASS =
   'flex w-[124px] max-w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 pr-4 py-2 text-[13px] text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
+const COMPACT_FULL_WIDTH_SELECT_TRIGGER_CLASS =
+  'flex w-full items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+
 const TABLE_SELECT_MENU_CLASS =
   'absolute left-0 top-full z-30 mt-1.5 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl';
 
@@ -25,6 +28,9 @@ const TABLE_SELECT_OPTION_CLASS =
 
 const TABLE_DATE_TRIGGER_CLASS =
   'w-[138px] max-w-full rounded-xl border border-slate-200 bg-white px-4 pr-10 py-2 text-center text-[13px] text-slate-700 outline-none transition-colors hover:border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+
+const COMPACT_FULL_WIDTH_DATE_TRIGGER_CLASS =
+  'w-full rounded-2xl border border-slate-200 bg-white px-4 pr-10 py-2.5 text-left text-[14px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors hover:border-slate-300 focus:ring-2 focus:ring-brand-red/15 focus:border-brand-red disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 const CALENDAR_WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
@@ -99,8 +105,9 @@ export const ThemedDatePicker: React.FC<{
   onChange: (value: string) => void;
   disabled?: boolean;
   compact?: boolean;
+  fullWidthCompact?: boolean;
   forceOpenDown?: boolean;
-}> = ({ value, onChange, disabled = false, compact = false, forceOpenDown = false }) => {
+}> = ({ value, onChange, disabled = false, compact = false, fullWidthCompact = false, forceOpenDown = false }) => {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState<Date>(() => parseDateValue(value) || new Date());
@@ -144,7 +151,9 @@ export const ThemedDatePicker: React.FC<{
   const selectedDate = parseDateValue(value);
   const today = new Date();
   const triggerClass = compact
-    ? TABLE_DATE_TRIGGER_CLASS
+    ? fullWidthCompact
+      ? COMPACT_FULL_WIDTH_DATE_TRIGGER_CLASS
+      : TABLE_DATE_TRIGGER_CLASS
     : `${CREATE_INPUT_CLASS} text-left hover:border-slate-300 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400`;
 
   const calendarDays = useMemo(() => {
@@ -218,8 +227,20 @@ export const ThemedSelect: React.FC<{
   placeholder?: string;
   disabled?: boolean;
   compact?: boolean;
+  fullWidthCompact?: boolean;
+  denseMenu?: boolean;
   forceOpenDown?: boolean;
-}> = ({ value, options, onChange, placeholder = 'Select', disabled = false, compact = false, forceOpenDown = false }) => {
+}> = ({
+  value,
+  options,
+  onChange,
+  placeholder = 'Select',
+  disabled = false,
+  compact = false,
+  fullWidthCompact = false,
+  denseMenu = false,
+  forceOpenDown = false,
+}) => {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -241,7 +262,7 @@ export const ThemedSelect: React.FC<{
     const updatePlacement = () => {
       if (!wrapperRef.current) return;
       const rect = wrapperRef.current.getBoundingClientRect();
-      const estimatedHeight = compact ? 240 : 290;
+      const estimatedHeight = compact ? (denseMenu ? 196 : 240) : 290;
       const spaceBelow = window.innerHeight - rect.bottom;
       const spaceAbove = rect.top;
       const shouldOpenAbove = forceOpenDown ? false : spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
@@ -261,14 +282,15 @@ export const ThemedSelect: React.FC<{
       window.removeEventListener('resize', updatePlacement);
       window.removeEventListener('scroll', updatePlacement, true);
     };
-  }, [open, compact, forceOpenDown]);
+  }, [open, compact, denseMenu, forceOpenDown]);
 
   useEffect(() => {
     if (!open || !compact) return;
     const updatePosition = () => {
       if (!wrapperRef.current) return;
       const rect = wrapperRef.current.getBoundingClientRect();
-      const estimatedHeight = Math.min(Math.max(options.length, 1), 6) * 38 + 16;
+      const rowHeight = denseMenu ? 32 : 38;
+      const estimatedHeight = Math.min(Math.max(options.length, 1), 6) * rowHeight + (denseMenu ? 10 : 16);
       const spaceBelow = window.innerHeight - rect.bottom;
       const spaceAbove = rect.top;
       const shouldOpenAbove = forceOpenDown ? false : spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
@@ -286,12 +308,20 @@ export const ThemedSelect: React.FC<{
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [open, compact, options.length, forceOpenDown]);
+  }, [open, compact, options.length, denseMenu, forceOpenDown]);
 
   const selected = options.find((option) => option.value === value);
-  const triggerClass = compact ? TABLE_SELECT_TRIGGER_CLASS : CREATE_SELECT_TRIGGER_CLASS;
+  const triggerClass = compact
+    ? fullWidthCompact
+      ? COMPACT_FULL_WIDTH_SELECT_TRIGGER_CLASS
+      : TABLE_SELECT_TRIGGER_CLASS
+    : CREATE_SELECT_TRIGGER_CLASS;
   const menuClass = compact ? TABLE_SELECT_MENU_CLASS : CREATE_SELECT_MENU_CLASS;
-  const optionClass = compact ? TABLE_SELECT_OPTION_CLASS : CREATE_SELECT_OPTION_CLASS;
+  const optionClass = compact
+    ? denseMenu
+      ? 'w-full px-4 py-1.5 text-left text-[12px] text-slate-700 transition-colors hover:bg-red-50 hover:text-brand-red'
+      : TABLE_SELECT_OPTION_CLASS
+    : CREATE_SELECT_OPTION_CLASS;
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -327,7 +357,7 @@ export const ThemedSelect: React.FC<{
         ? createPortal(
             <div
               ref={menuRef}
-              className={`${menuClass} fixed z-[80] max-h-[240px] overflow-y-auto`}
+              className={`${menuClass} fixed z-[140] overflow-y-auto ${denseMenu ? 'max-h-[196px]' : 'max-h-[240px]'}`}
               style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, width: `${menuPosition.width}px` }}
             >
               {options.map((option) => {
