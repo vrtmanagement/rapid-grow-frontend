@@ -32,6 +32,17 @@ interface EmployeeOption {
   role?: string;
 }
 
+type NormalizedRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | 'UNKNOWN';
+
+const normalizeRole = (role?: string): NormalizedRole => {
+  const value = String(role || '').toUpperCase();
+  if (value === 'SUPER_ADMIN') return 'SUPER_ADMIN';
+  if (value === 'ADMIN') return 'ADMIN';
+  if (value === 'TEAM_LEAD') return 'TEAM_LEAD';
+  if (value === 'EMPLOYEE') return 'EMPLOYEE';
+  return 'UNKNOWN';
+};
+
 function getLoggedInEmpId(): string {
   try {
     const raw = localStorage.getItem('rapidgrow-admin');
@@ -75,6 +86,58 @@ const getSundayStart = (date: Date): Date => {
   return normalized;
 };
 
+const getAssignmentStatusBadge = (status?: string): string => {
+  switch (String(status || '').toLowerCase()) {
+    case 'doing':
+      return 'border-brand-cyan/30 bg-brand-cyan/10 text-brand-navy';
+    case 'review':
+      return 'border-brand-orange/30 bg-brand-orange/10 text-brand-brown';
+    case 'blocked':
+      return 'border-brand-red/25 bg-brand-red/10 text-brand-red';
+    case 'done':
+      return 'border-brand-green/30 bg-brand-green/10 text-brand-green';
+    default:
+      return 'border-slate-200 bg-slate-100 text-slate-700';
+  }
+};
+
+const getAssignmentPriorityBadge = (priority?: string): string => {
+  switch (String(priority || '').toLowerCase()) {
+    case 'high':
+      return 'border-brand-red/25 bg-brand-red/10 text-brand-red';
+    case 'low':
+      return 'border-brand-green/25 bg-brand-green/10 text-brand-green';
+    default:
+      return 'border-brand-orange/25 bg-brand-orange/10 text-brand-brown';
+  }
+};
+
+const formatAssignmentStatusLabel = (status?: string): string => {
+  switch (String(status || '').toLowerCase()) {
+    case 'doing':
+      return 'In Progress';
+    case 'review':
+      return 'In Review';
+    case 'blocked':
+      return 'Blocked';
+    case 'done':
+      return 'Done';
+    default:
+      return 'To Do';
+  }
+};
+
+const formatAssignmentPriorityLabel = (priority?: string): string => {
+  switch (String(priority || '').toLowerCase()) {
+    case 'high':
+      return 'High Priority';
+    case 'low':
+      return 'Low Priority';
+    default:
+      return 'Medium Priority';
+  }
+};
+
 const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => {
   const [topTasks, setTopTasks] = useState<SpacesTaskSummary[]>([]);
   const [allSpacesTasks, setAllSpacesTasks] = useState<SpacesTaskSummary[]>([]);
@@ -87,11 +150,15 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
   const [dailyError, setDailyError] = useState<string>('');
   const [onlySelectedWeek, setOnlySelectedWeek] = useState(false);
   const [selectedDayByWeek, setSelectedDayByWeek] = useState<Record<string, string>>({});
+  const [taskComposerOpenByDay, setTaskComposerOpenByDay] = useState<Record<string, boolean>>({});
   const currentUserRole = String(state.currentUser.role || '').toUpperCase();
   const isAdmin = currentUserRole === 'ADMIN' || currentUserRole === 'SUPER_ADMIN';
   const autoSeededWeekIdsRef = useRef<Set<string>>(new Set());
   const location = useLocation();
-  const selectedWeekId = new URLSearchParams(location.search).get('weekId') || '';
+  const searchParams = new URLSearchParams(location.search);
+  const selectedWeekId = searchParams.get('weekId') || '';
+  const selectedDayIdFromQuery = searchParams.get('dayId') || '';
+  const autoComposeFromQuery = searchParams.get('compose') === '1';
   const me = getLoggedInEmployeeMeta();
 
   const assignableEmployees = useMemo(() => {
@@ -101,15 +168,29 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
       map.set(me.empId, { empId: me.empId, empName: me.empName || 'You', role: me.role || 'EMPLOYEE' });
     }
     const list = Array.from(map.values());
-    if (me.role === 'SUPER_ADMIN' || me.role === 'ADMIN') return list;
-    if (me.role === 'TEAM_LEAD') {
+    const myRole = normalizeRole(me.role);
+    if (myRole === 'SUPER_ADMIN' || myRole === 'ADMIN') {
+      // Admin scope: self + team leads + employees.
       return list.filter((e) => {
-        const r = String(e.role || '').toUpperCase();
-        return e.empId === me.empId || r === 'EMPLOYEE' || !r;
+        const role = normalizeRole(e.role);
+        return e.empId === me.empId || role === 'TEAM_LEAD' || role === 'EMPLOYEE' || role === 'UNKNOWN';
+      });
+    }
+    if (myRole === 'TEAM_LEAD') {
+      return list.filter((e) => {
+        const role = normalizeRole(e.role);
+        return e.empId === me.empId || role === 'EMPLOYEE' || role === 'UNKNOWN';
       });
     }
     return list.filter((e) => e.empId === me.empId);
   }, [employees, me.empId, me.empName, me.role]);
+
+  const assignmentScopeLabel = useMemo(() => {
+    const myRole = normalizeRole(me.role);
+    if (myRole === 'SUPER_ADMIN' || myRole === 'ADMIN') return 'Scope: You, Team Leads, and Employees';
+    if (myRole === 'TEAM_LEAD') return 'Scope: You and Employees';
+    return 'Scope: Self only';
+  }, [me.role]);
 
   const employeeNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -295,6 +376,7 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
         ...prev,
         [day.id]: { title: day.text || '', assigneeId: me.empId || '', dueDate: '', priority: 'medium', status: 'todo' },
       }));
+      setTaskComposerOpenByDay((prev) => ({ ...prev, [day.id]: false }));
       // refresh task linkage immediately
       setAllSpacesTasks((prev) => [data, ...prev]);
     } catch (e: any) {
@@ -393,6 +475,23 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
       return changed ? next : prev;
     });
   }, [visibleGroups]);
+
+  useEffect(() => {
+    if (!selectedWeekId || !autoComposeFromQuery) return;
+    const targetGroup = visibleGroups.find((group) => group.week.id === selectedWeekId);
+    if (!targetGroup || !targetGroup.days.length) return;
+    const targetDayId = targetGroup.days.some((day) => day.id === selectedDayIdFromQuery)
+      ? selectedDayIdFromQuery
+      : targetGroup.days[0].id;
+    setSelectedDayByWeek((prev) => ({
+      ...prev,
+      [selectedWeekId]: targetDayId,
+    }));
+    setTaskComposerOpenByDay((prev) => ({
+      ...prev,
+      [targetDayId]: true,
+    }));
+  }, [selectedWeekId, selectedDayIdFromQuery, autoComposeFromQuery, visibleGroups]);
 
   useEffect(() => {
     const doneByDayId = new Map<string, boolean>();
@@ -567,7 +666,7 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
               <div className="space-y-2.5">
                 {days.length > 0 && (
                   <>
-                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="rounded-[28px] border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
                       <div className="flex flex-wrap gap-2.5">
                         {days.slice(0, 7).map((day, index) => {
                           const selectedDayId = selectedDayByWeek[week.id] || days[0].id;
@@ -584,14 +683,14 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
                                   [week.id]: day.id,
                                 }))
                               }
-                              className={`rounded-md border px-3 py-2 text-left transition ${
+                              className={`min-w-[92px] rounded-2xl border px-4 py-3 text-left transition-all duration-200 ${
                                 isSelected
-                                  ? 'border-brand-red bg-red-50 text-brand-red'
-                                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                                  ? 'border-brand-red/25 bg-gradient-to-br from-brand-red/10 via-white to-brand-navy/10 text-brand-navy shadow-[0_16px_28px_rgba(230,28,33,0.12)] ring-1 ring-brand-red/10'
+                                  : 'border-slate-200/80 bg-white text-slate-600 hover:border-brand-red/20 hover:bg-slate-50'
                               }`}
                             >
-                              <div className="text-[11px] font-semibold uppercase tracking-wide">{dayInfo.weekday}</div>
-                              <div className="text-xs mt-0.5">{dayInfo.dateText}</div>
+                              <div className="text-[11px] font-semibold uppercase tracking-[0.22em]">{dayInfo.weekday}</div>
+                              <div className={`mt-1 text-sm font-semibold ${isSelected ? 'text-brand-red' : 'text-slate-700'}`}>{dayInfo.dateText}</div>
                             </button>
                           );
                         })}
@@ -607,152 +706,186 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
                         (task) => String(task?.customFields?.dailyGoalId || '').trim() === selectedDay.id,
                       );
                       return (
-                        <div className="rounded-xl border border-slate-200 bg-white p-4">
-                          <label className="flex items-center gap-2">
+                        <div className="rounded-[30px] border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50 p-5 shadow-[0_22px_48px_rgba(15,23,42,0.06)]">
+                          <label className="flex items-start gap-3 rounded-[24px] border border-slate-200/80 bg-white/80 px-4 py-4 shadow-sm">
                             <input
                               type="checkbox"
                               checked={selectedDay.completed}
                               onChange={() => toggleDaily(selectedDay.id)}
                               disabled={!isAdmin}
+                              className="mt-1 h-4 w-4 rounded border-slate-300 accent-brand-green"
                             />
                             <input
                               type="text"
                               value={selectedDay.text}
                               onChange={(e) => updateDailyText(selectedDay.id, e.target.value)}
                               readOnly={!isAdmin}
-                              className="flex-1 bg-transparent border-b border-slate-200 outline-none text-sm"
+                              className="flex-1 bg-transparent border-b border-slate-200 pb-2 text-base font-semibold text-slate-900 outline-none transition focus:border-brand-red"
                             />
                           </label>
-                          <div className="mt-1 text-[11px] text-slate-500">
+                          <div className="mt-3 inline-flex items-center rounded-full border border-brand-navy/10 bg-brand-navy/[0.04] px-3 py-1 text-[11px] font-medium text-slate-600">
                             {selectedDayInfo.weekday} · {selectedDayInfo.dateText}
                           </div>
-                          <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
-                            <input
-                              type="text"
-                              value={assignDraftByDay[selectedDay.id]?.title ?? selectedDay.text ?? ''}
-                              onChange={(e) =>
-                                setAssignDraftByDay((prev) => ({
-                                  ...prev,
-                                  [selectedDay.id]: {
-                                    title: e.target.value,
-                                    assigneeId: prev[selectedDay.id]?.assigneeId || me.empId || '',
-                                    dueDate: prev[selectedDay.id]?.dueDate || '',
-                                    priority: prev[selectedDay.id]?.priority || 'medium',
-                                    status: prev[selectedDay.id]?.status || 'todo',
-                                  },
-                                }))
-                              }
-                              className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none"
-                              placeholder="Task title for TaskHub"
-                            />
-                            <select
-                              value={assignDraftByDay[selectedDay.id]?.assigneeId ?? me.empId ?? ''}
-                              onChange={(e) =>
-                                setAssignDraftByDay((prev) => ({
-                                  ...prev,
-                                  [selectedDay.id]: {
-                                    title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
-                                    assigneeId: e.target.value,
-                                    dueDate: prev[selectedDay.id]?.dueDate || '',
-                                    priority: prev[selectedDay.id]?.priority || 'medium',
-                                    status: prev[selectedDay.id]?.status || 'todo',
-                                  },
-                                }))
-                              }
-                              className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
-                            >
-                              {assignableEmployees.map((emp) => (
-                                <option key={emp.empId} value={emp.empId}>
-                                  {emp.empName || emp.empId}
-                                </option>
-                              ))}
-                            </select>
-                            <input
-                              type="date"
-                              value={assignDraftByDay[selectedDay.id]?.dueDate ?? ''}
-                              onChange={(e) =>
-                                setAssignDraftByDay((prev) => ({
-                                  ...prev,
-                                  [selectedDay.id]: {
-                                    title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
-                                    assigneeId: prev[selectedDay.id]?.assigneeId || me.empId || '',
-                                    dueDate: e.target.value,
-                                    priority: prev[selectedDay.id]?.priority || 'medium',
-                                    status: prev[selectedDay.id]?.status || 'todo',
-                                  },
-                                }))
-                              }
-                              className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
-                            />
-                            <select
-                              value={assignDraftByDay[selectedDay.id]?.priority ?? 'medium'}
-                              onChange={(e) =>
-                                setAssignDraftByDay((prev) => ({
-                                  ...prev,
-                                  [selectedDay.id]: {
-                                    title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
-                                    assigneeId: prev[selectedDay.id]?.assigneeId || me.empId || '',
-                                    dueDate: prev[selectedDay.id]?.dueDate || '',
-                                    priority: e.target.value,
-                                    status: prev[selectedDay.id]?.status || 'todo',
-                                  },
-                                }))
-                              }
-                              className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
-                            >
-                              <option value="low">Priority: Low</option>
-                              <option value="medium">Priority: Medium</option>
-                              <option value="high">Priority: High</option>
-                            </select>
-                            <select
-                              value={assignDraftByDay[selectedDay.id]?.status ?? 'todo'}
-                              onChange={(e) =>
-                                setAssignDraftByDay((prev) => ({
-                                  ...prev,
-                                  [selectedDay.id]: {
-                                    title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
-                                    assigneeId: prev[selectedDay.id]?.assigneeId || me.empId || '',
-                                    dueDate: prev[selectedDay.id]?.dueDate || '',
-                                    priority: prev[selectedDay.id]?.priority || 'medium',
-                                    status: e.target.value,
-                                  },
-                                }))
-                              }
-                              className="rounded-md border border-slate-200 px-2 py-1.5 text-xs outline-none bg-white"
-                            >
-                              <option value="todo">Status: To Do</option>
-                              <option value="doing">Status: Doing</option>
-                              <option value="review">Status: Review</option>
-                              <option value="blocked">Status: Blocked</option>
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() => createTaskFromDay(selectedDay, week)}
-                              disabled={assigningDayTaskId === selectedDay.id}
-                              className="rounded-md bg-brand-red text-white text-xs font-medium px-2 py-1.5 disabled:opacity-60 md:col-span-3"
-                            >
-                              {assigningDayTaskId === selectedDay.id ? 'Assigning...' : 'Assign to employee'}
-                            </button>
+                          <div className="mt-4 rounded-[24px] border border-brand-red/10 bg-gradient-to-r from-white via-slate-50 to-brand-red/[0.04] px-4 py-4 shadow-[0_18px_36px_rgba(15,23,42,0.05)]">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-brand-red">Task Assignment</div>
+                                <div className="mt-1 text-[12px] font-medium text-slate-600">{assignmentScopeLabel}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setTaskComposerOpenByDay((prev) => ({
+                                    ...prev,
+                                    [selectedDay.id]: !prev[selectedDay.id],
+                                  }))
+                                }
+                                className="rounded-full bg-brand-red px-5 py-2 text-sm font-semibold text-white shadow-[0_16px_28px_rgba(230,28,33,0.2)] transition-all duration-200 hover:bg-brand-navy"
+                              >
+                                {taskComposerOpenByDay[selectedDay.id] ? 'Close Task' : 'Add Task'}
+                              </button>
+                            </div>
                           </div>
-                          <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2.5">
-                            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                          {taskComposerOpenByDay[selectedDay.id] ? (
+                            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                              <input
+                                type="text"
+                                value={assignDraftByDay[selectedDay.id]?.title ?? selectedDay.text ?? ''}
+                                onChange={(e) =>
+                                  setAssignDraftByDay((prev) => ({
+                                    ...prev,
+                                    [selectedDay.id]: {
+                                      title: e.target.value,
+                                      assigneeId: prev[selectedDay.id]?.assigneeId || me.empId || '',
+                                      dueDate: prev[selectedDay.id]?.dueDate || '',
+                                      priority: prev[selectedDay.id]?.priority || 'medium',
+                                      status: prev[selectedDay.id]?.status || 'todo',
+                                    },
+                                  }))
+                                }
+                                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-brand-red/40 focus:ring-4 focus:ring-brand-red/10"
+                                placeholder="Task title for TaskHub"
+                              />
+                              <select
+                                value={assignDraftByDay[selectedDay.id]?.assigneeId ?? me.empId ?? ''}
+                                onChange={(e) =>
+                                  setAssignDraftByDay((prev) => ({
+                                    ...prev,
+                                    [selectedDay.id]: {
+                                      title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
+                                      assigneeId: e.target.value,
+                                      dueDate: prev[selectedDay.id]?.dueDate || '',
+                                      priority: prev[selectedDay.id]?.priority || 'medium',
+                                      status: prev[selectedDay.id]?.status || 'todo',
+                                    },
+                                  }))
+                                }
+                                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-brand-red/40 focus:ring-4 focus:ring-brand-red/10"
+                              >
+                                {assignableEmployees.map((emp) => (
+                                  <option key={emp.empId} value={emp.empId}>
+                                    {emp.empName || emp.empId}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                type="date"
+                                value={assignDraftByDay[selectedDay.id]?.dueDate ?? ''}
+                                onChange={(e) =>
+                                  setAssignDraftByDay((prev) => ({
+                                    ...prev,
+                                    [selectedDay.id]: {
+                                      title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
+                                      assigneeId: prev[selectedDay.id]?.assigneeId || me.empId || '',
+                                      dueDate: e.target.value,
+                                      priority: prev[selectedDay.id]?.priority || 'medium',
+                                      status: prev[selectedDay.id]?.status || 'todo',
+                                    },
+                                  }))
+                                }
+                                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-brand-red/40 focus:ring-4 focus:ring-brand-red/10"
+                              />
+                              <select
+                                value={assignDraftByDay[selectedDay.id]?.priority ?? 'medium'}
+                                onChange={(e) =>
+                                  setAssignDraftByDay((prev) => ({
+                                    ...prev,
+                                    [selectedDay.id]: {
+                                      title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
+                                      assigneeId: prev[selectedDay.id]?.assigneeId || me.empId || '',
+                                      dueDate: prev[selectedDay.id]?.dueDate || '',
+                                      priority: e.target.value,
+                                      status: prev[selectedDay.id]?.status || 'todo',
+                                    },
+                                  }))
+                                }
+                                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-brand-red/40 focus:ring-4 focus:ring-brand-red/10"
+                              >
+                                <option value="low">Priority: Low</option>
+                                <option value="medium">Priority: Medium</option>
+                                <option value="high">Priority: High</option>
+                              </select>
+                              <select
+                                value={assignDraftByDay[selectedDay.id]?.status ?? 'todo'}
+                                onChange={(e) =>
+                                  setAssignDraftByDay((prev) => ({
+                                    ...prev,
+                                    [selectedDay.id]: {
+                                      title: prev[selectedDay.id]?.title ?? selectedDay.text ?? '',
+                                      assigneeId: prev[selectedDay.id]?.assigneeId || me.empId || '',
+                                      dueDate: prev[selectedDay.id]?.dueDate || '',
+                                      priority: prev[selectedDay.id]?.priority || 'medium',
+                                      status: e.target.value,
+                                    },
+                                  }))
+                                }
+                                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-brand-red/40 focus:ring-4 focus:ring-brand-red/10"
+                              >
+                                <option value="todo">Status: To Do</option>
+                                <option value="doing">Status: Doing</option>
+                                <option value="review">Status: Review</option>
+                                <option value="blocked">Status: Blocked</option>
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => createTaskFromDay(selectedDay, week)}
+                                disabled={assigningDayTaskId === selectedDay.id}
+                                className="rounded-2xl bg-gradient-to-r from-brand-red to-[#c8181d] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_30px_rgba(230,28,33,0.24)] transition-all duration-200 hover:from-[#d8191e] hover:to-brand-red disabled:opacity-60 md:col-span-3"
+                              >
+                                {assigningDayTaskId === selectedDay.id ? 'Assigning...' : 'Create & Assign Task'}
+                              </button>
+                            </div>
+                          ) : null}
+                          <div className="mt-4 rounded-[26px] border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-slate-50 p-3.5">
+                            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
                               Assigned employees and tasks for this day
                             </div>
-                            <div className="space-y-1.5">
+                            <div className="space-y-2.5">
                               {assignmentsForDay.length ? (
                                 assignmentsForDay.map((task) => (
                                   <div
                                     key={task.taskId}
-                                    className="rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700"
+                                    className="rounded-2xl border border-white bg-white px-4 py-3 text-sm text-slate-700 shadow-[0_14px_28px_rgba(15,23,42,0.05)]"
                                   >
-                                    <div className="font-medium text-slate-800">{task.title || 'Untitled task'}</div>
-                                    <div className="text-slate-500 mt-0.5">
+                                    <div className="font-semibold text-slate-900">{task.title || 'Untitled task'}</div>
+                                    <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold">
+                                      <span className={`inline-flex items-center rounded-full border px-2.5 py-1 ${getAssignmentStatusBadge(task.status)}`}>
+                                        {formatAssignmentStatusLabel(task.status)}
+                                      </span>
+                                      <span className={`inline-flex items-center rounded-full border px-2.5 py-1 ${getAssignmentPriorityBadge(task.priority)}`}>
+                                        {formatAssignmentPriorityLabel(task.priority)}
+                                      </span>
+                                    </div>
+                                    <div className="mt-2 inline-flex items-center rounded-full border border-brand-red/10 bg-brand-red/5 px-2.5 py-1 text-[11px] font-semibold text-brand-red">
+                                      {employeeNameById.get(task.assigneeId) || task.assigneeId || 'Unassigned'}
+                                    </div>
+                                    <div className="mt-2 text-xs text-slate-500">
                                       {employeeNameById.get(task.assigneeId) || task.assigneeId || 'Unassigned'} · {task.status || 'todo'} · {task.priority || 'medium'}
                                     </div>
                                   </div>
                                 ))
                               ) : (
-                                <div className="text-xs text-slate-500">No task assigned for this day yet.</div>
+                                <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-5 text-center text-sm text-slate-500">No task assigned for this day yet.</div>
                               )}
                             </div>
                           </div>

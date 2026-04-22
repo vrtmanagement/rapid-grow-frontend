@@ -1,13 +1,10 @@
-import React, { useMemo } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import React from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import {
   Target,
-  Calendar,
   Clock,
-  BarChart3,
   LayoutDashboard,
   BrainCircuit,
-  CheckSquare,
   Mail,
   ShieldCheck,
   Database,
@@ -15,11 +12,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { PlanningState } from '../../types';
-import YearlyView from '../../views/YearlyView';
-import QuarterlyView from '../../views/QuarterlyView';
-import MonthlyView from '../../views/MonthlyView';
-import WeeklyView from '../../views/WeeklyView';
-import DailyView from '../../views/DailyView';
+import Vision from '../../views/Vision';
 import ReflectionView from '../../views/ReflectionView';
 import EmployeeDashboardView from '../../views/EmployeeDashboardView';
 import EmployeeProfileView from '../../views/EmployeeProfileView';
@@ -29,6 +22,8 @@ import AttendanceView from '../../views/AttendanceView';
 import StaffView from '../../views/StaffView';
 import CommunicationView from '../../communication/views/CommunicationView';
 import { GlobalCommunicationNotifications } from '../../communication/components/GlobalCommunicationNotifications';
+import VisionHeaderTabs from '../../components/planning/VisionHeaderTabs';
+import { isVisionRoute } from '../../components/planning/visionNavigation';
 import ContentView from '../../views/ContentView';
 import ContentCreateView from '../../views/ContentCreateView';
 import SpacesTaskDetailView from '../../views/SpacesTaskDetailView';
@@ -83,20 +78,14 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
   markNotificationRead,
   handleLogout,
 }) => {
-  const visionNavItems = useMemo(
-    () => [
-      { power: 'YEARLY_VIEW' as const, to: '/yearly', icon: <Target size={20} />, label: state.uiConfig.yearlyTitle },
-      { power: 'QUARTERLY_VIEW' as const, to: '/quarterly', icon: <BarChart3 size={20} />, label: state.uiConfig.quarterlyTitle },
-      { power: 'MONTHLY_VIEW' as const, to: '/monthly', icon: <Calendar size={20} />, label: state.uiConfig.monthlyTitle },
-      { power: 'WEEKLY_VIEW' as const, to: '/weekly', icon: <CheckSquare size={20} />, label: state.uiConfig.weeklyTitle },
-    ],
-    [
-      state.uiConfig.yearlyTitle,
-      state.uiConfig.quarterlyTitle,
-      state.uiConfig.monthlyTitle,
-      state.uiConfig.weeklyTitle,
-    ],
-  );
+  const location = useLocation();
+  const hasVisionAccess =
+    hasPower('YEARLY_VIEW') ||
+    hasPower('QUARTERLY_VIEW') ||
+    hasPower('MONTHLY_VIEW') ||
+    hasPower('WEEKLY_VIEW') ||
+    hasPower('DAILY_VIEW');
+  const showVisionHeaderTabs = hasVisionAccess && isVisionRoute(location.pathname);
 
   return (
     <>
@@ -139,15 +128,10 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
               <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />
             )}
             <div className="h-px bg-white/5 mx-2.5 my-3.5"></div>
-            {visionNavItems.map((item) =>
-              hasPower(item.power) ? (
-                <SidebarLink key={item.to} to={item.to} icon={item.icon} label={item.label} collapsed={!isSidebarOpen} />
-              ) : null,
+            {hasVisionAccess && (
+              <SidebarLink to="/yearly" icon={<Target size={20} />} label="Vision" collapsed={!isSidebarOpen} />
             )}
             <div className="h-px bg-white/5 mx-2.5 my-3.5"></div>
-            {hasPower('DAILY_VIEW') && (
-              <SidebarLink to="/daily" icon={<Clock size={20} />} label={state.uiConfig.dailyTitle} collapsed={!isSidebarOpen} />
-            )}
             {hasPower('REFLECTION_VIEW') && (
               <SidebarLink
                 to="/reflection"
@@ -177,27 +161,38 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
           </nav>
         </aside>
         <main className="flex-1 flex flex-col h-screen overflow-hidden">
-          <header className="h-20 bg-white/90 backdrop-blur-xl border-b border-slate-200 flex items-center justify-end px-8 shrink-0 z-40 relative">
-            <div className="flex items-center gap-3">
-              <NotificationBellMenu
-                notificationMenuOpen={notificationMenuOpen}
-                unreadNotificationCount={unreadNotificationCount}
-                notificationsLoading={notificationsLoading}
-                notifications={notifications}
-                setNotificationMenuOpen={setNotificationMenuOpen}
-                setUserMenuOpen={setUserMenuOpen}
-                openNotification={openNotification}
-                markNotificationRead={markNotificationRead}
-              />
-              <UserAccountMenu
-                userMenuOpen={userMenuOpen}
-                setUserMenuOpen={setUserMenuOpen}
-                setNotificationMenuOpen={setNotificationMenuOpen}
-                userName={state.currentUser.name}
-                userRole={state.currentUser.role}
-                userAvatar={state.currentUser.avatar}
-                onLogout={handleLogout}
-              />
+          <header
+            className={`bg-white/90 backdrop-blur-xl border-b border-slate-200 px-8 shrink-0 z-40 relative ${
+              showVisionHeaderTabs ? 'min-h-[92px] py-4' : 'h-20 flex items-center justify-end'
+            }`}
+          >
+            <div className={`flex w-full items-center gap-6 ${showVisionHeaderTabs ? 'justify-between' : 'justify-end'}`}>
+              {showVisionHeaderTabs ? (
+                <div className="min-w-0 flex-1">
+                  <VisionHeaderTabs />
+                </div>
+              ) : null}
+              <div className="flex items-center gap-3 shrink-0">
+                <NotificationBellMenu
+                  notificationMenuOpen={notificationMenuOpen}
+                  unreadNotificationCount={unreadNotificationCount}
+                  notificationsLoading={notificationsLoading}
+                  notifications={notifications}
+                  setNotificationMenuOpen={setNotificationMenuOpen}
+                  setUserMenuOpen={setUserMenuOpen}
+                  openNotification={openNotification}
+                  markNotificationRead={markNotificationRead}
+                />
+                <UserAccountMenu
+                  userMenuOpen={userMenuOpen}
+                  setUserMenuOpen={setUserMenuOpen}
+                  setNotificationMenuOpen={setNotificationMenuOpen}
+                  userName={state.currentUser.name}
+                  userRole={state.currentUser.role}
+                  userAvatar={state.currentUser.avatar}
+                  onLogout={handleLogout}
+                />
+              </div>
             </div>
           </header>
           <div className="flex-1 overflow-y-auto p-16 bg-slate-100/30">
@@ -215,23 +210,23 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
               {hasPower('WORKSPACES_VIEW') && (
                 <Route path="/workspaces/*" element={<WorkspacesView state={state} updateState={updateState} />} />
               )}
-              {hasPower('YEARLY_VIEW') && (
-                <Route path="/yearly" element={<YearlyView state={state} updateState={updateState} loading={planningViewsLoading} />} />
+              {hasVisionAccess && (
+                <Route path="/vision" element={<Navigate to="/yearly" replace />} />
               )}
-              {hasPower('QUARTERLY_VIEW') && (
-                <Route
-                  path="/quarterly"
-                  element={<QuarterlyView state={state} updateState={updateState} loading={planningViewsLoading} />}
-                />
+              {hasVisionAccess && (
+                <Route path="/yearly" element={<Vision state={state} updateState={updateState} loading={planningViewsLoading} />} />
               )}
-              {hasPower('MONTHLY_VIEW') && (
-                <Route path="/monthly" element={<MonthlyView state={state} updateState={updateState} loading={planningViewsLoading} />} />
+              {hasVisionAccess && (
+                <Route path="/quarterly" element={<Vision state={state} updateState={updateState} loading={planningViewsLoading} />} />
               )}
-              {hasPower('WEEKLY_VIEW') && (
-                <Route path="/weekly" element={<WeeklyView state={state} updateState={updateState} loading={planningViewsLoading} />} />
+              {hasVisionAccess && (
+                <Route path="/monthly" element={<Vision state={state} updateState={updateState} loading={planningViewsLoading} />} />
               )}
-              {hasPower('DAILY_VIEW') && (
-                <Route path="/daily" element={<DailyView state={state} updateState={updateState} loading={planningViewsLoading} />} />
+              {hasVisionAccess && (
+                <Route path="/weekly" element={<Vision state={state} updateState={updateState} loading={planningViewsLoading} />} />
+              )}
+              {hasVisionAccess && (
+                <Route path="/daily" element={<Vision state={state} updateState={updateState} loading={planningViewsLoading} />} />
               )}
               {hasPower('REFLECTION_VIEW') && (
                 <Route

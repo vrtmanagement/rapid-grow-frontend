@@ -75,6 +75,8 @@ export const SidebarLink: React.FC<{ to: string; icon: any; label: string; colla
     ? location.pathname.startsWith('/employees')
     : to === '/content'
     ? location.pathname === '/content' || location.pathname.startsWith('/content/day/') || location.pathname.startsWith('/content/new')
+    : to === '/yearly'
+    ? location.pathname.startsWith('/yearly') || location.pathname.startsWith('/quarterly') || location.pathname.startsWith('/monthly') || location.pathname.startsWith('/weekly') || location.pathname.startsWith('/daily')
     : location.pathname === to;
 
   useEffect(() => {
