@@ -66,54 +66,109 @@ const CRMLeadDetailPage: React.FC = () => {
     return String(value).trim() !== '';
   });
 
+  const fullName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Lead Details';
+  const initials = fullName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part: string) => part.charAt(0).toUpperCase())
+    .join('') || 'L';
+  const linkedInProfile = readCustomField(lead, 'linkedin_profile') || '-';
+  const leadTypeTone =
+    lead.leadType === 'HOT'
+      ? 'bg-rose-100 text-rose-700 border-rose-200'
+      : lead.leadType === 'WARM'
+        ? 'bg-amber-100 text-amber-700 border-amber-200'
+        : lead.leadType === 'COLD'
+          ? 'bg-sky-100 text-sky-700 border-sky-200'
+          : 'bg-violet-100 text-violet-700 border-violet-200';
+  const statusTone =
+    String(lead.status || '').toUpperCase() === 'CONVERTED'
+      ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+      : 'bg-slate-100 text-slate-700 border-slate-200';
+
   return (
-    <div className="space-y-4">
-      <div className="rounded-3xl bg-white border border-slate-200 shadow-[0_24px_50px_rgba(15,23,42,0.10)] overflow-hidden">
-        <div className="px-6 py-6 border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-800 text-white">
-          <button className="mb-4 px-3 py-1.5 rounded-lg border border-white/25 bg-white/10 hover:bg-white/20 text-sm" onClick={() => navigate('/crm')}>Back to Leads</button>
-          <h3 className="text-2xl font-semibold tracking-tight">{`${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Lead Details'}</h3>
-          <p className="text-sm text-slate-200 mt-1">Complete lead profile and imported field data</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/15 border border-white/20">Lead Type: {lead.leadType || '-'}</span>
-            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/15 border border-white/20">Status: {lead.status || '-'}</span>
-            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/15 border border-white/20">Company: {lead.company || '-'}</span>
+    <div className="space-y-5">
+      <div className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50 to-indigo-50/60 shadow-[0_20px_55px_rgba(15,23,42,0.10)] p-5 md:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <button
+            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white/90 hover:bg-white hover:-translate-y-0.5 transition-all duration-200 text-sm"
+            onClick={() => navigate('/crm')}
+          >
+            Back to Leads
+          </button>
+          <div className="flex flex-wrap gap-2">
+            <button className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white/80 text-slate-700 text-sm hover:bg-white hover:-translate-y-0.5 transition-all duration-200">
+              Lead History
+            </button>
+            <button className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white/80 text-slate-700 text-sm hover:bg-white hover:-translate-y-0.5 transition-all duration-200">
+              Lead Documents
+            </button>
           </div>
         </div>
-        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[
-            ['Email Address', lead.email || '-'],
-            ['Phone Number', readCustomField(lead, 'phone_number') || '-'],
-            ['Company URL', lead.url || '-'],
-            ['LinkedIn Profile', readCustomField(lead, 'linkedin_profile') || '-'],
-            ['Company', lead.company || '-'],
-            ['Designation', lead.position || '-'],
-            ['Lead Source', readCustomField(lead, 'lead_source') || '-'],
-            ['Birthday', readCustomField(lead, 'birthday') || '-'],
-            ['Industry', readCustomField(lead, 'industry') || '-'],
-            ['Connected On', lead.connectedOn ? new Date(lead.connectedOn).toLocaleDateString() : '-'],
-            ['Employee Count', lead.employeeCount ?? '-'],
-            ['Lead Type', lead.leadType || '-'],
-            ['Status', lead.status || '-'],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
-              <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{label}</div>
-              <div className="text-sm font-semibold text-slate-800 mt-1 break-words">{value as any}</div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <section className="rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)] hover:shadow-[0_18px_40px_rgba(15,23,42,0.10)] transition-all duration-300">
+            <h3 className="text-[1.7rem] font-semibold tracking-tight text-slate-900">Lead Information</h3>
+            <div className="mt-5 flex items-start gap-4">
+              <div className="h-14 w-14 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-white font-semibold flex items-center justify-center shadow-md">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1 space-y-3">
+                {[
+                  ['Lead Name', fullName],
+                  ['Lead Type', <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${leadTypeTone}`}>{lead.leadType || '-'}</span>],
+                  ['Status', <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${statusTone}`}>{lead.status || '-'}</span>],
+                  ['Email', lead.email || '-'],
+                  ['Address', readCustomField(lead, 'address') || '-'],
+                  ['Phone Number', readCustomField(lead, 'phone_number') || '-'],
+                ].map(([label, value]) => (
+                  <div key={label} className="grid grid-cols-[130px_1fr] gap-3 text-sm">
+                    <p className="text-slate-500">{label}</p>
+                    <div className="font-semibold text-slate-800 break-words">{value as any}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-          <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white/80 backdrop-blur-sm p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)] hover:shadow-[0_18px_40px_rgba(15,23,42,0.10)] transition-all duration-300">
+            <h3 className="text-[1.7rem] font-semibold tracking-tight text-slate-900">Company Information</h3>
+            <div className="mt-5 space-y-3">
+              {[
+                ['Company', lead.company || '-'],
+                ['Designation', lead.position || '-'],
+                ['Company URL', lead.url || '-'],
+                ['Connected On', lead.connectedOn ? new Date(lead.connectedOn).toLocaleDateString() : '-'],
+                ['Employee Count', lead.employeeCount ?? '-'],
+                ['Lead Source', readCustomField(lead, 'lead_source') || '-'],
+                ['Industry', readCustomField(lead, 'industry') || '-'],
+                ['LinkedIn Profile', linkedInProfile],
+              ].map(([label, value]) => (
+                <div key={label} className="grid grid-cols-[130px_1fr] gap-3 text-sm">
+                  <p className="text-slate-500">{label}</p>
+                  <p className="font-semibold text-slate-800 break-words">{value as any}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow duration-300">
             <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Notes</div>
             <div className="text-sm font-medium text-slate-800 mt-1 whitespace-pre-wrap">{lead.notes || '-'}</div>
           </div>
-          <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow duration-300">
             <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Custom Fields</div>
             {customFieldEntries.length ? (
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="mt-3 grid grid-cols-1 gap-2">
                 {customFieldEntries.map(([key, rawValue]) => {
                   const value = rawValue && typeof rawValue === 'object' && 'value' in (rawValue as any)
                     ? String((rawValue as any).value ?? '')
                     : String(rawValue ?? '');
                   return (
-                    <div key={key} className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div key={key} className="rounded-xl border border-slate-200 bg-slate-50 p-3 hover:bg-slate-100 transition-colors duration-200">
                       <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{key.replace(/_/g, ' ')}</div>
                       <div className="text-sm text-slate-800 mt-1 break-words">{value || '-'}</div>
                     </div>
@@ -127,14 +182,14 @@ const CRMLeadDetailPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5">
+      <div className="rounded-2xl bg-white border border-slate-200 shadow-[0_12px_30px_rgba(15,23,42,0.08)] p-5">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h4 className="font-bold text-slate-900">Actions</h4>
             <p className="text-sm text-slate-500">Add task/action items for this card.</p>
           </div>
           <button
-            className="px-4 py-2 rounded-lg bg-brand-red text-white"
+            className="px-4 py-2 rounded-lg bg-gradient-to-r from-brand-red to-rose-600 text-white shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
             onClick={() => {
               setEditingAction(null);
               setActionTitle('');
@@ -147,7 +202,7 @@ const CRMLeadDetailPage: React.FC = () => {
         </div>
         <div className="space-y-2">
           {actions.map((item) => (
-            <div key={item.id} className="rounded-lg border border-slate-200 bg-white p-3 flex items-start justify-between gap-3">
+            <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-3.5 flex items-start justify-between gap-3 hover:border-slate-300 hover:shadow-sm transition-all duration-200">
               <div className="min-w-0 flex-1">
                 <div className="font-semibold text-slate-800">{item.title}</div>
                 <div
@@ -176,7 +231,7 @@ const CRMLeadDetailPage: React.FC = () => {
               </div>
               <div className="flex gap-2 shrink-0">
                 <button
-                  className="px-3 py-1.5 rounded border border-slate-300 text-sm"
+                  className="px-3 py-1.5 rounded border border-slate-300 text-sm hover:bg-slate-50 transition-colors duration-200"
                   onClick={() => {
                     setEditingAction(item);
                     setActionTitle(item.title);
@@ -186,7 +241,7 @@ const CRMLeadDetailPage: React.FC = () => {
                 >
                   Edit
                 </button>
-                <button className="px-3 py-1.5 rounded border border-red-300 text-red-600 text-sm" onClick={() => setDeleteTarget(item)}>
+                <button className="px-3 py-1.5 rounded border border-red-300 text-red-600 text-sm hover:bg-red-50 transition-colors duration-200" onClick={() => setDeleteTarget(item)}>
                   Delete
                 </button>
               </div>

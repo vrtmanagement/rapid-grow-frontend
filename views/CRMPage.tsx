@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CRMStatsCards from './crm/CRMStatsCards';
 import CRMTable from './crm/CRMTable';
@@ -18,6 +18,7 @@ type TabInfo = { id: string; name: string };
 type ToastTone = 'success' | 'error';
 type ToastItem = { id: number; tone: ToastTone; message: string };
 type StaffOption = { id: string; empId: string; name: string; role: string };
+type ScopedPerson = { id: string; role: string; name: string };
 type LeadActionItem = { id: string; title: string; description: string };
 type CardFilter =
   | { type: 'none' }
@@ -49,6 +50,7 @@ const CRMPage: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [personFilterId, setPersonFilterId] = useState('');
+  const [personFilterInitialized, setPersonFilterInitialized] = useState(false);
   const [personDropdownOpen, setPersonDropdownOpen] = useState(false);
   const [personSearch, setPersonSearch] = useState('');
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
@@ -69,20 +71,51 @@ const CRMPage: React.FC = () => {
   const [pageLoading, setPageLoading] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [cardFilter, setCardFilter] = useState<CardFilter>({ type: 'none' });
+  const latestLoadRequestRef = useRef(0);
 
   const tabs = useMemo(() => [...baseTabs, ...customTabs.map((tab) => tab.name)], [customTabs]);
   const canUseRoleFilters = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'TEAM_LEAD';
   const peopleOptions = useMemo(
-    () =>
-      staffOptions
-        .filter((member) => member.role === 'EMPLOYEE' || member.role === 'TEAM_LEAD')
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [staffOptions],
+    () => {
+      const normalizedRole = role.toUpperCase();
+      const filtered = staffOptions.filter((member) => {
+        const memberRole = String(member.role || '').toUpperCase();
+        if (normalizedRole === 'ADMIN' || normalizedRole === 'SUPER_ADMIN') {
+          return memberRole === 'TEAM_LEAD' || memberRole === 'EMPLOYEE';
+        }
+        if (normalizedRole === 'TEAM_LEAD') {
+          return memberRole === 'EMPLOYEE' || (memberRole === 'TEAM_LEAD' && member.id === currentUserId);
+        }
+        return false;
+      });
+      return filtered.sort((a, b) => a.name.localeCompare(b.name));
+    },
+    [currentUserId, role, staffOptions],
   );
   const selectedPerson = useMemo(
     () => peopleOptions.find((member) => member.id === personFilterId) || null,
     [peopleOptions, personFilterId],
   );
+  const selectedScopePerson = useMemo<ScopedPerson | null>(() => {
+    if (!personFilterId) return null;
+    if (selectedPerson) return selectedPerson;
+    if (personFilterId === currentUserId) {
+      return {
+        id: currentUserId,
+        role: role || 'EMPLOYEE',
+        name: String(sessionEmployee?.empName || sessionEmployee?.name || 'You'),
+      };
+    }
+    // Fallback to employee scope when selected id exists but option list has not hydrated yet.
+    return { id: personFilterId, role: 'EMPLOYEE', name: 'Selected Person' };
+  }, [currentUserId, personFilterId, role, selectedPerson, sessionEmployee?.empName, sessionEmployee?.name]);
+  const selectedPersonLabel = useMemo(() => {
+    if (!selectedScopePerson) return 'All People';
+    const personRole = String(selectedScopePerson.role || '').toUpperCase();
+    const shortRole =
+      personRole === 'TEAM_LEAD' ? 'TL' : personRole === 'ADMIN' || personRole === 'SUPER_ADMIN' ? 'ADMIN' : 'EMP';
+    return `${selectedScopePerson.name} (${shortRole})`;
+  }, [selectedScopePerson]);
   const filteredPeopleOptions = useMemo(() => {
     const q = personSearch.trim().toLowerCase();
     if (!q) return peopleOptions;
@@ -105,6 +138,8 @@ const CRMPage: React.FC = () => {
   };
 
   const load = async () => {
+    const requestId = latestLoadRequestRef.current + 1;
+    latestLoadRequestRef.current = requestId;
     setPageLoading(true);
     const monthStart = new Date();
     monthStart.setDate(1);
@@ -124,6 +159,12 @@ const CRMPage: React.FC = () => {
       customTabName = baseTabs.includes(activeTab) ? '' : activeTab;
     }
 
+    const selectedScopeRole = String(selectedScopePerson?.role || '').toUpperCase();
+    const personParams = {
+      ...(canUseRoleFilters && !selectedScopePerson ? { allPeople: '1' } : {}),
+      ...(selectedScopeRole === 'TEAM_LEAD' && selectedScopePerson?.id ? { teamLeadId: selectedScopePerson.id } : {}),
+      ...(selectedScopeRole !== 'TEAM_LEAD' && selectedScopePerson?.id ? { employeeId: selectedScopePerson.id } : {}),
+    };
     const params = new URLSearchParams({
       q: search,
       page: String(page),
@@ -131,14 +172,28 @@ const CRMPage: React.FC = () => {
       ...(leadType ? { leadType } : {}),
       ...(customTabName ? { customTabName } : {}),
       ...(cardFilter.type === 'thisMonth' ? { fromDate: monthStartIso } : {}),
-      ...(selectedPerson?.role === 'TEAM_LEAD' ? { teamLeadId: selectedPerson.id } : {}),
-      ...(selectedPerson?.role !== 'TEAM_LEAD' && selectedPerson?.id ? { employeeId: selectedPerson.id } : {}),
+      ...personParams,
     });
+    const tabsParams = new URLSearchParams(personParams);
     const [statsRes, tabsRes, listRes] = await Promise.all([
-      crmJson<any>('/crm/stats'),
-      crmJson<any>('/crm/custom-tabs'),
+      crmJson<any>(`/crm/stats${tabsParams.toString() ? `?${tabsParams.toString()}` : ''}`),
+      crmJson<any>(`/crm/custom-tabs${tabsParams.toString() ? `?${tabsParams.toString()}` : ''}`),
       crmJson<any>(`/crm?${params.toString()}`),
     ]);
+    const tabRows: TabInfo[] = Array.isArray(tabsRes.tabs) ? tabsRes.tabs : [];
+    const customTabCounts = await Promise.all(
+      tabRows.map(async (tab) => {
+        const scopedParams = new URLSearchParams({
+          page: '1',
+          limit: '1',
+          leadType: 'CUSTOM',
+          customTabName: tab.name,
+          ...personParams,
+        });
+        const response = await crmJson<any>(`/crm?${scopedParams.toString()}`);
+        return { name: String(tab.name || ''), count: Number(response?.total || 0) };
+      }),
+    );
     const normalizedCustomCounts = Array.isArray(statsRes?.customCounts)
       ? statsRes.customCounts.map((entry: any) => ({
           name: String(entry?.name || '').trim(),
@@ -148,11 +203,14 @@ const CRMPage: React.FC = () => {
     const listTotal = Number(listRes?.total || 0);
     const shouldSyncActiveCustomTabCount =
       cardFilter.type === 'none' && !baseTabs.includes(activeTab);
+    const trustedCustomCounts = customTabCounts.length
+      ? customTabCounts
+      : normalizedCustomCounts;
     const syncedCustomCounts = shouldSyncActiveCustomTabCount
       ? (() => {
           const activeTabNormalized = activeTab.trim().toUpperCase();
           let found = false;
-          const next = normalizedCustomCounts.map((entry) => {
+          const next = trustedCustomCounts.map((entry) => {
             if (entry.name.trim().toUpperCase() !== activeTabNormalized) return entry;
             found = true;
             return { ...entry, count: listTotal };
@@ -162,12 +220,14 @@ const CRMPage: React.FC = () => {
           }
           return next;
         })()
-      : normalizedCustomCounts;
+      : trustedCustomCounts;
+    if (requestId !== latestLoadRequestRef.current) return;
+
     setStats({
       ...statsRes,
       customCounts: syncedCustomCounts,
     });
-    setCustomTabs(Array.isArray(tabsRes.tabs) ? tabsRes.tabs : []);
+    setCustomTabs(tabRows);
     setLeads(listRes.items || []);
     setTotal(listTotal);
     setPageLoading(false);
@@ -179,6 +239,14 @@ const CRMPage: React.FC = () => {
       setPageLoading(false);
     });
   }, [activeTab, page, search, personFilterId, cardFilter]);
+
+  useEffect(() => {
+    if (baseTabs.includes(activeTab)) return;
+    const hasTab = customTabs.some((tab) => tab.name === activeTab);
+    if (hasTab) return;
+    setActiveTab('HOT');
+    setCardFilter({ type: 'none' });
+  }, [activeTab, customTabs]);
 
 
   useEffect(() => {
@@ -200,6 +268,14 @@ const CRMPage: React.FC = () => {
       });
   }, [canUseRoleFilters]);
 
+  useEffect(() => {
+    // Default role scope should be current logged-in user on initial page load.
+    if (!canUseRoleFilters || !currentUserId || personFilterInitialized) return;
+    setPersonFilterId(currentUserId);
+    setPersonFilterInitialized(true);
+    setPage(1);
+  }, [canUseRoleFilters, currentUserId, personFilterInitialized]);
+
   const currentCustomTab = baseTabs.includes(activeTab) ? '' : activeTab;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const pageWindowStart = Math.max(1, page - 2);
@@ -208,7 +284,7 @@ const CRMPage: React.FC = () => {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-slate-300 bg-gradient-to-r from-slate-50 via-white to-slate-100 px-6 py-5 text-slate-900 shadow-sm">
+      <div className="rounded-3xl border border-slate-200 bg-gradient-to-r from-white via-slate-50 to-indigo-50/60 px-6 py-5 text-slate-900 shadow-[0_18px_45px_rgba(15,23,42,0.10)]">
         <h1 className="text-xl font-semibold text-slate-900">CRM Command Center</h1>
         <p className="text-sm text-slate-600 mt-1">Manage hot, warm, cold, and custom leads with fast actions and clean workflows.</p>
       </div>
@@ -244,18 +320,18 @@ const CRMPage: React.FC = () => {
         }}
       />
       <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 items-start">
-      <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden sticky top-4">
+      <div className="rounded-2xl bg-white/95 border border-slate-200 shadow-[0_14px_35px_rgba(15,23,42,0.08)] overflow-hidden sticky top-4 backdrop-blur-sm">
         <aside className="bg-slate-50/70 p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Lead Tabs</div>
           <div className="space-y-2">
             {tabs.map((tab) => (
-              <div key={tab} className={`w-full inline-flex items-center justify-between rounded-lg border ${tab === activeTab ? 'bg-brand-red text-white border-brand-red' : 'bg-white border-slate-300 text-slate-700'}`}>
+              <div key={tab} className={`w-full inline-flex items-center justify-between rounded-lg border transition-all duration-200 ${tab === activeTab ? 'bg-gradient-to-r from-brand-red to-rose-600 text-white border-brand-red shadow-md' : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400 hover:shadow-sm'}`}>
                 <button className="px-3 py-2 text-sm text-left flex-1" onClick={() => { setPage(1); setCardFilter({ type: 'none' }); setActiveTab(tab); }}>
                   {tab}
                 </button>
                 {!baseTabs.includes(tab) && (
                   <button
-                    className={`pr-3 text-sm ${tab === activeTab ? 'text-white/90 hover:text-white' : 'text-red-600 hover:text-red-700'}`}
+                    className={`pr-3 text-sm transition-colors ${tab === activeTab ? 'text-white/90 hover:text-white' : 'text-red-600 hover:text-red-700'}`}
                     onClick={() => setDeletingTab(customTabMap[tab] || null)}
                     title="Delete Custom Tab"
                   >
@@ -265,7 +341,7 @@ const CRMPage: React.FC = () => {
               </div>
             ))}
             <button
-              className="w-full px-3 py-2 rounded-lg border border-dashed border-slate-400 text-slate-700 text-sm text-left hover:bg-white"
+              className="w-full px-3 py-2 rounded-lg border border-dashed border-slate-400 text-slate-700 text-sm text-left hover:bg-white hover:shadow-sm transition-all duration-200"
               onClick={() => setCreateTabOpen(true)}
             >
               + Create Custom Tab
@@ -275,7 +351,7 @@ const CRMPage: React.FC = () => {
       </div>
 
       <div className="space-y-4">
-      <div className="rounded-2xl bg-white border border-slate-200 p-5 space-y-4 shadow-sm">
+      <div className="rounded-2xl bg-white border border-slate-200 p-5 space-y-4 shadow-[0_14px_35px_rgba(15,23,42,0.08)]">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-800">Lead Controls</h2>
           <span className="text-xs text-slate-500">Active Tab: <span className="font-semibold text-slate-700">{activeTab}</span></span>
@@ -283,40 +359,38 @@ const CRMPage: React.FC = () => {
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[300px] flex-1">
             <label className="text-xs text-slate-500 mb-1 block">Search Leads</label>
-            <input className="w-full rounded-lg border border-slate-300 px-3 py-2" placeholder="Search by name, email, company, position..." value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
+            <input className="w-full rounded-lg border border-slate-300 px-3 py-2 bg-white focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red/60 transition-all" placeholder="Search by name, email, company, position..." value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
           </div>
           <CRMExportButton leadType={activeTab} customTabName={currentCustomTab} />
-          <button className="px-4 py-2 rounded-lg border border-slate-300 bg-white" onClick={() => setImportOpen(true)}>Import Excel</button>
-          <button className="px-4 py-2 rounded-lg bg-brand-red text-white" onClick={() => { setEditingLead(null); setLeadFormOpen(true); }}>Add Lead</button>
+          <button className="px-4 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 hover:-translate-y-0.5 transition-all duration-200" onClick={() => setImportOpen(true)}>Import Excel</button>
+          <button className="px-4 py-2 rounded-lg bg-gradient-to-r from-brand-red to-rose-600 text-white shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200" onClick={() => { setEditingLead(null); setLeadFormOpen(true); }}>Add Lead</button>
         </div>
         {canUseRoleFilters && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+          <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100/80 p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Role Filters</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <div className="relative">
                   <button
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 bg-white text-left text-sm text-slate-700 flex items-center justify-between"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 bg-white text-left text-sm text-slate-700 flex items-center justify-between hover:border-slate-400 transition-colors"
                     onClick={() => setPersonDropdownOpen((open) => !open)}
                   >
                     <span>
-                      {selectedPerson
-                        ? `${selectedPerson.name} (${selectedPerson.role === 'TEAM_LEAD' ? 'TL' : selectedPerson.role === 'ADMIN' || selectedPerson.role === 'SUPER_ADMIN' ? 'ADMIN' : 'EMP'})`
-                        : 'All People'}
+                      {selectedPersonLabel}
                     </span>
                     <ChevronDown size={16} className="text-slate-500" />
                   </button>
                   {personDropdownOpen && (
-                    <div className="absolute z-30 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-xl p-2">
+                    <div className="absolute z-30 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-2xl p-2">
                       <input
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-2"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm mb-2 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red/60 transition-all"
                         placeholder="Search people..."
                         value={personSearch}
                         onChange={(e) => setPersonSearch(e.target.value)}
                       />
                       <div className="max-h-56 overflow-y-auto">
                         <button
-                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-sm"
+                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-sm transition-colors"
                           onClick={() => {
                             setPage(1);
                             setPersonFilterId('');
@@ -327,7 +401,7 @@ const CRMPage: React.FC = () => {
                         </button>
                         {currentUserId ? (
                           <button
-                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-sm"
+                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-sm transition-colors"
                             onClick={() => {
                               setPage(1);
                               setPersonFilterId(currentUserId);
@@ -340,14 +414,17 @@ const CRMPage: React.FC = () => {
                         {filteredPeopleOptions.map((member) => (
                           <button
                             key={member.id}
-                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-sm"
+                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-sm transition-colors"
                             onClick={() => {
                               setPage(1);
                               setPersonFilterId(member.id);
                               setPersonDropdownOpen(false);
                             }}
                           >
-                            {member.name} <span className="text-xs text-slate-500">({member.role === 'TEAM_LEAD' ? 'TL' : 'EMP'})</span>
+                            {member.name}{' '}
+                            <span className="text-xs text-slate-500">
+                              ({member.role === 'TEAM_LEAD' ? 'TL' : member.role === 'ADMIN' || member.role === 'SUPER_ADMIN' ? 'ADMIN' : 'EMP'})
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -357,11 +434,12 @@ const CRMPage: React.FC = () => {
               </div>
               <div className="flex items-end">
                 <button
-                  className="px-4 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-100"
+                  className="px-4 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 hover:-translate-y-0.5 transition-all duration-200"
                   onClick={() => {
                     setPersonFilterId('');
                     setPersonSearch('');
                     setPersonDropdownOpen(false);
+                    setPersonFilterInitialized(true);
                     setPage(1);
                   }}
                 >
@@ -373,25 +451,25 @@ const CRMPage: React.FC = () => {
         )}
       </div>
 
-      <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
+      <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
         <h3 className="text-sm font-semibold text-slate-700 mb-3">Bulk Actions</h3>
         <div className="flex gap-2 flex-wrap">
         <button
-          className="px-4 py-2 rounded-lg border border-red-300 text-red-600 bg-red-50 disabled:opacity-50"
+          className="px-4 py-2 rounded-lg border border-red-300 text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50"
           disabled={!selectedIds.length || actionLoading}
           onClick={() => setConfirmAction('deleteBulk')}
         >
           {actionLoading && confirmAction === 'deleteBulk' ? 'Deleting...' : 'Bulk Delete'}
         </button>
         <button
-          className="px-4 py-2 rounded-lg border border-slate-300 bg-white disabled:opacity-50"
+          className="px-4 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 transition-colors disabled:opacity-50"
           disabled={!selectedIds.length || actionLoading}
           onClick={() => { setMoveDestination(activeTab); setMoveModalOpen(true); }}
         >
           {actionLoading && moveModalOpen ? 'Moving...' : 'Bulk Move'}
         </button>
         <button
-          className="px-4 py-2 rounded-lg border border-red-400 text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
+          className="px-4 py-2 rounded-lg border border-red-400 text-white bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 transition-all disabled:opacity-50"
           disabled={actionLoading || total === 0}
           onClick={() => setConfirmAction('deleteAll')}
         >
@@ -403,7 +481,7 @@ const CRMPage: React.FC = () => {
       {pageLoading ? (
         <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-slate-500">Loading leads...</div>
       ) : (
-      <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+      <div className="rounded-2xl bg-white border border-slate-200 shadow-[0_14px_35px_rgba(15,23,42,0.08)] overflow-hidden">
         <div className="p-4">
           <CRMTable
             items={leads}
@@ -421,22 +499,22 @@ const CRMPage: React.FC = () => {
       </div>
       )}
 
-      <div className="rounded-2xl bg-white border border-slate-200 px-4 py-3 flex items-center justify-between shadow-sm">
+      <div className="rounded-2xl bg-white border border-slate-200 px-4 py-3 flex items-center justify-between shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
         <div className="text-sm text-slate-600">
           Showing <span className="font-semibold text-slate-800">{leads.length}</span> records (page <span className="font-semibold text-slate-800">{page}</span> of <span className="font-semibold text-slate-800">{totalPages}</span>) - 20 per page
         </div>
         <div className="flex gap-2 items-center">
-          <button className="px-3 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50" disabled={page <= 1} onClick={() => setPage(v => Math.max(1, v - 1))}>Prev</button>
+          <button className="px-3 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 transition-colors disabled:opacity-50" disabled={page <= 1} onClick={() => setPage(v => Math.max(1, v - 1))}>Prev</button>
           {pageNumbers.map((pageNo) => (
             <button
               key={pageNo}
-              className={`px-3 py-1.5 rounded border text-sm ${pageNo === page ? 'border-brand-red bg-brand-red text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+              className={`px-3 py-1.5 rounded border text-sm transition-all duration-200 ${pageNo === page ? 'border-brand-red bg-gradient-to-r from-brand-red to-rose-600 text-white shadow-sm' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
               onClick={() => setPage(pageNo)}
             >
               {pageNo}
             </button>
           ))}
-          <button className="px-3 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50" disabled={page >= totalPages} onClick={() => setPage(v => Math.min(totalPages, v + 1))}>Next</button>
+          <button className="px-3 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 transition-colors disabled:opacity-50" disabled={page >= totalPages} onClick={() => setPage(v => Math.min(totalPages, v + 1))}>Next</button>
         </div>
       </div>
       </div>
