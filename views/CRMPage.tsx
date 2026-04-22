@@ -19,6 +19,14 @@ type ToastTone = 'success' | 'error';
 type ToastItem = { id: number; tone: ToastTone; message: string };
 type StaffOption = { id: string; empId: string; name: string; role: string };
 type LeadActionItem = { id: string; title: string; description: string };
+type CardFilter =
+  | { type: 'none' }
+  | { type: 'total' }
+  | { type: 'hot' }
+  | { type: 'warm' }
+  | { type: 'cold' }
+  | { type: 'thisMonth' }
+  | { type: 'custom'; customTabName: string };
 
 const CRMPage: React.FC = () => {
   const navigate = useNavigate();
@@ -60,6 +68,7 @@ const CRMPage: React.FC = () => {
   const [deletingTab, setDeletingTab] = useState<TabInfo | null>(null);
   const [pageLoading, setPageLoading] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [cardFilter, setCardFilter] = useState<CardFilter>({ type: 'none' });
 
   const tabs = useMemo(() => [...baseTabs, ...customTabs.map((tab) => tab.name)], [customTabs]);
   const canUseRoleFilters = role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'TEAM_LEAD';
@@ -97,14 +106,31 @@ const CRMPage: React.FC = () => {
 
   const load = async () => {
     setPageLoading(true);
-    const leadType = baseTabs.includes(activeTab) ? activeTab : 'CUSTOM';
-    const customTabName = baseTabs.includes(activeTab) ? '' : activeTab;
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const monthStartIso = monthStart.toISOString().slice(0, 10);
+
+    let leadType = '';
+    let customTabName = '';
+    if (cardFilter.type === 'hot') leadType = 'HOT';
+    else if (cardFilter.type === 'warm') leadType = 'WARM';
+    else if (cardFilter.type === 'cold') leadType = 'COLD';
+    else if (cardFilter.type === 'custom') {
+      leadType = 'CUSTOM';
+      customTabName = cardFilter.customTabName;
+    } else if (cardFilter.type === 'none') {
+      leadType = baseTabs.includes(activeTab) ? activeTab : 'CUSTOM';
+      customTabName = baseTabs.includes(activeTab) ? '' : activeTab;
+    }
+
     const params = new URLSearchParams({
       q: search,
       page: String(page),
       limit: String(PAGE_SIZE),
-      leadType,
+      ...(leadType ? { leadType } : {}),
       ...(customTabName ? { customTabName } : {}),
+      ...(cardFilter.type === 'thisMonth' ? { fromDate: monthStartIso } : {}),
       ...(selectedPerson?.role === 'TEAM_LEAD' ? { teamLeadId: selectedPerson.id } : {}),
       ...(selectedPerson?.role !== 'TEAM_LEAD' && selectedPerson?.id ? { employeeId: selectedPerson.id } : {}),
     });
@@ -113,10 +139,37 @@ const CRMPage: React.FC = () => {
       crmJson<any>('/crm/custom-tabs'),
       crmJson<any>(`/crm?${params.toString()}`),
     ]);
-    setStats(statsRes);
+    const normalizedCustomCounts = Array.isArray(statsRes?.customCounts)
+      ? statsRes.customCounts.map((entry: any) => ({
+          name: String(entry?.name || '').trim(),
+          count: Number(entry?.count || 0),
+        }))
+      : [];
+    const listTotal = Number(listRes?.total || 0);
+    const shouldSyncActiveCustomTabCount =
+      cardFilter.type === 'none' && !baseTabs.includes(activeTab);
+    const syncedCustomCounts = shouldSyncActiveCustomTabCount
+      ? (() => {
+          const activeTabNormalized = activeTab.trim().toUpperCase();
+          let found = false;
+          const next = normalizedCustomCounts.map((entry) => {
+            if (entry.name.trim().toUpperCase() !== activeTabNormalized) return entry;
+            found = true;
+            return { ...entry, count: listTotal };
+          });
+          if (!found && activeTab.trim()) {
+            next.push({ name: activeTab.trim(), count: listTotal });
+          }
+          return next;
+        })()
+      : normalizedCustomCounts;
+    setStats({
+      ...statsRes,
+      customCounts: syncedCustomCounts,
+    });
     setCustomTabs(Array.isArray(tabsRes.tabs) ? tabsRes.tabs : []);
     setLeads(listRes.items || []);
-    setTotal(Number(listRes.total || 0));
+    setTotal(listTotal);
     setPageLoading(false);
   };
 
@@ -125,7 +178,7 @@ const CRMPage: React.FC = () => {
       pushToast(e.message || 'Failed to load CRM data', 'error');
       setPageLoading(false);
     });
-  }, [activeTab, page, search, personFilterId]);
+  }, [activeTab, page, search, personFilterId, cardFilter]);
 
 
   useEffect(() => {
@@ -178,7 +231,18 @@ const CRMPage: React.FC = () => {
         />
       ) : (
       <>
-      <CRMStatsCards stats={stats} />
+      <CRMStatsCards
+        stats={stats}
+        onCardClick={(card) => {
+          setPage(1);
+          if (card.type === 'custom' && card.customTabName) {
+            setActiveTab(card.customTabName);
+            setCardFilter({ type: 'custom', customTabName: card.customTabName });
+            return;
+          }
+          setCardFilter({ type: card.type });
+        }}
+      />
       <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 items-start">
       <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden sticky top-4">
         <aside className="bg-slate-50/70 p-4">
@@ -186,7 +250,7 @@ const CRMPage: React.FC = () => {
           <div className="space-y-2">
             {tabs.map((tab) => (
               <div key={tab} className={`w-full inline-flex items-center justify-between rounded-lg border ${tab === activeTab ? 'bg-brand-red text-white border-brand-red' : 'bg-white border-slate-300 text-slate-700'}`}>
-                <button className="px-3 py-2 text-sm text-left flex-1" onClick={() => { setPage(1); setActiveTab(tab); }}>
+                <button className="px-3 py-2 text-sm text-left flex-1" onClick={() => { setPage(1); setCardFilter({ type: 'none' }); setActiveTab(tab); }}>
                   {tab}
                 </button>
                 {!baseTabs.includes(tab) && (

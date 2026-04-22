@@ -21,6 +21,12 @@ const CRMLeadDetailPage: React.FC = () => {
   const [actionDescription, setActionDescription] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<LeadActionItem | null>(null);
 
+  const readCustomField = (source: any, key: string) => {
+    const raw = source?.customFields?.[key];
+    if (raw && typeof raw === 'object' && 'value' in raw) return String((raw as any).value ?? '');
+    return String(raw ?? '');
+  };
+
   const pushToast = (message: string, tone: ToastTone = 'success') => {
     const id = Date.now() + Math.floor(Math.random() * 1000);
     setToasts((prev) => [...prev, { id, tone, message }]);
@@ -52,33 +58,71 @@ const CRMLeadDetailPage: React.FC = () => {
     );
   }
 
+  const fixedCustomFieldKeys = new Set(['phone_number', 'linkedin_profile', 'lead_source', 'birthday', 'industry']);
+  const customFieldEntries = Object.entries(lead?.customFields || {}).filter(([key, value]) => {
+    if (fixedCustomFieldKeys.has(key)) return false;
+    if (value === undefined || value === null) return false;
+    if (typeof value === 'object' && 'value' in (value as any)) return String((value as any).value ?? '').trim() !== '';
+    return String(value).trim() !== '';
+  });
+
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-slate-200">
-          <button className="mb-3 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-sm" onClick={() => navigate('/crm')}>Back</button>
-          <h3 className="text-lg font-semibold text-slate-900">{`${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Lead Details'}</h3>
-          <p className="text-sm text-slate-500">View complete lead profile and manage actions.</p>
+      <div className="rounded-3xl bg-white border border-slate-200 shadow-[0_24px_50px_rgba(15,23,42,0.10)] overflow-hidden">
+        <div className="px-6 py-6 border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-800 text-white">
+          <button className="mb-4 px-3 py-1.5 rounded-lg border border-white/25 bg-white/10 hover:bg-white/20 text-sm" onClick={() => navigate('/crm')}>Back to Leads</button>
+          <h3 className="text-2xl font-semibold tracking-tight">{`${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Lead Details'}</h3>
+          <p className="text-sm text-slate-200 mt-1">Complete lead profile and imported field data</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/15 border border-white/20">Lead Type: {lead.leadType || '-'}</span>
+            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/15 border border-white/20">Status: {lead.status || '-'}</span>
+            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/15 border border-white/20">Company: {lead.company || '-'}</span>
+          </div>
         </div>
-        <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
             ['Email Address', lead.email || '-'],
-            ['URL', lead.url || '-'],
+            ['Phone Number', readCustomField(lead, 'phone_number') || '-'],
+            ['Company URL', lead.url || '-'],
+            ['LinkedIn Profile', readCustomField(lead, 'linkedin_profile') || '-'],
             ['Company', lead.company || '-'],
-            ['Position', lead.position || '-'],
+            ['Designation', lead.position || '-'],
+            ['Lead Source', readCustomField(lead, 'lead_source') || '-'],
+            ['Birthday', readCustomField(lead, 'birthday') || '-'],
+            ['Industry', readCustomField(lead, 'industry') || '-'],
             ['Connected On', lead.connectedOn ? new Date(lead.connectedOn).toLocaleDateString() : '-'],
             ['Employee Count', lead.employeeCount ?? '-'],
             ['Lead Type', lead.leadType || '-'],
             ['Status', lead.status || '-'],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-              <div className="text-sm font-medium text-slate-800 mt-1">{value as any}</div>
+            <div key={label} className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
+              <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{label}</div>
+              <div className="text-sm font-semibold text-slate-800 mt-1 break-words">{value as any}</div>
             </div>
           ))}
-          <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <div className="text-xs uppercase tracking-wide text-slate-500">Notes</div>
-            <div className="text-sm font-medium text-slate-800 mt-1">{lead.notes || '-'}</div>
+          <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
+            <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Notes</div>
+            <div className="text-sm font-medium text-slate-800 mt-1 whitespace-pre-wrap">{lead.notes || '-'}</div>
+          </div>
+          <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
+            <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Custom Fields</div>
+            {customFieldEntries.length ? (
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                {customFieldEntries.map(([key, rawValue]) => {
+                  const value = rawValue && typeof rawValue === 'object' && 'value' in (rawValue as any)
+                    ? String((rawValue as any).value ?? '')
+                    : String(rawValue ?? '');
+                  return (
+                    <div key={key} className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{key.replace(/_/g, ' ')}</div>
+                      <div className="text-sm text-slate-800 mt-1 break-words">{value || '-'}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-sm font-medium text-slate-800 mt-1">-</div>
+            )}
           </div>
         </div>
       </div>
