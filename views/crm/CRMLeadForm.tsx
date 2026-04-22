@@ -14,6 +14,11 @@ export interface CRMLeadPayload {
   status: string;
   notes: string;
   customFields?: Record<string, { type: string; value: string }>;
+  phoneNumber?: string;
+  linkedinProfile?: string;
+  leadSource?: string;
+  birthday?: string;
+  industry?: string;
 }
 
 interface CRMLeadFormProps {
@@ -38,6 +43,11 @@ const defaultLead = (activeTab: string): CRMLeadPayload => ({
   employeeCount: '',
   status: 'ACTIVE',
   notes: '',
+  phoneNumber: '',
+  linkedinProfile: '',
+  leadSource: '',
+  birthday: '',
+  industry: '',
 });
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -53,7 +63,6 @@ const customFieldTypes = [
 
 const CRMLeadForm: React.FC<CRMLeadFormProps> = ({ mode, initialData, activeTab, onCancel, onSubmit, onError }) => {
   const [form, setForm] = useState<CRMLeadPayload>(defaultLead(activeTab));
-  const [phone, setPhone] = useState('');
   const [customFieldKey, setCustomFieldKey] = useState('');
   const [customFieldType, setCustomFieldType] = useState('input');
   const [customFields, setCustomFields] = useState<Array<{ key: string; type: string; value: string }>>([]);
@@ -62,8 +71,18 @@ const CRMLeadForm: React.FC<CRMLeadFormProps> = ({ mode, initialData, activeTab,
 
   useEffect(() => {
     const next = { ...defaultLead(activeTab), ...(initialData || {}) } as CRMLeadPayload;
+    const persistedCustomFields = next.customFields && typeof next.customFields === 'object' ? next.customFields : {};
+    const readCustomValue = (key: string) => {
+      const value = (persistedCustomFields as any)?.[key];
+      if (value && typeof value === 'object' && 'value' in value) return String((value as any).value ?? '');
+      return String(value ?? '');
+    };
+    next.phoneNumber = next.phoneNumber || readCustomValue('phone_number');
+    next.linkedinProfile = next.linkedinProfile || readCustomValue('linkedin_profile');
+    next.leadSource = next.leadSource || readCustomValue('lead_source');
+    next.birthday = next.birthday || readCustomValue('birthday');
+    next.industry = next.industry || readCustomValue('industry');
     setForm(next);
-    setPhone(String((initialData as any)?.phone || ''));
     const initialCustom = next.customFields && typeof next.customFields === 'object'
       ? Object.entries(next.customFields).map(([key, value]) => {
           if (value && typeof value === 'object' && 'value' in value) {
@@ -76,9 +95,9 @@ const CRMLeadForm: React.FC<CRMLeadFormProps> = ({ mode, initialData, activeTab,
           return { key, type: 'input', value: String(value ?? '') };
         })
       : [];
-    setCustomFields(initialCustom);
+    setCustomFields(initialCustom.filter((item) => !['phone_number', 'linkedin_profile', 'lead_source', 'birthday', 'industry'].includes(item.key)));
     setErrors({});
-  }, [activeTab, initialData?.leadType, initialData?.firstName, initialData?.lastName, initialData?.email, initialData?.company, initialData?.position, initialData?.url, initialData?.connectedOn, initialData?.employeeCount, initialData?.status, initialData?.notes]);
+  }, [activeTab, initialData?.leadType, initialData?.firstName, initialData?.lastName, initialData?.email, initialData?.company, initialData?.position, initialData?.url, initialData?.connectedOn, initialData?.employeeCount, initialData?.status, initialData?.notes, initialData?.customFields]);
 
   const setFieldError = (key: string, value: string) => {
     setErrors((prev) => {
@@ -118,8 +137,12 @@ const CRMLeadForm: React.FC<CRMLeadFormProps> = ({ mode, initialData, activeTab,
       if (trimmed && trimmed.length > 80) return 'Position must be 80 characters or less.';
       return '';
     }
-    if (key === 'phone') {
+    if (key === 'phoneNumber') {
       if (trimmed && !phoneRegex.test(trimmed)) return 'Enter a valid phone number.';
+      return '';
+    }
+    if (key === 'linkedinProfile') {
+      if (trimmed && !urlRegex.test(trimmed)) return 'Enter a valid LinkedIn URL.';
       return '';
     }
     if (key === 'employeeCount') {
@@ -147,7 +170,8 @@ const CRMLeadForm: React.FC<CRMLeadFormProps> = ({ mode, initialData, activeTab,
       ['url', form.url],
       ['company', form.company],
       ['position', form.position],
-      ['phone', phone],
+      ['phoneNumber', form.phoneNumber || ''],
+      ['linkedinProfile', form.linkedinProfile || ''],
       ['employeeCount', form.employeeCount],
       ['notes', form.notes],
     ];
@@ -203,12 +227,12 @@ const CRMLeadForm: React.FC<CRMLeadFormProps> = ({ mode, initialData, activeTab,
             {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email}</p>}
           </div>
           <div>
-            {renderLabel('Phone')}
-            <input className="rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red px-3 py-2 w-full" value={phone} onChange={(e) => { setPhone(e.target.value); if (errors.phone) setFieldError('phone', validateField('phone', e.target.value)); }} onBlur={(e) => setFieldError('phone', validateField('phone', e.target.value))} />
-            {errors.phone && <p className="text-xs text-red-600 mt-1">{errors.phone}</p>}
+            {renderLabel('Phone Number')}
+            <input className="rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red px-3 py-2 w-full" value={form.phoneNumber || ''} onChange={(e) => update('phoneNumber', e.target.value)} onBlur={(e) => setFieldError('phoneNumber', validateField('phoneNumber', e.target.value))} />
+            {errors.phoneNumber && <p className="text-xs text-red-600 mt-1">{errors.phoneNumber}</p>}
           </div>
           <div>
-            {renderLabel('URL')}
+            {renderLabel('Company URL')}
             <input className="rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red px-3 py-2 w-full" value={form.url} onChange={(e) => update('url', e.target.value)} onBlur={(e) => setFieldError('url', validateField('url', e.target.value))} />
             {errors.url && <p className="text-xs text-red-600 mt-1">{errors.url}</p>}
           </div>
@@ -218,9 +242,26 @@ const CRMLeadForm: React.FC<CRMLeadFormProps> = ({ mode, initialData, activeTab,
             {errors.company && <p className="text-xs text-red-600 mt-1">{errors.company}</p>}
           </div>
           <div>
-            {renderLabel('Position')}
+            {renderLabel('Designation')}
             <input className="rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red px-3 py-2 w-full" value={form.position} onChange={(e) => update('position', e.target.value)} onBlur={(e) => setFieldError('position', validateField('position', e.target.value))} />
             {errors.position && <p className="text-xs text-red-600 mt-1">{errors.position}</p>}
+          </div>
+          <div>
+            {renderLabel('LinkedIn Profile')}
+            <input className="rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red px-3 py-2 w-full" value={form.linkedinProfile || ''} onChange={(e) => update('linkedinProfile', e.target.value)} onBlur={(e) => setFieldError('linkedinProfile', validateField('linkedinProfile', e.target.value))} />
+            {errors.linkedinProfile && <p className="text-xs text-red-600 mt-1">{errors.linkedinProfile}</p>}
+          </div>
+          <div>
+            {renderLabel('Lead Source')}
+            <input className="rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red px-3 py-2 w-full" value={form.leadSource || ''} onChange={(e) => update('leadSource', e.target.value)} />
+          </div>
+          <div>
+            {renderLabel('Birthday')}
+            <input type="date" className="rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red px-3 py-2 w-full" value={form.birthday || ''} onChange={(e) => update('birthday', e.target.value)} />
+          </div>
+          <div>
+            {renderLabel('Industry')}
+            <input className="rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red px-3 py-2 w-full" value={form.industry || ''} onChange={(e) => update('industry', e.target.value)} />
           </div>
           <div>
             {renderLabel('Connected On')}
@@ -359,10 +400,21 @@ const CRMLeadForm: React.FC<CRMLeadFormProps> = ({ mode, initialData, activeTab,
                 position: form.position.trim(),
                 url: form.url.trim(),
                 notes: form.notes.trim(),
+                phoneNumber: (form.phoneNumber || '').trim(),
+                linkedinProfile: (form.linkedinProfile || '').trim(),
+                leadSource: (form.leadSource || '').trim(),
+                birthday: form.birthday || '',
+                industry: (form.industry || '').trim(),
                 customFields: customFields.reduce((acc, item) => {
                   if (item.key && item.value !== '') acc[item.key] = { type: item.type, value: item.value };
                   return acc;
-                }, {} as Record<string, { type: string; value: string }>),
+                }, {
+                  ...((form.phoneNumber || '').trim() ? { phone_number: { type: 'input', value: (form.phoneNumber || '').trim() } } : {}),
+                  ...((form.linkedinProfile || '').trim() ? { linkedin_profile: { type: 'input', value: (form.linkedinProfile || '').trim() } } : {}),
+                  ...((form.leadSource || '').trim() ? { lead_source: { type: 'input', value: (form.leadSource || '').trim() } } : {}),
+                  ...(form.birthday ? { birthday: { type: 'date', value: form.birthday } } : {}),
+                  ...((form.industry || '').trim() ? { industry: { type: 'input', value: (form.industry || '').trim() } } : {}),
+                } as Record<string, { type: string; value: string }>),
               });
             } finally { setSaving(false); }
           }}
