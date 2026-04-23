@@ -241,7 +241,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               </div>
             </div>
           </header>
-          <div className="flex-1 overflow-y-auto p-16 bg-slate-100/30 no-scrollbar">
+          <div className={`flex-1 overflow-y-auto bg-slate-100/30 no-scrollbar ${showVisionHeaderTabs ? 'px-12 pb-12 pt-2' : 'p-16'}`}>
             <Routes>
               {hasPower('DASHBOARD_VIEW') && (
                 <Route path="/" element={<DashboardView state={state} loading={planningViewsLoading} />} />

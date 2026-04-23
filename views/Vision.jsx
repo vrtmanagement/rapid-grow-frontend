@@ -525,8 +525,8 @@ const VisionHierarchyCard = ({
     }`}
     onMouseLeave={onMenuClose}
   >
-    <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${isCurrentPeriod ? 'from-brand-red via-red-400 to-amber-300' : 'from-brand-red via-rose-400 to-orange-300'}`} />
-    <div className={`absolute right-0 top-0 h-28 w-28 rounded-full blur-2xl transition ${isCurrentPeriod ? 'bg-red-100/90' : 'bg-red-50/70 group-hover:bg-red-100/80'}`} />
+    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 transition group-hover:from-brand-red group-hover:via-rose-400 group-hover:to-orange-300" />
+    <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-transparent blur-2xl transition" />
     {isAdmin ? (
       <div className="absolute right-5 top-5 z-20">
         <button
@@ -586,10 +586,10 @@ const VisionHierarchyCard = ({
       className="relative flex w-full flex-1 cursor-pointer flex-col p-6 text-left"
     >
         <div className="flex items-start justify-between gap-4 pr-14">
-          <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.4rem] shadow-[0_18px_36px_rgba(15,23,42,0.16)] transition-all duration-300 ${
+          <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.4rem] shadow-none transition-all duration-300 ${
             isCurrentPeriod
-              ? 'bg-gradient-to-br from-brand-red to-red-500 text-white shadow-[0_18px_36px_rgba(239,68,68,0.24)]'
-              : 'bg-slate-900 text-brand-red group-hover:bg-gradient-to-br group-hover:from-brand-red group-hover:to-red-500 group-hover:text-white group-hover:shadow-[0_18px_36px_rgba(239,68,68,0.24)]'
+              ? 'bg-slate-900 text-brand-red group-hover:bg-gradient-to-br group-hover:from-brand-red group-hover:to-red-500 group-hover:text-white'
+              : 'bg-slate-900 text-brand-red group-hover:bg-gradient-to-br group-hover:from-brand-red group-hover:to-red-500 group-hover:text-white'
           }`}>
           <Icon size={24} />
           </div>
@@ -609,7 +609,7 @@ const VisionHierarchyCard = ({
           </div>
           {dateRange && (
             <div className={`rounded-full border px-3 py-1 text-xs font-medium ${
-              isCurrentPeriod ? 'border-red-200 bg-red-50 text-brand-red shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-500'
+              isCurrentPeriod ? 'border-slate-200 bg-slate-50 text-slate-500 transition group-hover:border-red-200 group-hover:bg-red-50 group-hover:text-brand-red' : 'border-slate-200 bg-slate-50 text-slate-500'
             }`}>
               {dateRange}
             </div>
@@ -639,7 +639,7 @@ const VisionHierarchyCard = ({
         <ProgressBar progress={progress} tone="red" loading={isProgressLoading} />
       </div>
 
-      <div className="mt-6 rounded-[1.6rem] border border-slate-200 bg-slate-50/85 p-4">
+      <div className="mt-6 rounded-[1.6rem] border border-slate-200 bg-slate-50/85 p-4 shadow-none">
         <div className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 text-sm text-slate-500">
           {infoRows.map((row) => (
             <React.Fragment key={row.label}>
@@ -1900,26 +1900,26 @@ const Vision = ({ state, updateState, loading = false }) => {
   return (
     <div className="mx-auto max-w-7xl space-y-6 pb-16">
       <style>{VISION_PROGRESS_SHIMMER_STYLE}</style>
-      <section className="rounded-[2rem] border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)] sm:p-7">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-start gap-4">
+      <section className="rounded-[1.6rem] border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50 p-3 shadow-[0_16px_36px_rgba(15,23,42,0.07)] sm:p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
             <div
-              className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.35rem] shadow-[0_12px_30px_rgba(239,68,68,0.14)] ring-1 ${
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-[0_8px_16px_rgba(239,68,68,0.10)] ring-1 ${
                 isDailyStage
                   ? 'bg-slate-900 text-brand-red ring-slate-900/10'
                   : 'bg-gradient-to-br from-red-50 via-white to-red-100 text-brand-red ring-red-100'
               }`}
             >
-              {isDailyStage ? <Sun size={22} /> : <Sparkles size={22} />}
+              {isDailyStage ? <Sun size={16} /> : <Sparkles size={16} />}
             </div>
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-red">
+              <div className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-brand-red">
                 {heroBadgeLabel}
               </div>
-              <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-[2.4rem]">
+              <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
                 {heroTitle}
               </h1>
-              {heroDescription ? <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-500">{heroDescription}</p> : null}
+              {heroDescription ? <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{heroDescription}</p> : null}
             </div>
           </div>
 
@@ -1930,28 +1930,28 @@ const Vision = ({ state, updateState, loading = false }) => {
                 Add Vision
               </SmallActionButton>
             ) : null}
-            <div className="min-w-[220px] rounded-[1.6rem] border border-slate-200 bg-white px-5 py-4 shadow-[0_14px_35px_rgba(15,23,42,0.06)]">
+            <div className="min-w-[170px] rounded-[1.2rem] border border-slate-200 bg-white px-3.5 py-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
               {isDailyStage ? (
                 <>
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Week completion</div>
-                      <div className="mt-2 text-4xl font-semibold leading-none text-slate-900">{weekProgress.percent}%</div>
+                      <div className="mt-1 text-2xl font-semibold leading-none text-slate-900">{weekProgress.percent}%</div>
                     </div>
-                    <div className="rounded-2xl bg-slate-50 px-4 py-3 text-center shadow-sm">
+                    <div className="rounded-2xl bg-slate-50 px-3 py-2.5 text-center shadow-sm">
                       <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Days</div>
                       <div className="mt-1 text-lg font-semibold text-slate-900">{selectedWeek.days.length}</div>
                     </div>
                   </div>
-                  <div className="mt-4">
+                  <div className="mt-3">
                     <ProgressBar progress={weekProgress.percent} tone="emerald" loading={progressLoading} />
                   </div>
                 </>
               ) : (
                 <>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">{heroStatLabel}</div>
-                  <div className="mt-2 flex items-end justify-between gap-3">
-                    <div className="text-4xl font-semibold leading-none text-slate-900">{heroStatValue}</div>
+                  <div className="mt-1 flex items-end justify-between gap-3">
+                    <div className="text-2xl font-semibold leading-none text-slate-900">{heroStatValue}</div>
                     <div className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-brand-red">
                       {heroStatBadge}
                     </div>
