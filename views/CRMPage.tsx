@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CRMStatsCards from './crm/CRMStatsCards';
 import CRMTable from './crm/CRMTable';
@@ -12,6 +12,7 @@ import { crmJson, crmUploadFile } from '../services/crmApi';
 const baseTabs = ['HOT', 'WARM', 'COLD'];
 const RESERVED_TAB_NAMES = new Set(baseTabs);
 const PAGE_SIZE = 20;
+const CRM_ROLE_FILTER_STORAGE_KEY = 'crm_role_filter_selection_v1';
 
 type ConfirmAction = 'deleteOne' | 'deleteBulk' | 'deleteAll' | null;
 type TabInfo = { id: string; name: string };
@@ -30,6 +31,21 @@ type CardFilter =
   | { type: 'custom'; customTabName: string };
 
 const CRMPage: React.FC = () => {
+  const getStoredRoleFilter = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = window.localStorage.getItem(CRM_ROLE_FILTER_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { personFilterId?: string; initialized?: boolean };
+      return {
+        personFilterId: String(parsed?.personFilterId || ''),
+        initialized: !!parsed?.initialized,
+      };
+    } catch {
+      return null;
+    }
+  };
+  const storedRoleFilter = getStoredRoleFilter();
   const navigate = useNavigate();
   const sessionEmployee = getStoredAuthSession()?.employee || {};
   const role = String(sessionEmployee?.role || '');
@@ -49,8 +65,8 @@ const CRMPage: React.FC = () => {
   const [leads, setLeads] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  const [personFilterId, setPersonFilterId] = useState('');
-  const [personFilterInitialized, setPersonFilterInitialized] = useState(false);
+  const [personFilterId, setPersonFilterId] = useState(storedRoleFilter?.personFilterId || '');
+  const [personFilterInitialized, setPersonFilterInitialized] = useState(!!storedRoleFilter?.initialized);
   const [personDropdownOpen, setPersonDropdownOpen] = useState(false);
   const [personSearch, setPersonSearch] = useState('');
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
@@ -66,6 +82,8 @@ const CRMPage: React.FC = () => {
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const [confirmTargetLead, setConfirmTargetLead] = useState<any | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [deletingCustomCardName, setDeletingCustomCardName] = useState('');
+  const [deletingHiddenCustomLeads, setDeletingHiddenCustomLeads] = useState(false);
   const [deletingId, setDeletingId] = useState('');
   const [deletingTab, setDeletingTab] = useState<TabInfo | null>(null);
   const [pageLoading, setPageLoading] = useState(false);
@@ -116,6 +134,17 @@ const CRMPage: React.FC = () => {
       personRole === 'TEAM_LEAD' ? 'TL' : personRole === 'ADMIN' || personRole === 'SUPER_ADMIN' ? 'ADMIN' : 'EMP';
     return `${selectedScopePerson.name} (${shortRole})`;
   }, [selectedScopePerson]);
+  const personParams = useMemo(
+    () => {
+      const selectedScopeRole = String(selectedScopePerson?.role || '').toUpperCase();
+      return {
+        ...(canUseRoleFilters && !selectedScopePerson ? { allPeople: '1' } : {}),
+        ...(selectedScopeRole === 'TEAM_LEAD' && selectedScopePerson?.id ? { teamLeadId: selectedScopePerson.id } : {}),
+        ...(selectedScopeRole !== 'TEAM_LEAD' && selectedScopePerson?.id ? { employeeId: selectedScopePerson.id } : {}),
+      };
+    },
+    [canUseRoleFilters, selectedScopePerson],
+  );
   const filteredPeopleOptions = useMemo(() => {
     const q = personSearch.trim().toLowerCase();
     if (!q) return peopleOptions;
@@ -137,7 +166,18 @@ const CRMPage: React.FC = () => {
     }, 3200);
   };
 
-  const load = async () => {
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        CRM_ROLE_FILTER_STORAGE_KEY,
+        JSON.stringify({ personFilterId, initialized: personFilterInitialized }),
+      );
+    } catch {
+      // Ignore storage failures (private mode / restricted environments).
+    }
+  }, [personFilterId, personFilterInitialized]);
+
+  const load = useCallback(async () => {
     const requestId = latestLoadRequestRef.current + 1;
     latestLoadRequestRef.current = requestId;
     setPageLoading(true);
@@ -159,12 +199,6 @@ const CRMPage: React.FC = () => {
       customTabName = baseTabs.includes(activeTab) ? '' : activeTab;
     }
 
-    const selectedScopeRole = String(selectedScopePerson?.role || '').toUpperCase();
-    const personParams = {
-      ...(canUseRoleFilters && !selectedScopePerson ? { allPeople: '1' } : {}),
-      ...(selectedScopeRole === 'TEAM_LEAD' && selectedScopePerson?.id ? { teamLeadId: selectedScopePerson.id } : {}),
-      ...(selectedScopeRole !== 'TEAM_LEAD' && selectedScopePerson?.id ? { employeeId: selectedScopePerson.id } : {}),
-    };
     const params = new URLSearchParams({
       q: search,
       page: String(page),
@@ -175,70 +209,72 @@ const CRMPage: React.FC = () => {
       ...personParams,
     });
     const tabsParams = new URLSearchParams(personParams);
-    const [statsRes, tabsRes, listRes] = await Promise.all([
-      crmJson<any>(`/crm/stats${tabsParams.toString() ? `?${tabsParams.toString()}` : ''}`),
-      crmJson<any>(`/crm/custom-tabs${tabsParams.toString() ? `?${tabsParams.toString()}` : ''}`),
-      crmJson<any>(`/crm?${params.toString()}`),
-    ]);
-    const tabRows: TabInfo[] = Array.isArray(tabsRes.tabs) ? tabsRes.tabs : [];
-    const customTabCounts = await Promise.all(
-      tabRows.map(async (tab) => {
-        const scopedParams = new URLSearchParams({
-          page: '1',
-          limit: '1',
-          leadType: 'CUSTOM',
-          customTabName: tab.name,
-          ...personParams,
-        });
-        const response = await crmJson<any>(`/crm?${scopedParams.toString()}`);
-        return { name: String(tab.name || ''), count: Number(response?.total || 0) };
-      }),
-    );
-    const normalizedCustomCounts = Array.isArray(statsRes?.customCounts)
-      ? statsRes.customCounts.map((entry: any) => ({
-          name: String(entry?.name || '').trim(),
-          count: Number(entry?.count || 0),
-        }))
-      : [];
-    const listTotal = Number(listRes?.total || 0);
-    const shouldSyncActiveCustomTabCount =
-      cardFilter.type === 'none' && !baseTabs.includes(activeTab);
-    const trustedCustomCounts = customTabCounts.length
-      ? customTabCounts
-      : normalizedCustomCounts;
-    const syncedCustomCounts = shouldSyncActiveCustomTabCount
-      ? (() => {
-          const activeTabNormalized = activeTab.trim().toUpperCase();
-          let found = false;
-          const next = trustedCustomCounts.map((entry) => {
-            if (entry.name.trim().toUpperCase() !== activeTabNormalized) return entry;
-            found = true;
-            return { ...entry, count: listTotal };
-          });
-          if (!found && activeTab.trim()) {
-            next.push({ name: activeTab.trim(), count: listTotal });
-          }
-          return next;
-        })()
-      : trustedCustomCounts;
-    if (requestId !== latestLoadRequestRef.current) return;
+    try {
+      const [statsRes, tabsRes, listRes] = await Promise.all([
+        crmJson<any>(`/crm/stats${tabsParams.toString() ? `?${tabsParams.toString()}` : ''}`),
+        crmJson<any>(`/crm/custom-tabs${tabsParams.toString() ? `?${tabsParams.toString()}` : ''}`),
+        crmJson<any>(`/crm?${params.toString()}`),
+      ]);
+      const tabRows: TabInfo[] = Array.isArray(tabsRes.tabs) ? tabsRes.tabs : [];
+      const normalizedCustomCounts = Array.isArray(statsRes?.customCounts)
+        ? statsRes.customCounts.map((entry: any) => ({
+            name: String(entry?.name || '').trim(),
+            count: Number(entry?.count || 0),
+          }))
+        : [];
+      const tabNamesByNormalized = new Map(
+        tabRows
+          .map((tab) => String(tab.name || '').trim())
+          .filter(Boolean)
+          .map((name) => [name.toUpperCase(), name]),
+      );
+      const customCountByNormalized = new Map(
+        normalizedCustomCounts
+          .map((entry) => [entry.name.toUpperCase(), entry.count] as const),
+      );
+      const filteredCustomCounts = Array.from(tabNamesByNormalized.entries()).map(([normalizedName, displayName]) => ({
+        name: displayName,
+        count: customCountByNormalized.get(normalizedName) || 0,
+      }));
+      const listTotal = Number(listRes?.total || 0);
+      const shouldSyncActiveCustomTabCount = !baseTabs.includes(activeTab);
+      const syncedCustomCounts = shouldSyncActiveCustomTabCount
+        ? (() => {
+            const activeTabNormalized = activeTab.trim().toUpperCase();
+            let found = false;
+            const next = filteredCustomCounts.map((entry) => {
+              if (entry.name.trim().toUpperCase() !== activeTabNormalized) return entry;
+              found = true;
+              return { ...entry, count: listTotal };
+            });
+            if (!found && activeTab.trim()) {
+              next.push({ name: activeTab.trim(), count: listTotal });
+            }
+            return next;
+          })()
+        : filteredCustomCounts;
+      if (requestId !== latestLoadRequestRef.current) return;
 
-    setStats({
-      ...statsRes,
-      customCounts: syncedCustomCounts,
-    });
-    setCustomTabs(tabRows);
-    setLeads(listRes.items || []);
-    setTotal(listTotal);
-    setPageLoading(false);
-  };
+      setStats({
+        ...statsRes,
+        customCounts: syncedCustomCounts,
+      });
+      setCustomTabs(tabRows);
+      setLeads(listRes.items || []);
+      setTotal(listTotal);
+    } finally {
+      if (requestId === latestLoadRequestRef.current) {
+        setPageLoading(false);
+      }
+    }
+  }, [activeTab, cardFilter, page, personParams, search]);
 
   useEffect(() => {
     load().catch((e) => {
       pushToast(e.message || 'Failed to load CRM data', 'error');
       setPageLoading(false);
     });
-  }, [activeTab, page, search, personFilterId, cardFilter]);
+  }, [load]);
 
   useEffect(() => {
     if (baseTabs.includes(activeTab)) return;
@@ -278,9 +314,42 @@ const CRMPage: React.FC = () => {
 
   const currentCustomTab = baseTabs.includes(activeTab) ? '' : activeTab;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const visibleCustomCount = useMemo(
+    () => (Array.isArray(stats.customCounts) ? stats.customCounts.reduce((sum, entry) => sum + Number(entry.count || 0), 0) : 0),
+    [stats.customCounts],
+  );
+  const hiddenCustomLeadsCount = Math.max(0, Number(stats.total || 0) - Number(stats.hot || 0) - Number(stats.warm || 0) - Number(stats.cold || 0) - visibleCustomCount);
   const pageWindowStart = Math.max(1, page - 2);
   const pageWindowEnd = Math.min(totalPages, page + 2);
   const pageNumbers = Array.from({ length: Math.max(0, pageWindowEnd - pageWindowStart + 1) }, (_, idx) => pageWindowStart + idx);
+  const handleDeleteCustomCardTab = useCallback(
+    async (tabName: string) => {
+      const normalizedTarget = String(tabName || '').trim().toUpperCase();
+      if (!normalizedTarget) return;
+      const tabToDelete = customTabs.find((tab) => tab.name.trim().toUpperCase() === normalizedTarget);
+      if (!tabToDelete) {
+        pushToast('Tab not found.', 'error');
+        return;
+      }
+      setDeletingCustomCardName(tabToDelete.name);
+      try {
+        await crmJson(`/crm/custom-tabs/${tabToDelete.id}`, { method: 'DELETE' });
+        if (activeTab.trim().toUpperCase() === normalizedTarget) {
+          setActiveTab('HOT');
+          setCardFilter({ type: 'none' });
+        }
+        setSelectedIds([]);
+        setPage(1);
+        pushToast('Custom tab and all leads deleted.');
+        await load();
+      } catch (e: any) {
+        pushToast(e.message || 'Failed to delete custom tab', 'error');
+      } finally {
+        setDeletingCustomCardName('');
+      }
+    },
+    [activeTab, customTabs, load],
+  );
 
   return (
     <div className="space-y-5">
@@ -309,6 +378,8 @@ const CRMPage: React.FC = () => {
       <>
       <CRMStatsCards
         stats={stats}
+        deletingCustomTabName={deletingCustomCardName}
+        onDeleteCustomTab={handleDeleteCustomCardTab}
         onCardClick={(card) => {
           setPage(1);
           if (card.type === 'custom' && card.customTabName) {
@@ -394,6 +465,8 @@ const CRMPage: React.FC = () => {
                           onClick={() => {
                             setPage(1);
                             setPersonFilterId('');
+                            setPersonFilterInitialized(true);
+                            setPersonSearch('');
                             setPersonDropdownOpen(false);
                           }}
                         >
@@ -405,6 +478,8 @@ const CRMPage: React.FC = () => {
                             onClick={() => {
                               setPage(1);
                               setPersonFilterId(currentUserId);
+                              setPersonFilterInitialized(true);
+                              setPersonSearch('');
                               setPersonDropdownOpen(false);
                             }}
                           >
@@ -418,6 +493,8 @@ const CRMPage: React.FC = () => {
                             onClick={() => {
                               setPage(1);
                               setPersonFilterId(member.id);
+                              setPersonFilterInitialized(true);
+                              setPersonSearch('');
                               setPersonDropdownOpen(false);
                             }}
                           >
@@ -445,6 +522,31 @@ const CRMPage: React.FC = () => {
                 >
                   Clear Filters
                 </button>
+                {hiddenCustomLeadsCount > 0 ? (
+                  <button
+                    className="ml-2 px-4 py-2 rounded-lg border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-60"
+                    onClick={async () => {
+                      setDeletingHiddenCustomLeads(true);
+                      try {
+                        const result = await crmJson<{ deletedCount?: number }>('/crm/delete-all-custom', {
+                          method: 'POST',
+                          body: JSON.stringify(personParams),
+                        });
+                        setSelectedIds([]);
+                        setPage(1);
+                        pushToast(`${Number(result?.deletedCount || 0)} hidden custom leads deleted.`);
+                        await load();
+                      } catch (e: any) {
+                        pushToast(e.message || 'Failed to delete custom leads', 'error');
+                      } finally {
+                        setDeletingHiddenCustomLeads(false);
+                      }
+                    }}
+                    disabled={deletingHiddenCustomLeads}
+                  >
+                    {deletingHiddenCustomLeads ? 'Deleting...' : `Delete Hidden Custom Data (${hiddenCustomLeadsCount})`}
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>
