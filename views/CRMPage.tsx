@@ -270,6 +270,19 @@ const CRMPage: React.FC = () => {
             count: Number(entry?.count || 0),
           }))
         : [];
+      const authoritativeCustomCounts = await Promise.all(
+        tabRows.map(async (tab) => {
+          const scopedParams = new URLSearchParams({
+            page: '1',
+            limit: '1',
+            leadType: 'CUSTOM',
+            customTabName: String(tab.name || '').trim(),
+            ...personParams,
+          });
+          const response = await crmJson<any>(`/crm?${scopedParams.toString()}`);
+          return { name: String(tab.name || '').trim(), count: Number(response?.total || 0) };
+        }),
+      );
       const tabNamesByNormalized = new Map(
         tabRows
           .map((tab) => String(tab.name || '').trim())
@@ -277,7 +290,7 @@ const CRMPage: React.FC = () => {
           .map((name) => [name.toUpperCase(), name]),
       );
       const customCountByNormalized = new Map(
-        normalizedCustomCounts
+        (authoritativeCustomCounts.length ? authoritativeCustomCounts : normalizedCustomCounts)
           .map((entry) => [entry.name.toUpperCase(), entry.count] as const),
       );
       const filteredCustomCounts = Array.from(tabNamesByNormalized.entries()).map(([normalizedName, displayName]) => ({
