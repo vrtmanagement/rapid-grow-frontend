@@ -1,5 +1,6 @@
 import React from 'react';
 import { API_BASE, getStoredAuthSession } from '../../config/api';
+import { ArrowUpToLine } from 'lucide-react';
 
 interface CRMExportButtonProps {
   leadType: string;
@@ -9,7 +10,7 @@ interface CRMExportButtonProps {
 const CRMExportButton: React.FC<CRMExportButtonProps> = ({ leadType, customTabName = '' }) => {
   return (
     <button
-      className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all duration-200"
       onClick={async () => {
         const session = getStoredAuthSession();
         const token = typeof session?.token === 'string' ? session.token : '';
@@ -30,6 +31,7 @@ const CRMExportButton: React.FC<CRMExportButtonProps> = ({ leadType, customTabNa
         URL.revokeObjectURL(href);
       }}
     >
+      <ArrowUpToLine size={15} />
       Export Excel
     </button>
   );
