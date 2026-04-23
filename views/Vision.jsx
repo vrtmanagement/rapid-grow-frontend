@@ -29,6 +29,13 @@ import {
   VISION_STAGE_CONFIG,
 } from '../components/planning/visionNavigation';
 
+const VISION_PROGRESS_SHIMMER_STYLE = `
+@keyframes vision-progress-shimmer {
+  0% { background-position: 180% 0; }
+  100% { background-position: -80% 0; }
+}
+`;
+
 const QUARTER_LABELS = ['Q1', 'Q2', 'Q3', 'Q4'];
 const MONTH_LABELS = ['M1', 'M2', 'M3'];
 const DAY_SLOT_COUNT = 7;
@@ -365,7 +372,13 @@ const buildVisionTree = (state) =>
     };
   });
 
-const ProgressBar = ({ progress, tone = 'red' }) => {
+const ProgressBar = ({ progress, tone = 'red', loading = false }) => {
+  const shimmerClass =
+    tone === 'emerald'
+      ? 'bg-[linear-gradient(90deg,#f1f5f9_0%,#d1fae5_35%,#10b981_50%,#d1fae5_65%,#f1f5f9_100%)]'
+      : tone === 'navy'
+        ? 'bg-[linear-gradient(90deg,#f1f5f9_0%,#cbd5e1_35%,#334155_50%,#cbd5e1_65%,#f1f5f9_100%)]'
+        : 'bg-[linear-gradient(90deg,#f1f5f9_0%,#fecdd3_35%,#ef4444_50%,#fecdd3_65%,#f1f5f9_100%)]';
   const fillClass =
     tone === 'navy'
       ? 'from-slate-900 to-slate-700'
@@ -374,11 +387,21 @@ const ProgressBar = ({ progress, tone = 'red' }) => {
         : 'from-brand-red to-rose-500';
 
   return (
-    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-      <div
-        className={`h-full rounded-full bg-gradient-to-r ${fillClass} transition-all duration-500`}
-        style={{ width: `${Math.max(0, Math.min(100, progress || 0))}%` }}
-      />
+    <div className="relative h-2 overflow-hidden rounded-full bg-slate-100">
+      {loading ? (
+        <div
+          className={`absolute inset-0 rounded-full ${shimmerClass}`}
+          style={{
+            animation: 'vision-progress-shimmer 1.05s ease-in-out infinite',
+            backgroundSize: '220% 100%',
+          }}
+        />
+      ) : (
+        <div
+          className={`h-full rounded-full bg-gradient-to-r ${fillClass} transition-all duration-500`}
+          style={{ width: `${Math.max(0, Math.min(100, progress || 0))}%` }}
+        />
+      )}
     </div>
   );
 };
@@ -484,6 +507,7 @@ const VisionHierarchyCard = ({
   onEdit,
   onDelete,
   isAdmin,
+  isProgressLoading = false,
   menuOpen,
   onMenuToggle,
   onMenuClose,
@@ -494,10 +518,10 @@ const VisionHierarchyCard = ({
 
   return (
   <div
-    className={`group relative flex h-full flex-col overflow-hidden rounded-[2rem] border bg-white transition hover:-translate-y-1 hover:shadow-[0_28px_70px_rgba(15,23,42,0.12)] ${
+    className={`group relative flex h-full flex-col overflow-hidden rounded-[2rem] border bg-white transition hover:-translate-y-1 ${
       isCurrentPeriod
-        ? 'border-red-200 shadow-[0_24px_65px_rgba(239,68,68,0.12)] ring-1 ring-red-100'
-        : 'border-slate-200 shadow-[0_20px_55px_rgba(15,23,42,0.07)] hover:border-slate-300'
+        ? 'border-red-200 shadow-none ring-1 ring-red-100 hover:shadow-none'
+        : 'border-slate-200 shadow-[0_20px_55px_rgba(15,23,42,0.07)] hover:border-slate-300 hover:shadow-[0_28px_70px_rgba(15,23,42,0.12)]'
     }`}
     onMouseLeave={onMenuClose}
   >
@@ -612,7 +636,7 @@ const VisionHierarchyCard = ({
         <span className="text-2xl font-semibold text-slate-900">{progress}%</span>
       </div>
       <div className="mt-3">
-        <ProgressBar progress={progress} tone="red" />
+        <ProgressBar progress={progress} tone="red" loading={isProgressLoading} />
       </div>
 
       <div className="mt-6 rounded-[1.6rem] border border-slate-200 bg-slate-50/85 p-4">
@@ -731,6 +755,8 @@ const Vision = ({ state, updateState, loading = false }) => {
   const [newVisionTitle, setNewVisionTitle] = useState('');
   const [newVisionDetails, setNewVisionDetails] = useState('');
   const [spacesTasks, setSpacesTasks] = useState([]);
+  const [progressLoading, setProgressLoading] = useState(true);
+  const [progressDataReady, setProgressDataReady] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [showTaskComposer, setShowTaskComposer] = useState(false);
   const [taskDraftByDay, setTaskDraftByDay] = useState({});
@@ -850,8 +876,16 @@ const Vision = ({ state, updateState, loading = false }) => {
   }, [selectedWeek, dayIdFromQuery]);
 
   useEffect(() => {
+    if (loading) {
+      setProgressLoading(true);
+      setProgressDataReady(false);
+      return undefined;
+    }
+
     let active = true;
     const loadContext = async () => {
+      setProgressLoading(true);
+      setProgressDataReady(false);
       try {
         const [tasksRes, employeesRes] = await Promise.all([
           fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() }),
@@ -874,13 +908,25 @@ const Vision = ({ state, updateState, loading = false }) => {
         }
       } catch (error) {
         console.error(error);
+      } finally {
+        if (active) {
+          setProgressDataReady(true);
+        }
       }
     };
     loadContext();
     return () => {
       active = false;
     };
-  }, []);
+  }, [loading]);
+
+  useEffect(() => {
+    if (!progressDataReady) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      setProgressLoading(false);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [progressDataReady, spacesTasks]);
 
   const stageMeta = VISION_STAGE_CONFIG.find((item) => item.key === stage) || VISION_STAGE_CONFIG[0];
   const isDailyStage = stage === 'day' && !!selectedWeek;
@@ -1853,6 +1899,7 @@ const Vision = ({ state, updateState, loading = false }) => {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 pb-16">
+      <style>{VISION_PROGRESS_SHIMMER_STYLE}</style>
       <section className="rounded-[2rem] border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50 p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)] sm:p-7">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-start gap-4">
@@ -1897,7 +1944,7 @@ const Vision = ({ state, updateState, loading = false }) => {
                     </div>
                   </div>
                   <div className="mt-4">
-                    <ProgressBar progress={weekProgress.percent} tone="emerald" />
+                    <ProgressBar progress={weekProgress.percent} tone="emerald" loading={progressLoading} />
                   </div>
                 </>
               ) : (
@@ -1979,6 +2026,7 @@ const Vision = ({ state, updateState, loading = false }) => {
                   onEdit={() => openEditor(vision)}
                   onDelete={() => deleteHierarchyItem(vision)}
                   isAdmin={isAdmin}
+                  isProgressLoading={progressLoading}
                   menuOpen={openCardMenuId === vision.id}
                   onMenuToggle={() => setOpenCardMenuId((current) => (current === vision.id ? '' : vision.id))}
                   onMenuClose={() => setOpenCardMenuId('')}
@@ -2042,6 +2090,7 @@ const Vision = ({ state, updateState, loading = false }) => {
                   onEdit={() => openEditor(quarter)}
                   onDelete={() => deleteHierarchyItem(quarter)}
                   isAdmin={isAdmin}
+                  isProgressLoading={progressLoading}
                   menuOpen={openCardMenuId === quarter.id}
                   onMenuToggle={() => setOpenCardMenuId((current) => (current === quarter.id ? '' : quarter.id))}
                   onMenuClose={() => setOpenCardMenuId('')}
@@ -2106,6 +2155,7 @@ const Vision = ({ state, updateState, loading = false }) => {
                   onEdit={() => openEditor(month)}
                   onDelete={() => deleteHierarchyItem(month)}
                   isAdmin={isAdmin}
+                  isProgressLoading={progressLoading}
                   menuOpen={openCardMenuId === month.id}
                   onMenuToggle={() => setOpenCardMenuId((current) => (current === month.id ? '' : month.id))}
                   onMenuClose={() => setOpenCardMenuId('')}
@@ -2176,6 +2226,7 @@ const Vision = ({ state, updateState, loading = false }) => {
                   onEdit={() => openEditor(week)}
                   onDelete={() => deleteHierarchyItem(week)}
                   isAdmin={isAdmin}
+                  isProgressLoading={progressLoading}
                   menuOpen={openCardMenuId === week.id}
                   onMenuToggle={() => setOpenCardMenuId((current) => (current === week.id ? '' : week.id))}
                   onMenuClose={() => setOpenCardMenuId('')}

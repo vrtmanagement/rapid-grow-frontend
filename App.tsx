@@ -71,6 +71,17 @@ function getStoredEmployeeIdentifiers() {
   }
 }
 
+function clearPlanningGoals(prev: PlanningState): PlanningState {
+  return normalizeGoalHierarchy({
+    ...prev,
+    yearlyGoals: [],
+    quarterlyGoals: [],
+    monthlyGoals: [],
+    weeklyGoals: [],
+    dailyGoals: [],
+  });
+}
+
 const App: React.FC = () => {
   const { permissions, hasPermission, loading: permissionsLoading } = usePermissions();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -335,9 +346,15 @@ const App: React.FC = () => {
     const loadGoals = async () => {
       try {
         const res = await fetch(`${API_BASE}/goals`, { headers: getAuthHeaders() });
-        if (!res.ok) return;
+        if (!res.ok) {
+          setState(clearPlanningGoals);
+          return;
+        }
         const goals = await res.json();
-        if (!Array.isArray(goals)) return;
+        if (!Array.isArray(goals)) {
+          setState(clearPlanningGoals);
+          return;
+        }
         setState((prev) =>
           normalizeGoalHierarchy({
             ...prev,
@@ -356,8 +373,9 @@ const App: React.FC = () => {
               .map((g: any) => ({ id: g.goalId, text: g.text || '', completed: !!g.completed, level: 'day' as const, parentId: g.parentId || '' })),
           }),
         );
-      } catch (_e) {
-        // keep local state if goals API unavailable
+      } catch (err) {
+        console.warn('Failed to load goals', err);
+        setState(clearPlanningGoals);
       } finally {
         setGoalsHydrated(true);
       }
