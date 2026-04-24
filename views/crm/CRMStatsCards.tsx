@@ -15,7 +15,6 @@ interface CRMStatsCardsProps {
 
 const CRMStatsCards: React.FC<CRMStatsCardsProps> = ({
   stats,
-  onCardClick,
 }) => {
   const cards: Array<[string, number, string, 'total' | 'hot' | 'warm' | 'cold']> = [
     ['Total Leads', stats.total, 'text-slate-700', 'total'],
@@ -27,27 +26,23 @@ const CRMStatsCards: React.FC<CRMStatsCardsProps> = ({
 
   return (
     <div className="grid [grid-template-columns:repeat(auto-fit,minmax(130px,1fr))] gap-3 w-full">
-      {cards.map(([label, value, tone, type]) => (
-        <button
+      {cards.map(([label, value, tone]) => (
+        <div
           key={label}
-          type="button"
-          onClick={() => onCardClick?.({ type })}
-          className="rounded-xl bg-gradient-to-br from-white via-slate-50 to-slate-100/60 border border-slate-200 px-3 py-2.5 shadow-sm text-left hover:border-slate-300 hover:shadow-md cursor-pointer min-w-0 transition-all duration-200"
+          className="rounded-xl bg-gradient-to-br from-white via-slate-50 to-slate-100/60 border border-slate-200 px-3 py-2.5 shadow-sm text-left min-w-0 transition-all duration-200"
         >
           <div className="text-[10px] uppercase tracking-wide text-slate-500/90 truncate">{label}</div>
           <div className={`text-lg font-bold mt-1 ${tone}`}>{value}</div>
-        </button>
+        </div>
       ))}
       {customCards.map((custom) => (
-        <button
+        <div
           key={custom.name}
-          type="button"
-          onClick={() => onCardClick?.({ type: 'custom', customTabName: custom.name })}
-          className="rounded-xl bg-gradient-to-br from-white via-indigo-50/70 to-slate-50 border border-indigo-200 px-3 py-2.5 shadow-sm text-left hover:border-indigo-300 hover:shadow-md cursor-pointer min-w-0 transition-all duration-200"
+          className="rounded-xl bg-gradient-to-br from-white via-indigo-50/70 to-slate-50 border border-indigo-200 px-3 py-2.5 shadow-sm text-left min-w-0 transition-all duration-200"
         >
           <div className="text-[10px] uppercase tracking-wide text-slate-500/90 truncate">{custom.name}</div>
           <div className="text-lg font-bold mt-1 text-indigo-600">{custom.count}</div>
-        </button>
+        </div>
       ))}
     </div>
   );
