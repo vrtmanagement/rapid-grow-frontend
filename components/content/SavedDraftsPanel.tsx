@@ -34,7 +34,7 @@ interface SavedDraftsPanelProps {
   setShowScheduleForm: (value: boolean) => void;
 }
 
-const DRAFT_MODES: ContentDraftMode[] = ['calendar', 'follow-ee', 'follow-ega'];
+const DRAFT_MODES: ContentDraftMode[] = ['calendar', 'follow-ee', 'follow-ega', 'blog'];
 
 const SavedDraftsPanel: React.FC<SavedDraftsPanelProps> = ({
   savedDrafts,
@@ -73,7 +73,13 @@ const SavedDraftsPanel: React.FC<SavedDraftsPanelProps> = ({
         {DRAFT_MODES.map((mode) => {
           const draft = savedDrafts[mode] || null;
           if (!hasServerDraftContent(draft)) return null;
-          const modeLabel = mode === 'calendar' ? 'Calendar' : mode === 'follow-ee' ? 'Follow Reminder EE' : 'Follow Reminder EGA';
+          const modeLabel = mode === 'calendar'
+            ? 'Calendar'
+            : mode === 'follow-ee'
+            ? 'Follow Reminder EE'
+            : mode === 'follow-ega'
+            ? 'Follow Reminder EGA'
+            : 'Blog';
           return (
             <div
               key={mode}
@@ -91,6 +97,12 @@ const SavedDraftsPanel: React.FC<SavedDraftsPanelProps> = ({
                     setSavedDrafts((prev) => ({ ...prev, [mode]: null }));
                     setToast({ message: 'Draft deleted.', type: 'success' });
                   } catch (err: any) {
+                    if (mode === 'blog') {
+                      localStorage.removeItem(`${CONTENT_CREATE_DRAFT_STORAGE_PREFIX}:${mode}`);
+                      setSavedDrafts((prev) => ({ ...prev, [mode]: null }));
+                      setToast({ message: 'Draft deleted.', type: 'success' });
+                      return;
+                    }
                     setToast({ message: err?.message || 'Failed to delete draft', type: 'error' });
                   } finally {
                     setDeletingDraftMode(null);

@@ -122,8 +122,26 @@ const ContentView: React.FC = () => {
 
   useEffect(() => {
     let disposed = false;
+    const readLocalCreateDraft = (mode: ContentDraftMode): ContentDraftRecord | null => {
+      try {
+        const raw = localStorage.getItem(`${CONTENT_CREATE_DRAFT_STORAGE_PREFIX}:${mode}`);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return null;
+        return {
+          mode,
+          title: String(parsed.title || ''),
+          description: String(parsed.description || ''),
+          type: isContentType(String(parsed.type || '')) ? parsed.type : 'general',
+          contentDate: String(parsed.contentDate || ''),
+          attachments: Array.isArray(parsed.attachments) ? parsed.attachments : [],
+        };
+      } catch {
+        return null;
+      }
+    };
     async function loadDrafts() {
-      const modes: ContentDraftMode[] = ['calendar', 'follow-ee', 'follow-ega'];
+      const modes: ContentDraftMode[] = ['calendar', 'follow-ee', 'follow-ega', 'blog'];
       try {
         const responses = await Promise.all(
           modes.map(async (mode) => {
@@ -138,7 +156,7 @@ const ContentView: React.FC = () => {
         if (disposed) return;
         const next: Partial<Record<ContentDraftMode, ContentDraftRecord | null>> = {};
         responses.forEach(([mode, draft]) => {
-          next[mode] = draft;
+          next[mode] = draft || readLocalCreateDraft(mode);
         });
         setSavedDrafts(next);
       } catch {
@@ -369,6 +387,18 @@ const ContentView: React.FC = () => {
         }),
     [items]
   );
+  const blogItems = useMemo(
+    () =>
+      items
+        .filter((item) => String(item.channelKey || '').toLowerCase() === 'blog')
+        .slice()
+        .sort((a, b) => {
+          const aKey = `${a.contentDate || a.createdAt?.slice(0, 10) || ''}${a.createdAt || ''}`;
+          const bKey = `${b.contentDate || b.createdAt?.slice(0, 10) || ''}${b.createdAt || ''}`;
+          return bKey.localeCompare(aKey);
+        }),
+    [items]
+  );
   const selectedItem = useMemo(
     () => (itemKey ? selectedTypeItems.find((item) => item.contentId === itemKey) || null : null),
     [itemKey, selectedTypeItems]
@@ -434,7 +464,16 @@ const ContentView: React.FC = () => {
     () => (selectedScheduleItemId ? scheduleItems.find((item) => item.contentId === selectedScheduleItemId) || null : null),
     [selectedScheduleItemId, scheduleItems]
   );
+  const selectedBlogItemId = useMemo(
+    () => String(new URLSearchParams(location.search).get('blogItem') || '').trim(),
+    [location.search]
+  );
+  const selectedBlogItem = useMemo(
+    () => (selectedBlogItemId ? blogItems.find((item) => item.contentId === selectedBlogItemId) || null : null),
+    [blogItems, selectedBlogItemId]
+  );
   const isScheduleItemDetail = activeTab === 'content-schedule' && !!selectedScheduleItemId;
+  const isBlogItemDetail = activeTab === 'blog' && !!selectedBlogItemId;
   const isReminderTypeDetail = (activeTab === 'follow-ee' || activeTab === 'follow-ega') && !!selectedReminderType;
   const isReminderItemDetail = isReminderTypeDetail && !!selectedReminderItemId;
   const isReminderTab = activeTab === 'follow-ee' || activeTab === 'follow-ega';
@@ -445,6 +484,8 @@ const ContentView: React.FC = () => {
     ? selectedReminderItem
     : isScheduleItemDetail
     ? selectedScheduleItem
+    : isBlogItemDetail
+    ? selectedBlogItem
     : null;
   useEffect(() => {
     if (loading || (!isItemDetailPage && !isReminderItemDetail)) return;
@@ -464,7 +505,13 @@ const ContentView: React.FC = () => {
 
   const openCreatePage = (day?: string) => {
     const date = day || selectedDate || toDateKey(new Date());
-    const mode = activeTab === 'follow-ee' ? 'follow-ee' : activeTab === 'follow-ega' ? 'follow-ega' : 'calendar';
+    const mode = activeTab === 'follow-ee'
+      ? 'follow-ee'
+      : activeTab === 'follow-ega'
+      ? 'follow-ega'
+      : activeTab === 'blog'
+      ? 'blog'
+      : 'calendar';
     navigate(`/content/new?date=${encodeURIComponent(date)}&mode=${encodeURIComponent(mode)}`);
   };
 
@@ -474,7 +521,7 @@ const ContentView: React.FC = () => {
       navigate('/content');
       return;
     }
-    if (tab === 'follow-ee' || tab === 'follow-ega' || tab === 'auto-add' || tab === 'content-schedule') {
+    if (tab === 'follow-ee' || tab === 'follow-ega' || tab === 'auto-add' || tab === 'content-schedule' || tab === 'blog') {
       navigate(`/content?tab=${encodeURIComponent(tab)}`);
     }
   };
@@ -901,7 +948,7 @@ const ContentView: React.FC = () => {
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">{error}</div>}
       <div className="w-full max-w-full rounded-[1.65rem] border border-white/70 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
         <div className="p-0">
-          <div className="grid w-full grid-cols-1 gap-2 lg:grid-cols-5 lg:gap-2.5">
+          <div className="grid w-full grid-cols-1 gap-2 lg:grid-cols-6 lg:gap-1.5">
             {(Object.keys(TAB_META) as ContentTab[]).map((tab) => {
               const meta = TAB_META[tab];
               const Icon = meta.icon;
@@ -1021,6 +1068,10 @@ const ContentView: React.FC = () => {
           selectedScheduleItemId,
           selectedScheduleItem,
           isScheduleItemDetail,
+          blogItems,
+          selectedBlogItemId,
+          selectedBlogItem,
+          isBlogItemDetail,
           ScheduleDatePicker,
         }}
       />

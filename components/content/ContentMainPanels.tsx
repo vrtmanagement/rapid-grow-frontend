@@ -81,6 +81,10 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
     selectedScheduleItemId,
     selectedScheduleItem,
     isScheduleItemDetail,
+    blogItems,
+    selectedBlogItemId,
+    selectedBlogItem,
+    isBlogItemDetail,
     ScheduleDatePicker,
   } = ctx;
 
@@ -566,6 +570,64 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
               )}
             </div>
           ) : null}
+        </div>
+      ) : activeTab === 'blog' ? (
+        <div className="space-y-4">
+          <div className="rounded-[2rem] border border-white/70 bg-white/90 px-5 py-4 shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/content?tab=blog')}
+                    className="transition hover:text-slate-700"
+                  >
+                    Blog
+                  </button>
+                  {isBlogItemDetail ? <span>/</span> : null}
+                  {isBlogItemDetail ? <span className="text-cyan-700">Blog Detail</span> : null}
+                </div>
+                <h3 className="mt-1 text-2xl font-semibold text-slate-900">
+                  {isBlogItemDetail ? (selectedBlogItem?.title || 'Blog details') : 'Blog posts'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => openCreatePage(selectedDate)}
+                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(8,145,178,0.25)]"
+              >
+                <Plus size={16} /> Add Blog
+              </button>
+            </div>
+          </div>
+          {loading ? (
+            <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 text-slate-500 shadow-sm">Loading...</div>
+          ) : blogItems.length === 0 ? (
+            <div className="rounded-[1.8rem] border border-dashed border-slate-300 bg-white/80 px-6 py-12 text-center shadow-sm">
+              <h4 className="mt-1 text-lg font-semibold text-slate-900">No blog posts yet</h4>
+              <p className="mt-2 text-sm text-slate-500">Add your first blog post using title and description.</p>
+            </div>
+          ) : isBlogItemDetail ? (
+            selectedBlogItem ? (
+              <div className="w-full">
+                {renderContentCard(selectedBlogItem, { expanded: true })}
+              </div>
+            ) : (
+              <div className="rounded-[1.8rem] border border-dashed border-slate-300 bg-white/80 px-6 py-12 text-center shadow-sm">
+                <h4 className="mt-1 text-lg font-semibold text-slate-900">Blog post not found</h4>
+                <p className="mt-2 text-sm text-slate-500">Go back to blog list and choose another post.</p>
+              </div>
+            )
+          ) : (
+            <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+              {blogItems.map((item: any) =>
+                renderContentCard(item, {
+                  clickable: true,
+                  clickHref: `/content?tab=blog&blogItem=${encodeURIComponent(item.contentId)}`,
+                })
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
