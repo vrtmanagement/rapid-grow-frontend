@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BellRing, Bot, Calendar, CalendarDays, ChevronLeft, ChevronRight, FileText, Globe, Linkedin, Mail, MessageSquareText, Sparkles, Youtube } from 'lucide-react';
+import { BellRing, BookOpenText, Bot, Calendar, CalendarDays, ChevronLeft, ChevronRight, FileText, Globe, Linkedin, Mail, MessageSquareText, Sparkles, Youtube } from 'lucide-react';
 import { ContentAsset, ContentDraftRecord, ContentType } from '../services/contentApi';
 
 export const TYPE_LABEL: Record<ContentType, string> = {
@@ -33,7 +33,7 @@ export const TAG_STORAGE_KEY = 'rapidgrow-content-tags-v1';
 export const CONTENT_VIEW_DRAFTS_KEY = 'rapidgrow-content-view-drafts-v1';
 export const CONTENT_CREATE_DRAFT_STORAGE_PREFIX = 'rapidgrow-content-create-draft-v1';
 export const MOMENT_STORAGE_KEY = 'rapidgrow-content-moments-v1';
-export type ContentTab = 'calendar' | 'follow-ee' | 'follow-ega' | 'auto-add' | 'content-schedule';
+export type ContentTab = 'calendar' | 'follow-ee' | 'follow-ega' | 'auto-add' | 'content-schedule' | 'blog';
 
 export type MomentEntry = {
   id: string;
@@ -77,6 +77,12 @@ export const TAB_META: Record<ContentTab, { label: string; icon: React.ElementTy
     icon: MessageSquareText,
     activeClass: 'border-amber-300 bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-[0_18px_40px_rgba(245,158,11,0.24)]',
     idleClass: 'border-white/70 bg-white/75 text-slate-700 hover:border-amber-200 hover:bg-amber-50/90',
+  },
+  blog: {
+    label: 'Blog',
+    icon: BookOpenText,
+    activeClass: 'border-cyan-300 bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-[0_18px_40px_rgba(8,145,178,0.24)]',
+    idleClass: 'border-white/70 bg-white/75 text-slate-700 hover:border-cyan-200 hover:bg-cyan-50/90',
   },
 };
 
@@ -143,7 +149,7 @@ export const TYPE_ICON_META: Record<ContentType, { icon: React.ElementType; clas
 
 export function getInitialTab(search: string): ContentTab {
   const tab = String(new URLSearchParams(search).get('tab') || '').trim().toLowerCase();
-  if (tab === 'follow-ee' || tab === 'follow-ega' || tab === 'auto-add' || tab === 'content-schedule') return tab;
+  if (tab === 'follow-ee' || tab === 'follow-ega' || tab === 'auto-add' || tab === 'content-schedule' || tab === 'blog') return tab;
   return 'calendar';
 }
 

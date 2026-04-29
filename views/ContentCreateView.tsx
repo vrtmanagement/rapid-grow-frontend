@@ -15,7 +15,7 @@ function getInitialDate(search: string) {
 
 function getMode(search: string) {
   const mode = new URLSearchParams(search).get('mode') || 'calendar';
-  if (mode === 'follow-ee' || mode === 'follow-ega') return mode;
+  if (mode === 'follow-ee' || mode === 'follow-ega' || mode === 'blog') return mode;
   return 'calendar';
 }
 
@@ -180,6 +180,7 @@ const ContentCreateView: React.FC = () => {
   const editContentId = getEditContentId(location.search);
   const isEditMode = !!editContentId;
   const isFollowMode = mode === 'follow-ee' || mode === 'follow-ega';
+  const isBlogMode = mode === 'blog';
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<ContentType>('general');
@@ -214,9 +215,10 @@ const ContentCreateView: React.FC = () => {
   const draftMode = mode as ContentDraftMode;
 
   const donePath = useMemo(() => {
+    if (isBlogMode) return '/content?tab=blog';
     if (isFollowMode) return `/content?tab=${mode}`;
     return `/content/day/${contentDate}`;
-  }, [contentDate, isFollowMode, mode]);
+  }, [contentDate, isBlogMode, isFollowMode, mode]);
   const styledTokens = useMemo(() => extractStyledTokens(description), [description]);
   const selectedTypeOption = useMemo(
     () => CONTENT_TYPE_OPTIONS.find((option) => option.value === type) || CONTENT_TYPE_OPTIONS[0],
@@ -318,18 +320,18 @@ const ContentCreateView: React.FC = () => {
         await apiUpdateContent(editContentId, {
           title: title.trim(),
           description,
-          type: isFollowMode ? 'newsletter' : type,
+          type: isFollowMode ? 'newsletter' : isBlogMode ? 'website' : type,
           contentDate,
-          channelKey: isFollowMode ? mode : type,
+          channelKey: isFollowMode ? mode : isBlogMode ? 'blog' : type,
           attachments,
         });
       } else {
         await apiCreateContent({
           title: title.trim(),
           description,
-          type: isFollowMode ? 'newsletter' : type,
+          type: isFollowMode ? 'newsletter' : isBlogMode ? 'website' : type,
           contentDate,
-          channelKey: isFollowMode ? mode : type,
+          channelKey: isFollowMode ? mode : isBlogMode ? 'blog' : type,
           coverImage: null,
           attachments,
         });
@@ -634,6 +636,7 @@ const ContentCreateView: React.FC = () => {
                 </div>
               </div>
 
+              {!isBlogMode ? (
               <div ref={typePickerWrapRef} className="relative rounded-[1.1rem] border border-slate-200 bg-white p-2.5 shadow-[0_10px_30px_rgba(15,23,42,0.04)] xl:col-span-2">
                 <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-900">Content Type</p>
                 <button
@@ -688,8 +691,9 @@ const ContentCreateView: React.FC = () => {
                   </div>
                 )}
               </div>
+              ) : null}
 
-              <div ref={datePickerWrapRef} className="relative rounded-[1.1rem] border border-slate-200 bg-white p-2.5 shadow-[0_10px_30px_rgba(15,23,42,0.04)] xl:col-span-2">
+              <div ref={datePickerWrapRef} className={`relative rounded-[1.1rem] border border-slate-200 bg-white p-2.5 shadow-[0_10px_30px_rgba(15,23,42,0.04)] ${isBlogMode ? 'xl:col-span-4' : 'xl:col-span-2'}`}>
                 <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-900">Publish Date</p>
                 <button
                   type="button"

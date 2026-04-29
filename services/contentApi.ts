@@ -1,7 +1,7 @@
 import { API_BASE } from '../config/api';
 
 export type ContentType = 'general' | 'linkedin' | 'youtube' | 'website' | 'newsletter';
-export type ContentDraftMode = 'calendar' | 'follow-ee' | 'follow-ega' | 'auto-add';
+export type ContentDraftMode = 'calendar' | 'follow-ee' | 'follow-ega' | 'auto-add' | 'blog';
 
 export interface ContentAsset {
   fileId: string;

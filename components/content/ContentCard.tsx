@@ -310,6 +310,14 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
                 openScheduleEditForm(item);
                 return;
               }
+              if (activeTab === 'blog') {
+                const params = new URLSearchParams();
+                params.set('mode', 'blog');
+                params.set('date', item.contentDate || selectedDate);
+                params.set('editId', item.contentId);
+                navigate(`/content/new?${params.toString()}`);
+                return;
+              }
               openEdit(item, { inline: isExpanded && isInlineDetailPage });
             }}
             className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-violet-200 hover:text-violet-700"
