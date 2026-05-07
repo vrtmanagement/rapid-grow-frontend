@@ -50,11 +50,94 @@ interface GlobalReminderToast {
   title: string;
   message: string;
   route: string;
+  autoHideMs?: number;
 }
 
 
 function shouldAutoClearNotification(notification?: Partial<AppShellNotification> | null): boolean {
   return String(notification?.type || '').trim().toLowerCase() === 'leave_request_review';
+}
+
+const REMINDER_TOAST_TIME_ZONE = 'Asia/Kolkata';
+const DAILY_REVIEW_REMINDER_TYPE = 'daily_review_reminder';
+const DAILY_REVIEW_REMINDER_TOAST_HOUR = 21;
+const DAILY_REVIEW_REMINDER_TOAST_MINUTE = 30;
+const DISMISSED_DAILY_REVIEW_REMINDER_STORAGE_KEY = 'rapidgrow-dismissed-daily-review-reminder-date-keys';
+
+function getDatePartMap(date: Date, timeZone: string) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date).reduce<Record<string, string>>((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value;
+    return acc;
+  }, {});
+}
+
+function getDateKeyInTimeZone(date: Date, timeZone: string) {
+  const parts = getDatePartMap(date, timeZone);
+  return `${parts.year || ''}-${parts.month || ''}-${parts.day || ''}`;
+}
+
+function getHourMinuteInTimeZone(date: Date, timeZone: string) {
+  const parts = getDatePartMap(date, timeZone);
+  return {
+    hour: Number(parts.hour || '0'),
+    minute: Number(parts.minute || '0'),
+  };
+}
+
+function isDailyReviewReminderNotification(notification?: Partial<AppShellNotification> | null): boolean {
+  return String(notification?.type || '').trim().toLowerCase() === DAILY_REVIEW_REMINDER_TYPE;
+}
+
+function getDismissedDailyReviewReminderDateKeys(): string[] {
+  try {
+    const raw = localStorage.getItem(DISMISSED_DAILY_REVIEW_REMINDER_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map((item) => String(item || '').trim()).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function markDailyReviewReminderToastDismissed(dateKey: string) {
+  const normalizedDateKey = String(dateKey || '').trim();
+  if (!normalizedDateKey) return;
+  try {
+    const nextKeys = Array.from(new Set([...getDismissedDailyReviewReminderDateKeys(), normalizedDateKey]));
+    localStorage.setItem(DISMISSED_DAILY_REVIEW_REMINDER_STORAGE_KEY, JSON.stringify(nextKeys));
+  } catch {
+    // Ignore storage failures and keep in-memory toast behavior intact.
+  }
+}
+
+function isDailyReviewReminderToastDismissed(notification?: Partial<AppShellNotification> | null): boolean {
+  if (!isDailyReviewReminderNotification(notification)) return false;
+  const notificationDateKey = String(notification?.dateKey || '').trim();
+  if (!notificationDateKey) return false;
+  return getDismissedDailyReviewReminderDateKeys().includes(notificationDateKey);
+}
+
+function canShowDailyReviewReminderToast(notification?: Partial<AppShellNotification> | null): boolean {
+  if (!isDailyReviewReminderNotification(notification)) return true;
+
+  const todayDateKey = getDateKeyInTimeZone(new Date(), REMINDER_TOAST_TIME_ZONE);
+  if (String(notification?.dateKey || '').trim() !== todayDateKey) {
+    return false;
+  }
+
+  const { hour, minute } = getHourMinuteInTimeZone(new Date(), REMINDER_TOAST_TIME_ZONE);
+  if (hour > DAILY_REVIEW_REMINDER_TOAST_HOUR) return true;
+  if (hour === DAILY_REVIEW_REMINDER_TOAST_HOUR) {
+    return minute >= DAILY_REVIEW_REMINDER_TOAST_MINUTE;
+  }
+  return false;
 }
 
 function getStoredEmployeeIdentifiers() {
@@ -102,6 +185,16 @@ const App: React.FC = () => {
   const shownTaskToastKeysRef = useRef<Record<string, true>>({});
   const shownReminderToastKeysRef = useRef<Record<string, true>>({});
   const lastCommunicationUnreadRef = useRef<number | null>(null);
+
+  const dismissGlobalReminderToast = useCallback((toast: GlobalReminderToast | null) => {
+    if (toast?.notificationId) {
+      const notification = notifications.find((item) => item._id === toast.notificationId);
+      if (isDailyReviewReminderNotification(notification)) {
+        markDailyReviewReminderToastDismissed(String(notification?.dateKey || ''));
+      }
+    }
+    setGlobalReminderToast(null);
+  }, [notifications]);
 
   useEffect(() => {
     const syncStoredSession = () => {
@@ -397,7 +490,10 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!globalReminderToast) return undefined;
-    const timer = window.setTimeout(() => setGlobalReminderToast(null), 8000);
+    const timer = window.setTimeout(
+      () => setGlobalReminderToast(null),
+      globalReminderToast.autoHideMs ?? 8000,
+    );
     return () => window.clearTimeout(timer);
   }, [globalReminderToast]);
 
@@ -425,11 +521,11 @@ const App: React.FC = () => {
       return [designation, department].filter(Boolean).join(' | ');
     };
 
-    const showGlobalLeaveToast = (toast: GlobalLeaveToast) => {
-      if (shownLeaveToastKeysRef.current[toast.key]) return;
-      shownLeaveToastKeysRef.current[toast.key] = true;
-      setGlobalLeaveToast(toast);
-    };
+  const showGlobalLeaveToast = (toast: GlobalLeaveToast) => {
+    if (shownLeaveToastKeysRef.current[toast.key]) return;
+    shownLeaveToastKeysRef.current[toast.key] = true;
+    setGlobalLeaveToast(toast);
+  };
 
     const onLeaveCreated = (payload: any) => {
       const approverRole = String(payload?.approverRole || '').toUpperCase();
@@ -753,7 +849,13 @@ const App: React.FC = () => {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    const unreadNotification = notifications.find((notification) => !notification.isRead);
+    const unreadNotification = notifications.find((notification) => {
+      if (notification.isRead) return false;
+      if (isDailyReviewReminderNotification(notification)) {
+        if (isDailyReviewReminderToastDismissed(notification)) return false;
+      }
+      return canShowDailyReviewReminderToast(notification);
+    });
     if (!unreadNotification) return;
 
     const toastKey = `notification:${unreadNotification._id}:${unreadNotification.updatedAt || unreadNotification.createdAt}`;
@@ -765,6 +867,7 @@ const App: React.FC = () => {
       title: unreadNotification.title || 'Notification',
       message: unreadNotification.message || 'You have a new notification.',
       route: unreadNotification.route || '/review',
+      autoHideMs: isDailyReviewReminderNotification(unreadNotification) ? 2000 : undefined,
     };
     shownReminderToastKeysRef.current[toastKey] = true;
     setGlobalReminderToast(reminderToast);
@@ -806,16 +909,17 @@ const App: React.FC = () => {
       : 'top-6';
 
   const globalToastsElement = (
-    <GlobalAppToasts
-      globalLeaveToast={globalLeaveToast}
-      globalTaskToast={globalTaskToast}
-      globalReminderToast={globalReminderToast}
-      notifications={notifications}
-      notificationToastTopClass={notificationToastTopClass}
-      openNotification={openNotification}
-      setGlobalTaskToast={setGlobalTaskToast}
-      setGlobalReminderToast={setGlobalReminderToast}
-    />
+      <GlobalAppToasts
+        globalLeaveToast={globalLeaveToast}
+        globalTaskToast={globalTaskToast}
+        globalReminderToast={globalReminderToast}
+        notifications={notifications}
+        notificationToastTopClass={notificationToastTopClass}
+        openNotification={openNotification}
+        setGlobalTaskToast={setGlobalTaskToast}
+        setGlobalReminderToast={setGlobalReminderToast}
+        dismissGlobalReminderToast={dismissGlobalReminderToast}
+      />
   );
 
   const updateState = useCallback((updater: (prev: PlanningState) => PlanningState) => {
