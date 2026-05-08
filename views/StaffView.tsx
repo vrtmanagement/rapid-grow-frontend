@@ -1,10 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { BellRing, ChevronDown, Clock3, Pencil, Trash2 } from 'lucide-react';
 import Toast from '../components/ui/Toast';
 import AccessDenied from '../components/AccessDenied';
 import { StaffTableSkeleton } from '../components/ui/Skeleton';
 import { usePermissions } from '../context/usePermissions';
 import { API_BASE, getAuthHeaders } from '../config/api';
+import {
+  fetchDailyReviewReminderSettings,
+  getDefaultDailyReviewReminderSettings,
+  saveDailyReviewReminderSettings,
+  type DailyReviewReminderSettings,
+} from '../services/dailyReviewReminderSettings';
 
 type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | string;
 
@@ -79,6 +85,44 @@ function getStatusBadgeClass(status?: string) {
     : 'border border-slate-200 bg-slate-100 text-slate-600';
 }
 
+const REMINDER_HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) =>
+  String(index + 1).padStart(2, '0'),
+);
+const REMINDER_MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) =>
+  String(index).padStart(2, '0'),
+);
+const REMINDER_MERIDIEM_OPTIONS = ['AM', 'PM'] as const;
+
+function parseReminderTimeValue(timeValue?: string) {
+  const [hourRaw = '21', minuteRaw = '40'] = String(timeValue || '21:40').split(':');
+  const hour24 = Math.min(23, Math.max(0, Number(hourRaw) || 0));
+  const minute = Math.min(59, Math.max(0, Number(minuteRaw) || 0));
+  const meridiem = hour24 >= 12 ? 'PM' : 'AM';
+  const hour12 = hour24 % 12 || 12;
+
+  return {
+    hour: String(hour12).padStart(2, '0'),
+    minute: String(minute).padStart(2, '0'),
+    meridiem,
+  } as { hour: string; minute: string; meridiem: 'AM' | 'PM' };
+}
+
+function buildReminderTimeValue(hour: string, minute: string, meridiem: 'AM' | 'PM') {
+  const hourNumber = Math.min(12, Math.max(1, Number(hour) || 12));
+  const minuteNumber = Math.min(59, Math.max(0, Number(minute) || 0));
+  let hour24 = hourNumber % 12;
+  if (meridiem === 'PM') {
+    hour24 += 12;
+  }
+
+  return `${String(hour24).padStart(2, '0')}:${String(minuteNumber).padStart(2, '0')}`;
+}
+
+function formatReminderTimeLabel(timeValue?: string) {
+  const parsed = parseReminderTimeValue(timeValue);
+  return `${parsed.hour}:${parsed.minute} ${parsed.meridiem}`;
+}
+
 const StaffView: React.FC = () => {
   const { hasPermission } = usePermissions();
   const backendInfo = useMemo(() => getBackendInfo(), []);
@@ -92,9 +136,27 @@ const StaffView: React.FC = () => {
   const [editDraft, setEditDraft] = useState<Partial<EmployeeRow>>({});
   const [deleting, setDeleting] = useState<EmployeeRow | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [reminderSettings, setReminderSettings] = useState<DailyReviewReminderSettings>(
+    getDefaultDailyReviewReminderSettings(),
+  );
+  const [reminderDraft, setReminderDraft] = useState<{ enabled: boolean; time: string }>({
+    enabled: getDefaultDailyReviewReminderSettings().enabled,
+    time: getDefaultDailyReviewReminderSettings().time,
+  });
+  const [reminderLoading, setReminderLoading] = useState(false);
+  const [reminderSaving, setReminderSaving] = useState(false);
+  const [reminderError, setReminderError] = useState<string | null>(null);
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
+  const timePickerRef = useRef<HTMLDivElement | null>(null);
 
   const isAdmin = backendRole === 'ADMIN' || backendRole === 'SUPER_ADMIN';
   const isTeamLead = backendRole === 'TEAM_LEAD';
+  const reminderDirty =
+    reminderDraft.enabled !== reminderSettings.enabled || reminderDraft.time !== reminderSettings.time;
+  const reminderTimeSelection = useMemo(
+    () => parseReminderTimeValue(reminderDraft.time),
+    [reminderDraft.time],
+  );
 
   const canEditRow = (row: EmployeeRow) => {
     if (!hasPermission('EMPLOYEE_UPDATE')) return false;
@@ -143,10 +205,68 @@ const StaffView: React.FC = () => {
   }, [hasPermission]);
 
   useEffect(() => {
+    if (!isAdmin) return;
+
+    let active = true;
+
+    async function loadReminderSettings() {
+      setReminderLoading(true);
+      setReminderError(null);
+      try {
+        const settings = await fetchDailyReviewReminderSettings();
+        if (!active) return;
+        setReminderSettings(settings);
+        setReminderDraft({
+          enabled: settings.enabled,
+          time: settings.time,
+        });
+      } catch (e: any) {
+        if (!active) return;
+        setReminderError(e?.message || 'Failed to load daily reminder settings');
+      } finally {
+        if (active) {
+          setReminderLoading(false);
+        }
+      }
+    }
+
+    loadReminderSettings();
+
+    return () => {
+      active = false;
+    };
+  }, [isAdmin]);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(null), 2000);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (!timePickerOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (timePickerRef.current && target && !timePickerRef.current.contains(target)) {
+        setTimePickerOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setTimePickerOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [timePickerOpen]);
 
   if (!hasPermission('STAFF_VIEW')) {
     return <AccessDenied />;
@@ -221,6 +341,44 @@ const StaffView: React.FC = () => {
     }
   };
 
+  const handleSaveReminderSettings = async () => {
+    if (!isAdmin || !reminderDirty) return;
+    setReminderSaving(true);
+    setReminderError(null);
+    try {
+      const settings = await saveDailyReviewReminderSettings({
+        enabled: reminderDraft.enabled,
+        time: reminderDraft.time,
+      });
+      setReminderSettings(settings);
+      setReminderDraft({
+        enabled: settings.enabled,
+        time: settings.time,
+      });
+      setToast({ type: 'success', message: 'Daily reminder settings updated successfully.' });
+    } catch (e: any) {
+      setReminderError(e?.message || 'Failed to update daily reminder settings');
+      setToast({ type: 'error', message: e?.message || 'Daily reminder settings could not be updated.' });
+    } finally {
+      setReminderSaving(false);
+    }
+  };
+
+  const handleReminderTimePartChange = (
+    part: 'hour' | 'minute' | 'meridiem',
+    value: string,
+  ) => {
+    const nextSelection = {
+      ...reminderTimeSelection,
+      [part]: value,
+    } as { hour: string; minute: string; meridiem: 'AM' | 'PM' };
+
+    setReminderDraft((prev) => ({
+      ...prev,
+      time: buildReminderTimeValue(nextSelection.hour, nextSelection.minute, nextSelection.meridiem),
+    }));
+  };
+
   return (
     <div className="mx-auto max-w-6xl space-y-8 animate-in fade-in duration-700">
       {toast && <Toast type={toast.type} message={toast.message} />}
@@ -252,6 +410,259 @@ const StaffView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="rounded-[30px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
+          <div className="border-b border-slate-200 bg-slate-50/80 px-6 py-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div className="max-w-2xl">
+                <div className="mb-2 flex items-center gap-2.5">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
+                    <BellRing size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-[18px] font-semibold tracking-[-0.02em] text-slate-900">
+                      Daily reminder controls
+                    </h3>
+                    <p className="mt-1 text-[14px] text-slate-500">
+                      Manage the shared daily reminder schedule for both email and in-app notifications.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] ${
+                    reminderDraft.enabled
+                      ? 'border border-emerald-100 bg-emerald-50 text-emerald-700'
+                      : 'border border-slate-200 bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {reminderDraft.enabled ? 'Active' : 'Paused'}
+                </span>
+                <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  {reminderSettings.timezone}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-6 py-5">
+            <div className="grid gap-5 lg:items-start lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+              <div className="self-start rounded-[24px] border border-slate-200 bg-[linear-gradient(135deg,rgba(248,250,252,0.95),rgba(255,247,237,0.85))] p-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                    <Clock3 size={18} />
+                  </div>
+                  <div>
+                    <p className="text-[15px] font-semibold text-slate-900">Current schedule</p>
+                    <p className="mt-1.5 text-[14px] leading-6 text-slate-600">
+                      {reminderSettings.enabled
+                        ? `The daily reminder is set for ${reminderSettings.scheduleLabel} (${reminderSettings.time}) in ${reminderSettings.timezone}.`
+                        : 'The daily reminder is currently paused for all staff members.'}
+                    </p>
+                    <p className="mt-2.5 text-[13px] leading-5 text-slate-500">
+                      This setting controls the daily reminder email and the reminder notification timing together.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="space-y-3.5">
+                  <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-2.5">
+                    <div>
+                      <p className="text-[14px] font-semibold text-slate-900">Reminder status</p>
+                      <p className="mt-0.5 text-[13px] text-slate-500">
+                        Turn the daily reminder on or off for everyone.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={reminderDraft.enabled}
+                      onClick={() =>
+                        setReminderDraft((prev) => ({ ...prev, enabled: !prev.enabled }))
+                      }
+                      className={`relative inline-flex h-7 w-14 shrink-0 items-center rounded-full transition ${
+                        reminderDraft.enabled ? 'bg-brand-red' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition ${
+                          reminderDraft.enabled ? 'translate-x-8' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-[13px] font-semibold text-slate-700">
+                      Reminder time
+                    </label>
+                    <div className="relative" ref={timePickerRef}>
+                      <button
+                        type="button"
+                        onClick={() => setTimePickerOpen((prev) => !prev)}
+                        className={`flex w-full items-center justify-between rounded-2xl border bg-white px-4 py-3 text-left transition ${
+                          timePickerOpen
+                            ? 'border-brand-red shadow-[0_0_0_3px_rgba(239,68,68,0.12)]'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-slate-600">
+                            <Clock3 size={16} />
+                          </div>
+                          <div>
+                            <p className="text-[17px] font-semibold tracking-[-0.02em] text-slate-900">
+                              {formatReminderTimeLabel(reminderDraft.time)}
+                            </p>
+                            <p className="text-[12px] uppercase tracking-[0.12em] text-slate-400">
+                              Custom time picker
+                            </p>
+                          </div>
+                        </div>
+                        <ChevronDown
+                          size={18}
+                          className={`text-slate-400 transition ${timePickerOpen ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+
+                      {timePickerOpen && (
+                        <div className="absolute left-0 right-0 top-full z-20 mt-2 rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_24px_70px_rgba(15,23,42,0.16)]">
+                          <div className="grid grid-cols-[1fr_1fr_88px] gap-3">
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                                Hour
+                              </p>
+                              <div className="mt-1.5 max-h-44 space-y-1 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50/70 p-2">
+                                {REMINDER_HOUR_OPTIONS.map((hour) => {
+                                  const selected = reminderTimeSelection.hour === hour;
+                                  return (
+                                    <button
+                                      key={hour}
+                                      type="button"
+                                      onClick={() => handleReminderTimePartChange('hour', hour)}
+                                      className={`flex w-full items-center justify-center rounded-xl px-3 py-2 text-[13px] font-semibold transition ${
+                                        selected
+                                          ? 'bg-brand-red text-white shadow-sm'
+                                          : 'text-slate-600 hover:bg-white hover:text-slate-900'
+                                      }`}
+                                    >
+                                      {hour}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                                Minute
+                              </p>
+                              <div className="mt-1.5 max-h-44 space-y-1 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50/70 p-2">
+                                {REMINDER_MINUTE_OPTIONS.map((minute) => {
+                                  const selected = reminderTimeSelection.minute === minute;
+                                  return (
+                                    <button
+                                      key={minute}
+                                      type="button"
+                                      onClick={() => handleReminderTimePartChange('minute', minute)}
+                                      className={`flex w-full items-center justify-center rounded-xl px-3 py-2 text-[13px] font-semibold transition ${
+                                        selected
+                                          ? 'bg-brand-red text-white shadow-sm'
+                                          : 'text-slate-600 hover:bg-white hover:text-slate-900'
+                                      }`}
+                                    >
+                                      {minute}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                                Period
+                              </p>
+                              <div className="mt-1.5 space-y-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-2">
+                                {REMINDER_MERIDIEM_OPTIONS.map((meridiem) => {
+                                  const selected = reminderTimeSelection.meridiem === meridiem;
+                                  return (
+                                    <button
+                                      key={meridiem}
+                                      type="button"
+                                      onClick={() => handleReminderTimePartChange('meridiem', meridiem)}
+                                      className={`flex w-full items-center justify-center rounded-xl px-3 py-2 text-[13px] font-semibold transition ${
+                                        selected
+                                          ? 'bg-brand-red text-white shadow-sm'
+                                          : 'text-slate-600 hover:bg-white hover:text-slate-900'
+                                      }`}
+                                    >
+                                      {meridiem}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/80 px-3.5 py-2.5">
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                                Selected time
+                              </p>
+                              <p className="mt-0.5 text-[14px] font-semibold text-slate-900">
+                                {formatReminderTimeLabel(reminderDraft.time)}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setTimePickerOpen(false)}
+                              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-[12px] font-semibold text-slate-700 transition hover:bg-slate-100"
+                            >
+                              Done
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-2 text-[12px] leading-5 text-slate-500">
+                      Time is stored in {reminderSettings.timezone} and applied to both email and notification reminders.
+                    </p>
+                  </div>
+
+                  {reminderError && (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+                      {reminderError}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-3 pt-0.5">
+                    <span className="text-[12px] text-slate-500">
+                      {reminderLoading
+                        ? 'Loading current settings...'
+                        : reminderDirty
+                          ? 'You have unsaved reminder changes.'
+                          : 'Reminder settings are up to date.'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleSaveReminderSettings}
+                      disabled={reminderLoading || reminderSaving || !reminderDirty}
+                      className="rounded-full bg-brand-red px-5 py-2.5 text-[13px] font-semibold text-white transition hover:bg-brand-navy disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {reminderSaving ? 'Saving...' : 'Save changes'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[14px] text-red-700 shadow-sm">

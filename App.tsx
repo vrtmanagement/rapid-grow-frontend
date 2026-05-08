@@ -28,6 +28,13 @@ import {
   getAuthHeaders,
   getStoredAuthSession,
 } from './config/api';
+import {
+  DAILY_REVIEW_REMINDER_SETTINGS_UPDATED_EVENT,
+  fetchDailyReviewReminderSettings,
+  getDefaultDailyReviewReminderSettings,
+  normalizeDailyReviewReminderSettings,
+  type DailyReviewReminderSettings,
+} from './services/dailyReviewReminderSettings';
 
 interface GlobalLeaveToast {
   key: string;
@@ -60,8 +67,6 @@ function shouldAutoClearNotification(notification?: Partial<AppShellNotification
 
 const REMINDER_TOAST_TIME_ZONE = 'Asia/Kolkata';
 const DAILY_REVIEW_REMINDER_TYPE = 'daily_review_reminder';
-const DAILY_REVIEW_REMINDER_TOAST_HOUR = 21;
-const DAILY_REVIEW_REMINDER_TOAST_MINUTE = 30;
 const DISMISSED_DAILY_REVIEW_REMINDER_STORAGE_KEY = 'rapidgrow-dismissed-daily-review-reminder-date-keys';
 
 function getDatePartMap(date: Date, timeZone: string) {
@@ -124,18 +129,23 @@ function isDailyReviewReminderToastDismissed(notification?: Partial<AppShellNoti
   return getDismissedDailyReviewReminderDateKeys().includes(notificationDateKey);
 }
 
-function canShowDailyReviewReminderToast(notification?: Partial<AppShellNotification> | null): boolean {
+function canShowDailyReviewReminderToast(
+  notification?: Partial<AppShellNotification> | null,
+  settings: DailyReviewReminderSettings = getDefaultDailyReviewReminderSettings(),
+): boolean {
   if (!isDailyReviewReminderNotification(notification)) return true;
+  if (!settings.enabled) return false;
 
-  const todayDateKey = getDateKeyInTimeZone(new Date(), REMINDER_TOAST_TIME_ZONE);
+  const reminderTimeZone = String(settings.timezone || REMINDER_TOAST_TIME_ZONE).trim() || REMINDER_TOAST_TIME_ZONE;
+  const todayDateKey = getDateKeyInTimeZone(new Date(), reminderTimeZone);
   if (String(notification?.dateKey || '').trim() !== todayDateKey) {
     return false;
   }
 
-  const { hour, minute } = getHourMinuteInTimeZone(new Date(), REMINDER_TOAST_TIME_ZONE);
-  if (hour > DAILY_REVIEW_REMINDER_TOAST_HOUR) return true;
-  if (hour === DAILY_REVIEW_REMINDER_TOAST_HOUR) {
-    return minute >= DAILY_REVIEW_REMINDER_TOAST_MINUTE;
+  const { hour, minute } = getHourMinuteInTimeZone(new Date(), reminderTimeZone);
+  if (hour > settings.hour) return true;
+  if (hour === settings.hour) {
+    return minute >= settings.minute;
   }
   return false;
 }
@@ -181,6 +191,9 @@ const App: React.FC = () => {
   const [globalLeaveToast, setGlobalLeaveToast] = useState<GlobalLeaveToast | null>(null);
   const [globalTaskToast, setGlobalTaskToast] = useState<GlobalTaskToast | null>(null);
   const [globalReminderToast, setGlobalReminderToast] = useState<GlobalReminderToast | null>(null);
+  const [dailyReviewReminderSettings, setDailyReviewReminderSettings] = useState<DailyReviewReminderSettings>(
+    getDefaultDailyReviewReminderSettings(),
+  );
   const shownLeaveToastKeysRef = useRef<Record<string, true>>({});
   const shownTaskToastKeysRef = useRef<Record<string, true>>({});
   const shownReminderToastKeysRef = useRef<Record<string, true>>({});
@@ -195,6 +208,48 @@ const App: React.FC = () => {
     }
     setGlobalReminderToast(null);
   }, [notifications]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setDailyReviewReminderSettings(getDefaultDailyReviewReminderSettings());
+      return;
+    }
+
+    let active = true;
+
+    async function loadDailyReviewReminderSettings() {
+      try {
+        const settings = await fetchDailyReviewReminderSettings();
+        if (active) {
+          setDailyReviewReminderSettings(settings);
+        }
+      } catch (err) {
+        console.warn('Failed to load daily reminder settings', err);
+        if (active) {
+          setDailyReviewReminderSettings(getDefaultDailyReviewReminderSettings());
+        }
+      }
+    }
+
+    loadDailyReviewReminderSettings();
+
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    const handleSettingsUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<DailyReviewReminderSettings>).detail;
+      setDailyReviewReminderSettings(normalizeDailyReviewReminderSettings(detail));
+    };
+
+    window.addEventListener(DAILY_REVIEW_REMINDER_SETTINGS_UPDATED_EVENT, handleSettingsUpdated);
+
+    return () => {
+      window.removeEventListener(DAILY_REVIEW_REMINDER_SETTINGS_UPDATED_EVENT, handleSettingsUpdated);
+    };
+  }, []);
 
   useEffect(() => {
     const syncStoredSession = () => {
@@ -854,7 +909,7 @@ const App: React.FC = () => {
       if (isDailyReviewReminderNotification(notification)) {
         if (isDailyReviewReminderToastDismissed(notification)) return false;
       }
-      return canShowDailyReviewReminderToast(notification);
+      return canShowDailyReviewReminderToast(notification, dailyReviewReminderSettings);
     });
     if (!unreadNotification) return;
 
@@ -871,7 +926,7 @@ const App: React.FC = () => {
     };
     shownReminderToastKeysRef.current[toastKey] = true;
     setGlobalReminderToast(reminderToast);
-  }, [notifications]);
+  }, [dailyReviewReminderSettings, notifications]);
 
   useEffect(() => {
     if (!isAuthenticated) {
