@@ -68,7 +68,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [spacesLoading, setSpacesLoading] = useState(false);
   const [markingTasksViewed, setMarkingTasksViewed] = useState(false);
   const [title, setTitle] = useState('');
-  const [assigneeId, setAssigneeId] = useState('');
+  const [assigneeId, setAssigneeId] = useState(me.id || '');
   const [dueDate, setDueDate] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
@@ -818,7 +818,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       setTasks((prev) => upsertTaskById(prev, normalizeTaskForUi(data as SpacesTask)));
       setTitle('');
       setDescription('');
-      setAssigneeId('');
+      setAssigneeId(me.id || '');
       setDueDate('');
       setPriority('medium');
       setStatus('todo');
@@ -834,11 +834,17 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
 
   const visibleTasks = useMemo(() => tasks, [tasks]);
 
+  const taskBelongsToMe = useCallback(
+    (task: SpacesTask) =>
+      task.assigneeId === me.id || (!task.assigneeId && task.createdByEmpId === me.id),
+    [me.id],
+  );
+
   const filteredTasks = useMemo(() => {
     let list = visibleTasks;
 
     if (taskFilterMode === 'me' && me.id) {
-      list = list.filter((t) => t.createdByEmpId === me.id && t.assigneeId === me.id);
+      list = list.filter((t) => taskBelongsToMe(t));
     }
 
     if (taskFilterMode === 'assigned' && me.id) {
@@ -863,7 +869,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         createdByName.toLowerCase().includes(term)
       );
     });
-  }, [visibleTasks, taskFilterMode, taskSearch, me.id, employeeNameById]);
+  }, [visibleTasks, taskFilterMode, taskSearch, me.id, employeeNameById, taskBelongsToMe]);
 
   const sortedTasks = useMemo(() => {
     if (filteredTasks.length === 0) return filteredTasks;
@@ -880,7 +886,10 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     return copy;
   }, [filteredTasks, mode]);
   const topPriorityTasks = useMemo(() => {
-    const pending = tasks.filter((task) => task.status !== 'done');
+    const activePriorityStatuses = new Set<TaskStatus>(['todo', 'doing']);
+    const pending = sortedTasks.filter(
+      (task) => taskBelongsToMe(task) && activePriorityStatuses.has(task.status),
+    );
     const priorityRank: Record<TaskPriority, number> = {
       high: 0,
       medium: 1,
@@ -896,7 +905,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       })
       .slice(0, 5);
-  }, [tasks]);
+  }, [sortedTasks, taskBelongsToMe]);
 
   const weeklyTaskGroups = useMemo(() => {
     if (!state) return [];
