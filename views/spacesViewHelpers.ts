@@ -18,6 +18,7 @@ export interface ProjectOption {
 export interface EmployeeOption {
   empId: string;
   empName: string;
+  avatar?: string;
   role?: BackendRole;
 }
 
@@ -103,8 +104,9 @@ export function getLoggedInEmployee() {
   const emp = stored?.employee || {};
   const id = emp.empId || emp._id || '';
   const name = emp.empName || 'Employee';
+  const avatar = String(emp.avatar || '').trim();
   const role: BackendRole = emp.role || 'EMPLOYEE';
-  return { id, name, role };
+  return { id, name, avatar, role };
 }
 
 export function normalizeRole(role?: BackendRole): BackendRole {
@@ -141,9 +143,7 @@ export function getReviewerLabel(role?: BackendRole): string {
 }
 
 export function getPriorityRowClass(priority?: TaskPriority): string {
-  if (priority === 'high') return 'bg-red-100';
-  if (priority === 'medium') return 'bg-red-50';
-  return 'bg-green-100';
+  return 'bg-white';
 }
 
 export function findScrollableContainer(node: HTMLElement | null): HTMLElement | Window {
