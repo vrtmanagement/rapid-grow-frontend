@@ -774,6 +774,7 @@ const Vision = ({ state, updateState, loading = false }) => {
   const quarterIdFromQuery = searchParams.get('quarterId') || '';
   const monthIdFromQuery = searchParams.get('monthId') || '';
   const weekIdFromQuery = searchParams.get('weekId') || '';
+  const weekSlotFromQuery = Number(searchParams.get('weekSlot') || 0);
   const dayIdFromQuery = searchParams.get('dayId') || '';
 
   const selectedYear = visions.find((item) => item.id === yearIdFromQuery) || visions[0] || null;
@@ -786,7 +787,10 @@ const Vision = ({ state, updateState, loading = false }) => {
     selectedQuarter?.months?.[0] ||
     null;
   const selectedWeek =
-    (selectedMonth?.weeks || []).find((item) => item.id === weekIdFromQuery) ||
+    (selectedMonth?.weeks || []).find(
+      (item) => item.id === weekIdFromQuery && (!weekSlotFromQuery || Number(item.slotIndex || 0) === weekSlotFromQuery),
+    ) ||
+    (selectedMonth?.weeks || []).find((item) => weekSlotFromQuery && Number(item.slotIndex || 0) === weekSlotFromQuery) ||
     selectedMonth?.weeks?.[0] ||
     null;
   const [activeDayId, setActiveDayId] = useState('');
@@ -1326,10 +1330,10 @@ const Vision = ({ state, updateState, loading = false }) => {
         weekId: String(weekNode?.id || '').trim(),
       };
 
-      const taskYearId = String(cf.yearlyGoalId || '').trim();
-      const taskQuarterId = String(cf.quarterlyGoalId || '').trim();
-      const taskMonthId = String(cf.monthlyGoalId || '').trim();
-      const weeklyGoalId = String(cf.weeklyGoalId || '').trim();
+      const taskYearId = String(cf.yearlyGoalId || cf.planningYearId || '').trim();
+      const taskQuarterId = String(cf.quarterlyGoalId || cf.planningQuarterId || '').trim();
+      const taskMonthId = String(cf.monthlyGoalId || cf.planningMonthId || '').trim();
+      const weeklyGoalId = String(cf.weeklyGoalId || cf.planningWeekId || '').trim();
       const dailyGoalId = String(cf.dailyGoalId || '').trim();
       const explicitWeekChainKey = String(cf.weekChainKey || '').trim();
       const explicitDayChainKey = String(cf.dayChainKey || '').trim();
@@ -1389,10 +1393,10 @@ const Vision = ({ state, updateState, loading = false }) => {
         dayId: String(dayNode?.id || '').trim(),
       };
 
-      const taskYearId = String(cf.yearlyGoalId || '').trim();
-      const taskQuarterId = String(cf.quarterlyGoalId || '').trim();
-      const taskMonthId = String(cf.monthlyGoalId || '').trim();
-      const weeklyGoalId = String(cf.weeklyGoalId || '').trim();
+      const taskYearId = String(cf.yearlyGoalId || cf.planningYearId || '').trim();
+      const taskQuarterId = String(cf.quarterlyGoalId || cf.planningQuarterId || '').trim();
+      const taskMonthId = String(cf.monthlyGoalId || cf.planningMonthId || '').trim();
+      const weeklyGoalId = String(cf.weeklyGoalId || cf.planningWeekId || '').trim();
       const dailyGoalId = String(cf.dailyGoalId || '').trim();
       const explicitDayChainKey = String(cf.dayChainKey || '').trim();
       const targetDayChainKey = buildVisionChainKey(target);
@@ -2206,6 +2210,7 @@ const Vision = ({ state, updateState, loading = false }) => {
                     quarterId: selectedQuarter?.id,
                     monthId: selectedMonth.id,
                     weekId: week.id,
+                    weekSlot: week.slotIndex,
                   })}
                   dateRange={getWeeklyDateRange(week.slotIndex, selectedMonth.timeline, selectedQuarter.timeline)}
                   infoRows={[
@@ -2220,6 +2225,7 @@ const Vision = ({ state, updateState, loading = false }) => {
                         quarterId: selectedQuarter?.id,
                         monthId: selectedMonth.id,
                         weekId: week.id,
+                        weekSlot: week.slotIndex,
                       }),
                     )
                   }

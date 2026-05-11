@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
+import { QUARTER_LABELS } from '../appSeedConstants';
 import { Goal, PlanningState, WorkspaceTask } from '../types';
 import { saveGoal } from '../services/goalApi';
 import { RefreshCw } from 'lucide-react';
@@ -18,7 +19,7 @@ import {
   TaskFilterMode,
   TaskPriority,
   TaskStatus,
-  WeeklyRangeFilter,
+  WeeklyTaskGroup,
   findScrollableContainer,
   forceDownloadDocument,
   getDayDisplay,
@@ -34,7 +35,10 @@ import {
   canEditDueDateForView,
   canEditTaskForView,
   canValidateTaskForView,
+  buildWeeklyTaskCustomFields,
+  buildWeeklyTaskGroups,
   createDaysForWeekHelper,
+  ensureWeeklyGroupPersistedHelper,
   handleAddColumnHelper,
   getTaskRowClassesForView,
   isTaskLockedForView,
@@ -51,6 +55,7 @@ interface Props {
   state?: PlanningState;
   updateState?: (updater: (prev: PlanningState) => PlanningState) => void;
 }
+
 const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const navigate = useNavigate();
   const taskHubRootRef = useRef<HTMLDivElement | null>(null);
@@ -97,7 +102,10 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [assigningDayTaskId, setAssigningDayTaskId] = useState('');
   const [selectedDayByWeek, setSelectedDayByWeek] = useState<Record<string, string>>({});
   const [weeklyTaskDocumentByDay, setWeeklyTaskDocumentByDay] = useState<Record<string, File | null>>({});
-  const [weeklyRangeFilter, setWeeklyRangeFilter] = useState<WeeklyRangeFilter>('this-week');
+  const [selectedWeeklyProjectId, setSelectedWeeklyProjectId] = useState('');
+  const [selectedWeeklyQuarterId, setSelectedWeeklyQuarterId] = useState('');
+  const [selectedWeeklyMonthId, setSelectedWeeklyMonthId] = useState('');
+  const [selectedWeeklyGroupId, setSelectedWeeklyGroupId] = useState('');
   const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
@@ -124,6 +132,16 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     projects.forEach((p) => map.set(p.id, p.name));
     return map;
   }, [projects]);
+
+  const yearlyVisionMetaById = useMemo(() => {
+    const map = new Map<string, { title: string; details: string }>();
+    (state?.yearlyGoals || []).forEach((goal, index) => {
+      const title = String(goal.text || '').trim() || `Vision ${String(index + 1).padStart(2, '0')}`;
+      const details = String(goal.details || '').trim();
+      map.set(goal.id, { title, details });
+    });
+    return map;
+  }, [state]);
 
   const employeeNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -235,6 +253,17 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       ...projects.map((project) => ({ value: project.id, label: project.name })),
     ],
     [projects],
+  );
+  const weeklyProjectOptions = useMemo(
+    () =>
+      (state?.yearlyGoals || [])
+        .filter((goal) => String(goal.id || '').trim())
+        .map((goal, index) => ({
+          value: goal.id,
+          label: String(goal.text || '').trim() || `Vision ${String(index + 1).padStart(2, '0')}`,
+          description: String(goal.details || '').trim() || 'Yearly vision',
+        })),
+    [state],
   );
 
   const assigneeOptionsForTask = (currentAssigneeId?: string): EmployeeOption[] =>
@@ -485,7 +514,11 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
           const list = Array.isArray(data) ? data : [];
           setProjects(
             list
-              .map((p: any) => ({ id: p.clientProjectId, name: p.name }))
+              .map((p: any) => ({
+                id: p.clientProjectId,
+                name: p.name,
+                vision: String(p.goalStatement || p.description || p.problemStatement || p.businessCase || '').trim(),
+              }))
               .filter((p: ProjectOption) => p.id && p.name),
           );
         } else {
@@ -500,7 +533,11 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
           const list = Array.isArray(data) ? data : [];
           setProjects(
             list
-              .map((p: any) => ({ id: p.clientProjectId, name: p.name }))
+              .map((p: any) => ({
+                id: p.clientProjectId,
+                name: p.name,
+                vision: String(p.goalStatement || p.description || p.problemStatement || p.businessCase || '').trim(),
+              }))
               .filter((p: ProjectOption) => p.id && p.name),
           );
         }
@@ -907,52 +944,305 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       .slice(0, 5);
   }, [sortedTasks, taskBelongsToMe]);
 
-  const weeklyTaskGroups = useMemo(() => {
-    if (!state) return [];
-    return state.weeklyGoals.map((week) => ({
-      week,
-      days: state.dailyGoals.filter((d) => d.parentId === week.id),
-    }));
-  }, [state]);
+  const weeklyTaskGroups = useMemo<WeeklyTaskGroup[]>(
+    () => buildWeeklyTaskGroups(state, tasks, parseDateValue),
+    [state, tasks],
+  );
 
   const getWeekBreadcrumbForView = (weekId: string): string => getWeekBreadcrumb(state, weekId);
   const getWeekStartDateForView = (week: Goal, days: Goal[]): Date =>
     getWeekStartDate(week, days, tasks, parseDateValue);
 
-  const filteredWeeklyTaskGroups = useMemo(() => {
-    if (!weeklyTaskGroups.length) return weeklyTaskGroups;
-    const now = new Date();
-    const currentWeekStart = getSundayStart(now);
-    const currentWeekEnd = new Date(currentWeekStart);
-    currentWeekEnd.setDate(currentWeekStart.getDate() + 6);
+  const defaultWeeklyTaskGroup = useMemo(() => {
+    if (!weeklyTaskGroups.length) return null;
+    const today = new Date();
+    return (
+      weeklyTaskGroups.find((group) => group.weekEnd.getTime() >= today.getTime()) ||
+      weeklyTaskGroups[weeklyTaskGroups.length - 1] ||
+      weeklyTaskGroups[0]
+    );
+  }, [weeklyTaskGroups]);
 
-    const nextWeekStart = new Date(currentWeekStart);
-    nextWeekStart.setDate(currentWeekStart.getDate() + 7);
-    const nextWeekEnd = new Date(nextWeekStart);
-    nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
-
-    const twoWeeksEnd = new Date(currentWeekStart);
-    twoWeeksEnd.setDate(currentWeekStart.getDate() + 13);
-
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
-    return weeklyTaskGroups.filter(({ week, days }) => {
-      const weekStart = getSundayStart(getWeekStartDateForView(week, days));
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6);
-
-      if (weeklyRangeFilter === 'this-week') {
-        return weekStart <= currentWeekEnd && weekEnd >= currentWeekStart;
-      }
-      if (weeklyRangeFilter === 'next-week') {
-        return weekStart <= nextWeekEnd && weekEnd >= nextWeekStart;
-      }
-      if (weeklyRangeFilter === 'two-weeks') {
-        return weekStart <= twoWeeksEnd && weekEnd >= currentWeekStart;
-      }
-      return weekStart <= monthEnd && weekEnd >= currentWeekStart;
+  const weeklyQuarterOptions = useMemo(() => {
+    const activeYearId =
+      selectedWeeklyProjectId ||
+      defaultWeeklyTaskGroup?.yearId ||
+      state?.yearlyGoals?.[0]?.id ||
+      '';
+    const quarterGoals = (state?.quarterlyGoals || []).filter((quarter) => quarter.parentId === activeYearId);
+    return QUARTER_LABELS.map((quarterLabel, index) => {
+      const quarter = quarterGoals.find((item) => String(item.timeline || '').trim().toUpperCase() === quarterLabel);
+      const label = quarterLabel;
+      const quarterNumber = index + 1;
+      const startMonth = ((quarterNumber - 1) * 3) + 1;
+      const endMonth = startMonth + 2;
+      const quarterSummary = String(quarter?.text || quarter?.details || '').trim() || 'Quarter plan';
+      return {
+        value: quarter?.id || `${activeYearId || 'year'}-${quarterLabel.toLowerCase()}`,
+        label,
+        caption: `Months ${startMonth}-${endMonth}`,
+        description: quarterSummary,
+      };
     });
-  }, [weeklyTaskGroups, weeklyRangeFilter]);
+  }, [defaultWeeklyTaskGroup?.yearId, selectedWeeklyProjectId, state]);
+
+  useEffect(() => {
+    if (!weeklyProjectOptions.length) {
+      setSelectedWeeklyProjectId('');
+      return;
+    }
+
+    setSelectedWeeklyProjectId((prev) => {
+      if (prev && weeklyProjectOptions.some((option) => option.value === prev)) {
+        return prev;
+      }
+      if (
+        defaultWeeklyTaskGroup?.yearId &&
+        weeklyProjectOptions.some((option) => option.value === defaultWeeklyTaskGroup.yearId)
+      ) {
+        return defaultWeeklyTaskGroup.yearId;
+      }
+      return weeklyProjectOptions[0]?.value || '';
+    });
+  }, [defaultWeeklyTaskGroup, weeklyProjectOptions]);
+
+  useEffect(() => {
+    if (!weeklyQuarterOptions.length) {
+      setSelectedWeeklyQuarterId('');
+      return;
+    }
+
+    setSelectedWeeklyQuarterId((prev) => {
+      if (prev && weeklyQuarterOptions.some((option) => option.value === prev)) {
+        return prev;
+      }
+      return (
+        defaultWeeklyTaskGroup?.quarterId ||
+        weeklyQuarterOptions[0]?.value ||
+        ''
+      );
+    });
+  }, [defaultWeeklyTaskGroup, weeklyQuarterOptions]);
+
+  const weeklyMonthOptions = useMemo(() => {
+    const quarterMonths = (state?.monthlyGoals || [])
+      .filter((month) => month.parentId === selectedWeeklyQuarterId)
+      .sort((a, b) => {
+        const aOrder = Number(String(a.timeline || '').replace(/[^0-9]/g, '')) || 0;
+        const bOrder = Number(String(b.timeline || '').replace(/[^0-9]/g, '')) || 0;
+        return aOrder - bOrder;
+      });
+    const selectedVision = yearlyVisionMetaById.get(selectedWeeklyProjectId);
+    const selectedVisionTitle = selectedVision?.title || 'Selected vision';
+    const selectedVisionDetails = selectedVision?.details || selectedVisionTitle;
+    const selectedQuarterLabel =
+      weeklyQuarterOptions.find((option) => option.value === selectedWeeklyQuarterId)?.label || 'Q1';
+    const selectedQuarterNumber = Number(String(selectedQuarterLabel).replace(/[^0-9]/g, '')) || 1;
+    return quarterMonths.slice(0, 3).map((month, index) => {
+      const absoluteMonthNumber = ((selectedQuarterNumber - 1) * 3) + index + 1;
+      const calendarMonthName = new Date(Number(state?.currentYear) || new Date().getFullYear(), absoluteMonthNumber - 1, 1).toLocaleDateString(undefined, { month: 'long' });
+      return {
+        value: month.id,
+        label: `M${absoluteMonthNumber}`,
+        caption: calendarMonthName,
+        description: selectedVisionDetails || selectedVisionTitle,
+      };
+    });
+  }, [selectedWeeklyProjectId, selectedWeeklyQuarterId, state, weeklyQuarterOptions, yearlyVisionMetaById]);
+
+  useEffect(() => {
+    if (!weeklyMonthOptions.length) {
+      setSelectedWeeklyMonthId('');
+      return;
+    }
+
+    setSelectedWeeklyMonthId((prev) => {
+      if (prev && weeklyMonthOptions.some((option) => option.value === prev)) {
+        return prev;
+      }
+      if (
+        defaultWeeklyTaskGroup?.quarterId === selectedWeeklyQuarterId &&
+        weeklyMonthOptions.some((option) => option.value === defaultWeeklyTaskGroup.monthId)
+      ) {
+        return defaultWeeklyTaskGroup.monthId;
+      }
+      return weeklyMonthOptions[0]?.value || '';
+    });
+  }, [defaultWeeklyTaskGroup, selectedWeeklyQuarterId, weeklyMonthOptions]);
+
+  const weeklyWeekOptions = useMemo(() => {
+    const groupsForMonth = weeklyTaskGroups.filter((group) => group.monthId === selectedWeeklyMonthId);
+    const uniqueOptions = new Map<
+      string,
+      { value: string; label: string; caption: string; description: string; isPlaceholderWeek?: boolean }
+    >();
+
+    groupsForMonth.forEach((group) => {
+      const optionKey = `${group.weekLabel}::${group.weekRangeLabel}`;
+      const nextOption = {
+        value: group.weekSelectionKey,
+        label: group.weekLabel,
+        caption: group.weekRangeLabel,
+        description: group.week.text || yearlyVisionMetaById.get(selectedWeeklyProjectId)?.details || 'Weekly goal',
+        isPlaceholderWeek: group.isPlaceholderWeek,
+      };
+      const existingOption = uniqueOptions.get(optionKey);
+
+      if (
+        !existingOption ||
+        (existingOption.isPlaceholderWeek && !nextOption.isPlaceholderWeek) ||
+        (existingOption.description === 'Weekly goal' && nextOption.description !== 'Weekly goal')
+      ) {
+        uniqueOptions.set(optionKey, nextOption);
+      }
+    });
+
+    return Array.from(uniqueOptions.values()).map(({ isPlaceholderWeek: _omit, ...option }) => option);
+  }, [selectedWeeklyMonthId, selectedWeeklyProjectId, weeklyTaskGroups, yearlyVisionMetaById]);
+
+  const selectedWeeklyWeekId = useMemo(() => {
+    if (!weeklyWeekOptions.length) return '';
+    if (selectedWeeklyGroupId && weeklyWeekOptions.some((option) => option.value === selectedWeeklyGroupId)) {
+      return selectedWeeklyGroupId;
+    }
+    return weeklyWeekOptions[0]?.value || '';
+  }, [selectedWeeklyGroupId, weeklyWeekOptions]);
+
+  useEffect(() => {
+    if (!weeklyWeekOptions.length) {
+      setSelectedWeeklyGroupId('');
+      return;
+    }
+
+    setSelectedWeeklyGroupId((prev) => {
+      if (prev && weeklyWeekOptions.some((option) => option.value === prev)) {
+        return prev;
+      }
+      if (
+        defaultWeeklyTaskGroup?.monthId === selectedWeeklyMonthId &&
+        weeklyWeekOptions.some((option) => option.value === defaultWeeklyTaskGroup.weekSelectionKey)
+      ) {
+        return defaultWeeklyTaskGroup.weekSelectionKey;
+      }
+      return weeklyWeekOptions[0]?.value || '';
+    });
+  }, [defaultWeeklyTaskGroup, selectedWeeklyMonthId, weeklyWeekOptions]);
+
+  const selectedWeeklyTaskGroup = useMemo(
+    () =>
+      weeklyTaskGroups.find(
+        (group) => group.monthId === selectedWeeklyMonthId && group.weekSelectionKey === selectedWeeklyWeekId,
+      ) ||
+      weeklyTaskGroups.find(
+        (group) => group.monthId === selectedWeeklyMonthId && group.weekSelectionKey === weeklyWeekOptions[0]?.value,
+      ) ||
+      null,
+    [selectedWeeklyMonthId, selectedWeeklyWeekId, weeklyTaskGroups, weeklyWeekOptions],
+  );
+  const selectedWeeklyDay = useMemo(() => {
+    if (!selectedWeeklyTaskGroup?.days?.length) return null;
+    const selectedDayId = selectedDayByWeek[selectedWeeklyTaskGroup.weekId] || selectedWeeklyTaskGroup.days[0]?.id || '';
+    return selectedWeeklyTaskGroup.days.find((day) => day.id === selectedDayId) || selectedWeeklyTaskGroup.days[0] || null;
+  }, [selectedDayByWeek, selectedWeeklyTaskGroup]);
+  const activeQuarterOption = weeklyQuarterOptions.find((option) => option.value === selectedWeeklyQuarterId) || null;
+  const activeMonthOption = weeklyMonthOptions.find((option) => option.value === selectedWeeklyMonthId) || null;
+  const activeWeekOption = weeklyWeekOptions.find((option) => option.value === selectedWeeklyWeekId) || null;
+  useEffect(() => {
+    if (!selectedWeeklyDay) return;
+    setAssignDraftByDay((prev) => ({
+      ...prev,
+      [selectedWeeklyDay.id]: {
+        title: prev[selectedWeeklyDay.id]?.title ?? selectedWeeklyDay.text ?? '',
+        assigneeId: prev[selectedWeeklyDay.id]?.assigneeId || me.id || '',
+        dueDate: prev[selectedWeeklyDay.id]?.dueDate || '',
+        priority: prev[selectedWeeklyDay.id]?.priority || 'medium',
+        status: prev[selectedWeeklyDay.id]?.status || 'todo',
+        description: prev[selectedWeeklyDay.id]?.description || '',
+        projectId: prev[selectedWeeklyDay.id]?.projectId || '',
+      },
+    }));
+  }, [me.id, selectedWeeklyDay]);
+
+  const handleWeeklyProjectChange = useCallback(
+    (visionId: string) => {
+      setSelectedWeeklyProjectId(visionId);
+      setSelectedWeeklyQuarterId('');
+      setSelectedWeeklyMonthId('');
+      setSelectedWeeklyGroupId('');
+    },
+    [],
+  );
+
+  const handleWeeklyQuarterChange = useCallback(
+    (quarterId: string) => {
+      setSelectedWeeklyQuarterId(quarterId);
+      setSelectedWeeklyMonthId('');
+      setSelectedWeeklyGroupId('');
+    },
+    [],
+  );
+
+  const handleWeeklyMonthChange = useCallback(
+    (monthId: string) => {
+      setSelectedWeeklyMonthId(monthId);
+      setSelectedWeeklyGroupId('');
+    },
+    [],
+  );
+
+  const handleWeeklyWeekChange = useCallback((weekId: string) => {
+    setSelectedWeeklyGroupId(weekId);
+  }, []);
+
+  const weeklyPeriodPicker = useMemo(
+    () => ({
+      summary:
+        selectedWeeklyTaskGroup?.weekSummaryLabel ||
+        `${activeQuarterOption?.label || 'Q?'} / ${activeMonthOption?.label || 'M?'} / ${activeWeekOption?.label || 'W?'}`,
+      detail: selectedWeeklyTaskGroup
+        ? `${selectedWeeklyTaskGroup.weekRangeLabel} - ${selectedWeeklyTaskGroup.week.text || 'Weekly goal'}`
+        : activeMonthOption
+          ? `Choose a week inside ${activeQuarterOption?.label || 'selected quarter'} ${activeMonthOption.label}`
+          : 'Choose a quarter, month, and week',
+      projectOptions: weeklyProjectOptions.map((option) => ({
+        value: option.value,
+        label: option.label,
+        description: option.description,
+      })),
+      selectedProject: selectedWeeklyProjectId,
+      onProjectChange: handleWeeklyProjectChange,
+      quarterOptions: weeklyQuarterOptions,
+      selectedQuarter: selectedWeeklyQuarterId,
+      onQuarterChange: handleWeeklyQuarterChange,
+      monthOptions: weeklyMonthOptions,
+      selectedMonth: selectedWeeklyMonthId,
+      onMonthChange: handleWeeklyMonthChange,
+      weekOptions: weeklyWeekOptions,
+      selectedWeek: selectedWeeklyWeekId,
+      onWeekChange: handleWeeklyWeekChange,
+      disabled: !weeklyQuarterOptions.length,
+    }),
+    [
+      activeMonthOption,
+      activeQuarterOption,
+      activeWeekOption,
+      handleWeeklyProjectChange,
+      handleWeeklyMonthChange,
+      handleWeeklyQuarterChange,
+      handleWeeklyWeekChange,
+      weeklyProjectOptions,
+      selectedWeeklyProjectId,
+      selectedWeeklyDay,
+      selectedWeeklyTaskGroup,
+      selectedWeeklyWeekId,
+      selectedWeeklyMonthId,
+      selectedWeeklyQuarterId,
+      weeklyMonthOptions,
+      weeklyProjectOptions,
+      weeklyQuarterOptions,
+      weeklyWeekOptions,
+    ],
+  );
 
   const createDaysForWeek = async (weekId: string) =>
     createDaysForWeekHelper({
@@ -965,18 +1255,43 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     });
 
   const toggleDaily = (id: string) =>
-    toggleDailyHelper({
-      id,
+    (async () => {
+      if (!selectedWeeklyTaskGroup) return;
+      const prepared = await ensureWeeklyGroupPersistedHelper({
+        weeklyGroup: selectedWeeklyTaskGroup,
+        state,
+        updateState,
+        saveGoalFn: saveGoal,
+        setWeeklyError,
+      });
+      if (!prepared) return;
+      toggleDailyHelper({
+        id,
+        state,
+        updateState,
+        canManageWeeklyRows,
+        saveGoalFn: saveGoal,
+        setWeeklyError,
+      });
+    })();
+
+  const createTaskFromDay = async (day: Goal, weeklyGroup: WeeklyTaskGroup) => {
+    const preparedGroup = await ensureWeeklyGroupPersistedHelper({
+      weeklyGroup,
       state,
       updateState,
-      canManageWeeklyRows,
       saveGoalFn: saveGoal,
       setWeeklyError,
     });
-
-  const createTaskFromDay = async (day: Goal, week: Goal) => {
+    if (!preparedGroup) return;
+    const persistedDay = preparedGroup.days.find((item) => item.id === day.id) || day;
+    const persistedWeeklyGroup: WeeklyTaskGroup = {
+      ...weeklyGroup,
+      week: preparedGroup.week,
+      days: preparedGroup.days,
+    };
     const draft = assignDraftByDay[day.id];
-    const titleValue = (draft?.title || day.text || '').trim();
+    const titleValue = (draft?.title || persistedDay.text || '').trim();
     const assignee = (draft?.assigneeId || me.id || '').trim();
     const dueDateValue = String(draft?.dueDate || '').trim();
     const priorityValue = String(draft?.priority || 'medium').trim() || 'medium';
@@ -1025,7 +1340,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           title: titleValue,
-          description: descriptionValue || `Created from Daily plan: ${week.text || 'Weekly Goal'}`,
+          description: descriptionValue || `Created from Daily plan: ${persistedWeeklyGroup.week.text || 'Weekly Goal'}`,
           documentUrl: uploadedDocument?.documentUrl || '',
           documentName: uploadedDocument?.documentName || '',
           documentMimeType: uploadedDocument?.documentMimeType || '',
@@ -1034,11 +1349,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
           dueDate: dueDateValue,
           priority: priorityValue,
           status: statusValue,
-          customFields: {
-            dailyGoalId: day.id,
-            weeklyGoalId: week.id,
-            dailyGoalText: day.text || '',
-          },
+          customFields: buildWeeklyTaskCustomFields(persistedDay, persistedWeeklyGroup),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1061,7 +1372,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         ...prev,
         [day.id]: null,
       }));
-      setTasks((prev) => [normalizeTaskForUi(data as SpacesTask), ...prev]);
+      setTasks((prev) => upsertTaskById(prev, normalizeTaskForUi(data as SpacesTask)));
     } catch (e: any) {
       setWeeklyError(e?.message || 'Failed to create task');
     } finally {
@@ -1217,7 +1528,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     }
   };
 
-  const mainSectionsProps = { setCreatePanelTab, createPanelTab, assignmentHint, setAssigneeId, me, title, setTitle, assigneeId, createAssigneeOptions, employeesLoading, employeeNameById, dueDate, setDueDate, priority, setPriority, priorityOptions, status, setStatus, statusOptions, description, setDescription, selectedProjectId, setSelectedProjectId, projectSelectOptions, projectsLoading, setTaskDocumentFile, taskDocumentFile, handleCreate, saving, uploadingTaskDocument, topPriorityTasks, patchTask, deleteTask, weeklyError, state, updateState, setWeeklyRangeFilter, weeklyRangeFilter, filteredWeeklyTaskGroups, getWeekBreadcrumb: getWeekBreadcrumbForView, selectedDayByWeek, getSundayStart, getWeekStartDate: getWeekStartDateForView, getDayDisplay, setSelectedDayByWeek, tasks, toggleDaily, canManageWeeklyRows, assignDraftByDay, setAssignDraftByDay, setWeeklyTaskDocumentByDay, weeklyTaskDocumentByDay, createTaskFromDay, assigningDayTaskId, createDaysForWeek, setTaskFilterMode, taskFilterMode, taskSearch, setTaskSearch, columns, isRenamingColumnId, renameDraft, setRenameDraft, setIsRenamingColumnId, setActiveColumnMenuId, sortedTasks, setColumns, setError, activeColumnMenuId, setColumnToDelete, handleAddColumn, spacesLoading, paginatedTasks, canEditTask, isTaskLocked, getTaskRowClasses, projectNameById, mode, assigneeOptionsForTask, canEditDueDate, canChangeStatus, forceDownloadDocument, canCommentOnTask, setCommentTaskId, setModalStatus, canValidateTask, canDeleteTask, handleApproveTask, handleRejectTask, navigate, setEditingTask, setEditingTaskMode, setEditingTaskDraft, setDeleteTaskModal, taskPage, TASKS_PER_PAGE, setTaskPage, visibleTaskPages, totalTaskPages, API_BASE, getAuthHeaders, activeCommentTask, setCommentDraft, commentDraft, editingCommentId, setEditingCommentId, editCommentDraft, setEditCommentDraft, setTasks, modalStatus, handleAddComment, submittingComment, columnToDelete, commentToDeleteId, setCommentToDeleteId, deleteTaskModal, rejectTaskModal, rejectFeedbackDraft, setRejectFeedbackDraft, rejectingTask, confirmRejectTask, editingTask, editingTaskMode, editingTaskDraft, assignableEmployees };
+  const mainSectionsProps = { setCreatePanelTab, createPanelTab, assignmentHint, setAssigneeId, me, title, setTitle, assigneeId, createAssigneeOptions, employeesLoading, employeeNameById, dueDate, setDueDate, priority, setPriority, priorityOptions, status, setStatus, statusOptions, description, setDescription, selectedProjectId, setSelectedProjectId, projectSelectOptions, projectsLoading, setTaskDocumentFile, taskDocumentFile, handleCreate, saving, uploadingTaskDocument, topPriorityTasks, patchTask, deleteTask, weeklyError, state, updateState, selectedWeeklyTaskGroup, weeklyPeriodPicker, getWeekBreadcrumb: getWeekBreadcrumbForView, selectedDayByWeek, getSundayStart, getWeekStartDate: getWeekStartDateForView, getDayDisplay, setSelectedDayByWeek, tasks, toggleDaily, canManageWeeklyRows, assignDraftByDay, setAssignDraftByDay, setWeeklyTaskDocumentByDay, weeklyTaskDocumentByDay, createTaskFromDay, assigningDayTaskId, createDaysForWeek, setTaskFilterMode, taskFilterMode, taskSearch, setTaskSearch, columns, isRenamingColumnId, renameDraft, setRenameDraft, setIsRenamingColumnId, setActiveColumnMenuId, sortedTasks, setColumns, setError, activeColumnMenuId, setColumnToDelete, handleAddColumn, spacesLoading, paginatedTasks, canEditTask, isTaskLocked, getTaskRowClasses, projectNameById, mode, assigneeOptionsForTask, canEditDueDate, canChangeStatus, forceDownloadDocument, canCommentOnTask, setCommentTaskId, setModalStatus, canValidateTask, canDeleteTask, handleApproveTask, handleRejectTask, navigate, setEditingTask, setEditingTaskMode, setEditingTaskDraft, setDeleteTaskModal, taskPage, TASKS_PER_PAGE, setTaskPage, visibleTaskPages, totalTaskPages, API_BASE, getAuthHeaders, activeCommentTask, setCommentDraft, commentDraft, editingCommentId, setEditingCommentId, editCommentDraft, setEditCommentDraft, setTasks, modalStatus, handleAddComment, submittingComment, columnToDelete, commentToDeleteId, setCommentToDeleteId, deleteTaskModal, rejectTaskModal, rejectFeedbackDraft, setRejectFeedbackDraft, rejectingTask, confirmRejectTask, editingTask, editingTaskMode, editingTaskDraft, assignableEmployees };
 
   return (
     <div ref={taskHubRootRef} className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-700">

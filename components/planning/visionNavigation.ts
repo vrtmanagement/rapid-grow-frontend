@@ -17,7 +17,7 @@ export function buildVisionSearch(values: Record<string, string | undefined | nu
 
 export function buildVisionStageHref(
   stageKey: string,
-  selection: { yearId?: string; quarterId?: string; monthId?: string; weekId?: string },
+  selection: { yearId?: string; quarterId?: string; monthId?: string; weekId?: string; weekSlot?: string | number },
 ) {
   if (stageKey === 'year') return '/yearly';
   if (stageKey === 'quarter') return `/quarterly${buildVisionSearch({ yearId: selection.yearId })}`;
@@ -32,6 +32,7 @@ export function buildVisionStageHref(
     quarterId: selection.quarterId,
     monthId: selection.monthId,
     weekId: selection.weekId,
+    weekSlot: selection.weekSlot ? String(selection.weekSlot) : '',
   })}`;
 }
 
