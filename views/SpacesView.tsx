@@ -168,6 +168,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       map.set(me.id, {
         empId: me.id,
         empName: me.name || 'You',
+        avatar: me.avatar || '',
         role: me.role || 'EMPLOYEE',
       });
     }
@@ -181,6 +182,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       map.set(me.id, {
         empId: me.id,
         empName: me.name || 'You',
+        avatar: me.avatar || '',
         role: me.role || 'EMPLOYEE',
       });
     }
@@ -561,6 +563,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
             .map((e: any) => ({
               empId: e.empId,
               empName: e.empName,
+              avatar: String(e.avatar || '').trim(),
               role: (e.role || 'EMPLOYEE') as BackendRole,
             }))
             .filter((e: EmployeeOption) => e.empId && e.empName),
@@ -947,6 +950,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       String(today.getDate()).padStart(2, '0'),
     ].join('-');
     const pending = tasks.filter((task) => {
+      if (me.id && !taskBelongsToMe(task)) return false;
       if (!activePriorityStatuses.has(task.status)) return false;
       if (!String(task.title || '').trim()) return false;
       return true;
@@ -974,7 +978,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       })
       .slice(0, 5);
-  }, [tasks]);
+  }, [tasks, me.id, taskBelongsToMe]);
 
   const weeklyTaskGroups = useMemo<WeeklyTaskGroup[]>(
     () => buildWeeklyTaskGroups(state, tasks, parseDateValue),

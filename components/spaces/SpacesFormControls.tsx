@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Sparkles, X } from 'lucide-react';
 
 export const CREATE_INPUT_CLASS =
   'w-full rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[15px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15';
@@ -384,14 +384,14 @@ export const ThemedSelect: React.FC<{
   );
 };
 
-type WeeklyPeriodPickerOption = {
+export type WeeklyPeriodPickerOption = {
   value: string;
   label: string;
   caption?: string;
   description?: string;
 };
 
-export const WeeklyTaskPeriodPicker: React.FC<{
+type WeeklyTaskPeriodPickerProps = {
   summary: string;
   detail: string;
   projectOptions?: WeeklyPeriodPickerOption[];
@@ -409,7 +409,174 @@ export const WeeklyTaskPeriodPicker: React.FC<{
   disabled?: boolean;
   compactTrigger?: boolean;
   dropdownAlign?: 'left' | 'right';
-}> = ({
+};
+
+const WeeklyTaskPeriodOptionColumn: React.FC<{
+  heading: string;
+  options: WeeklyPeriodPickerOption[];
+  selectedValue: string;
+  onSelect: (value: string) => void;
+  compact?: boolean;
+  roomy?: boolean;
+}> = ({ heading, options, selectedValue, onSelect, compact = false, roomy = false }) => (
+  <div className="min-w-0">
+    <div className={`px-1 font-semibold uppercase tracking-[0.2em] text-slate-400 ${compact ? 'mb-1 text-[9px]' : 'mb-2 text-[10px]'}`}>
+      {heading}
+    </div>
+    <div
+      className={`space-y-1.5 overflow-y-auto border border-slate-200/90 bg-slate-50/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] ${
+        roomy ? 'max-h-[232px] rounded-[24px] p-2.5' : compact ? 'max-h-[204px] rounded-[15px] p-1.5' : 'max-h-[196px] rounded-[22px] p-2'
+      }`}
+    >
+      {options.map((option) => {
+        const isSelected = option.value === selectedValue;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onSelect(option.value)}
+            className={`w-full border text-left transition-all duration-150 ${
+              roomy ? 'rounded-[18px] px-4 py-3' : compact ? 'rounded-[12px] px-2.5 py-1.5' : 'rounded-[16px] px-3 py-2'
+            } ${
+              isSelected
+                ? roomy
+                  ? 'border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,1),rgba(241,245,249,1))] text-slate-900 shadow-[0_16px_30px_rgba(15,23,42,0.08)]'
+                  : 'border-brand-red bg-brand-red text-white shadow-[0_16px_30px_rgba(239,68,68,0.18)]'
+                : 'border-slate-100 bg-white/95 text-slate-700 shadow-[0_3px_10px_rgba(15,23,42,0.035)] hover:border-slate-200 hover:bg-white'
+            }`}
+          >
+            <div className={roomy ? 'text-[14px] font-semibold leading-5' : compact ? 'text-[11px] font-semibold leading-4' : 'text-[13px] font-semibold leading-5'}>
+              {option.label}
+            </div>
+            {option.caption ? (
+              <div className={`${roomy ? 'mt-1 text-[11px] leading-4' : compact ? 'mt-0.5 text-[8px] leading-3.5' : 'mt-0.5 text-[10px] leading-4'} ${isSelected ? (roomy ? 'text-slate-500' : 'text-white/80') : 'text-slate-400'}`}>
+                {option.caption}
+              </div>
+            ) : null}
+            {option.description ? (
+              <div className={`${roomy ? 'mt-1 line-clamp-2 text-[11px] leading-4.5' : compact ? 'mt-0.5 line-clamp-2 text-[8px] leading-3.5' : 'mt-0.5 line-clamp-2 text-[10px] leading-4'} ${isSelected ? (roomy ? 'text-slate-600' : 'text-white/80') : 'text-slate-500'}`}>
+                {option.description}
+              </div>
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
+
+export const WeeklyTaskPeriodTrigger: React.FC<{
+  summary: string;
+  detail: string;
+  disabled?: boolean;
+  compactTrigger?: boolean;
+  open?: boolean;
+  onToggle: () => void;
+}> = ({ summary, detail, disabled = false, compactTrigger = false, open = false, onToggle }) => (
+  <button
+    type="button"
+    onClick={() => !disabled && onToggle()}
+    disabled={disabled}
+    className={`flex w-full items-center justify-between text-left transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60 ${
+      compactTrigger
+        ? 'min-h-[56px] gap-2 rounded-[16px] border border-slate-300 bg-white px-2 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.05)]'
+        : 'gap-4 rounded-[28px] border border-slate-300 bg-white px-5 py-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)]'
+    }`}
+  >
+    <div className={`flex min-w-0 items-center ${compactTrigger ? 'gap-1.5' : 'gap-4'}`}>
+      <div
+        className={`flex shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-500 ${
+          compactTrigger ? 'h-7 w-7' : 'h-14 w-14'
+        }`}
+      >
+        <Calendar size={compactTrigger ? 12 : 20} />
+      </div>
+      <div className="min-w-0">
+        <div className={`truncate font-semibold leading-none text-slate-900 ${compactTrigger ? 'text-[13px]' : 'text-[26px]'}`}>{summary}</div>
+        <div className={`truncate uppercase tracking-[0.14em] text-slate-400 ${compactTrigger ? 'mt-0.5 text-[6px]' : 'mt-2 text-[12px]'}`}>{detail}</div>
+      </div>
+    </div>
+    <ChevronDown size={compactTrigger ? 12 : 18} className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+  </button>
+);
+
+export const WeeklyTaskPeriodCanvas: React.FC<WeeklyTaskPeriodPickerProps & { open: boolean; onClose: () => void }> = ({
+  summary,
+  detail,
+  projectOptions = [],
+  selectedProject = '',
+  onProjectChange,
+  quarterOptions,
+  selectedQuarter,
+  onQuarterChange,
+  monthOptions,
+  selectedMonth,
+  onMonthChange,
+  weekOptions,
+  selectedWeek,
+  onWeekChange,
+  open,
+  onClose,
+}) => (
+  <div
+    aria-hidden={!open}
+    className={`overflow-hidden transition-all duration-300 ease-out ${
+      open ? 'max-h-[828px] opacity-100' : 'pointer-events-none max-h-0 opacity-0'
+    }`}
+  >
+    <div className={`transition-transform duration-300 ease-out ${open ? 'translate-y-0' : '-translate-y-4'}`}>
+      <div className="relative overflow-hidden rounded-b-[34px] rounded-t-none border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(248,250,252,0.92),rgba(255,255,255,0.96)_42%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,1))] p-3.5 shadow-[0_30px_80px_rgba(15,23,42,0.1)] md:p-4">
+        <div className="absolute inset-x-12 top-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+        <div className="rounded-b-[28px] rounded-t-none border border-white/70 bg-white/90 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur md:p-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+                <Sparkles size={12} />
+                Planning Canvas
+              </div>
+              <h3 className="mt-3 text-[24px] font-semibold tracking-tight text-slate-900">Weekly Planner Focus</h3>
+              <p className="mt-2 max-w-3xl text-[14px] leading-6 text-slate-500">
+                Review the current vision, then move through quarter, month, and week in one place without leaving the planner.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 md:min-w-[320px] md:max-w-[360px]">
+              <div className="rounded-[22px] border border-slate-200 bg-slate-50/90 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Selected Period</div>
+                <div className="mt-2 text-[28px] font-semibold leading-tight text-slate-900">{summary}</div>
+                <div className="mt-2 text-[13px] leading-5 text-slate-500">{detail}</div>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-[14px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                <X size={14} />
+                Close canvas
+              </button>
+            </div>
+          </div>
+
+          <div className={`mt-4 grid gap-4 ${projectOptions.length && onProjectChange ? 'xl:grid-cols-[minmax(0,1.15fr)_repeat(3,minmax(0,1fr))]' : 'xl:grid-cols-3'}`}>
+            {projectOptions.length && onProjectChange ? (
+              <WeeklyTaskPeriodOptionColumn
+                heading="Visions"
+                options={projectOptions}
+                selectedValue={selectedProject}
+                onSelect={onProjectChange}
+                roomy={true}
+              />
+            ) : null}
+            <WeeklyTaskPeriodOptionColumn heading="Quarter" options={quarterOptions} selectedValue={selectedQuarter} onSelect={onQuarterChange} roomy={true} />
+            <WeeklyTaskPeriodOptionColumn heading="Month" options={monthOptions} selectedValue={selectedMonth} onSelect={onMonthChange} roomy={true} />
+            <WeeklyTaskPeriodOptionColumn heading="Week" options={weekOptions} selectedValue={selectedWeek} onSelect={onWeekChange} roomy={true} />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+export const WeeklyTaskPeriodPicker: React.FC<WeeklyTaskPeriodPickerProps> = ({
   summary,
   detail,
   projectOptions = [],
@@ -442,73 +609,9 @@ export const WeeklyTaskPeriodPicker: React.FC<{
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [open]);
 
-  const renderOptionColumn = (
-    heading: string,
-    options: WeeklyPeriodPickerOption[],
-    selectedValue: string,
-    onSelect: (value: string) => void,
-  ) => (
-    <div className="min-w-0">
-      <div className={`px-1 font-semibold uppercase tracking-[0.2em] text-slate-400 ${compactTrigger ? 'mb-1 text-[9px]' : 'mb-2 text-[10px]'}`}>{heading}</div>
-      <div className={`space-y-1.5 overflow-y-auto border border-slate-200/90 bg-slate-50/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] ${
-        compactTrigger ? 'max-h-[204px] rounded-[15px] p-1.5' : 'max-h-[196px] rounded-[22px] p-2'
-      }`}>
-        {options.map((option) => {
-          const isSelected = option.value === selectedValue;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => onSelect(option.value)}
-              className={`w-full border text-left transition-all duration-150 ${
-                compactTrigger ? 'rounded-[12px] px-2.5 py-1.5' : 'rounded-[16px] px-3 py-2'
-              } ${
-                isSelected
-                  ? 'border-brand-red bg-brand-red text-white shadow-[0_10px_20px_rgba(239,68,68,0.18)]'
-                  : 'border-slate-100 bg-white/95 text-slate-700 shadow-[0_3px_10px_rgba(15,23,42,0.035)] hover:border-slate-200 hover:bg-white'
-              }`}
-            >
-              <div className={compactTrigger ? 'text-[11px] font-semibold leading-4' : 'text-[13px] font-semibold leading-5'}>{option.label}</div>
-              {option.caption ? (
-                <div className={`${compactTrigger ? 'mt-0.5 text-[8px] leading-3.5' : 'mt-0.5 text-[10px] leading-4'} ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>{option.caption}</div>
-              ) : null}
-              {option.description ? (
-                <div className={`${compactTrigger ? 'mt-0.5 line-clamp-2 text-[8px] leading-3.5' : 'mt-0.5 line-clamp-2 text-[10px] leading-4'} ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>{option.description}</div>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-
   return (
     <div ref={wrapperRef} className="relative">
-      <button
-        type="button"
-        onClick={() => !disabled && setOpen((prev) => !prev)}
-        disabled={disabled}
-        className={`flex w-full items-center justify-between text-left transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60 ${
-          compactTrigger
-            ? 'min-h-[56px] gap-2 rounded-[16px] border border-slate-300 bg-white px-2 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.05)]'
-            : 'gap-4 rounded-[28px] border border-slate-300 bg-white px-5 py-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)]'
-        }`}
-      >
-        <div className={`flex min-w-0 items-center ${compactTrigger ? 'gap-1.5' : 'gap-4'}`}>
-          <div
-            className={`flex shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-500 ${
-              compactTrigger ? 'h-7 w-7' : 'h-14 w-14'
-            }`}
-          >
-            <Calendar size={compactTrigger ? 12 : 20} />
-          </div>
-          <div className="min-w-0">
-            <div className={`truncate font-semibold leading-none text-slate-900 ${compactTrigger ? 'text-[13px]' : 'text-[26px]'}`}>{summary}</div>
-            <div className={`truncate uppercase tracking-[0.14em] text-slate-400 ${compactTrigger ? 'mt-0.5 text-[6px]' : 'mt-2 text-[12px]'}`}>{detail}</div>
-          </div>
-        </div>
-        <ChevronDown size={compactTrigger ? 12 : 18} className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
+      <WeeklyTaskPeriodTrigger summary={summary} detail={detail} disabled={disabled} compactTrigger={compactTrigger} open={open} onToggle={() => setOpen((prev) => !prev)} />
 
       {open && !disabled ? (
         <div
@@ -523,11 +626,11 @@ export const WeeklyTaskPeriodPicker: React.FC<{
           ) : null}
           <div className={`grid ${compactTrigger ? 'gap-2.5' : 'gap-3'} ${projectOptions.length ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
             {projectOptions.length && onProjectChange
-              ? renderOptionColumn('Visions', projectOptions, selectedProject, onProjectChange)
+              ? <WeeklyTaskPeriodOptionColumn heading="Visions" options={projectOptions} selectedValue={selectedProject} onSelect={onProjectChange} compact={compactTrigger} />
               : null}
-            {renderOptionColumn('Quarter', quarterOptions, selectedQuarter, onQuarterChange)}
-            {renderOptionColumn('Month', monthOptions, selectedMonth, onMonthChange)}
-            {renderOptionColumn('Week', weekOptions, selectedWeek, onWeekChange)}
+            <WeeklyTaskPeriodOptionColumn heading="Quarter" options={quarterOptions} selectedValue={selectedQuarter} onSelect={onQuarterChange} compact={compactTrigger} />
+            <WeeklyTaskPeriodOptionColumn heading="Month" options={monthOptions} selectedValue={selectedMonth} onSelect={onMonthChange} compact={compactTrigger} />
+            <WeeklyTaskPeriodOptionColumn heading="Week" options={weekOptions} selectedValue={selectedWeek} onSelect={onWeekChange} compact={compactTrigger} />
           </div>
 
           <div className={`mt-2.5 flex flex-col gap-2 border border-slate-200 bg-slate-50/70 md:flex-row md:items-center md:justify-between ${

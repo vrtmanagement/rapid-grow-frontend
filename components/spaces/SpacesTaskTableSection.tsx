@@ -1,6 +1,60 @@
 import React from 'react';
 import { Eye, MessageSquareText, MoreVertical, Pencil, Plus, X } from 'lucide-react';
-import { TaskHubTableSkeleton, ThemedDatePicker, ThemedSelect } from './SpacesFormControls';
+import { TaskHubTableSkeleton, ThemedSelect } from './SpacesFormControls';
+
+function getPriorityPillClass(priority?: string) {
+  const normalized = String(priority || 'medium').trim().toLowerCase();
+  if (normalized === 'high') return 'bg-rose-50 text-rose-500';
+  if (normalized === 'low') return 'bg-sky-50 text-sky-600';
+  return 'bg-amber-50 text-amber-600';
+}
+
+function getPriorityLabel(priority?: string) {
+  const normalized = String(priority || 'medium').trim().toLowerCase();
+  if (normalized === 'high') return 'High';
+  if (normalized === 'low') return 'Low';
+  return 'Medium';
+}
+
+function getAssigneeInitials(name?: string) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return 'UN';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+}
+
+function formatDueDateLabel(value?: string) {
+  const raw = String(value || '').trim();
+  if (!raw) return '—';
+  const [year, month, day] = raw.split('-').map(Number);
+  if (!year || !month || !day) return '—';
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function resolveAvatarUrl(apiBase: string, rawAvatar?: string | null): string | undefined {
+  const avatar = String(rawAvatar || '').trim();
+  if (!avatar) return undefined;
+  if (/^(https?:)?\/\//i.test(avatar) || /^data:/i.test(avatar) || /^blob:/i.test(avatar)) {
+    return avatar;
+  }
+
+  let apiOrigin = '';
+  try {
+    apiOrigin = new URL(apiBase).origin;
+  } catch {
+    apiOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  }
+
+  if (!apiOrigin) return avatar;
+  if (avatar.startsWith('/')) return `${apiOrigin}${avatar}`;
+  return `${apiOrigin}/${avatar.replace(/^\.?\//, '')}`;
+}
+
+function getFallbackAvatarUrl(name?: string) {
+  const seed = encodeURIComponent(String(name || 'User').replace(/\s/g, '').trim() || 'User');
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
+}
 
 const SpacesTaskTableSection: React.FC<any> = (props) => {
   const {
@@ -136,6 +190,10 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                 const planningMonthLabel = String(t.customFields?.planningMonthLabel || '').trim();
                 const planningTag = [planningMonthLabel, planningWeekLabel, planningDayText].filter(Boolean).join(' · ');
 
+                const assignee = assigneeOptionsForTask(t.assigneeId).find((employee: any) => employee.empId === t.assigneeId);
+                const assigneeName = assignee ? assignee.empName || 'Unknown User' : 'Unassigned';
+                const assigneeAvatar = resolveAvatarUrl(API_BASE, assignee?.avatar) || getFallbackAvatarUrl(assigneeName);
+
                 return (
                   <tr key={t.taskId} className={getTaskRowClasses(t)}>
                     <td className="px-3 py-3">
@@ -162,17 +220,27 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                       </div>
                     </td>
                     <td className="px-3 py-3">
-                      <ThemedSelect
-                        value={t.assigneeId || ''}
-                        onChange={(value) => canEdit && !isLockedDoneRow && patchTask(t.taskId, { assigneeId: value })}
-                        options={[{ value: '', label: 'Unassigned' }, ...assigneeOptionsForTask(t.assigneeId).map((employee: any) => ({ value: employee.empId, label: employee.empId === me.id ? `${employee.empName} (You)` : employee.empName || 'Unknown User' }))]}
-                        placeholder="Unassigned"
-                        disabled={employeesLoading || !canEdit || isLockedDoneRow}
-                        compact={true}
-                      />
+                      <div className="flex items-center gap-3 text-[14px] text-slate-700">
+                        <img
+                          src={assigneeAvatar}
+                          alt={assigneeName}
+                          className="h-9 w-9 rounded-full object-cover"
+                        />
+                        <span className="truncate font-medium text-slate-600">
+                          {employeesLoading ? 'Loading...' : assigneeName}
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-3 py-3"><ThemedDatePicker value={t.dueDate || ''} onChange={(value) => canEditDueDate(t) && patchTask(t.taskId, { dueDate: value })} disabled={!canEditDueDate(t)} compact={true} /></td>
-                    <td className="px-3 py-3"><ThemedSelect value={t.priority} onChange={(value) => canEdit && !isLockedDoneRow && patchTask(t.taskId, { priority: value })} options={priorityOptions} disabled={!canEdit || isLockedDoneRow} compact={true} /></td>
+                    <td className="px-3 py-3">
+                      <span className="text-[14px] font-medium text-slate-500">
+                        {formatDueDateLabel(t.dueDate)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className={`inline-flex items-center rounded-full px-3 py-1.5 text-[13px] font-medium ${getPriorityPillClass(t.priority)}`}>
+                        {getPriorityLabel(t.priority)}
+                      </span>
+                    </td>
                     <td className="px-3 py-3"><ThemedSelect value={t.status} onChange={(value) => canChangeStatus(t) && patchTask(t.taskId, { status: value })} options={statusOptions} disabled={!canChangeStatus(t)} compact={true} /></td>
                     <td className="px-3 py-3">
                       {t.documentUrl ? (
