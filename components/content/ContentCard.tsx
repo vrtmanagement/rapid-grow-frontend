@@ -85,6 +85,28 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
   }, {});
   const isCommentsOpen = openCommentsForContentId === item.contentId;
   const isInlineEditing = isExpanded && isInlineDetailPage && editingItem?.contentId === item.contentId;
+  const normalizedTitle = String(item.title || '').trim();
+  const bodyTextForCard = React.useMemo(() => {
+    if (item.type !== 'newsletter') return item.description;
+
+    const lines = String(item.description || '').split(/\r?\n/);
+    let removedSubject = false;
+    const cleanedLines = lines.filter((line) => {
+      if (removedSubject) return true;
+      const normalizedLine = String(line || '').trim();
+      if (!normalizedLine) return true;
+      if (/^subject\s*:/i.test(normalizedLine)) {
+        const subjectText = normalizedLine.replace(/^subject\s*:/i, '').trim();
+        if (!subjectText || !normalizedTitle || subjectText.toLowerCase() === normalizedTitle.toLowerCase()) {
+          removedSubject = true;
+          return false;
+        }
+      }
+      return true;
+    });
+
+    return cleanedLines.join('\n').replace(/^\s+/, '');
+  }, [item.description, item.type, normalizedTitle]);
 
   return (
     <div
@@ -107,7 +129,7 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
     >
       <div className={`pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r ${TYPE_ACCENT[scheduleAccentType].tone}`} />
       <div className="relative flex items-start justify-between gap-4">
-        <div className={`min-w-0 ${showTypeBadge ? 'space-y-3' : 'space-y-0'}`}>
+        <div className={`min-w-0 flex-1 pr-3 ${showTypeBadge ? 'space-y-3' : 'space-y-0'}`}>
           {showTypeBadge ? (
             <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${cardTypeBadgeClass}`}>{cardTypeLabel}</span>
           ) : null}
@@ -123,7 +145,7 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
             />
           ) : (
             <h4
-              className="text-lg font-semibold text-slate-900"
+              className="max-w-full text-[16px] font-semibold leading-[1.3] text-slate-900"
               style={isExpanded ? undefined : {
                 display: '-webkit-box',
                 WebkitBoxOrient: 'vertical',
@@ -135,7 +157,7 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
             </h4>
           )}
         </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+        <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
           {new Date(item.createdAt).toLocaleTimeString('en-US', {
             hour: 'numeric',
             minute: '2-digit',
@@ -177,7 +199,7 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
           />
         </div>
       ) : (
-        <FormattedContentBody text={item.description} compact clampLines={isExpanded ? undefined : getPreviewLineClamp(item)} flat />
+        <FormattedContentBody text={bodyTextForCard} compact clampLines={isExpanded ? undefined : getPreviewLineClamp(item)} flat />
       )}
       {item.attachments?.length > 0 && (
         <div

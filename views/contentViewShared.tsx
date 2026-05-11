@@ -400,30 +400,65 @@ export function autoResizeTextarea(target: HTMLTextAreaElement) {
 function renderStyledDescription(text: string) {
   const value = String(text || '');
   if (!value.trim()) return 'No description';
-  const parts = value.split(/(\s+)/);
-  return parts.map((part, index) => {
-    if (/^https?:\/\/\S+$/i.test(part)) {
-      return (
+  const tokenRegex = /(<(?:strong|b)>([\s\S]*?)<\/(?:strong|b)>|<(?:em|i)>([\s\S]*?)<\/(?:em|i)>|<u>([\s\S]*?)<\/u>|https?:\/\/\S+|#[^\s#]+)/gi;
+  const fragments: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let matchIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = tokenRegex.exec(value)) !== null) {
+    if (match.index > lastIndex) {
+      fragments.push(<React.Fragment key={`plain-${matchIndex}`}>{value.slice(lastIndex, match.index)}</React.Fragment>);
+    }
+
+    const token = match[0];
+    if (/^https?:\/\/\S+$/i.test(token)) {
+      fragments.push(
         <a
-          key={`part-${index}`}
-          href={part}
+          key={`link-${matchIndex}`}
+          href={token}
           target="_blank"
           rel="noreferrer"
           className="text-blue-600 underline"
         >
-          {part}
-        </a>
+          {token}
+        </a>,
+      );
+    } else if (/^#[^\s#]+$/.test(token)) {
+      fragments.push(
+        <strong key={`hash-${matchIndex}`} className="font-semibold text-slate-800">
+          {token}
+        </strong>,
+      );
+    } else if (/^<(?:strong|b)>/i.test(token)) {
+      fragments.push(
+        <strong key={`bold-${matchIndex}`} className="font-semibold text-slate-800">
+          {token.replace(/^<(?:strong|b)>/i, '').replace(/<\/(?:strong|b)>$/i, '')}
+        </strong>,
+      );
+    } else if (/^<(?:em|i)>/i.test(token)) {
+      fragments.push(
+        <em key={`italic-${matchIndex}`} className="italic text-slate-700">
+          {token.replace(/^<(?:em|i)>/i, '').replace(/<\/(?:em|i)>$/i, '')}
+        </em>,
+      );
+    } else if (/^<u>/i.test(token)) {
+      fragments.push(
+        <span key={`underline-${matchIndex}`} className="underline decoration-1 underline-offset-2">
+          {token.replace(/^<u>/i, '').replace(/<\/u>$/i, '')}
+        </span>,
       );
     }
-    if (/^#[^\s#]+$/.test(part)) {
-      return (
-        <strong key={`part-${index}`} className="font-semibold text-slate-800">
-          {part}
-        </strong>
-      );
-    }
-    return <React.Fragment key={`part-${index}`}>{part}</React.Fragment>;
-  });
+
+    lastIndex = tokenRegex.lastIndex;
+    matchIndex += 1;
+  }
+
+  if (lastIndex < value.length) {
+    fragments.push(<React.Fragment key={`plain-tail`}>{value.slice(lastIndex)}</React.Fragment>);
+  }
+
+  return fragments;
 }
 
 export function isImageAsset(asset: ContentAsset) {

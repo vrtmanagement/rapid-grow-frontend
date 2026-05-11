@@ -70,7 +70,6 @@ interface CompletedTaskSnapshot extends TaskHubTask {
 }
 
 const ATTENDANCE_TARGET_MINUTES = 8 * 60;
-const HIGH_PRIORITY_TASK_LIMIT = 5;
 
 function formatLocalDateKey(date: Date) {
   const year = date.getFullYear();
@@ -166,20 +165,19 @@ function normalizeTaskStatus(status?: string): TaskStatus {
   return 'todo';
 }
 
-function isActiveHighPriorityTask(task: TaskHubTask, empId: string) {
+function isActiveTodoTask(task: TaskHubTask, empId: string) {
   const belongsToEmployee =
     String(task.assigneeId || '').trim() === empId ||
     (!String(task.assigneeId || '').trim() && String(task.createdByEmpId || '').trim() === empId);
   const status = normalizeTaskStatus(task.status);
   return (
     belongsToEmployee &&
-    String(task.priority || '').trim().toLowerCase() === 'high' &&
     status !== 'done' &&
     status !== 'review'
   );
 }
 
-function sortHighPriorityTasks(tasks: TaskHubTask[]) {
+function sortTodoTasks(tasks: TaskHubTask[]) {
   return [...tasks].sort((left, right) => {
     const leftHasDueDate = !!left.dueDate;
     const rightHasDueDate = !!right.dueDate;
@@ -199,6 +197,20 @@ function formatTaskDueDate(value?: string) {
   if (!year || !month || !day) return 'No due date';
   const date = new Date(year, month - 1, day);
   return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function formatTaskPriority(value?: string) {
+  const normalized = String(value || 'medium').trim().toLowerCase();
+  if (normalized === 'high') return 'High';
+  if (normalized === 'low') return 'Low';
+  return 'Medium';
+}
+
+function getTaskPriorityBadgeClass(value?: string) {
+  const normalized = String(value || 'medium').trim().toLowerCase();
+  if (normalized === 'high') return 'bg-red-50 text-brand-red';
+  if (normalized === 'low') return 'bg-sky-50 text-sky-700';
+  return 'bg-amber-50 text-amber-700';
 }
 
 function roundMetric(value: number) {
@@ -303,7 +315,7 @@ async function fetchAssignedProjects(empId: string): Promise<Project[]> {
 async function fetchDashboardInsights(empId: string): Promise<{
   attendanceDays: RecentAttendanceDay[];
   performance: PerformanceSnapshot | null;
-  highPriorityTasks: TaskHubTask[];
+  todoTasks: TaskHubTask[];
 }> {
   const [attendanceResult, performanceResult, spacesResult] = await Promise.allSettled([
     fetch(`${API_BASE}/attendance/me?range=week`, {
@@ -349,20 +361,17 @@ async function fetchDashboardInsights(empId: string): Promise<{
     }
   }
 
-  let highPriorityTasks: TaskHubTask[] = [];
+  let todoTasks: TaskHubTask[] = [];
   if (spacesResult.status === 'fulfilled' && spacesResult.value.ok) {
     const payload = await spacesResult.value.json().catch(() => ({}));
     const tasks = Array.isArray(payload?.tasks) ? (payload.tasks as TaskHubTask[]) : [];
-    highPriorityTasks = sortHighPriorityTasks(tasks.filter((task) => isActiveHighPriorityTask(task, empId))).slice(
-      0,
-      HIGH_PRIORITY_TASK_LIMIT,
-    );
+    todoTasks = sortTodoTasks(tasks.filter((task) => isActiveTodoTask(task, empId)));
   }
 
   return {
     attendanceDays,
     performance,
-    highPriorityTasks,
+    todoTasks,
   };
 }
 
@@ -401,7 +410,7 @@ const EmployeeDashboardView: React.FC = () => {
   );
   const [hoveredAttendanceDay, setHoveredAttendanceDay] = useState<string | null>(null);
   const [performance, setPerformance] = useState<PerformanceSnapshot | null>(null);
-  const [highPriorityTasks, setHighPriorityTasks] = useState<TaskHubTask[]>([]);
+  const [todoTasks, setTodoTasks] = useState<TaskHubTask[]>([]);
   const [completedTodayTasks, setCompletedTodayTasks] = useState<CompletedTaskSnapshot[]>([]);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [currentDayKey, setCurrentDayKey] = useState(() => formatLocalDateKey(new Date()));
@@ -464,11 +473,11 @@ const EmployeeDashboardView: React.FC = () => {
         setProjects(assignedProjects);
         setAttendanceDays(insights.attendanceDays);
         setPerformance(insights.performance);
-        setHighPriorityTasks(insights.highPriorityTasks);
+        setTodoTasks(insights.todoTasks);
         setCompletedTodayTasks(
           reconcileCompletedTaskSnapshots(
             readCompletedTaskSnapshots(empId, currentDayKey),
-            insights.highPriorityTasks,
+            insights.todoTasks,
             currentDayKey,
           ),
         );
@@ -511,9 +520,9 @@ const EmployeeDashboardView: React.FC = () => {
         const insights = await fetchDashboardInsights(empId);
         setAttendanceDays(insights.attendanceDays);
         setPerformance(insights.performance);
-        setHighPriorityTasks(insights.highPriorityTasks);
+        setTodoTasks(insights.todoTasks);
         setCompletedTodayTasks((prev) =>
-          reconcileCompletedTaskSnapshots(prev, insights.highPriorityTasks, currentDayKey),
+          reconcileCompletedTaskSnapshots(prev, insights.todoTasks, currentDayKey),
         );
       } catch (error) {
         console.error('Failed to refresh command matrix insights', error);
@@ -536,7 +545,7 @@ const EmployeeDashboardView: React.FC = () => {
   const handleCompleteTask = async (taskId: string) => {
     if (!empId || completingTaskId) return;
 
-    const taskToComplete = highPriorityTasks.find((task) => task.taskId === taskId);
+    const taskToComplete = todoTasks.find((task) => task.taskId === taskId);
     if (!taskToComplete) return;
 
     setCompletingTaskId(taskId);
@@ -544,7 +553,7 @@ const EmployeeDashboardView: React.FC = () => {
       const next = prev.filter((task) => task.taskId !== taskId);
       return [...next, { ...taskToComplete, status: 'done', completedOn: currentDayKey }];
     });
-    setHighPriorityTasks((prev) => prev.filter((task) => task.taskId !== taskId));
+    setTodoTasks((prev) => prev.filter((task) => task.taskId !== taskId));
 
     try {
       const res = await fetch(`${API_BASE}/spaces/tasks/${taskId}`, {
@@ -561,14 +570,14 @@ const EmployeeDashboardView: React.FC = () => {
       const insights = await fetchDashboardInsights(empId);
       setAttendanceDays(insights.attendanceDays);
       setPerformance(insights.performance);
-      setHighPriorityTasks(insights.highPriorityTasks);
+      setTodoTasks(insights.todoTasks);
       setCompletedTodayTasks((prev) =>
-        reconcileCompletedTaskSnapshots(prev, insights.highPriorityTasks, currentDayKey),
+        reconcileCompletedTaskSnapshots(prev, insights.todoTasks, currentDayKey),
       );
     } catch (error) {
       console.error('Failed to complete task from command matrix', error);
       setCompletedTodayTasks((prev) => prev.filter((task) => task.taskId !== taskId));
-      setHighPriorityTasks((prev) => sortHighPriorityTasks([...prev, taskToComplete]).slice(0, HIGH_PRIORITY_TASK_LIMIT));
+      setTodoTasks((prev) => sortTodoTasks([...prev, taskToComplete]));
     } finally {
       setCompletingTaskId(null);
     }
@@ -602,9 +611,9 @@ const EmployeeDashboardView: React.FC = () => {
     [completedTodayTasks],
   );
   const todoListTasks = useMemo(() => {
-    const activeTasks = highPriorityTasks.filter((task) => !completedTodayIds.has(task.taskId));
+    const activeTasks = todoTasks.filter((task) => !completedTodayIds.has(task.taskId));
     return [...activeTasks, ...completedTodayTasks];
-  }, [completedTodayIds, completedTodayTasks, highPriorityTasks]);
+  }, [completedTodayIds, completedTodayTasks, todoTasks]);
 
   if (!empId && !loading) return null;
 
@@ -688,7 +697,7 @@ const EmployeeDashboardView: React.FC = () => {
                     </div>
                     <div>
                       <h3 className="text-[20px] leading-none text-slate-900">To do List</h3>
-                      <p className="mt-1 text-[13px] text-slate-500">High-priority items from TaskHub</p>
+                      <p className="mt-1 text-[13px] text-slate-500">All active TaskHub items sorted by nearest due date</p>
                     </div>
                   </div>
                 </div>
@@ -719,9 +728,9 @@ const EmployeeDashboardView: React.FC = () => {
               ) : todoListTasks.length === 0 ? (
                 <div className="mt-5 rounded-[24px] border border-slate-100 bg-slate-50 px-5 py-10 text-center">
                   <CheckCheck className="mx-auto h-10 w-10 text-emerald-500" />
-                  <p className="mt-4 text-base font-semibold text-slate-700">No high-priority tasks</p>
+                  <p className="mt-4 text-base font-semibold text-slate-700">No active tasks</p>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Your urgent TaskHub items are clear right now.
+                    Your TaskHub to-do list is clear right now.
                   </p>
                 </div>
               ) : (
@@ -760,10 +769,10 @@ const EmployeeDashboardView: React.FC = () => {
                             className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
                               isCompletedToday
                                 ? 'bg-emerald-100 text-emerald-700'
-                                : 'bg-red-50 text-brand-red'
+                                : getTaskPriorityBadgeClass(task.priority)
                             }`}
                           >
-                            {isCompletedToday ? 'Done' : 'High'}
+                            {isCompletedToday ? 'Done' : formatTaskPriority(task.priority)}
                           </span>
                         </div>
                         <div className="mt-1.5 flex items-center gap-2 text-[12px] text-slate-500">

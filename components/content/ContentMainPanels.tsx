@@ -96,6 +96,11 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
     return () => window.clearTimeout(timer);
   }, [showScheduleForm, momentText, autoResizeTextarea]);
 
+  const today = new Date();
+  const isCurrentMonthView =
+    monthCursor.getFullYear() === today.getFullYear() &&
+    monthCursor.getMonth() === today.getMonth();
+
   return (
     <>
       {activeTab === 'calendar' && !isDayPage && (
@@ -137,6 +142,15 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
           >
             Next <ChevronRight size={16} />
           </button>
+          {!isCurrentMonthView ? (
+            <button
+              type="button"
+              onClick={() => setMonthCursor(new Date(today.getFullYear(), today.getMonth(), 1))}
+              className="inline-flex items-center gap-2 rounded-[1rem] border border-violet-200 bg-violet-50 px-3.5 py-2 text-sm font-medium text-violet-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-100"
+            >
+              Today
+            </button>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-7 gap-2.5">
@@ -146,7 +160,7 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
             </div>
           ))}
           {monthDays.map((day: Date | null, idx: number) => {
-            if (!day) return <div key={`empty-${idx}`} className="h-[138px] rounded-[1.35rem] border border-dashed border-slate-200 bg-white/40" />;
+            if (!day) return <div key={`empty-${idx}`} className="h-[138px] rounded-[1.35rem] border border-dashed border-slate-300 bg-white/40" />;
             const dateKey = toDateKey(day);
             const counts = countsByDate.get(dateKey);
             const hasAny = !!counts && (Object.values(counts) as number[]).some((val) => val > 0);
@@ -162,21 +176,23 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
                 className={`group relative h-[138px] overflow-hidden rounded-[1.45rem] border p-3.5 text-left transition-all duration-200 ${
                   active
                     ? 'border-violet-300 bg-gradient-to-br from-violet-50 to-white shadow-[0_18px_40px_rgba(139,92,246,0.12)]'
+                    : isToday
+                    ? 'border-emerald-300 bg-emerald-50 hover:border-emerald-400'
                     : isWeekend
-                    ? 'border-rose-100 bg-gradient-to-br from-rose-50/40 to-white hover:border-rose-200 hover:shadow-[0_12px_28px_rgba(244,63,94,0.08)]'
-                    : 'border-slate-200 bg-white hover:border-violet-200 hover:shadow-[0_12px_28px_rgba(15,23,42,0.06)]'
+                    ? 'border-rose-200 bg-gradient-to-br from-rose-50/40 to-white hover:border-rose-300 hover:shadow-[0_12px_28px_rgba(244,63,94,0.08)]'
+                    : 'border-slate-300 bg-white hover:border-violet-200 hover:shadow-[0_12px_28px_rgba(15,23,42,0.06)]'
                 }`}
               >
                 <div className="mb-3 flex items-center justify-between">
-                  <span className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-[13px] font-semibold ${active ? 'bg-violet-600 text-white' : isToday ? 'border border-brand-red/20 bg-white text-brand-red shadow-[0_8px_20px_rgba(236,72,71,0.10)]' : 'bg-slate-100 text-slate-700'}`}>
+                  <span className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-[13px] font-semibold ${active ? 'bg-violet-600 text-white' : isToday ? 'bg-white text-emerald-950' : 'bg-slate-100 text-slate-700'}`}>
                     {String(day.getDate()).padStart(2, '0')}
                   </span>
-                  {isToday ? <span className="rounded-full border border-brand-red/20 bg-white px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-brand-red shadow-[0_8px_20px_rgba(236,72,71,0.10)]">Today</span> : null}
+                  {isToday ? <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-emerald-950">Today</span> : null}
                 </div>
                 {hasAny ? (
                   <CalendarDayCounters counts={counts} />
                 ) : (
-                  <div className="mt-7 text-[11px] text-slate-300">No scheduled items</div>
+                  <div className="mt-7 text-[11px] text-slate-900">No scheduled items</div>
                 )}
               </button>
             );
@@ -192,7 +208,7 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
             <div className="rounded-[2rem] border border-white/70 bg-white/90 px-5 py-2 shadow-[0_24px_64px_rgba(15,23,42,0.08)]">
               <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-slate-400">
+                  <div className="flex flex-wrap items-center gap-2 text-sm font-medium uppercase tracking-[0.12em] text-slate-900">
                     <Link to="/content" className="inline-flex items-center gap-2 transition hover:text-slate-700">
                       <ArrowRight size={12} className="rotate-180" />
                       Calendar
@@ -214,25 +230,25 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
                       </>
                     ) : null}
                   </div>
-                  <h3 className="mt-1.5 text-[1.28rem] font-semibold text-slate-900">
-                    {isItemDetailPage
-                      ? (selectedItem?.title || 'Content details')
-                      : isTypeDetailPage
-                      ? `${TYPE_LABEL[selectedType]} scheduled for ${selectedDate}`
-                      : `Content scheduled for ${selectedDate}`}
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {isItemDetailPage
-                      ? `Focused view for this ${TYPE_LABEL[selectedType].toLowerCase()} content item.`
-                      : isTypeDetailPage
-                      ? `${selectedTypeItems.length} ${TYPE_LABEL[selectedType].toLowerCase()} item${selectedTypeItems.length === 1 ? '' : 's'} ready to review, update, or publish.`
-                      : `${selectedDayItems.length} item${selectedDayItems.length === 1 ? '' : 's'} ready to review, update, or publish.`}
-                  </p>
+                  {!isItemDetailPage ? (
+                    <>
+                      <h3 className="mt-1.5 text-[1.28rem] font-semibold text-slate-900">
+                        {isTypeDetailPage
+                          ? `${TYPE_LABEL[selectedType]} scheduled for ${selectedDate}`
+                          : `Content scheduled for ${selectedDate}`}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {isTypeDetailPage
+                          ? `${selectedTypeItems.length} ${TYPE_LABEL[selectedType].toLowerCase()} item${selectedTypeItems.length === 1 ? '' : 's'} ready to review, update, or publish.`
+                          : `${selectedDayItems.length} item${selectedDayItems.length === 1 ? '' : 's'} ready to review, update, or publish.`}
+                      </p>
+                    </>
+                  ) : null}
                 </div>
                 <button
                   type="button"
                   onClick={() => openCreatePage(selectedDate)}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(139,92,246,0.25)]"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3.5 py-2.5 text-sm font-medium text-white shadow-[0_18px_36px_rgba(139,92,246,0.25)]"
                 >
                   <Plus size={16} /> Add Content
                 </button>

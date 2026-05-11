@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, FileText, Globe, Hash, Link2, Linkedin, Mail, Sparkles, X } from 'lucide-react';
+import { ArrowRight, Bold, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Copy, FileText, Globe, Hash, Italic, Link2, Linkedin, Mail, Sparkles, Underline, X } from 'lucide-react';
 import { apiCreateContent, apiDeleteContentDraft, apiGetContent, apiGetContentDraft, apiUpdateContent, apiUploadContentFile, apiUpsertContentDraft, ContentAsset, ContentDraftMode, ContentType } from '../services/contentApi';
 import Toast from '../components/ui/Toast';
 
@@ -173,6 +173,87 @@ function getCalendarDays(viewDate: Date) {
   });
 }
 
+function escapeRichTextHtml(value: string) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function normalizeAllowedInlineHtml(value: string) {
+  return value
+    .replace(/&lt;(\/?)(?:b|strong)&gt;/gi, '<$1strong>')
+    .replace(/&lt;(\/?)(?:i|em)&gt;/gi, '<$1em>')
+    .replace(/&lt;(\/?)u&gt;/gi, '<$1u>')
+    .replace(/&lt;br\s*\/?&gt;/gi, '<br>');
+}
+
+function descriptionToEditorHtml(value: string) {
+  return normalizeAllowedInlineHtml(escapeRichTextHtml(value).replace(/\r\n?/g, '\n')).replace(/\n/g, '<br>');
+}
+
+function serializeEditorNode(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent || '';
+  }
+
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    return '';
+  }
+
+  const element = node as HTMLElement;
+  const tag = element.tagName.toLowerCase();
+
+  if (tag === 'br') {
+    return '\n';
+  }
+
+  const content = Array.from(element.childNodes).map(serializeEditorNode).join('');
+
+  if (tag === 'strong' || tag === 'b') return content.trim() ? `<strong>${content}</strong>` : content;
+  if (tag === 'em' || tag === 'i') return content.trim() ? `<em>${content}</em>` : content;
+  if (tag === 'u') return content.trim() ? `<u>${content}</u>` : content;
+  if (tag === 'div' || tag === 'p') return `${content}\n`;
+
+  return content;
+}
+
+function editorHtmlToDescription(value: string) {
+  const root = document.createElement('div');
+  root.innerHTML = value;
+  return Array.from(root.childNodes)
+    .map(serializeEditorNode)
+    .join('')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\r/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+function getEditorSelectionToolbarPosition() {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return null;
+
+  const range = selection.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+  const firstRect = range.getClientRects()[0];
+  const activeRect = rect.width || rect.height ? rect : firstRect;
+  if (!activeRect) return null;
+
+  const toolbarGap = 14;
+  const estimatedToolbarHeight = 52;
+  const canShowAbove = activeRect.top > estimatedToolbarHeight + toolbarGap + 16;
+  const centerX = activeRect.left + (activeRect.width / 2);
+  const top = canShowAbove ? activeRect.top - toolbarGap : activeRect.bottom + toolbarGap;
+  return {
+    left: Math.min(Math.max(centerX, 120), window.innerWidth - 120),
+    top: Math.max(top, 16),
+    placement: canShowAbove ? 'top' as const : 'bottom' as const,
+  };
+}
+
 const ContentCreateView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -200,8 +281,9 @@ const ContentCreateView: React.FC = () => {
   const tagPickerWrapRef = useRef<HTMLDivElement | null>(null);
   const typePickerWrapRef = useRef<HTMLDivElement | null>(null);
   const datePickerWrapRef = useRef<HTMLDivElement | null>(null);
-  const descriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const descriptionHeightRef = useRef(0);
+  const descriptionEditorRef = useRef<HTMLDivElement | null>(null);
+  const lastEditorDescriptionRef = useRef('');
+  const selectionToolbarRef = useRef<HTMLDivElement | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -210,6 +292,21 @@ const ContentCreateView: React.FC = () => {
   const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [draftHydrated, setDraftHydrated] = useState(false);
   const [loadingEditItem, setLoadingEditItem] = useState(false);
+  const [selectionToolbar, setSelectionToolbar] = useState<{
+    open: boolean;
+    left: number;
+    top: number;
+    placement: 'top' | 'bottom';
+    text: string;
+    copied: boolean;
+  }>({
+    open: false,
+    left: 0,
+    top: 0,
+    placement: 'top',
+    text: '',
+    copied: false,
+  });
   const latestDraftSaveRef = useRef(0);
   const draftStorageKey = `${CONTENT_CREATE_DRAFT_STORAGE_PREFIX}:${mode}`;
   const draftMode = mode as ContentDraftMode;
@@ -231,9 +328,108 @@ const ContentCreateView: React.FC = () => {
     if (!cleanToken) return;
     const trimmedEnd = description.replace(/\s+$/, '');
     const next = trimmedEnd ? `${trimmedEnd} ${cleanToken}` : cleanToken;
+    const editor = descriptionEditorRef.current;
+    if (editor) {
+      editor.innerHTML = descriptionToEditorHtml(next);
+    }
+    lastEditorDescriptionRef.current = next;
     setDescription(next);
     setFieldErrors((prev) => ({ ...prev, description: undefined }));
   };
+
+  const hideSelectionToolbar = useCallback(() => {
+    setSelectionToolbar((prev) => (prev.open ? { ...prev, open: false, copied: false } : prev));
+  }, []);
+
+  const updateSelectionToolbar = useCallback(() => {
+    const editor = descriptionEditorRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection || selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+    const selectedText = selection.toString();
+    if (
+      selection.isCollapsed ||
+      !selectedText.trim() ||
+      !editor.contains(range.commonAncestorContainer)
+    ) {
+      hideSelectionToolbar();
+      return;
+    }
+
+    const position = getEditorSelectionToolbarPosition();
+    if (!position) {
+      hideSelectionToolbar();
+      return;
+    }
+
+    setSelectionToolbar({
+      open: true,
+      left: position.left,
+      top: position.top,
+      placement: position.placement,
+      text: selectedText,
+      copied: false,
+    });
+  }, [hideSelectionToolbar]);
+
+  const syncDescriptionFromEditor = useCallback(() => {
+    const editor = descriptionEditorRef.current;
+    if (!editor) return '';
+    const nextDescription = editorHtmlToDescription(editor.innerHTML);
+    lastEditorDescriptionRef.current = nextDescription;
+    setDescription(nextDescription);
+    setFieldErrors((prev) => ({ ...prev, description: undefined }));
+    return nextDescription;
+  }, []);
+
+  const applyInlineFormat = useCallback((command: 'bold' | 'italic' | 'underline') => {
+    const editor = descriptionEditorRef.current;
+    if (!editor) return;
+
+    editor.focus();
+    document.execCommand(command, false);
+    syncDescriptionFromEditor();
+    window.requestAnimationFrame(() => {
+      updateSelectionToolbar();
+    });
+  }, [syncDescriptionFromEditor, updateSelectionToolbar]);
+
+  const handleCopySelection = useCallback(async () => {
+    if (!selectionToolbar.text.trim()) return;
+    try {
+      const selection = window.getSelection();
+      const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+      const htmlContainer = document.createElement('div');
+
+      if (range) {
+        htmlContainer.appendChild(range.cloneContents());
+      }
+
+      const html = htmlContainer.innerHTML.trim();
+      if (html && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/plain': new Blob([selectionToolbar.text], { type: 'text/plain' }),
+            'text/html': new Blob([html], { type: 'text/html' }),
+          }),
+        ]);
+      } else {
+        await navigator.clipboard.writeText(selectionToolbar.text);
+      }
+
+      setSelectionToolbar((prev) => ({ ...prev, copied: true }));
+      window.setTimeout(() => {
+        setSelectionToolbar((prev) => ({ ...prev, copied: false }));
+      }, 1200);
+    } catch {
+      setToast({ message: 'Could not copy the selected text.', type: 'error' });
+    }
+  }, [selectionToolbar.text]);
+
+  const handleDescriptionInput = useCallback(() => {
+    syncDescriptionFromEditor();
+  }, [syncDescriptionFromEditor]);
 
   const handleAttachmentUpload = async (files: FileList | null) => {
     if (!files?.length) return;
@@ -497,18 +693,24 @@ const ContentCreateView: React.FC = () => {
   }, [attachments, contentDate, description, draftHydrated, draftMode, isEditMode, submitting, title, type]);
 
   useEffect(() => {
-    const textarea = descriptionTextareaRef.current;
-    if (!textarea) return;
-    const previousWindowScrollY = window.scrollY;
-    const previousTextareaScrollTop = textarea.scrollTop;
-    const currentHeight = descriptionHeightRef.current || textarea.clientHeight || 0;
-    const desiredHeight = Math.max(textarea.scrollHeight, window.innerHeight * 0.7);
-    const nextHeight = Math.max(currentHeight, desiredHeight);
-    textarea.style.height = `${nextHeight}px`;
-    descriptionHeightRef.current = nextHeight;
-    textarea.scrollTop = previousTextareaScrollTop;
-    window.scrollTo({ top: previousWindowScrollY, behavior: 'auto' });
+    const editor = descriptionEditorRef.current;
+    if (!editor) return;
+    if (lastEditorDescriptionRef.current === description) return;
+    if (document.activeElement === editor) return;
+    editor.innerHTML = descriptionToEditorHtml(description);
+    lastEditorDescriptionRef.current = description;
   }, [description]);
+
+  useEffect(() => {
+    const handleViewportChange = () => hideSelectionToolbar();
+    if (!selectionToolbar.open) return undefined;
+    window.addEventListener('scroll', handleViewportChange, true);
+    window.addEventListener('resize', handleViewportChange);
+    return () => {
+      window.removeEventListener('scroll', handleViewportChange, true);
+      window.removeEventListener('resize', handleViewportChange);
+    };
+  }, [hideSelectionToolbar, selectionToolbar.open]);
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -525,15 +727,24 @@ const ContentCreateView: React.FC = () => {
       if (showDatePicker && datePickerWrapRef.current && !datePickerWrapRef.current.contains(target)) {
         setShowDatePicker(false);
       }
+      if (
+        selectionToolbar.open &&
+        descriptionEditorRef.current &&
+        !descriptionEditorRef.current.contains(target) &&
+        selectionToolbarRef.current &&
+        !selectionToolbarRef.current.contains(target)
+      ) {
+        hideSelectionToolbar();
+      }
     };
 
-    if (showLinkPicker || showTagPicker || showTypePicker || showDatePicker) {
+    if (showLinkPicker || showTagPicker || showTypePicker || showDatePicker || selectionToolbar.open) {
       document.addEventListener('mousedown', handleOutsideClick);
     }
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
     };
-  }, [showDatePicker, showLinkPicker, showTagPicker, showTypePicker]);
+  }, [hideSelectionToolbar, selectionToolbar.open, showDatePicker, showLinkPicker, showTagPicker, showTypePicker]);
 
   const panelClass = 'rounded-[1.25rem] border border-slate-200 bg-white p-3 shadow-[0_10px_30px_rgba(15,23,42,0.04)] sm:p-4';
   const inputBaseClass = 'w-full rounded-[0.95rem] border bg-slate-50/70 px-3.5 py-2.5 text-[15px] text-slate-700 outline-none transition';
@@ -831,18 +1042,102 @@ const ContentCreateView: React.FC = () => {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-900">Description</p>
               </div>
             </div>
-            <textarea
-              ref={descriptionTextareaRef}
-              value={description}
-              onChange={(e) => {
-                setDescription(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, description: undefined }));
-              }}
-              onBlur={() => setFieldErrors((prev) => ({ ...prev, description: validateDescription(description) || undefined }))}
-              rows={12}
-              placeholder="Description / post body"
-              className={`min-h-[70vh] overflow-hidden ${inputBaseClass} resize-none px-3.5 py-3 leading-7 ${fieldErrors.description ? 'border-red-200 focus:border-red-300 focus:ring-4 focus:ring-red-100' : 'border-slate-200 focus:border-violet-300 focus:ring-4 focus:ring-violet-100'}`}
-            />
+            {selectionToolbar.open ? (
+              <div
+                ref={selectionToolbarRef}
+                className={`fixed z-[220] -translate-x-1/2 ${selectionToolbar.placement === 'top' ? '-translate-y-full' : ''}`}
+                style={{ left: `${selectionToolbar.left}px`, top: `${selectionToolbar.top}px` }}
+              >
+                <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-white px-1.5 py-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.16)]">
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => void handleCopySelection()}
+                    className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                  >
+                    <Copy size={13} />
+                    {selectionToolbar.copied ? 'Copied' : 'Copy'}
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => applyInlineFormat('bold')}
+                    className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                  >
+                    <Bold size={13} />
+                    Bold
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => applyInlineFormat('italic')}
+                    className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                  >
+                    <Italic size={13} />
+                    Italic
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => applyInlineFormat('underline')}
+                    className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                  >
+                    <Underline size={13} />
+                    Underline
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            <div
+              className={`relative min-h-[70vh] ${inputBaseClass} px-0 py-0 ${fieldErrors.description ? 'border-red-200 focus-within:border-red-300 focus-within:ring-4 focus-within:ring-red-100' : 'border-slate-200 focus-within:border-violet-300 focus-within:ring-4 focus-within:ring-violet-100'}`}
+            >
+              {!description.trim() ? (
+                <div className="pointer-events-none absolute left-3.5 top-3 text-[15px] text-slate-400">
+                  Description / post body
+                </div>
+              ) : null}
+              <div
+                ref={descriptionEditorRef}
+                contentEditable
+                suppressContentEditableWarning
+                role="textbox"
+                aria-multiline="true"
+                onInput={handleDescriptionInput}
+                onBlur={(event) => {
+                  syncDescriptionFromEditor();
+                  setFieldErrors((prev) => ({ ...prev, description: validateDescription(descriptionEditorRef.current?.innerText || description) || undefined }));
+                  const nextTarget = event.relatedTarget as Node | null;
+                  if (nextTarget && selectionToolbarRef.current?.contains(nextTarget)) return;
+                  hideSelectionToolbar();
+                }}
+                onMouseUp={updateSelectionToolbar}
+                onKeyUp={updateSelectionToolbar}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    document.execCommand('insertLineBreak');
+                    handleDescriptionInput();
+                  }
+                }}
+                onPaste={(event) => {
+                  event.preventDefault();
+                  const html = event.clipboardData.getData('text/html').trim();
+                  if (html) {
+                    const sanitizedDescription = editorHtmlToDescription(html);
+                    const sanitizedHtml = descriptionToEditorHtml(sanitizedDescription);
+                    document.execCommand('insertHTML', false, sanitizedHtml);
+                    handleDescriptionInput();
+                    return;
+                  }
+
+                  const text = event.clipboardData.getData('text/plain');
+                  const sanitizedText = descriptionToEditorHtml(text);
+                  document.execCommand('insertHTML', false, sanitizedText);
+                  handleDescriptionInput();
+                }}
+                className="min-h-[70vh] whitespace-pre-wrap break-words px-3.5 py-3 leading-7 text-[15px] text-slate-700 outline-none"
+              />
+            </div>
             <div className="mt-1.5 flex items-center justify-between gap-3">
               <p className={`text-xs ${fieldErrors.description ? 'text-red-600' : 'text-slate-400'}`}>{fieldErrors.description || ''}</p>
               <p className="text-xs text-slate-400">{description.trim().length} chars</p>

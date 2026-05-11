@@ -357,7 +357,7 @@ export const ThemedSelect: React.FC<{
         ? createPortal(
             <div
               ref={menuRef}
-              className={`${menuClass} fixed z-[140] overflow-y-auto ${denseMenu ? 'max-h-[196px]' : 'max-h-[240px]'}`}
+              className={`${menuClass} fixed z-[220] overflow-y-auto ${denseMenu ? 'max-h-[196px]' : 'max-h-[240px]'}`}
               style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, width: `${menuPosition.width}px` }}
             >
               {options.map((option) => {
@@ -451,7 +451,7 @@ export const WeeklyTaskPeriodPicker: React.FC<{
     <div className="min-w-0">
       <div className={`px-1 font-semibold uppercase tracking-[0.2em] text-slate-400 ${compactTrigger ? 'mb-1 text-[9px]' : 'mb-2 text-[10px]'}`}>{heading}</div>
       <div className={`space-y-1.5 overflow-y-auto border border-slate-200/90 bg-slate-50/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] ${
-        compactTrigger ? 'max-h-[154px] rounded-[16px] p-1.5' : 'max-h-[196px] rounded-[22px] p-2'
+        compactTrigger ? 'max-h-[204px] rounded-[15px] p-1.5' : 'max-h-[196px] rounded-[22px] p-2'
       }`}>
         {options.map((option) => {
           const isSelected = option.value === selectedValue;
@@ -461,7 +461,7 @@ export const WeeklyTaskPeriodPicker: React.FC<{
               type="button"
               onClick={() => onSelect(option.value)}
               className={`w-full border text-left transition-all duration-150 ${
-                compactTrigger ? 'rounded-[13px] px-2.5 py-1.5' : 'rounded-[16px] px-3 py-2'
+                compactTrigger ? 'rounded-[12px] px-2.5 py-1.5' : 'rounded-[16px] px-3 py-2'
               } ${
                 isSelected
                   ? 'border-brand-red bg-brand-red text-white shadow-[0_10px_20px_rgba(239,68,68,0.18)]'
@@ -490,31 +490,31 @@ export const WeeklyTaskPeriodPicker: React.FC<{
         disabled={disabled}
         className={`flex w-full items-center justify-between text-left transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60 ${
           compactTrigger
-            ? 'min-h-[94px] gap-2 rounded-2xl border border-slate-300 bg-white px-3 py-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)]'
+            ? 'min-h-[56px] gap-2 rounded-[16px] border border-slate-300 bg-white px-2 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.05)]'
             : 'gap-4 rounded-[28px] border border-slate-300 bg-white px-5 py-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)]'
         }`}
       >
-        <div className={`flex min-w-0 items-center ${compactTrigger ? 'gap-2.5' : 'gap-4'}`}>
+        <div className={`flex min-w-0 items-center ${compactTrigger ? 'gap-1.5' : 'gap-4'}`}>
           <div
             className={`flex shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-500 ${
-              compactTrigger ? 'h-9 w-9' : 'h-14 w-14'
+              compactTrigger ? 'h-7 w-7' : 'h-14 w-14'
             }`}
           >
-            <Calendar size={compactTrigger ? 16 : 20} />
+            <Calendar size={compactTrigger ? 12 : 20} />
           </div>
           <div className="min-w-0">
-            <div className={`truncate font-semibold leading-none text-slate-900 ${compactTrigger ? 'text-[14px]' : 'text-[26px]'}`}>{summary}</div>
-            <div className={`truncate uppercase tracking-[0.2em] text-slate-400 ${compactTrigger ? 'mt-1 text-[8px]' : 'mt-2 text-[12px]'}`}>{detail}</div>
+            <div className={`truncate font-semibold leading-none text-slate-900 ${compactTrigger ? 'text-[13px]' : 'text-[26px]'}`}>{summary}</div>
+            <div className={`truncate uppercase tracking-[0.14em] text-slate-400 ${compactTrigger ? 'mt-0.5 text-[6px]' : 'mt-2 text-[12px]'}`}>{detail}</div>
           </div>
         </div>
-        <ChevronDown size={compactTrigger ? 15 : 18} className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={compactTrigger ? 12 : 18} className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && !disabled ? (
         <div
           className={`absolute top-full z-30 mt-2.5 max-w-[calc(100vw-2rem)] border border-slate-200 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.1)] ${
             compactTrigger
-              ? 'left-1/2 w-[min(780px,calc(100vw-2rem))] -translate-x-1/2 rounded-[20px] p-2.5'
+              ? 'left-1/2 w-[min(900px,calc(100vw-2rem))] -translate-x-1/2 rounded-[20px] p-3'
               : 'w-[min(1100px,calc(100vw-2rem))] rounded-[26px] p-3.5'
           } ${compactTrigger ? '' : dropdownAlign === 'right' ? 'right-0' : 'left-0'}`}
         >
@@ -530,19 +530,19 @@ export const WeeklyTaskPeriodPicker: React.FC<{
             {renderOptionColumn('Week', weekOptions, selectedWeek, onWeekChange)}
           </div>
 
-          <div className={`mt-3 flex flex-col gap-3 border border-slate-200 bg-slate-50/70 md:flex-row md:items-center md:justify-between ${
-            compactTrigger ? 'rounded-[16px] px-3 py-2.5' : 'rounded-[22px] px-4 py-3.5'
+          <div className={`mt-2.5 flex flex-col gap-2 border border-slate-200 bg-slate-50/70 md:flex-row md:items-center md:justify-between ${
+            compactTrigger ? 'rounded-[14px] px-3 py-2' : 'rounded-[22px] px-4 py-3.5'
           }`}>
             <div>
               <div className={`font-semibold uppercase tracking-[0.18em] text-slate-400 ${compactTrigger ? 'text-[9px]' : 'text-[11px]'}`}>Selected Period</div>
-              <div className={`mt-1 font-semibold text-slate-900 ${compactTrigger ? 'text-[16px]' : 'text-[22px]'}`}>{summary}</div>
-              <div className={`mt-1 text-slate-500 ${compactTrigger ? 'text-[11px]' : 'text-[13px]'}`}>{detail}</div>
+              <div className={`mt-0.5 font-semibold text-slate-900 ${compactTrigger ? 'text-[15px]' : 'text-[22px]'}`}>{summary}</div>
+              <div className={`mt-0.5 text-slate-500 ${compactTrigger ? 'text-[10px]' : 'text-[13px]'}`}>{detail}</div>
             </div>
             <button
               type="button"
               onClick={() => setOpen(false)}
               className={`inline-flex items-center justify-center rounded-full border border-slate-200 bg-white font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 ${
-                compactTrigger ? 'px-4 py-2 text-[13px]' : 'px-6 py-3 text-[15px]'
+                compactTrigger ? 'px-4 py-1.5 text-[13px]' : 'px-6 py-3 text-[15px]'
               }`}
             >
               Done
