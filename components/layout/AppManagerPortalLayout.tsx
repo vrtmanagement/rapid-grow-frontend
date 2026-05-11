@@ -144,7 +144,8 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                   <SidebarLink
                     to="/spaces"
                     icon={<Database size={20} />}
-                    label={taskCount > 0 ? `TaskHub (${taskCount})` : 'TaskHub'}
+                    label="TaskHub"
+                    badgeCount={taskCount}
                     collapsed={!isSidebarOpen}
                   />
                 )}

@@ -1,15 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
+import { QUARTER_LABELS } from '../appSeedConstants';
 import { Goal, PlanningState, WorkspaceTask } from '../types';
 import { saveGoal } from '../services/goalApi';
-import { RefreshCw } from 'lucide-react';
 import { getSocket } from '../realtime/socket';
 import { parseDateValue } from '../components/spaces/SpacesFormControls';
 import SpacesMainSections from '../components/spaces/SpacesMainSections';
 import {
   BackendRole,
-  CreatePanelTab,
   EmployeeOption,
   ProjectOption,
   SpacesColumn,
@@ -18,14 +17,12 @@ import {
   TaskFilterMode,
   TaskPriority,
   TaskStatus,
-  WeeklyRangeFilter,
+  WeeklyTaskGroup,
   findScrollableContainer,
   forceDownloadDocument,
   getDayDisplay,
   getLoggedInEmployee,
-  getPriorityRowClass,
   getReviewerLabel,
-  getSundayStart,
   getWeekBreadcrumb,
   getWeekStartDate,
   canChangeStatusForView,
@@ -34,7 +31,10 @@ import {
   canEditDueDateForView,
   canEditTaskForView,
   canValidateTaskForView,
+  buildWeeklyTaskCustomFields,
+  buildWeeklyTaskGroups,
   createDaysForWeekHelper,
+  ensureWeeklyGroupPersistedHelper,
   handleAddColumnHelper,
   getTaskRowClassesForView,
   isTaskLockedForView,
@@ -51,6 +51,9 @@ interface Props {
   state?: PlanningState;
   updateState?: (updater: (prev: PlanningState) => PlanningState) => void;
 }
+
+const NO_VISION_SELECTOR_VALUE = '__no_vision__';
+
 const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const navigate = useNavigate();
   const taskHubRootRef = useRef<HTMLDivElement | null>(null);
@@ -78,26 +81,18 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [uploadingTaskDocument, setUploadingTaskDocument] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [createPanelTab, setCreatePanelTab] = useState<CreatePanelTab>('add-task');
+  const [isTaskCreateModalOpen, setIsTaskCreateModalOpen] = useState(false);
+  const [createTaskPlannerEnabled, setCreateTaskPlannerEnabled] = useState(false);
+  const [createTaskPlannerQuarterId, setCreateTaskPlannerQuarterId] = useState('');
+  const [createTaskPlannerMonthId, setCreateTaskPlannerMonthId] = useState('');
+  const [createTaskPlannerWeekId, setCreateTaskPlannerWeekId] = useState('');
+  const [createTaskPlannerDayId, setCreateTaskPlannerDayId] = useState('');
   const [weeklyError, setWeeklyError] = useState('');
-  const [assignDraftByDay, setAssignDraftByDay] = useState<
-    Record<
-      string,
-      {
-        title: string;
-        assigneeId: string;
-        dueDate: string;
-        priority: string;
-        status: string;
-        description: string;
-        projectId: string;
-      }
-    >
-  >({});
-  const [assigningDayTaskId, setAssigningDayTaskId] = useState('');
   const [selectedDayByWeek, setSelectedDayByWeek] = useState<Record<string, string>>({});
-  const [weeklyTaskDocumentByDay, setWeeklyTaskDocumentByDay] = useState<Record<string, File | null>>({});
-  const [weeklyRangeFilter, setWeeklyRangeFilter] = useState<WeeklyRangeFilter>('this-week');
+  const [selectedWeeklyProjectId, setSelectedWeeklyProjectId] = useState('');
+  const [selectedWeeklyQuarterId, setSelectedWeeklyQuarterId] = useState('');
+  const [selectedWeeklyMonthId, setSelectedWeeklyMonthId] = useState('');
+  const [selectedWeeklyGroupId, setSelectedWeeklyGroupId] = useState('');
   const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
@@ -124,6 +119,16 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     projects.forEach((p) => map.set(p.id, p.name));
     return map;
   }, [projects]);
+
+  const yearlyVisionMetaById = useMemo(() => {
+    const map = new Map<string, { title: string; details: string }>();
+    (state?.yearlyGoals || []).forEach((goal, index) => {
+      const title = String(goal.text || '').trim() || `Vision ${String(index + 1).padStart(2, '0')}`;
+      const details = String(goal.details || '').trim();
+      map.set(goal.id, { title, details });
+    });
+    return map;
+  }, [state]);
 
   const employeeNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -235,6 +240,23 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       ...projects.map((project) => ({ value: project.id, label: project.name })),
     ],
     [projects],
+  );
+  const weeklyProjectOptions = useMemo(
+    () => [
+      {
+        value: NO_VISION_SELECTOR_VALUE,
+        label: 'No vision',
+        description: 'Create and manage task hub work without linking it to the Vision planner.',
+      },
+      ...(state?.yearlyGoals || [])
+        .filter((goal) => String(goal.id || '').trim())
+        .map((goal, index) => ({
+          value: goal.id,
+          label: String(goal.text || '').trim() || `Vision ${String(index + 1).padStart(2, '0')}`,
+          description: String(goal.details || '').trim() || 'Yearly vision',
+        })),
+    ],
+    [state],
   );
 
   const assigneeOptionsForTask = (currentAssigneeId?: string): EmployeeOption[] =>
@@ -485,7 +507,11 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
           const list = Array.isArray(data) ? data : [];
           setProjects(
             list
-              .map((p: any) => ({ id: p.clientProjectId, name: p.name }))
+              .map((p: any) => ({
+                id: p.clientProjectId,
+                name: p.name,
+                vision: String(p.goalStatement || p.description || p.problemStatement || p.businessCase || '').trim(),
+              }))
               .filter((p: ProjectOption) => p.id && p.name),
           );
         } else {
@@ -500,7 +526,11 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
           const list = Array.isArray(data) ? data : [];
           setProjects(
             list
-              .map((p: any) => ({ id: p.clientProjectId, name: p.name }))
+              .map((p: any) => ({
+                id: p.clientProjectId,
+                name: p.name,
+                vision: String(p.goalStatement || p.description || p.problemStatement || p.businessCase || '').trim(),
+              }))
               .filter((p: ProjectOption) => p.id && p.name),
           );
         }
@@ -553,9 +583,12 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     if (normalizedUpdates.status === 'done' && mode === 'employee') {
       normalizedUpdates.status = 'review';
     }
+    const optimisticUpdates = Object.prototype.hasOwnProperty.call(normalizedUpdates, 'status')
+      ? { ...normalizedUpdates, updatedAt: new Date().toISOString() }
+      : normalizedUpdates;
     setTasks((prev) =>
       prev.map((t) =>
-        t.taskId === taskId ? ({ ...t, ...normalizedUpdates } as SpacesTask) : t,
+        t.taskId === taskId ? ({ ...t, ...optimisticUpdates } as SpacesTask) : t,
       ),
     );
     try {
@@ -708,114 +741,8 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
 
   const handleAddColumn = async () => handleAddColumnHelper({ setError, setColumns });
 
-  const handleCreate = async () => {
-    const t = title.trim();
-    if (!t) return;
-    setSaving(true);
-    setError(null);
-
-    const now = new Date().toISOString();
-    const projectTaskId = `t-${generateId()}`;
-    const descriptionText = description.trim();
-    const requestedStatus =
-      mode === 'employee' && status === 'done' ? ('review' as TaskStatus) : status;
-    const project = selectedProjectId
-      ? projects.find((p) => p.id === selectedProjectId) || null
-      : null;
-
-    try {
-      let uploadedDocument: {
-        documentUrl: string;
-        documentName: string;
-        documentMimeType: string;
-      } | null = null;
-
-      if (taskDocumentFile) {
-        setUploadingTaskDocument(true);
-        const formData = new FormData();
-        formData.append('file', taskDocumentFile);
-        const session = getStoredAuthSession();
-        const token = typeof session?.token === 'string' ? session.token : '';
-        const resUpload = await fetch(`${API_BASE}/spaces/tasks/upload-document`, {
-          method: 'POST',
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: formData,
-        });
-        const uploaded = await resUpload.json().catch(() => ({}));
-        if (!resUpload.ok) {
-          throw new Error(uploaded.message || 'Failed to upload task document');
-        }
-        uploadedDocument = {
-          documentUrl: String(uploaded.documentUrl || ''),
-          documentName: String(uploaded.documentName || taskDocumentFile.name || ''),
-          documentMimeType: String(uploaded.documentMimeType || taskDocumentFile.type || ''),
-        };
-      }
-
-      if (project) {
-        // Persist to backend project tasks so Team Lead/Admin can see it inside the project.
-        const resProj = await fetch(`${API_BASE}/project-charters/${project.id}`, {
-          headers: getAuthHeaders(),
-        });
-        if (!resProj.ok) {
-          throw new Error('Failed to load project details');
-        }
-        const proj = await resProj.json();
-        const existingTasks: any[] = Array.isArray(proj?.tasks) ? proj.tasks : [];
-        const newWorkspaceTask = {
-          id: projectTaskId,
-          title: t,
-          description: descriptionText,
-          status: requestedStatus,
-          priority,
-          createdBy: me.id || 'employee',
-          createdByRole: me.role || 'EMPLOYEE',
-          assigneeId: assigneeId || undefined,
-          dueDate: dueDate || undefined,
-          createdAt: now,
-          updatedAt: now,
-        };
-        const updatedTasks = [...existingTasks, newWorkspaceTask];
-        const payload = projectCharterPayloadFromBackendProject(proj, updatedTasks);
-
-        const resSave = await fetch(`${API_BASE}/project-charters`, {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify(payload),
-        });
-        if (!resSave.ok) {
-          const data = await resSave.json().catch(() => ({}));
-          throw new Error(data.message || 'Failed to create task under project');
-        }
-
-        appendProjectTaskToState(project.id, newWorkspaceTask);
-      }
-
-      const res = await fetch(`${API_BASE}/spaces/tasks`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          title: t,
-          description: descriptionText,
-          documentUrl: uploadedDocument?.documentUrl || '',
-          documentName: uploadedDocument?.documentName || '',
-          documentMimeType: uploadedDocument?.documentMimeType || '',
-          projectId: project?.id || '',
-          projectTaskId: project ? projectTaskId : undefined,
-          assigneeId,
-          dueDate,
-          priority,
-          status: requestedStatus,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to create task');
-      }
-
-      setTasks((prev) => upsertTaskById(prev, normalizeTaskForUi(data as SpacesTask)));
+  const resetCreateTaskForm = useCallback(
+    (plannerDefaults?: { plannerEnabled?: boolean; quarterId?: string; monthId?: string; weekId?: string; dayId?: string }) => {
       setTitle('');
       setDescription('');
       setAssigneeId(me.id || '');
@@ -824,13 +751,139 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       setStatus('todo');
       setSelectedProjectId('');
       setTaskDocumentFile(null);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to create task');
-    } finally {
-      setUploadingTaskDocument(false);
-      setSaving(false);
+      setCreateTaskPlannerEnabled(Boolean(plannerDefaults?.plannerEnabled));
+      setCreateTaskPlannerQuarterId(plannerDefaults?.quarterId || '');
+      setCreateTaskPlannerMonthId(plannerDefaults?.monthId || '');
+      setCreateTaskPlannerWeekId(plannerDefaults?.weekId || '');
+      setCreateTaskPlannerDayId(plannerDefaults?.dayId || '');
+    },
+    [me.id],
+  );
+
+  const uploadTaskDocument = useCallback(async (file: File | null) => {
+    if (!file) return null;
+    setUploadingTaskDocument(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    const session = getStoredAuthSession();
+    const token = typeof session?.token === 'string' ? session.token : '';
+    const resUpload = await fetch(`${API_BASE}/spaces/tasks/upload-document`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+    const uploaded = await resUpload.json().catch(() => ({}));
+    if (!resUpload.ok) {
+      throw new Error(uploaded.message || 'Failed to upload task document');
     }
-  };
+    return {
+      documentUrl: String(uploaded.documentUrl || ''),
+      documentName: String(uploaded.documentName || file.name || ''),
+      documentMimeType: String(uploaded.documentMimeType || file.type || ''),
+    };
+  }, []);
+
+  const createTaskInternal = useCallback(async (params: {
+    title: string;
+    description: string;
+    assigneeId: string;
+    dueDate: string;
+    priority: TaskPriority;
+    status: TaskStatus;
+    projectId: string;
+    taskDocumentFile: File | null;
+    plannerDay?: Goal | null;
+    plannerGroup?: WeeklyTaskGroup | null;
+  }) => {
+    const cleanTitle = params.title.trim();
+    if (!cleanTitle) {
+      throw new Error('Task title is required.');
+    }
+    const now = new Date().toISOString();
+    const projectTaskId = `t-${generateId()}`;
+    const descriptionText = params.description.trim();
+    const requestedStatus =
+      mode === 'employee' && params.status === 'done' ? ('review' as TaskStatus) : params.status;
+    const project = params.projectId
+      ? projects.find((p) => p.id === params.projectId) || null
+      : null;
+
+    const uploadedDocument = await uploadTaskDocument(params.taskDocumentFile);
+
+    if (project) {
+      const resProj = await fetch(`${API_BASE}/project-charters/${project.id}`, {
+        headers: getAuthHeaders(),
+      });
+      if (!resProj.ok) {
+        throw new Error('Failed to load project details');
+      }
+      const proj = await resProj.json();
+      const existingTasks: any[] = Array.isArray(proj?.tasks) ? proj.tasks : [];
+      const newWorkspaceTask = {
+        id: projectTaskId,
+        title: cleanTitle,
+        description: descriptionText,
+        status: requestedStatus,
+        priority: params.priority,
+        createdBy: me.id || 'employee',
+        createdByRole: me.role || 'EMPLOYEE',
+        assigneeId: params.assigneeId || undefined,
+        dueDate: params.dueDate || undefined,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const updatedTasks = [...existingTasks, newWorkspaceTask];
+      const payload = projectCharterPayloadFromBackendProject(proj, updatedTasks);
+
+      const resSave = await fetch(`${API_BASE}/project-charters`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!resSave.ok) {
+        const data = await resSave.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to create task under project');
+      }
+
+      appendProjectTaskToState(project.id, newWorkspaceTask);
+    }
+
+    const plannerDescription =
+      descriptionText ||
+      (params.plannerGroup ? `Created from Daily plan: ${params.plannerGroup.week.text || 'Weekly Goal'}` : '');
+
+    const res = await fetch(`${API_BASE}/spaces/tasks`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        title: cleanTitle,
+        description: plannerDescription,
+        documentUrl: uploadedDocument?.documentUrl || '',
+        documentName: uploadedDocument?.documentName || '',
+        documentMimeType: uploadedDocument?.documentMimeType || '',
+        projectId: project?.id || '',
+        projectTaskId: project ? projectTaskId : undefined,
+        assigneeId: params.assigneeId,
+        dueDate: params.dueDate,
+        priority: params.priority,
+        status: requestedStatus,
+        customFields:
+          params.plannerDay && params.plannerGroup
+            ? buildWeeklyTaskCustomFields(params.plannerDay, params.plannerGroup)
+            : undefined,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to create task');
+    }
+
+    const normalizedTask = normalizeTaskForUi(data as SpacesTask);
+    setTasks((prev) => upsertTaskById(prev, normalizedTask));
+    return normalizedTask;
+  }, [appendProjectTaskToState, me.id, me.role, mode, projects, uploadTaskDocument]);
 
   const visibleTasks = useMemo(() => tasks, [tasks]);
 
@@ -886,10 +939,18 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     return copy;
   }, [filteredTasks, mode]);
   const topPriorityTasks = useMemo(() => {
-    const activePriorityStatuses = new Set<TaskStatus>(['todo', 'doing']);
-    const pending = sortedTasks.filter(
-      (task) => taskBelongsToMe(task) && activePriorityStatuses.has(task.status),
-    );
+    const activePriorityStatuses = new Set<TaskStatus>(['todo', 'doing', 'review', 'blocked']);
+    const today = new Date();
+    const todayValue = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0'),
+    ].join('-');
+    const pending = tasks.filter((task) => {
+      if (!activePriorityStatuses.has(task.status)) return false;
+      if (!String(task.title || '').trim()) return false;
+      return true;
+    });
     const priorityRank: Record<TaskPriority, number> = {
       high: 0,
       medium: 1,
@@ -897,62 +958,518 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     };
     return [...pending]
       .sort((a, b) => {
+        const aCompleted = a.status === 'review';
+        const bCompleted = b.status === 'review';
+        if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+        const aDueDate = String(a.dueDate || '').trim();
+        const bDueDate = String(b.dueDate || '').trim();
+        const aIsToday = Boolean(todayValue && aDueDate === todayValue);
+        const bIsToday = Boolean(todayValue && bDueDate === todayValue);
+        if (aIsToday !== bIsToday) return aIsToday ? -1 : 1;
         const priorityDiff = priorityRank[a.priority] - priorityRank[b.priority];
         if (priorityDiff !== 0) return priorityDiff;
-        const aDue = parseDateValue(a.dueDate)?.getTime() || Number.MAX_SAFE_INTEGER;
-        const bDue = parseDateValue(b.dueDate)?.getTime() || Number.MAX_SAFE_INTEGER;
+        const aDue = parseDateValue(aDueDate)?.getTime() || Number.MAX_SAFE_INTEGER;
+        const bDue = parseDateValue(bDueDate)?.getTime() || Number.MAX_SAFE_INTEGER;
         if (aDue !== bDue) return aDue - bDue;
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       })
       .slice(0, 5);
-  }, [sortedTasks, taskBelongsToMe]);
+  }, [tasks]);
 
-  const weeklyTaskGroups = useMemo(() => {
-    if (!state) return [];
-    return state.weeklyGoals.map((week) => ({
-      week,
-      days: state.dailyGoals.filter((d) => d.parentId === week.id),
-    }));
-  }, [state]);
+  const weeklyTaskGroups = useMemo<WeeklyTaskGroup[]>(
+    () => buildWeeklyTaskGroups(state, tasks, parseDateValue),
+    [state, tasks],
+  );
+  const isNoVisionSelected = selectedWeeklyProjectId === NO_VISION_SELECTOR_VALUE;
+  const noVisionWeeklyGroups = useMemo<WeeklyTaskGroup[]>(() => {
+    if (!weeklyTaskGroups.length) return [];
+    const uniqueGroups = new Map<string, WeeklyTaskGroup>();
+
+    weeklyTaskGroups.forEach((group) => {
+      const baseKey = [
+        group.quarterLabel,
+        group.monthLabel,
+        group.weekLabel,
+        group.weekRangeLabel,
+      ].join('::');
+      if (uniqueGroups.has(baseKey)) return;
+
+      const quarterId = group.quarterId;
+      const monthId = group.monthId;
+      const syntheticWeekId = `${NO_VISION_SELECTOR_VALUE}::${quarterId}::${monthId}::${group.weekLabel}::${group.weekRangeLabel}`;
+      const syntheticWeek = {
+        ...group.week,
+        id: syntheticWeekId,
+        parentId: monthId,
+        text: String(group.week.text || '').trim() || 'Weekly goal',
+      };
+      const syntheticDays = group.days.map((day, index) => ({
+        ...day,
+        id: `${syntheticWeekId}::day-${index + 1}`,
+        parentId: syntheticWeekId,
+        text: String(day.text || '').trim() || `Day ${index + 1}`,
+      }));
+
+      uniqueGroups.set(baseKey, {
+        ...group,
+        year: undefined,
+        quarter: undefined,
+        month: undefined,
+        yearId: NO_VISION_SELECTOR_VALUE,
+        quarterId,
+        monthId,
+        weekId: syntheticWeekId,
+        week: syntheticWeek,
+        days: syntheticDays,
+        breadcrumbLabel: [group.quarterLabel, group.monthLabel, group.weekLabel].join(' > '),
+        weekSelectionKey: syntheticWeekId,
+      });
+    });
+
+    return Array.from(uniqueGroups.values()).sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime());
+  }, [weeklyTaskGroups]);
+  const activeWeeklyGroups = isNoVisionSelected ? noVisionWeeklyGroups : weeklyTaskGroups;
+
+  const defaultNoVisionWeeklyTaskGroup = useMemo(() => {
+    if (!noVisionWeeklyGroups.length) return null;
+    const today = new Date();
+    return (
+      noVisionWeeklyGroups.find((group) => group.weekEnd.getTime() >= today.getTime()) ||
+      noVisionWeeklyGroups[noVisionWeeklyGroups.length - 1] ||
+      noVisionWeeklyGroups[0]
+    );
+  }, [noVisionWeeklyGroups]);
 
   const getWeekBreadcrumbForView = (weekId: string): string => getWeekBreadcrumb(state, weekId);
   const getWeekStartDateForView = (week: Goal, days: Goal[]): Date =>
     getWeekStartDate(week, days, tasks, parseDateValue);
 
-  const filteredWeeklyTaskGroups = useMemo(() => {
-    if (!weeklyTaskGroups.length) return weeklyTaskGroups;
-    const now = new Date();
-    const currentWeekStart = getSundayStart(now);
-    const currentWeekEnd = new Date(currentWeekStart);
-    currentWeekEnd.setDate(currentWeekStart.getDate() + 6);
+  const defaultWeeklyTaskGroup = useMemo(() => {
+    if (!weeklyTaskGroups.length) return null;
+    const today = new Date();
+    return (
+      weeklyTaskGroups.find((group) => group.weekEnd.getTime() >= today.getTime()) ||
+      weeklyTaskGroups[weeklyTaskGroups.length - 1] ||
+      weeklyTaskGroups[0]
+    );
+  }, [weeklyTaskGroups]);
 
-    const nextWeekStart = new Date(currentWeekStart);
-    nextWeekStart.setDate(currentWeekStart.getDate() + 7);
-    const nextWeekEnd = new Date(nextWeekStart);
-    nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
+  const defaultWeeklyTaskGroupForSelectedProject = useMemo(() => {
+    if (selectedWeeklyProjectId === NO_VISION_SELECTOR_VALUE) {
+      return (
+        noVisionWeeklyGroups.find(
+          (group) =>
+            (!selectedWeeklyQuarterId || group.quarterId === selectedWeeklyQuarterId) &&
+            (!selectedWeeklyMonthId || group.monthId === selectedWeeklyMonthId) &&
+            (!selectedWeeklyGroupId || group.weekSelectionKey === selectedWeeklyGroupId),
+        ) ||
+        defaultNoVisionWeeklyTaskGroup ||
+        defaultWeeklyTaskGroup
+      );
+    }
+    const activeYearId =
+      selectedWeeklyProjectId ||
+      defaultWeeklyTaskGroup?.yearId ||
+      state?.yearlyGoals?.[0]?.id ||
+      '';
+    const scopedGroups = weeklyTaskGroups.filter((group) => group.yearId === activeYearId);
+    if (!scopedGroups.length) return defaultWeeklyTaskGroup;
+    const today = new Date();
+    return (
+      scopedGroups.find((group) => group.weekEnd.getTime() >= today.getTime()) ||
+      scopedGroups[scopedGroups.length - 1] ||
+      scopedGroups[0]
+    );
+  }, [defaultNoVisionWeeklyTaskGroup, defaultWeeklyTaskGroup, noVisionWeeklyGroups, selectedWeeklyGroupId, selectedWeeklyMonthId, selectedWeeklyProjectId, selectedWeeklyQuarterId, state, weeklyTaskGroups]);
 
-    const twoWeeksEnd = new Date(currentWeekStart);
-    twoWeeksEnd.setDate(currentWeekStart.getDate() + 13);
-
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
-    return weeklyTaskGroups.filter(({ week, days }) => {
-      const weekStart = getSundayStart(getWeekStartDateForView(week, days));
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6);
-
-      if (weeklyRangeFilter === 'this-week') {
-        return weekStart <= currentWeekEnd && weekEnd >= currentWeekStart;
-      }
-      if (weeklyRangeFilter === 'next-week') {
-        return weekStart <= nextWeekEnd && weekEnd >= nextWeekStart;
-      }
-      if (weeklyRangeFilter === 'two-weeks') {
-        return weekStart <= twoWeeksEnd && weekEnd >= currentWeekStart;
-      }
-      return weekStart <= monthEnd && weekEnd >= currentWeekStart;
+  const weeklyQuarterOptions = useMemo(() => {
+    const selectedQuarterGoal = (state?.quarterlyGoals || []).find((quarter) => quarter.id === selectedWeeklyQuarterId);
+    const activeYearId =
+      selectedWeeklyProjectId === NO_VISION_SELECTOR_VALUE
+        ? String(selectedQuarterGoal?.parentId || defaultWeeklyTaskGroup?.yearId || state?.yearlyGoals?.[0]?.id || '')
+        : selectedWeeklyProjectId ||
+      defaultWeeklyTaskGroupForSelectedProject?.yearId ||
+      state?.yearlyGoals?.[0]?.id ||
+      '';
+    const quarterGoals = (state?.quarterlyGoals || []).filter((quarter) => quarter.parentId === activeYearId);
+    return QUARTER_LABELS.map((quarterLabel, index) => {
+      const quarter = quarterGoals.find((item) => String(item.timeline || '').trim().toUpperCase() === quarterLabel);
+      const label = quarterLabel;
+      const quarterNumber = index + 1;
+      const startMonth = ((quarterNumber - 1) * 3) + 1;
+      const endMonth = startMonth + 2;
+      const quarterSummary = String(quarter?.text || quarter?.details || '').trim() || 'Quarter plan';
+      return {
+        value: quarter?.id || `${activeYearId || 'year'}-${quarterLabel.toLowerCase()}`,
+        label,
+        caption: `Months ${startMonth}-${endMonth}`,
+        description: quarterSummary,
+      };
     });
-  }, [weeklyTaskGroups, weeklyRangeFilter]);
+  }, [defaultWeeklyTaskGroup?.yearId, defaultWeeklyTaskGroupForSelectedProject?.yearId, selectedWeeklyProjectId, selectedWeeklyQuarterId, state]);
+
+  useEffect(() => {
+    if (!weeklyProjectOptions.length) {
+      setSelectedWeeklyProjectId('');
+      return;
+    }
+
+    setSelectedWeeklyProjectId((prev) => {
+      if (prev && weeklyProjectOptions.some((option) => option.value === prev)) {
+        return prev;
+      }
+      if (
+        defaultWeeklyTaskGroupForSelectedProject?.yearId &&
+        weeklyProjectOptions.some((option) => option.value === defaultWeeklyTaskGroupForSelectedProject.yearId)
+      ) {
+        return defaultWeeklyTaskGroupForSelectedProject.yearId;
+      }
+      return weeklyProjectOptions[0]?.value || '';
+    });
+  }, [defaultWeeklyTaskGroupForSelectedProject, weeklyProjectOptions]);
+
+  useEffect(() => {
+    if (!weeklyQuarterOptions.length) {
+      setSelectedWeeklyQuarterId('');
+      return;
+    }
+
+    setSelectedWeeklyQuarterId((prev) => {
+      if (prev && weeklyQuarterOptions.some((option) => option.value === prev)) {
+        return prev;
+      }
+      if (
+        defaultWeeklyTaskGroupForSelectedProject?.quarterId &&
+        weeklyQuarterOptions.some((option) => option.value === defaultWeeklyTaskGroupForSelectedProject.quarterId)
+      ) {
+        return defaultWeeklyTaskGroupForSelectedProject.quarterId;
+      }
+      return weeklyQuarterOptions[0]?.value || '';
+    });
+  }, [defaultWeeklyTaskGroupForSelectedProject, weeklyQuarterOptions]);
+
+  const weeklyMonthOptions = useMemo(() => {
+    const quarterMonths = (state?.monthlyGoals || [])
+      .filter((month) => month.parentId === selectedWeeklyQuarterId)
+      .sort((a, b) => {
+        const aOrder = Number(String(a.timeline || '').replace(/[^0-9]/g, '')) || 0;
+        const bOrder = Number(String(b.timeline || '').replace(/[^0-9]/g, '')) || 0;
+        return aOrder - bOrder;
+      });
+    const selectedVision = yearlyVisionMetaById.get(selectedWeeklyProjectId);
+    const selectedVisionTitle =
+      selectedWeeklyProjectId === NO_VISION_SELECTOR_VALUE ? 'No vision' : selectedVision?.title || 'Selected vision';
+    const selectedVisionDetails =
+      selectedWeeklyProjectId === NO_VISION_SELECTOR_VALUE
+        ? 'Not linked to the Vision planner'
+        : selectedVision?.details || selectedVisionTitle;
+    const selectedQuarterLabel =
+      weeklyQuarterOptions.find((option) => option.value === selectedWeeklyQuarterId)?.label || 'Q1';
+    const selectedQuarterNumber = Number(String(selectedQuarterLabel).replace(/[^0-9]/g, '')) || 1;
+    return quarterMonths.slice(0, 3).map((month, index) => {
+      const absoluteMonthNumber = ((selectedQuarterNumber - 1) * 3) + index + 1;
+      const calendarMonthName = new Date(Number(state?.currentYear) || new Date().getFullYear(), absoluteMonthNumber - 1, 1).toLocaleDateString(undefined, { month: 'long' });
+      return {
+        value: month.id,
+        label: `M${absoluteMonthNumber}`,
+        caption: calendarMonthName,
+        description: selectedVisionDetails || selectedVisionTitle,
+      };
+    });
+  }, [selectedWeeklyProjectId, selectedWeeklyQuarterId, state, weeklyQuarterOptions, yearlyVisionMetaById]);
+
+  useEffect(() => {
+    if (!weeklyMonthOptions.length) {
+      setSelectedWeeklyMonthId('');
+      return;
+    }
+
+    setSelectedWeeklyMonthId((prev) => {
+      if (prev && weeklyMonthOptions.some((option) => option.value === prev)) {
+        return prev;
+      }
+      if (
+        defaultWeeklyTaskGroupForSelectedProject?.quarterId === selectedWeeklyQuarterId &&
+        weeklyMonthOptions.some((option) => option.value === defaultWeeklyTaskGroupForSelectedProject.monthId)
+      ) {
+        return defaultWeeklyTaskGroupForSelectedProject.monthId;
+      }
+      return weeklyMonthOptions[0]?.value || '';
+    });
+  }, [defaultWeeklyTaskGroupForSelectedProject, selectedWeeklyQuarterId, weeklyMonthOptions]);
+
+  const weeklyWeekOptions = useMemo(() => {
+    const groupsForMonth = activeWeeklyGroups.filter((group) => group.monthId === selectedWeeklyMonthId);
+    const uniqueOptions = new Map<
+      string,
+      { value: string; label: string; caption: string; description: string; isPlaceholderWeek?: boolean }
+    >();
+
+    groupsForMonth.forEach((group) => {
+      const optionKey = `${group.weekLabel}::${group.weekRangeLabel}`;
+      const nextOption = {
+        value: group.weekSelectionKey,
+        label: group.weekLabel,
+        caption: group.weekRangeLabel,
+        description: group.week.text || yearlyVisionMetaById.get(selectedWeeklyProjectId)?.details || 'Weekly goal',
+        isPlaceholderWeek: group.isPlaceholderWeek,
+      };
+      const existingOption = uniqueOptions.get(optionKey);
+
+      if (
+        !existingOption ||
+        (existingOption.isPlaceholderWeek && !nextOption.isPlaceholderWeek) ||
+        (existingOption.description === 'Weekly goal' && nextOption.description !== 'Weekly goal')
+      ) {
+        uniqueOptions.set(optionKey, nextOption);
+      }
+    });
+
+    return Array.from(uniqueOptions.values()).map(({ isPlaceholderWeek: _omit, ...option }) => option);
+  }, [activeWeeklyGroups, selectedWeeklyMonthId, selectedWeeklyProjectId, yearlyVisionMetaById]);
+
+  const selectedWeeklyWeekId = useMemo(() => {
+    if (!weeklyWeekOptions.length) return '';
+    if (selectedWeeklyGroupId && weeklyWeekOptions.some((option) => option.value === selectedWeeklyGroupId)) {
+      return selectedWeeklyGroupId;
+    }
+    return weeklyWeekOptions[0]?.value || '';
+  }, [selectedWeeklyGroupId, weeklyWeekOptions]);
+
+  useEffect(() => {
+    if (!weeklyWeekOptions.length) {
+      setSelectedWeeklyGroupId('');
+      return;
+    }
+
+    setSelectedWeeklyGroupId((prev) => {
+      if (prev && weeklyWeekOptions.some((option) => option.value === prev)) {
+        return prev;
+      }
+      if (
+        defaultWeeklyTaskGroupForSelectedProject?.monthId === selectedWeeklyMonthId &&
+        weeklyWeekOptions.some((option) => option.value === defaultWeeklyTaskGroupForSelectedProject.weekSelectionKey)
+      ) {
+        return defaultWeeklyTaskGroupForSelectedProject.weekSelectionKey;
+      }
+      return weeklyWeekOptions[0]?.value || '';
+    });
+  }, [defaultWeeklyTaskGroupForSelectedProject, selectedWeeklyMonthId, weeklyWeekOptions]);
+
+  const selectedWeeklyTaskGroup = useMemo(
+    () =>
+      activeWeeklyGroups.find(
+        (group) =>
+          (isNoVisionSelected || group.yearId === selectedWeeklyProjectId) &&
+          group.quarterId === selectedWeeklyQuarterId &&
+          group.monthId === selectedWeeklyMonthId &&
+          group.weekSelectionKey === selectedWeeklyWeekId,
+      ) ||
+      activeWeeklyGroups.find(
+        (group) =>
+          (isNoVisionSelected || group.yearId === selectedWeeklyProjectId) &&
+          group.quarterId === selectedWeeklyQuarterId &&
+          group.monthId === selectedWeeklyMonthId &&
+          group.weekSelectionKey === weeklyWeekOptions[0]?.value,
+      ) ||
+      null,
+    [activeWeeklyGroups, isNoVisionSelected, selectedWeeklyMonthId, selectedWeeklyProjectId, selectedWeeklyQuarterId, selectedWeeklyWeekId, weeklyWeekOptions],
+  );
+  const selectedWeeklyDay = useMemo(() => {
+    if (!selectedWeeklyTaskGroup?.days?.length) return null;
+    const explicitSelectedDayId = selectedDayByWeek[selectedWeeklyTaskGroup.weekId] || '';
+    const today = new Date();
+    const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const todayDay =
+      selectedWeeklyTaskGroup.days.find((day, index) => {
+        const dayDate = new Date(selectedWeeklyTaskGroup.weekStart);
+        dayDate.setDate(selectedWeeklyTaskGroup.weekStart.getDate() + index);
+        const normalizedDay = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate()).getTime();
+        return normalizedDay === normalizedToday;
+      }) || null;
+    const selectedDayId = explicitSelectedDayId || todayDay?.id || selectedWeeklyTaskGroup.days[0]?.id || '';
+    return selectedWeeklyTaskGroup.days.find((day) => day.id === selectedDayId) || todayDay || selectedWeeklyTaskGroup.days[0] || null;
+  }, [selectedDayByWeek, selectedWeeklyTaskGroup]);
+  const activeQuarterOption = weeklyQuarterOptions.find((option) => option.value === selectedWeeklyQuarterId) || null;
+  const activeMonthOption = weeklyMonthOptions.find((option) => option.value === selectedWeeklyMonthId) || null;
+  const activeWeekOption = weeklyWeekOptions.find((option) => option.value === selectedWeeklyWeekId) || null;
+
+  const handleWeeklyProjectChange = useCallback(
+    (visionId: string) => {
+      setSelectedWeeklyProjectId(visionId);
+      if (visionId === NO_VISION_SELECTOR_VALUE) return;
+      setSelectedWeeklyQuarterId('');
+      setSelectedWeeklyMonthId('');
+      setSelectedWeeklyGroupId('');
+    },
+    [],
+  );
+
+  const handleWeeklyQuarterChange = useCallback(
+    (quarterId: string) => {
+      if (quarterId === selectedWeeklyQuarterId) return;
+      setSelectedWeeklyQuarterId(quarterId);
+      setSelectedWeeklyMonthId('');
+      setSelectedWeeklyGroupId('');
+    },
+    [selectedWeeklyQuarterId],
+  );
+
+  const handleWeeklyMonthChange = useCallback(
+    (monthId: string) => {
+      setSelectedWeeklyMonthId(monthId);
+      setSelectedWeeklyGroupId('');
+    },
+    [],
+  );
+
+  const handleWeeklyWeekChange = useCallback((weekId: string) => {
+    setSelectedWeeklyGroupId(weekId);
+  }, []);
+
+  const plannerWeekOptions = useMemo(
+    () =>
+      activeWeeklyGroups.map((group) => ({
+        value: group.weekSelectionKey,
+        label: `${group.weekSummaryLabel} · ${group.weekRangeLabel}`,
+      })),
+    [activeWeeklyGroups],
+  );
+
+  const selectedPlannerWeekGroup = useMemo(
+    () => activeWeeklyGroups.find((group) => group.weekSelectionKey === createTaskPlannerWeekId) || null,
+    [activeWeeklyGroups, createTaskPlannerWeekId],
+  );
+
+  const plannerDayOptions = useMemo(() => {
+    if (!selectedPlannerWeekGroup?.days?.length) return [];
+    return selectedPlannerWeekGroup.days.map((day, idx) => {
+      const info = getDayDisplay(selectedPlannerWeekGroup.weekStart, idx);
+      return {
+        value: day.id,
+        label: `${info.weekday} · ${info.dateText}`,
+      };
+    });
+  }, [getDayDisplay, selectedPlannerWeekGroup]);
+
+  const plannerSummary = useMemo(() => {
+    if (!selectedPlannerWeekGroup) return '';
+    const selectedPlannerDay =
+      selectedPlannerWeekGroup.days.find((day) => day.id === createTaskPlannerDayId) ||
+      selectedPlannerWeekGroup.days[0] ||
+      null;
+    if (!selectedPlannerDay) return `${selectedPlannerWeekGroup.weekSummaryLabel} · ${selectedPlannerWeekGroup.weekRangeLabel}`;
+    const dayIndex = selectedPlannerWeekGroup.days.findIndex((day) => day.id === selectedPlannerDay.id);
+    const dayInfo = getDayDisplay(selectedPlannerWeekGroup.weekStart, Math.max(dayIndex, 0));
+    return `${selectedPlannerWeekGroup.weekSummaryLabel} · ${dayInfo.weekday} ${dayInfo.dateText}`;
+  }, [createTaskPlannerDayId, getDayDisplay, selectedPlannerWeekGroup]);
+
+  const openTaskCreateModal = useCallback(
+    (plannerDefaults?: { plannerEnabled?: boolean; weeklyGroup?: WeeklyTaskGroup | null; day?: Goal | null }) => {
+      setError(null);
+      const defaultWeekId =
+        plannerDefaults?.weeklyGroup?.weekSelectionKey ||
+        selectedWeeklyTaskGroup?.weekSelectionKey ||
+        plannerWeekOptions[0]?.value ||
+        '';
+      const selectedGroup =
+        weeklyTaskGroups.find((group) => group.weekSelectionKey === defaultWeekId) || selectedWeeklyTaskGroup || null;
+      const defaultDayId =
+        plannerDefaults?.day?.id ||
+        (selectedGroup?.days.find((day) => day.id === selectedWeeklyDay?.id)?.id || selectedGroup?.days[0]?.id || '');
+      resetCreateTaskForm({
+        plannerEnabled: Boolean(plannerDefaults?.plannerEnabled) && !isNoVisionSelected,
+        weekId: defaultWeekId,
+        dayId: defaultDayId,
+      });
+      setIsTaskCreateModalOpen(true);
+    },
+    [isNoVisionSelected, plannerWeekOptions, resetCreateTaskForm, selectedWeeklyDay?.id, selectedWeeklyTaskGroup, weeklyTaskGroups],
+  );
+
+  const closeTaskCreateModal = useCallback(() => {
+    setIsTaskCreateModalOpen(false);
+    setError(null);
+    resetCreateTaskForm();
+    setUploadingTaskDocument(false);
+    setSaving(false);
+  }, [resetCreateTaskForm]);
+
+  useEffect(() => {
+    if (!createTaskPlannerEnabled) return;
+    if (!plannerWeekOptions.length) {
+      setCreateTaskPlannerWeekId('');
+      setCreateTaskPlannerDayId('');
+      return;
+    }
+    setCreateTaskPlannerWeekId((prev) => prev || selectedWeeklyTaskGroup?.weekSelectionKey || plannerWeekOptions[0]?.value || '');
+  }, [createTaskPlannerEnabled, plannerWeekOptions, selectedWeeklyTaskGroup]);
+
+  useEffect(() => {
+    if (!createTaskPlannerEnabled) return;
+    if (!selectedPlannerWeekGroup?.days?.length) {
+      setCreateTaskPlannerDayId('');
+      return;
+    }
+    setCreateTaskPlannerDayId((prev) => {
+      if (prev && selectedPlannerWeekGroup.days.some((day) => day.id === prev)) {
+        return prev;
+      }
+      return selectedPlannerWeekGroup.days[0]?.id || '';
+    });
+  }, [createTaskPlannerEnabled, selectedPlannerWeekGroup]);
+
+  const weeklyPeriodPicker = useMemo(
+    () => ({
+      summary:
+        selectedWeeklyTaskGroup?.weekSummaryLabel ||
+        `${activeQuarterOption?.label || 'Q?'} / ${activeMonthOption?.label || 'M?'} / ${activeWeekOption?.label || 'W?'}`,
+      detail: selectedWeeklyTaskGroup
+        ? `${selectedWeeklyTaskGroup.weekRangeLabel} - ${selectedWeeklyTaskGroup.week.text || 'Weekly goal'}`
+        : activeMonthOption
+          ? `Choose a week inside ${activeQuarterOption?.label || 'selected quarter'} ${activeMonthOption.label}`
+          : 'Choose a quarter, month, and week',
+      projectOptions: weeklyProjectOptions
+        .filter((option) => option.value !== NO_VISION_SELECTOR_VALUE)
+        .map((option) => ({
+          value: option.value,
+          label: option.label,
+          description: option.description,
+        })),
+      selectedProject: selectedWeeklyProjectId,
+      onProjectChange: handleWeeklyProjectChange,
+      quarterOptions: weeklyQuarterOptions,
+      selectedQuarter: selectedWeeklyQuarterId,
+      onQuarterChange: handleWeeklyQuarterChange,
+      monthOptions: weeklyMonthOptions,
+      selectedMonth: selectedWeeklyMonthId,
+      onMonthChange: handleWeeklyMonthChange,
+      weekOptions: weeklyWeekOptions,
+      selectedWeek: selectedWeeklyWeekId,
+      onWeekChange: handleWeeklyWeekChange,
+      disabled: !weeklyQuarterOptions.length,
+    }),
+    [
+      activeMonthOption,
+      activeQuarterOption,
+      activeWeekOption,
+      handleWeeklyProjectChange,
+      handleWeeklyMonthChange,
+      handleWeeklyQuarterChange,
+      handleWeeklyWeekChange,
+      weeklyProjectOptions,
+      selectedWeeklyProjectId,
+      selectedWeeklyDay,
+      selectedWeeklyTaskGroup,
+      selectedWeeklyWeekId,
+      selectedWeeklyMonthId,
+      selectedWeeklyQuarterId,
+      weeklyMonthOptions,
+      weeklyProjectOptions,
+      weeklyQuarterOptions,
+      weeklyWeekOptions,
+    ],
+  );
 
   const createDaysForWeek = async (weekId: string) =>
     createDaysForWeekHelper({
@@ -965,107 +1482,89 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     });
 
   const toggleDaily = (id: string) =>
-    toggleDailyHelper({
-      id,
-      state,
-      updateState,
-      canManageWeeklyRows,
-      saveGoalFn: saveGoal,
-      setWeeklyError,
-    });
+    (async () => {
+      if (!selectedWeeklyTaskGroup) return;
+      const prepared = await ensureWeeklyGroupPersistedHelper({
+        weeklyGroup: selectedWeeklyTaskGroup,
+        state,
+        updateState,
+        saveGoalFn: saveGoal,
+        setWeeklyError,
+      });
+      if (!prepared) return;
+      toggleDailyHelper({
+        id,
+        state,
+        updateState,
+        canManageWeeklyRows,
+        saveGoalFn: saveGoal,
+        setWeeklyError,
+      });
+    })();
 
-  const createTaskFromDay = async (day: Goal, week: Goal) => {
-    const draft = assignDraftByDay[day.id];
-    const titleValue = (draft?.title || day.text || '').trim();
-    const assignee = (draft?.assigneeId || me.id || '').trim();
-    const dueDateValue = String(draft?.dueDate || '').trim();
-    const priorityValue = String(draft?.priority || 'medium').trim() || 'medium';
-    const statusValue = String(draft?.status || 'todo').trim() || 'todo';
-    const descriptionValue = String(draft?.description || '').trim();
-    const projectIdValue = String(draft?.projectId || '').trim();
-    const taskDocumentFile = weeklyTaskDocumentByDay[day.id] || null;
-    if (!titleValue || !assignee) {
-      setWeeklyError('Task title and assignee are required.');
-      return;
-    }
-    setAssigningDayTaskId(day.id);
+  const handleCreate = async () => {
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return;
+    setSaving(true);
+    setError(null);
     setWeeklyError('');
     try {
-      let uploadedDocument: {
-        documentUrl: string;
-        documentName: string;
-        documentMimeType: string;
-      } | null = null;
+      let plannerDay: Goal | null = null;
+      let plannerGroup: WeeklyTaskGroup | null = null;
 
-      if (taskDocumentFile) {
-        const formData = new FormData();
-        formData.append('file', taskDocumentFile);
-        const session = getStoredAuthSession();
-        const token = typeof session?.token === 'string' ? session.token : '';
-        const resUpload = await fetch(`${API_BASE}/spaces/tasks/upload-document`, {
-          method: 'POST',
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: formData,
-        });
-        const uploaded = await resUpload.json().catch(() => ({}));
-        if (!resUpload.ok) {
-          throw new Error(uploaded.message || 'Failed to upload task document');
+      if (createTaskPlannerEnabled) {
+        const selectedGroup =
+          activeWeeklyGroups.find((group) => group.weekSelectionKey === createTaskPlannerWeekId) ||
+          selectedWeeklyTaskGroup ||
+          null;
+        if (!selectedGroup) {
+          throw new Error('Select a planner week before creating this task.');
         }
-        uploadedDocument = {
-          documentUrl: String(uploaded.documentUrl || ''),
-          documentName: String(uploaded.documentName || taskDocumentFile.name || ''),
-          documentMimeType: String(uploaded.documentMimeType || taskDocumentFile.type || ''),
-        };
+        if (isNoVisionSelected) {
+          plannerGroup = selectedGroup;
+        } else {
+          const preparedGroup = await ensureWeeklyGroupPersistedHelper({
+            weeklyGroup: selectedGroup,
+            state,
+            updateState,
+            saveGoalFn: saveGoal,
+            setWeeklyError,
+          });
+          if (!preparedGroup) return;
+          plannerGroup = {
+            ...selectedGroup,
+            week: preparedGroup.week,
+            days: preparedGroup.days,
+          };
+        }
+        plannerDay =
+          plannerGroup?.days.find((day) => day.id === createTaskPlannerDayId) ||
+          plannerGroup?.days[0] ||
+          null;
+        if (!plannerDay) {
+          throw new Error('Select a planner day before creating this task.');
+        }
       }
 
-      const res = await fetch(`${API_BASE}/spaces/tasks`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          title: titleValue,
-          description: descriptionValue || `Created from Daily plan: ${week.text || 'Weekly Goal'}`,
-          documentUrl: uploadedDocument?.documentUrl || '',
-          documentName: uploadedDocument?.documentName || '',
-          documentMimeType: uploadedDocument?.documentMimeType || '',
-          projectId: projectIdValue || '',
-          assigneeId: assignee,
-          dueDate: dueDateValue,
-          priority: priorityValue,
-          status: statusValue,
-          customFields: {
-            dailyGoalId: day.id,
-            weeklyGoalId: week.id,
-            dailyGoalText: day.text || '',
-          },
-        }),
+      await createTaskInternal({
+        title: cleanTitle,
+        description,
+        assigneeId,
+        dueDate,
+        priority,
+        status,
+        projectId: selectedProjectId,
+        taskDocumentFile,
+        plannerDay,
+        plannerGroup,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.message || 'Failed to create task from daily goal');
-      }
-      setAssignDraftByDay((prev) => ({
-        ...prev,
-        [day.id]: {
-          title: day.text || '',
-          assigneeId: me.id || '',
-          dueDate: '',
-          priority: 'medium',
-          status: 'todo',
-          description: '',
-          projectId: '',
-        },
-      }));
-      setWeeklyTaskDocumentByDay((prev) => ({
-        ...prev,
-        [day.id]: null,
-      }));
-      setTasks((prev) => [normalizeTaskForUi(data as SpacesTask), ...prev]);
+
+      closeTaskCreateModal();
     } catch (e: any) {
-      setWeeklyError(e?.message || 'Failed to create task');
+      setError(e?.message || 'Failed to create task');
     } finally {
-      setAssigningDayTaskId('');
+      setUploadingTaskDocument(false);
+      setSaving(false);
     }
   };
   const TASKS_PER_PAGE = 15;
@@ -1094,13 +1593,22 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   useEffect(() => {
     setSelectedDayByWeek((prev) => {
       if (!weeklyTaskGroups.length) return prev;
+      const today = new Date();
+      const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
       let changed = false;
       const next = { ...prev };
-      weeklyTaskGroups.forEach(({ week, days }) => {
+      weeklyTaskGroups.forEach(({ week, weekStart, days }) => {
         if (!days.length) return;
         const selected = next[week.id];
         if (!selected || !days.some((d) => d.id === selected)) {
-          next[week.id] = days[0].id;
+          const todayDay =
+            days.find((day, index) => {
+              const dayDate = new Date(weekStart);
+              dayDate.setDate(weekStart.getDate() + index);
+              const normalizedDay = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate()).getTime();
+              return normalizedDay === normalizedToday;
+            }) || null;
+          next[week.id] = todayDay?.id || days[0].id;
           changed = true;
         }
       });
@@ -1217,36 +1725,139 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     }
   };
 
-  const mainSectionsProps = { setCreatePanelTab, createPanelTab, assignmentHint, setAssigneeId, me, title, setTitle, assigneeId, createAssigneeOptions, employeesLoading, employeeNameById, dueDate, setDueDate, priority, setPriority, priorityOptions, status, setStatus, statusOptions, description, setDescription, selectedProjectId, setSelectedProjectId, projectSelectOptions, projectsLoading, setTaskDocumentFile, taskDocumentFile, handleCreate, saving, uploadingTaskDocument, topPriorityTasks, patchTask, deleteTask, weeklyError, state, updateState, setWeeklyRangeFilter, weeklyRangeFilter, filteredWeeklyTaskGroups, getWeekBreadcrumb: getWeekBreadcrumbForView, selectedDayByWeek, getSundayStart, getWeekStartDate: getWeekStartDateForView, getDayDisplay, setSelectedDayByWeek, tasks, toggleDaily, canManageWeeklyRows, assignDraftByDay, setAssignDraftByDay, setWeeklyTaskDocumentByDay, weeklyTaskDocumentByDay, createTaskFromDay, assigningDayTaskId, createDaysForWeek, setTaskFilterMode, taskFilterMode, taskSearch, setTaskSearch, columns, isRenamingColumnId, renameDraft, setRenameDraft, setIsRenamingColumnId, setActiveColumnMenuId, sortedTasks, setColumns, setError, activeColumnMenuId, setColumnToDelete, handleAddColumn, spacesLoading, paginatedTasks, canEditTask, isTaskLocked, getTaskRowClasses, projectNameById, mode, assigneeOptionsForTask, canEditDueDate, canChangeStatus, forceDownloadDocument, canCommentOnTask, setCommentTaskId, setModalStatus, canValidateTask, canDeleteTask, handleApproveTask, handleRejectTask, navigate, setEditingTask, setEditingTaskMode, setEditingTaskDraft, setDeleteTaskModal, taskPage, TASKS_PER_PAGE, setTaskPage, visibleTaskPages, totalTaskPages, API_BASE, getAuthHeaders, activeCommentTask, setCommentDraft, commentDraft, editingCommentId, setEditingCommentId, editCommentDraft, setEditCommentDraft, setTasks, modalStatus, handleAddComment, submittingComment, columnToDelete, commentToDeleteId, setCommentToDeleteId, deleteTaskModal, rejectTaskModal, rejectFeedbackDraft, setRejectFeedbackDraft, rejectingTask, confirmRejectTask, editingTask, editingTaskMode, editingTaskDraft, assignableEmployees };
+  const mainSectionsProps = {
+    assignmentHint,
+    me,
+    title,
+    setTitle,
+    assigneeId,
+    setAssigneeId,
+    createAssigneeOptions,
+    employeesLoading,
+    employeeNameById,
+    dueDate,
+    setDueDate,
+    priority,
+    setPriority,
+    priorityOptions,
+    status,
+    setStatus,
+    statusOptions,
+    description,
+    setDescription,
+    selectedProjectId,
+    setSelectedProjectId,
+    projectSelectOptions,
+    projectsLoading,
+    setTaskDocumentFile,
+    taskDocumentFile,
+    handleCreate,
+    saving,
+    uploadingTaskDocument,
+    error,
+    isTaskCreateModalOpen,
+    openTaskCreateModal,
+    closeTaskCreateModal,
+    createTaskPlannerEnabled,
+    setCreateTaskPlannerEnabled,
+    createTaskPlannerWeekId,
+    setCreateTaskPlannerWeekId,
+    plannerWeekOptions,
+    createTaskPlannerDayId,
+    setCreateTaskPlannerDayId,
+    plannerDayOptions,
+    plannerSummary,
+    topPriorityTasks,
+    patchTask,
+    deleteTask,
+    weeklyError,
+    state,
+    updateState,
+    selectedWeeklyDay,
+    selectedWeeklyTaskGroup,
+    weeklyPeriodPicker,
+    getWeekBreadcrumb: getWeekBreadcrumbForView,
+    getWeekStartDate: getWeekStartDateForView,
+    getDayDisplay,
+    setSelectedDayByWeek,
+    tasks,
+    toggleDaily,
+    canManageWeeklyRows,
+    createDaysForWeek,
+    setTaskFilterMode,
+    taskFilterMode,
+    taskSearch,
+    setTaskSearch,
+    columns,
+    isRenamingColumnId,
+    renameDraft,
+    setRenameDraft,
+    setIsRenamingColumnId,
+    setActiveColumnMenuId,
+    sortedTasks,
+    setColumns,
+    setError,
+    activeColumnMenuId,
+    setColumnToDelete,
+    handleAddColumn,
+    spacesLoading,
+    paginatedTasks,
+    canEditTask,
+    isTaskLocked,
+    getTaskRowClasses,
+    projectNameById,
+    mode,
+    assigneeOptionsForTask,
+    canEditDueDate,
+    canChangeStatus,
+    forceDownloadDocument,
+    canCommentOnTask,
+    setCommentTaskId,
+    setModalStatus,
+    canValidateTask,
+    canDeleteTask,
+    handleApproveTask,
+    handleRejectTask,
+    navigate,
+    setEditingTask,
+    setEditingTaskMode,
+    setEditingTaskDraft,
+    setDeleteTaskModal,
+    taskPage,
+    TASKS_PER_PAGE,
+    setTaskPage,
+    visibleTaskPages,
+    totalTaskPages,
+    API_BASE,
+    getAuthHeaders,
+    activeCommentTask,
+    setCommentDraft,
+    commentDraft,
+    editingCommentId,
+    setEditingCommentId,
+    editCommentDraft,
+    setEditCommentDraft,
+    setTasks,
+    modalStatus,
+    handleAddComment,
+    submittingComment,
+    columnToDelete,
+    commentToDeleteId,
+    setCommentToDeleteId,
+    deleteTaskModal,
+    rejectTaskModal,
+    rejectFeedbackDraft,
+    setRejectFeedbackDraft,
+    rejectingTask,
+    confirmRejectTask,
+    editingTask,
+    editingTaskMode,
+    editingTaskDraft,
+    assignableEmployees,
+  };
 
   return (
-    <div ref={taskHubRootRef} className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-700">
-      <div className="flex items-end justify-between gap-6">
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <div className="h-1.5 w-8 bg-brand-red rounded-full" />
-            <span className="text-[15px] text-slate-500">Task Hub</span>
-          </div>
-          <h2 className="text-4xl text-slate-900 leading-none">Task Hub</h2>
-          <p className="text-slate-500 text-lg mt-3">
-            Tasks table with project/no-project support.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={loadSpaces}
-          disabled={spacesLoading}
-          className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 ${
-            spacesLoading ? 'opacity-60 cursor-not-allowed' : ''
-          }`}
-          title="Refresh"
-        >
-          <RefreshCw size={16} />
-          Refresh
-        </button>
-      </div>
-
+    <div ref={taskHubRootRef} className="-m-16 min-h-full space-y-6 px-6 py-8 animate-in fade-in duration-700">
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-[15px]">
           {error}

@@ -357,7 +357,7 @@ export const ThemedSelect: React.FC<{
         ? createPortal(
             <div
               ref={menuRef}
-              className={`${menuClass} fixed z-[140] overflow-y-auto ${denseMenu ? 'max-h-[196px]' : 'max-h-[240px]'}`}
+              className={`${menuClass} fixed z-[220] overflow-y-auto ${denseMenu ? 'max-h-[196px]' : 'max-h-[240px]'}`}
               style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, width: `${menuPosition.width}px` }}
             >
               {options.map((option) => {
@@ -380,6 +380,176 @@ export const ThemedSelect: React.FC<{
             document.body,
           )
         : null}
+    </div>
+  );
+};
+
+type WeeklyPeriodPickerOption = {
+  value: string;
+  label: string;
+  caption?: string;
+  description?: string;
+};
+
+export const WeeklyTaskPeriodPicker: React.FC<{
+  summary: string;
+  detail: string;
+  projectOptions?: WeeklyPeriodPickerOption[];
+  selectedProject?: string;
+  onProjectChange?: (value: string) => void;
+  quarterOptions: WeeklyPeriodPickerOption[];
+  selectedQuarter: string;
+  onQuarterChange: (value: string) => void;
+  monthOptions: WeeklyPeriodPickerOption[];
+  selectedMonth: string;
+  onMonthChange: (value: string) => void;
+  weekOptions: WeeklyPeriodPickerOption[];
+  selectedWeek: string;
+  onWeekChange: (value: string) => void;
+  disabled?: boolean;
+  compactTrigger?: boolean;
+  dropdownAlign?: 'left' | 'right';
+}> = ({
+  summary,
+  detail,
+  projectOptions = [],
+  selectedProject = '',
+  onProjectChange,
+  quarterOptions,
+  selectedQuarter,
+  onQuarterChange,
+  monthOptions,
+  selectedMonth,
+  onMonthChange,
+  weekOptions,
+  selectedWeek,
+  onWeekChange,
+  disabled = false,
+  compactTrigger = false,
+  dropdownAlign = 'left',
+}) => {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!wrapperRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [open]);
+
+  const renderOptionColumn = (
+    heading: string,
+    options: WeeklyPeriodPickerOption[],
+    selectedValue: string,
+    onSelect: (value: string) => void,
+  ) => (
+    <div className="min-w-0">
+      <div className={`px-1 font-semibold uppercase tracking-[0.2em] text-slate-400 ${compactTrigger ? 'mb-1 text-[9px]' : 'mb-2 text-[10px]'}`}>{heading}</div>
+      <div className={`space-y-1.5 overflow-y-auto border border-slate-200/90 bg-slate-50/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] ${
+        compactTrigger ? 'max-h-[204px] rounded-[15px] p-1.5' : 'max-h-[196px] rounded-[22px] p-2'
+      }`}>
+        {options.map((option) => {
+          const isSelected = option.value === selectedValue;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onSelect(option.value)}
+              className={`w-full border text-left transition-all duration-150 ${
+                compactTrigger ? 'rounded-[12px] px-2.5 py-1.5' : 'rounded-[16px] px-3 py-2'
+              } ${
+                isSelected
+                  ? 'border-brand-red bg-brand-red text-white shadow-[0_10px_20px_rgba(239,68,68,0.18)]'
+                  : 'border-slate-100 bg-white/95 text-slate-700 shadow-[0_3px_10px_rgba(15,23,42,0.035)] hover:border-slate-200 hover:bg-white'
+              }`}
+            >
+              <div className={compactTrigger ? 'text-[11px] font-semibold leading-4' : 'text-[13px] font-semibold leading-5'}>{option.label}</div>
+              {option.caption ? (
+                <div className={`${compactTrigger ? 'mt-0.5 text-[8px] leading-3.5' : 'mt-0.5 text-[10px] leading-4'} ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>{option.caption}</div>
+              ) : null}
+              {option.description ? (
+                <div className={`${compactTrigger ? 'mt-0.5 line-clamp-2 text-[8px] leading-3.5' : 'mt-0.5 line-clamp-2 text-[10px] leading-4'} ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>{option.description}</div>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen((prev) => !prev)}
+        disabled={disabled}
+        className={`flex w-full items-center justify-between text-left transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60 ${
+          compactTrigger
+            ? 'min-h-[56px] gap-2 rounded-[16px] border border-slate-300 bg-white px-2 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.05)]'
+            : 'gap-4 rounded-[28px] border border-slate-300 bg-white px-5 py-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)]'
+        }`}
+      >
+        <div className={`flex min-w-0 items-center ${compactTrigger ? 'gap-1.5' : 'gap-4'}`}>
+          <div
+            className={`flex shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-500 ${
+              compactTrigger ? 'h-7 w-7' : 'h-14 w-14'
+            }`}
+          >
+            <Calendar size={compactTrigger ? 12 : 20} />
+          </div>
+          <div className="min-w-0">
+            <div className={`truncate font-semibold leading-none text-slate-900 ${compactTrigger ? 'text-[13px]' : 'text-[26px]'}`}>{summary}</div>
+            <div className={`truncate uppercase tracking-[0.14em] text-slate-400 ${compactTrigger ? 'mt-0.5 text-[6px]' : 'mt-2 text-[12px]'}`}>{detail}</div>
+          </div>
+        </div>
+        <ChevronDown size={compactTrigger ? 12 : 18} className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && !disabled ? (
+        <div
+          className={`absolute top-full z-30 mt-2.5 max-w-[calc(100vw-2rem)] border border-slate-200 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.1)] ${
+            compactTrigger
+              ? 'left-1/2 w-[min(900px,calc(100vw-2rem))] -translate-x-1/2 rounded-[20px] p-3'
+              : 'w-[min(1100px,calc(100vw-2rem))] rounded-[26px] p-3.5'
+          } ${compactTrigger ? '' : dropdownAlign === 'right' ? 'right-0' : 'left-0'}`}
+        >
+          {compactTrigger ? (
+            <div className="absolute left-1/2 top-0 h-3 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white shadow-[0_6px_14px_rgba(15,23,42,0.06)]" />
+          ) : null}
+          <div className={`grid ${compactTrigger ? 'gap-2.5' : 'gap-3'} ${projectOptions.length ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+            {projectOptions.length && onProjectChange
+              ? renderOptionColumn('Visions', projectOptions, selectedProject, onProjectChange)
+              : null}
+            {renderOptionColumn('Quarter', quarterOptions, selectedQuarter, onQuarterChange)}
+            {renderOptionColumn('Month', monthOptions, selectedMonth, onMonthChange)}
+            {renderOptionColumn('Week', weekOptions, selectedWeek, onWeekChange)}
+          </div>
+
+          <div className={`mt-2.5 flex flex-col gap-2 border border-slate-200 bg-slate-50/70 md:flex-row md:items-center md:justify-between ${
+            compactTrigger ? 'rounded-[14px] px-3 py-2' : 'rounded-[22px] px-4 py-3.5'
+          }`}>
+            <div>
+              <div className={`font-semibold uppercase tracking-[0.18em] text-slate-400 ${compactTrigger ? 'text-[9px]' : 'text-[11px]'}`}>Selected Period</div>
+              <div className={`mt-0.5 font-semibold text-slate-900 ${compactTrigger ? 'text-[15px]' : 'text-[22px]'}`}>{summary}</div>
+              <div className={`mt-0.5 text-slate-500 ${compactTrigger ? 'text-[10px]' : 'text-[13px]'}`}>{detail}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className={`inline-flex items-center justify-center rounded-full border border-slate-200 bg-white font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 ${
+                compactTrigger ? 'px-4 py-1.5 text-[13px]' : 'px-6 py-3 text-[15px]'
+              }`}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

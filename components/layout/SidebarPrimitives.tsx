@@ -64,7 +64,7 @@ export const SidebarToggleButton: React.FC<{ isOpen: boolean; onToggle: () => vo
   );
 };
 
-export const SidebarLink: React.FC<{ to: string; icon: any; label: string; collapsed: boolean }> = ({ to, icon, label, collapsed }) => {
+export const SidebarLink: React.FC<{ to: string; icon: any; label: string; collapsed: boolean; badgeCount?: number }> = ({ to, icon, label, collapsed, badgeCount }) => {
   const location = useLocation();
   const linkRef = useRef<HTMLAnchorElement | null>(null);
   const [tooltipOpen, setTooltipOpen] = useState(false);
@@ -113,9 +113,24 @@ export const SidebarLink: React.FC<{ to: string; icon: any; label: string; colla
         onBlur={() => setTooltipOpen(false)}
       >
         <div className={`${isActive ? 'scale-105 text-white' : 'opacity-70 text-slate-500 group-hover:text-brand-red group-hover:opacity-100'} transition-transform shrink-0`}>{icon}</div>
-        {!collapsed && (isActive
-          ? <span className="text-[13px] font-medium tracking-[-0.01em] text-white truncate">{label}</span>
-          : <span className="text-[13px] font-medium tracking-[-0.01em] truncate group-hover:text-brand-red">{label}</span>
+        {!collapsed && (
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+            {isActive
+              ? <span className="text-[13px] font-medium tracking-[-0.01em] text-white truncate">{label}</span>
+              : <span className="text-[13px] font-medium tracking-[-0.01em] truncate group-hover:text-brand-red">{label}</span>
+            }
+            {badgeCount && badgeCount > 0 ? (
+              <span
+                className={`inline-flex min-w-[24px] items-center justify-center rounded-full px-2 py-1 text-[11px] font-semibold leading-none ${
+                  isActive
+                    ? 'bg-white text-brand-red ring-1 ring-white/70'
+                    : 'bg-white text-brand-red shadow-[0_8px_18px_rgba(15,23,42,0.10)] ring-1 ring-brand-red/10'
+                }`}
+              >
+                {badgeCount}
+              </span>
+            ) : null}
+          </div>
         )}
       </Link>
       {collapsed && tooltipOpen && <SidebarTooltip label={label} top={tooltipStyle.top} left={tooltipStyle.left} />}
