@@ -365,6 +365,26 @@ export function formatUsDateTime(value?: string) {
   });
 }
 
+/** Date + time when content was created (e.g. cards, previews); matches card time zone. */
+export function formatContentCreatedStamp(value?: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const datePart = date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata',
+  });
+  const timePart = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kolkata',
+  });
+  return `${datePart} · ${timePart}`;
+}
+
 export function findScrollContainer(node: HTMLElement | null): HTMLElement | Window {
   let current = node?.parentElement || null;
   while (current) {
