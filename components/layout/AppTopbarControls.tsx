@@ -1,25 +1,86 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, LogOut, UserCircle } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import {
+  Bell,
+  Briefcase,
+  CalendarClock,
+  CircleCheck,
+  CircleX,
+  ClipboardList,
+  FileText,
+  Inbox,
+  LayoutGrid,
+  LogOut,
+  MessageSquare,
+  NotebookPen,
+  Palmtree,
+  Send,
+  UserCircle,
+  UsersRound,
+} from 'lucide-react';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
+import type { AppShellNotification } from './authenticatedShellTypes';
 
-interface AppNotification {
-  _id: string;
-  title: string;
-  message: string;
-  route: string;
-  isRead: boolean;
-  createdAt: string;
+function getNotificationIconMeta(notification: AppShellNotification): { Icon: LucideIcon; wrapClass: string } {
+  const t = String(notification.type || '').trim();
+  const titleLower = String(notification.title || '').toLowerCase();
+  const routeLower = String(notification.route || '').toLowerCase();
+  const meta = notification.metadata && typeof notification.metadata === 'object' ? notification.metadata : {};
+  const cat = String((meta as { category?: string }).category || '').toLowerCase();
+
+  if (t === 'daily_review_reminder') {
+    return { Icon: CalendarClock, wrapClass: 'bg-violet-100 text-violet-700' };
+  }
+  if (t === 'leave_request_submitted') {
+    return { Icon: Send, wrapClass: 'bg-emerald-100 text-emerald-700' };
+  }
+  if (t === 'leave_request_review') {
+    return { Icon: Inbox, wrapClass: 'bg-amber-100 text-amber-800' };
+  }
+  if (t === 'leave_request_status') {
+    const rejected = titleLower.includes('reject');
+    return rejected
+      ? { Icon: CircleX, wrapClass: 'bg-rose-100 text-rose-700' }
+      : { Icon: CircleCheck, wrapClass: 'bg-emerald-100 text-emerald-700' };
+  }
+
+  if (cat === 'leave' || /leave/i.test(notification.title || '') || /leave/i.test(notification.message || '') || routeLower.includes('leave')) {
+    return { Icon: Palmtree, wrapClass: 'bg-teal-100 text-teal-700' };
+  }
+  if (routeLower.includes('attendance')) {
+    return { Icon: ClipboardList, wrapClass: 'bg-sky-100 text-sky-700' };
+  }
+  if (routeLower.includes('review')) {
+    return { Icon: NotebookPen, wrapClass: 'bg-violet-100 text-violet-700' };
+  }
+  if (routeLower.includes('content')) {
+    return { Icon: FileText, wrapClass: 'bg-fuchsia-100 text-fuchsia-700' };
+  }
+  if (routeLower.includes('communication')) {
+    return { Icon: MessageSquare, wrapClass: 'bg-blue-100 text-blue-700' };
+  }
+  if (routeLower.includes('crm')) {
+    return { Icon: Briefcase, wrapClass: 'bg-orange-100 text-orange-800' };
+  }
+  if (routeLower.includes('spaces')) {
+    return { Icon: LayoutGrid, wrapClass: 'bg-indigo-100 text-indigo-700' };
+  }
+  if (routeLower.includes('staff')) {
+    return { Icon: UsersRound, wrapClass: 'bg-slate-200 text-slate-700' };
+  }
+
+  return { Icon: Bell, wrapClass: 'bg-slate-100 text-slate-600' };
 }
 
 interface NotificationBellMenuProps {
   notificationMenuOpen: boolean;
   unreadNotificationCount: number;
   notificationsLoading: boolean;
-  notifications: AppNotification[];
+  notifications: AppShellNotification[];
   setNotificationMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setUserMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  openNotification: (notification: AppNotification) => Promise<void>;
+  openNotification: (notification: AppShellNotification) => Promise<void>;
   markNotificationRead: (notificationId: string) => Promise<void>;
 }
 
@@ -55,8 +116,8 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
     {notificationMenuOpen && createPortal(
       <>
         <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setNotificationMenuOpen(false)} />
-        <div className="fixed right-8 top-20 z-[9999] w-[24rem] overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_22px_50px_rgba(15,23,42,0.16)]">
-          <div className="border-b border-slate-100 px-5 py-4">
+        <div className="fixed right-4 top-20 z-[9999] w-[min(100vw-1.25rem,28rem)] overflow-hidden rounded-2xl bg-white shadow-[0_22px_50px_rgba(15,23,42,0.16)] sm:right-8">
+          <div className="border-b border-slate-100 px-4 py-3.5 sm:px-5 sm:py-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Notifications</p>
@@ -74,53 +135,57 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
             </div>
           </div>
 
-          <div className="max-h-[26rem] overflow-y-auto px-3 py-3">
+          <div className="max-h-[26rem] overflow-y-auto">
             {notificationsLoading ? (
-              <div className="px-3 py-6 text-sm text-slate-500">Loading notifications...</div>
+              <div className="px-4 py-6 text-sm text-slate-500 sm:px-5">Loading notifications...</div>
             ) : notifications.length === 0 ? (
-              <div className="px-3 py-6 text-sm text-slate-500">No notifications available.</div>
+              <div className="px-4 py-6 text-sm text-slate-500 sm:px-5">No notifications available.</div>
             ) : (
-              notifications.map((notification) => (
-                <div
-                  key={notification._id}
-                  className={`mb-3 rounded-[20px] border px-4 py-4 last:mb-0 ${
-                    notification.isRead ? 'border-slate-200 bg-slate-50' : 'border-brand-red/20 bg-red-50/60'
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => void openNotification(notification)}
-                    className="w-full text-left"
+              notifications.map((notification) => {
+                const { Icon, wrapClass } = getNotificationIconMeta(notification);
+                const rowTint = notification.isRead ? '' : 'bg-red-50/50';
+                return (
+                  <div
+                    key={notification._id}
+                    className={`border-b border-slate-100 last:border-b-0 ${rowTint}`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{notification.title}</p>
-                        <p className="mt-1 text-sm leading-6 text-slate-600">{notification.message}</p>
+                    <button
+                      type="button"
+                      onClick={() => void openNotification(notification)}
+                      className={`flex w-full items-start gap-3 px-4 py-4 text-left transition sm:px-5 ${
+                        notification.isRead ? 'hover:bg-slate-50/90' : 'hover:bg-red-50/70'
+                      }`}
+                    >
+                      <span className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${wrapClass}`}>
+                        <Icon className="h-5 w-5" strokeWidth={2} aria-hidden />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-semibold leading-snug text-slate-900">{notification.title}</span>
+                          {!notification.isRead ? (
+                            <span className="mt-1.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-brand-red shadow-sm" aria-hidden />
+                          ) : null}
+                        </span>
+                        <p className="mt-1 text-sm leading-relaxed text-slate-600">{notification.message}</p>
                         <p className="mt-2 text-[12px] font-medium text-slate-400">
                           {new Date(notification.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })}
                         </p>
+                      </span>
+                    </button>
+                    {!notification.isRead ? (
+                      <div className="flex justify-end px-4 pb-3 sm:px-5">
+                        <button
+                          type="button"
+                          onClick={() => void markNotificationRead(notification._id)}
+                          className="text-xs font-semibold text-brand-red hover:text-slate-900"
+                        >
+                          Mark as read
+                        </button>
                       </div>
-                      {!notification.isRead && (
-                        <span className="mt-1 inline-flex h-2.5 w-2.5 rounded-full bg-brand-red shadow-sm" />
-                      )}
-                    </div>
-                  </button>
-                  {!notification.isRead && (
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void markNotificationRead(notification._id);
-                        }}
-                        className="text-xs font-semibold text-brand-red hover:text-slate-900"
-                      >
-                        Mark as read
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
+                    ) : null}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>

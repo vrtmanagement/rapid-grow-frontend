@@ -1,8 +1,7 @@
-
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { PlanningState, TeamMember } from '../types';
 import { API_BASE, getAuthHeaders } from '../config/api';
-import { User, Eye, EyeOff, Check, Settings, Image as ImageIcon } from 'lucide-react';
+import { Camera, Check, Eye, EyeOff } from 'lucide-react';
 import AvatarCropModal from '../components/profile/AvatarCropModal';
 import { getDisplayAvatarUrl, notifyProfileAvatarUpdated, persistSessionEmployeeAvatar } from '../utils/avatar';
 
@@ -13,9 +12,10 @@ interface Props {
 
 const SUPER_ADMIN_EMAIL = 'akumar@vrt9.com';
 
-
 const ProfileView: React.FC<Props> = ({ state, updateState }) => {
   const isSuperAdmin = state.currentUser.email === SUPER_ADMIN_EMAIL;
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [profileName, setProfileName] = useState(state.currentUser.name);
   const [profilePassword, setProfilePassword] = useState('');
@@ -43,8 +43,13 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
     }
   }, []);
 
-  const handleUserRecordChange = (updates: Partial<TeamMember>) => {
-    setHasChanges(true);
+  const handleUserRecordChange = (
+    updates: Partial<TeamMember>,
+    options: { markDirty?: boolean } = {},
+  ) => {
+    if (options.markDirty !== false) {
+      setHasChanges(true);
+    }
     updateState(prev => {
       const updatedUser = { ...prev.currentUser, ...updates };
       const updatedTeam = prev.team.map(m => (m.id === prev.currentUser.id ? updatedUser : m));
@@ -81,13 +86,13 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
       }
       const nextAvatar = data.avatar || '';
       persistSessionEmployeeAvatar(nextAvatar, data);
-      handleUserRecordChange({ avatar: nextAvatar });
+      handleUserRecordChange({ avatar: nextAvatar }, { markDirty: false });
       notifyProfileAvatarUpdated({
         avatar: nextAvatar,
         empId: data.empId || backendEmployee?.empId,
         userId: data._id || backendEmployee?._id || state.currentUser.id,
       });
-      setHasChanges(true);
+      setInfoDialogMessage('Profile image updated successfully.');
     } catch (e: any) {
       setProfileError(e?.message || 'Failed to upload profile image');
       throw e;
@@ -107,8 +112,7 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
     }
     const trimmedAvatar = (state.currentUser.avatar || '').trim();
     const backendAvatar = (backendEmployee?.avatar || '').trim();
-    const isUrlAvatar =
-      trimmedAvatar.startsWith('http://') || trimmedAvatar.startsWith('https://');
+    const isUrlAvatar = trimmedAvatar.startsWith('http://') || trimmedAvatar.startsWith('https://');
     if (isUrlAvatar && trimmedAvatar && trimmedAvatar !== backendAvatar) {
       body.avatar = trimmedAvatar;
     }
@@ -118,6 +122,7 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
       }
       setProfilePassword('');
       setHasChanges(false);
+      setEditingProfile(false);
       return;
     }
     setSavingProfile(true);
@@ -153,6 +158,7 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
       });
       setProfilePassword('');
       setHasChanges(false);
+      setEditingProfile(false);
       setInfoDialogMessage('Profile updated successfully.');
     } catch (e: any) {
       setProfileError(e?.message || 'Failed to update profile');
@@ -161,212 +167,175 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
     }
   };
 
+  const handleCancelEdit = () => {
+    setProfileName(state.currentUser.name);
+    setProfilePassword('');
+    setHasChanges(false);
+    setProfileError(null);
+    setEditingProfile(false);
+  };
+
   const displayAvatar = getDisplayAvatarUrl(
     state.currentUser.avatar,
     backendEmployee?.empName || state.currentUser.name,
   );
 
+  const detailRows = [
+    ['Role', state.currentUser.role || (isSuperAdmin ? 'Super Admin' : '-')],
+    ['Email', state.currentUser.email || '-'],
+    ['Employee ID', backendEmployee?.empId || '-'],
+    ['Designation', backendEmployee?.designation || '-'],
+    ['Department', backendEmployee?.department || '-'],
+    ['Phone', backendEmployee?.phone || '-'],
+  ];
+
   return (
-    <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-500 pb-24 relative">
-      <div className="bg-white p-16 rounded-[4rem] shadow-xl border border-slate-200 overflow-hidden relative">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-12 border-b border-slate-50 pb-16 mb-16">
-          <div className="flex items-center gap-10">
-            <div className="w-24 h-24 bg-indigo-950 rounded-[3rem] flex items-center justify-center text-white shadow-3xl rotate-6 group">
-              <Settings size={48} className="group-hover:rotate-180 transition-all duration-1000" />
-            </div>
-            <div>
-              <h2 className="text-6xl text-slate-900 leading-none">{state.uiConfig.profileTitle}</h2>
-              <p className="text-slate-500 text-xl mt-3">{state.uiConfig.profileSub}</p>
-            </div>
+    <div className="mx-auto max-w-4xl pb-24 animate-in fade-in duration-500">
+      <div className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-[0_18px_60px_rgba(15,23,42,0.08)] md:p-10">
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-4xl font-bold leading-tight text-slate-900">{state.uiConfig.profileTitle}</h2>
+            <p className="mt-2 text-base text-slate-500">{state.uiConfig.profileSub}</p>
           </div>
+          <button
+            type="button"
+            onClick={editingProfile ? handleCancelEdit : () => setEditingProfile(true)}
+            className="rounded-xl border border-red-200 px-5 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+          >
+            {editingProfile ? 'Cancel' : 'Edit'}
+          </button>
         </div>
 
-        <div className="min-h-[400px] animate-in slide-in-from-bottom-6">
-          <div className="flex flex-col md:flex-row gap-20 items-start">
-            <div className="w-full md:w-1/3 flex flex-col items-center gap-8">
-              <div className="aspect-square bg-slate-100 rounded-[4rem] border-[12px] border-white shadow-3xl overflow-hidden relative group">
-                <img
-                  src={displayAvatar}
-                  className="w-full h-full object-cover transition-all group-hover:scale-110"
-                  alt="Profile"
-                />
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center text-white text-[12px] text-center p-8">
-                  Update profile image using URL or upload below
-                </div>
-              </div>
-              <div className="w-full space-y-3">
-                <label className="text-[13px] text-slate-700 px-2 flex items-center gap-2">
-                  <ImageIcon size={16} /> Profile image URL
-                </label>
+        <div className="grid gap-8 md:grid-cols-[112px_minmax(0,1fr)]">
+          <div className="flex justify-center md:block">
+            <div className="relative h-24 w-24">
+              <img
+                src={displayAvatar}
+                className="h-24 w-24 rounded-full object-cover shadow-lg ring-4 ring-white"
+                alt="Profile"
+              />
+              <button
+                type="button"
+                aria-label="Change profile image"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full bg-red-500 text-white shadow-lg ring-4 ring-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Camera size={16} />
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={uploadingAvatar}
+                onChange={e => {
+                  const file = e.target.files?.[0] || null;
+                  if (file) {
+                    setPendingAvatarFile(file);
+                  }
+                  e.target.value = '';
+                }}
+              />
+            </div>
+            {uploadingAvatar && (
+              <p className="mt-4 text-center text-xs font-medium text-slate-500 md:text-left">Uploading...</p>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid gap-2 border-b border-slate-100 pb-4 sm:grid-cols-[160px_minmax(0,1fr)]">
+              <span className="text-base text-slate-500">Full Name</span>
+              {editingProfile ? (
                 <input
                   type="text"
-                  value={state.currentUser.avatar || ''}
-                  onChange={e => handleUserRecordChange({ avatar: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4 text-sm text-slate-900 outline-none focus:bg-white focus:border-indigo-500 transition-all"
-                  placeholder="https://example.com/avatar.png"
-                />
-                <div className="space-y-2 px-2">
-                  <label className="text-[13px] text-slate-700">Or upload profile image</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={e => {
-                      const file = e.target.files?.[0] || null;
-                      if (file) {
-                        setPendingAvatarFile(file);
-                      }
-                      e.target.value = '';
-                    }}
-                    className="block w-full text-[13px] text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[13px] file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
-                    disabled={uploadingAvatar}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 w-full space-y-10">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-3">
-                  <label className="text-[13px] text-slate-700 px-2 flex items-center gap-2">
-                    <User size={16} /> Full name
-                  </label>
-                <input
-                    type="text"
-                    value={profileName}
+                  value={profileName}
                   onChange={e => {
                     setProfileName(e.target.value);
                     setHasChanges(true);
                   }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4 text-md text-slate-900 outline-none focus:bg-white focus:border-indigo-500 transition-all"
-                  />
-                </div>
+                  className="w-full border-0 border-b border-slate-300 bg-transparent px-0 py-1 text-base font-semibold text-slate-900 outline-none focus:border-red-400"
+                />
+              ) : (
+                <span className="break-words text-base font-semibold text-slate-900">
+                  {state.currentUser.name || '-'}
+                </span>
+              )}
+            </div>
 
-                <div className="space-y-3">
-                  <label className="text-[13px] text-slate-700 px-2">Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={profilePassword}
-                      onChange={e => {
-                        setProfilePassword(e.target.value);
-                        setHasChanges(true);
-                      }}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4 text-md text-slate-900 outline-none focus:bg-white focus:border-indigo-500 transition-all pr-12"
-                      placeholder="Enter new password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600"
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="text-[13px] text-slate-700 px-2">Email</label>
-                  <input
-                    type="text"
-                    value={state.currentUser.email}
-                    readOnly
-                    className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4 text-md text-slate-500 outline-none cursor-not-allowed"
-                  />
-                </div>
-
-                {backendEmployee?.empId && (
-                  <div className="space-y-3">
-                    <label className="text-[13px] text-slate-700 px-2">Employee ID</label>
-                    <input
-                      type="text"
-                      value={backendEmployee.empId}
-                      readOnly
-                      className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4 text-md text-slate-500 outline-none cursor-not-allowed"
-                    />
-                  </div>
-                )}
-
-                {backendEmployee?.designation && (
-                  <div className="space-y-3">
-                    <label className="text-[13px] text-slate-700 px-2">Designation</label>
-                    <input
-                      type="text"
-                      value={backendEmployee.designation}
-                      readOnly
-                      className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4 text-md text-slate-500 outline-none cursor-not-allowed"
-                    />
-                  </div>
-                )}
-
-                {backendEmployee?.department && (
-                  <div className="space-y-3">
-                    <label className="text-[13px] text-slate-700 px-2">Department</label>
-                    <input
-                      type="text"
-                      value={backendEmployee.department}
-                      readOnly
-                      className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4 text-md text-slate-500 outline-none cursor-not-allowed"
-                    />
-                  </div>
-                )}
-
-                {backendEmployee?.phone && (
-                  <div className="space-y-3">
-                    <label className="text-[13px] text-slate-700 px-2">Phone</label>
-                    <input
-                      type="text"
-                      value={backendEmployee.phone}
-                      readOnly
-                      className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-6 py-4 text-md text-slate-500 outline-none cursor-not-allowed"
-                    />
-                  </div>
-                )}
+            {detailRows.map(([label, value]) => (
+              <div
+                key={label}
+                className="grid gap-2 border-b border-slate-100 pb-4 sm:grid-cols-[160px_minmax(0,1fr)]"
+              >
+                <span className="text-base text-slate-500">{label}</span>
+                <span className="break-words text-base font-semibold text-slate-800">{value}</span>
               </div>
+            ))}
 
-              {profileError && (
-                <div className="text-[13px] text-red-600 px-2">
-                  {profileError}
+            {editingProfile && (
+              <div className="grid gap-2 border-b border-slate-100 pb-4 sm:grid-cols-[160px_minmax(0,1fr)]">
+                <span className="text-base text-slate-500">Password</span>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={profilePassword}
+                    onChange={e => {
+                      setProfilePassword(e.target.value);
+                      setHasChanges(true);
+                    }}
+                    className="w-full border-0 border-b border-slate-300 bg-transparent px-0 py-1 pr-10 text-base font-semibold text-slate-900 outline-none focus:border-red-400"
+                    placeholder="Enter new password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-500"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
-              )}
-              {uploadingAvatar && (
-                <div className="text-[13px] text-slate-600 px-2">Uploading profile image...</div>
-              )}
+              </div>
+            )}
 
-              <div className="flex justify-end">
+            {profileError && <div className="text-sm text-red-600">{profileError}</div>}
+
+            {editingProfile && (
+              <div className="flex justify-end pt-2">
                 <button
                   type="button"
                   onClick={handleSaveProfile}
                   disabled={savingProfile || !hasChanges}
-                  className="px-8 py-3 rounded-full bg-indigo-600 text-white text-[14px] font-bold tracking-[0.15em] uppercase shadow-lg hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="rounded-xl bg-slate-900 px-6 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {savingProfile ? 'Saving…' : 'Save changes'}
+                  {savingProfile ? 'Saving...' : 'Save changes'}
                 </button>
               </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {infoDialogMessage && (
+        <div className="fixed right-6 top-6 z-50 animate-in slide-in-from-top-2 fade-in duration-300">
+          <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-white px-4 py-3 shadow-[0_18px_45px_rgba(15,23,42,0.12)]">
+            <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <Check size={18} />
+            </div>
+            <div className="pr-2">
+              <p className="text-sm font-semibold text-slate-900">Profile updated</p>
+              <p className="text-sm text-slate-500">{infoDialogMessage}</p>
             </div>
           </div>
         </div>
+      )}
 
-        {infoDialogMessage && (
-          <div className="fixed top-6 right-6 z-50 animate-in slide-in-from-top-2 fade-in duration-300">
-            <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-white px-4 py-3 shadow-[0_18px_45px_rgba(15,23,42,0.12)]">
-              <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                <Check size={18} />
-              </div>
-              <div className="pr-2">
-                <p className="text-sm font-semibold text-slate-900">Profile updated</p>
-                <p className="text-sm text-slate-500">{infoDialogMessage}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <AvatarCropModal
-          open={!!pendingAvatarFile}
-          file={pendingAvatarFile}
-          onClose={() => setPendingAvatarFile(null)}
-          onConfirm={handleAvatarFileChange}
-        />
-      </div>
+      <AvatarCropModal
+        open={!!pendingAvatarFile}
+        file={pendingAvatarFile}
+        onClose={() => setPendingAvatarFile(null)}
+        onConfirm={handleAvatarFileChange}
+      />
     </div>
   );
 };

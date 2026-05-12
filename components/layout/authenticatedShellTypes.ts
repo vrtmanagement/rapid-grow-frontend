@@ -11,4 +11,6 @@ export interface AppShellNotification {
   readAt?: string | null;
   createdAt: string;
   updatedAt?: string;
+  /** Optional payload from API (e.g. leaveId); used only for UI hints when present. */
+  metadata?: Record<string, unknown>;
 }
