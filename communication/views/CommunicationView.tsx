@@ -7,6 +7,7 @@ import { ChatComposer } from '../components/ChatComposer';
 import { ChatHeaderMenu } from '../components/ChatHeaderMenu';
 import { Mail } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
+import { getDisplayAvatarUrl } from '../../utils/avatar';
 
 function CommunicationHeaderSkeleton() {
   return (
@@ -164,7 +165,7 @@ function CommunicationLayout() {
                       <span className="h-6 w-6 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
                         {c.avatar ? (
                           <img
-                            src={c.avatar}
+                            src={getDisplayAvatarUrl(c.avatar, c.title)}
                             alt={c.title}
                             className="h-full w-full cursor-pointer object-cover"
                             onClick={(e) => {
@@ -252,8 +253,7 @@ function CommunicationLayout() {
                   >
                     <img
                       src={
-                        liveSelectedDmUser.avatar ||
-                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(liveSelectedDmUser.name.replace(/\s/g, ''))}`
+                        getDisplayAvatarUrl(liveSelectedDmUser.avatar, liveSelectedDmUser.name)
                       }
                       alt={liveSelectedDmUser.name}
                       className="h-full w-full object-cover"
@@ -273,7 +273,7 @@ function CommunicationLayout() {
                     className="w-10 h-10 rounded-2xl border border-brand-red/20 overflow-hidden bg-brand-red/10 flex items-center justify-center"
                   >
                     {selectedConversation?.type === 'channel' && selectedConversation.avatar ? (
-                      <img src={selectedConversation.avatar} alt={selectedConversation.title} className="h-full w-full object-cover" />
+                      <img src={getDisplayAvatarUrl(selectedConversation.avatar, selectedConversation.title)} alt={selectedConversation.title} className="h-full w-full object-cover" />
                     ) : (
                       <Mail size={18} className="text-brand-red" />
                     )}

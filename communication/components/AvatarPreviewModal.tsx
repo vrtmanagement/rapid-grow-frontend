@@ -1,8 +1,5 @@
 import React from 'react';
-
-function fallbackAvatar(name: string) {
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name.replace(/\s/g, ''))}`;
-}
+import { getDisplayAvatarUrl } from '../../utils/avatar';
 
 export type AvatarPreviewEntity = {
   name: string;
@@ -33,7 +30,7 @@ export function AvatarPreviewModal({
         <div className="flex flex-col items-center text-center">
           <div className="h-62 w-62 overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-50 shadow-sm">
             <img
-              src={entity.avatar || fallbackAvatar(entity.name || 'User')}
+              src={getDisplayAvatarUrl(entity.avatar, entity.name || 'User')}
               alt={entity.name}
               className="h-full w-full object-cover"
             />
