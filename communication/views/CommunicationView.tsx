@@ -195,7 +195,14 @@ function CommunicationLayout() {
                   className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-full border text-sm transition-all border-slate-200 hover:bg-slate-50"
                   title={`${currentUser.name} (You)`}
                 >
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  <span className="relative h-7 w-7 shrink-0">
+                    <img
+                      src={getDisplayAvatarUrl(currentUser.avatar, currentUser.name)}
+                      alt=""
+                      className="h-7 w-7 rounded-full border border-slate-200 bg-slate-50 object-cover"
+                    />
+                    <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+                  </span>
                   <span className="max-w-28 truncate">You</span>
                 </button>
               ) : null}
@@ -212,7 +219,14 @@ function CommunicationLayout() {
                     } border-slate-200 hover:bg-slate-50`}
                     title={u.name}
                   >
-                    <span className={`w-2.5 h-2.5 rounded-full ${u.online ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                    <span className="relative h-7 w-7 shrink-0">
+                      <img
+                        src={getDisplayAvatarUrl(u.avatar, u.name)}
+                        alt=""
+                        className="h-7 w-7 rounded-full border border-slate-200 bg-slate-50 object-cover"
+                      />
+                      <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white ${u.online ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                    </span>
                     <span className="max-w-28 truncate">{u.name.split(' ')[0]}</span>
                     {(() => {
                       const dm = conversations.find((c) => c.type === 'dm' && c.otherUser?.id === u.id);

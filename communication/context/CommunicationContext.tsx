@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiCreateTeam, apiDeleteTeam, apiHistory, apiListConversations, apiListUsers, apiMarkAsRead, apiUpdateTeam, apiUploadFile, apiClearChat } from '../api';
-import { API_BASE } from '../../config/api';
+import { API_BASE, getAuthHeaders } from '../../config/api';
 import { ChatConversationSummary, ChatMessage, ChatUser, ChatAttachment, ChatReplyRef, ChatNotification } from '../types';
 import { getUnreadDirectMessageSourceCount } from '../unread';
 import { getSocket } from '../../realtime/socket';
@@ -16,6 +16,107 @@ import {
   mapListUsersApiRowToChatUser,
   mapListConversationsApiRowToSummary,
 } from './communicationContextHelpers';
+
+type EmployeeAvatarDirectory = {
+  byId: Map<string, string>;
+  byEmpId: Map<string, string>;
+  byName: Map<string, string>;
+};
+
+function createEmptyAvatarDirectory(): EmployeeAvatarDirectory {
+  return {
+    byId: new Map<string, string>(),
+    byEmpId: new Map<string, string>(),
+    byName: new Map<string, string>(),
+  };
+}
+
+function addAvatarToDirectory(
+  directory: EmployeeAvatarDirectory,
+  input: { id?: unknown; _id?: unknown; empId?: unknown; name?: unknown; empName?: unknown; avatar?: unknown },
+) {
+  const avatar = resolveAvatarUrl(typeof input.avatar === 'string' ? input.avatar : '');
+  if (!avatar) return;
+  const id = String(input.id || input._id || '').trim();
+  const empId = String(input.empId || '').trim();
+  const name = String(input.name || input.empName || '').trim().toLowerCase();
+  if (id) directory.byId.set(id, avatar);
+  if (empId) directory.byEmpId.set(empId, avatar);
+  if (name) directory.byName.set(name, avatar);
+}
+
+function loadStoredAvatarDirectory(): EmployeeAvatarDirectory {
+  const directory = createEmptyAvatarDirectory();
+  try {
+    const auth = getStoredAuth();
+    if (auth?.employee) {
+      addAvatarToDirectory(directory, {
+        _id: auth.employee._id,
+        empId: auth.employee.empId,
+        empName: auth.employee.empName || auth.employee.name,
+        avatar: auth.employee.avatar,
+      });
+    }
+  } catch {
+    // Ignore malformed auth storage.
+  }
+
+  try {
+    const raw = localStorage.getItem('rapidgrow-os-v1');
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed?.currentUser) {
+      addAvatarToDirectory(directory, parsed.currentUser);
+    }
+    if (Array.isArray(parsed?.team)) {
+      parsed.team.forEach((member: any) => addAvatarToDirectory(directory, member));
+    }
+  } catch {
+    // Ignore stale app state storage.
+  }
+
+  return directory;
+}
+
+function mergeAvatarDirectories(...directories: EmployeeAvatarDirectory[]): EmployeeAvatarDirectory {
+  const merged = createEmptyAvatarDirectory();
+  directories.forEach((directory) => {
+    directory.byId.forEach((avatar, key) => merged.byId.set(key, avatar));
+    directory.byEmpId.forEach((avatar, key) => merged.byEmpId.set(key, avatar));
+    directory.byName.forEach((avatar, key) => merged.byName.set(key, avatar));
+  });
+  return merged;
+}
+
+async function loadEmployeeAvatarDirectory(): Promise<EmployeeAvatarDirectory> {
+  const byId = new Map<string, string>();
+  const byEmpId = new Map<string, string>();
+  const byName = new Map<string, string>();
+  const apiDirectory = { byId, byEmpId, byName };
+  try {
+    const res = await fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() });
+    if (!res.ok) return mergeAvatarDirectories(loadStoredAvatarDirectory(), apiDirectory);
+    const employees = await res.json().catch(() => []);
+    if (!Array.isArray(employees)) return mergeAvatarDirectories(loadStoredAvatarDirectory(), apiDirectory);
+    employees.forEach((employee: any) => {
+      addAvatarToDirectory(apiDirectory, employee);
+    });
+  } catch {
+    // Communication can still render fallbacks if the broader directory is unavailable.
+  }
+  return mergeAvatarDirectories(loadStoredAvatarDirectory(), apiDirectory);
+}
+
+function avatarFromDirectory(directory: EmployeeAvatarDirectory, id?: string, empId?: string, name?: string) {
+  const normalizedId = String(id || '').trim();
+  const normalizedEmpId = String(empId || '').trim();
+  const normalizedName = String(name || '').trim().toLowerCase();
+  return (
+    (normalizedId ? directory.byId.get(normalizedId) : '') ||
+    (normalizedEmpId ? directory.byEmpId.get(normalizedEmpId) : '') ||
+    (normalizedName ? directory.byName.get(normalizedName) : '') ||
+    ''
+  );
+}
 
 export function CommunicationProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<CommunicationContextValue['currentUser']>(null);
@@ -63,8 +164,25 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     setUsersLoading(true);
     setError(null);
     try {
-      const data = await apiListUsers();
-      const mapped: ChatUser[] = (data.users || []).map(mapListUsersApiRowToChatUser);
+      const [data, avatarDirectory] = await Promise.all([
+        apiListUsers(),
+        loadEmployeeAvatarDirectory(),
+      ]);
+      const storedEmployee = getStoredAuth()?.employee || {};
+      const storedUserId = String(storedEmployee._id || storedEmployee.empId || '').trim();
+      const storedEmpId = String(storedEmployee.empId || '').trim();
+      const storedAvatar = resolveAvatarUrl(storedEmployee.avatar);
+      const mapped: ChatUser[] = (data.users || []).map((user: any) => {
+        const mappedUser = mapListUsersApiRowToChatUser(user);
+        const directoryAvatar = avatarFromDirectory(avatarDirectory, mappedUser.id, mappedUser.empId, mappedUser.name);
+        const sessionAvatar =
+          storedAvatar &&
+          ((storedUserId && mappedUser.id === storedUserId) || (storedEmpId && mappedUser.empId === storedEmpId))
+            ? storedAvatar
+            : '';
+        const avatar = directoryAvatar || sessionAvatar || mappedUser.avatar;
+        return avatar ? { ...mappedUser, avatar } : mappedUser;
+      });
       setUsers(mapped);
       setCurrentUser((prev) => {
         if (!prev) return prev;
@@ -82,8 +200,31 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     setConversationsLoading(true);
     setError(null);
     try {
-      const data = await apiListConversations();
-      const mapped: ChatConversationSummary[] = (data.conversations || []).map(mapListConversationsApiRowToSummary);
+      const [data, avatarDirectory] = await Promise.all([
+        apiListConversations(),
+        loadEmployeeAvatarDirectory(),
+      ]);
+      const mapped: ChatConversationSummary[] = (data.conversations || []).map((conversation: any) => {
+        const mappedConversation = mapListConversationsApiRowToSummary(conversation);
+        if (mappedConversation.type !== 'dm' || !mappedConversation.otherUser) {
+          return mappedConversation;
+        }
+        const directoryAvatar = avatarFromDirectory(
+          avatarDirectory,
+          mappedConversation.otherUser.id,
+          mappedConversation.otherUser.empId,
+          mappedConversation.otherUser.name,
+        );
+        if (!directoryAvatar) return mappedConversation;
+        return {
+          ...mappedConversation,
+          avatar: directoryAvatar,
+          otherUser: {
+            ...mappedConversation.otherUser,
+            avatar: directoryAvatar,
+          },
+        };
+      });
 
       setConversations(mapped);
     } catch (e: any) {
