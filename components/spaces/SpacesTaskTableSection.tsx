@@ -109,7 +109,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
   const [activeRowMenuId, setActiveRowMenuId] = React.useState<string | null>(null);
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+    <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
       <div className="overflow-x-visible overflow-y-visible border-b border-slate-100 [transform:rotateX(180deg)]">
         <table className="w-full table-fixed border-collapse text-left [transform:rotateX(180deg)]">
           <thead className="border-b border-slate-200 bg-slate-50">
@@ -158,7 +158,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                   </div>
                   {activeColumnMenuId === c.id ? (
                     <div className="relative">
-                      <div className="absolute right-0 z-10 mt-2 w-40 rounded-xl border border-slate-200 bg-white shadow-lg">
+                      <div className="absolute right-0 z-10 mt-2 w-40 rounded-xl border border-slate-200 bg-white">
                         <button type="button" onClick={() => { setIsRenamingColumnId(c.id); setRenameDraft(c.name); }} className="w-full px-3 py-2 text-left text-[13px] hover:bg-slate-50">Rename</button>
                         <button type="button" onClick={() => { setColumnToDelete(c); setActiveColumnMenuId(null); }} className="w-full px-3 py-2 text-left text-[13px] text-red-600 hover:bg-red-50">Remove</button>
                       </div>
@@ -276,7 +276,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                               <MoreVertical size={16} />
                             </button>
                             {activeRowMenuId === t.taskId ? (
-                              <div className="absolute right-0 top-full z-20 mt-2 w-40 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2 shadow-[0_18px_45px_rgba(15,23,42,0.14)]">
+                              <div className="absolute right-0 top-full z-20 mt-2 w-40 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2">
                                 <button
                                   type="button"
                                   onClick={() => {

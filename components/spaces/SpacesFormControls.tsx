@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Sparkles, X } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 export const CREATE_INPUT_CLASS =
   'w-full rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[15px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15';
@@ -9,7 +9,7 @@ const CREATE_SELECT_TRIGGER_CLASS =
   'flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[15px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 const CREATE_SELECT_MENU_CLASS =
-  'absolute left-0 top-full z-30 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl';
+  'absolute left-0 top-full z-30 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white';
 
 const CREATE_SELECT_OPTION_CLASS =
   'w-full px-5 py-3 text-left text-[15px] text-slate-700 transition-colors hover:bg-red-50 hover:text-brand-red';
@@ -21,7 +21,7 @@ const COMPACT_FULL_WIDTH_SELECT_TRIGGER_CLASS =
   'flex w-full items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 const TABLE_SELECT_MENU_CLASS =
-  'absolute left-0 top-full z-30 mt-1.5 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl';
+  'absolute left-0 top-full z-30 mt-1.5 w-full overflow-hidden rounded-xl border border-slate-200 bg-white';
 
 const TABLE_SELECT_OPTION_CLASS =
   'w-full px-4 py-2.5 text-left text-[13px] text-slate-700 transition-colors hover:bg-red-50 hover:text-brand-red';
@@ -182,7 +182,7 @@ export const ThemedDatePicker: React.FC<{
       </button>
 
       {open && !disabled && (
-        <div className={`absolute left-0 z-30 border border-slate-200 bg-white shadow-2xl ${compact ? `w-[248px] rounded-[18px] p-2 ${openAbove ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}` : `w-[270px] rounded-[22px] p-2.5 ${openAbove ? 'bottom-full mb-2' : 'top-full mt-2'}`}`}>
+        <div className={`absolute left-0 z-30 border border-slate-200 bg-white ${compact ? `w-[248px] rounded-[18px] p-2 ${openAbove ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}` : `w-[270px] rounded-[22px] p-2.5 ${openAbove ? 'bottom-full mb-2' : 'top-full mt-2'}`}`}>
           <div className={`flex items-center justify-between ${compact ? 'mb-1.5' : 'mb-2'}`}>
             <div className={`${compact ? 'text-[13px]' : 'text-[14px]'} font-semibold text-slate-900`}>{monthLabel}</div>
             <div className="flex items-center gap-2">
@@ -418,52 +418,83 @@ const WeeklyTaskPeriodOptionColumn: React.FC<{
   onSelect: (value: string) => void;
   compact?: boolean;
   roomy?: boolean;
-}> = ({ heading, options, selectedValue, onSelect, compact = false, roomy = false }) => (
-  <div className="min-w-0">
-    <div className={`px-1 font-semibold uppercase tracking-[0.2em] text-slate-400 ${compact ? 'mb-1 text-[9px]' : 'mb-2 text-[10px]'}`}>
-      {heading}
+}> = ({ heading, options, selectedValue, onSelect, compact = false, roomy = false }) => {
+  const getRoomyPrimaryLabel = (label: string) => {
+    const trimmed = String(label || '').trim();
+    if (/^Q(\d+)$/i.test(trimmed)) return `Quarter ${trimmed.slice(1)}`;
+    if (/^M(\d+)$/i.test(trimmed)) return `Month ${trimmed.slice(1)}`;
+    if (/^W(\d+)$/i.test(trimmed)) return `Week ${trimmed.slice(1)}`;
+    return trimmed;
+  };
+
+  return (
+    <div className="min-w-0">
+      <div className={`px-1 font-semibold uppercase tracking-[0.2em] text-slate-400 ${compact ? 'mb-1 text-[9px]' : 'mb-2 text-[10px]'}`}>
+        {heading}
+      </div>
+      <div
+        className={`space-y-1.5 overflow-y-auto border border-slate-200/90 bg-slate-50/60 ${
+          roomy ? 'max-h-[232px] rounded-[24px] p-2.5' : compact ? 'max-h-[204px] rounded-[15px] p-1.5' : 'max-h-[196px] rounded-[22px] p-2'
+        }`}
+      >
+        {options.map((option) => {
+          const isSelected = option.value === selectedValue;
+          const roomyPrimaryLabel = getRoomyPrimaryLabel(option.label);
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onSelect(option.value)}
+              className={`w-full border text-left transition-all duration-150 ${
+                roomy ? 'rounded-[18px] px-4 py-3' : compact ? 'rounded-[12px] px-2.5 py-1.5' : 'rounded-[16px] px-3 py-2'
+              } ${
+                isSelected
+                  ? roomy
+                    ? 'border-red-200 bg-[linear-gradient(180deg,rgba(254,242,242,1),rgba(254,226,226,0.9))] text-slate-900 shadow-[0_10px_24px_rgba(248,113,113,0.12)]'
+                    : 'border-brand-red bg-brand-red text-white shadow-[0_16px_30px_rgba(239,68,68,0.18)]'
+                  : 'border-slate-100 bg-white/95 text-slate-700 shadow-[0_3px_10px_rgba(15,23,42,0.035)] hover:border-slate-200 hover:bg-white'
+              }`}
+            >
+              {roomy ? (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="text-[14px] font-semibold leading-5 text-slate-800">{roomyPrimaryLabel}</div>
+                    {option.caption ? (
+                      <div className={`shrink-0 text-right text-[12px] font-medium leading-5 ${isSelected ? 'text-rose-500' : 'text-slate-500'}`}>
+                        {option.caption}
+                      </div>
+                    ) : null}
+                  </div>
+                  {option.description ? (
+                    <div className={`mt-1.5 line-clamp-2 text-[12px] leading-5 ${isSelected ? 'text-slate-900' : 'text-slate-800'}`}>
+                      {option.description}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <div className={compact ? 'text-[11px] font-semibold leading-4' : 'text-[13px] font-semibold leading-5'}>
+                    {option.label}
+                  </div>
+                  {option.caption ? (
+                    <div className={`${compact ? 'mt-0.5 text-[8px] leading-3.5' : 'mt-0.5 text-[10px] leading-4'} ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>
+                      {option.caption}
+                    </div>
+                  ) : null}
+                  {option.description ? (
+                    <div className={`${compact ? 'mt-0.5 line-clamp-2 text-[8px] leading-3.5' : 'mt-0.5 line-clamp-2 text-[10px] leading-4'} ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>
+                      {option.description}
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
-    <div
-      className={`space-y-1.5 overflow-y-auto border border-slate-200/90 bg-slate-50/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] ${
-        roomy ? 'max-h-[232px] rounded-[24px] p-2.5' : compact ? 'max-h-[204px] rounded-[15px] p-1.5' : 'max-h-[196px] rounded-[22px] p-2'
-      }`}
-    >
-      {options.map((option) => {
-        const isSelected = option.value === selectedValue;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onSelect(option.value)}
-            className={`w-full border text-left transition-all duration-150 ${
-              roomy ? 'rounded-[18px] px-4 py-3' : compact ? 'rounded-[12px] px-2.5 py-1.5' : 'rounded-[16px] px-3 py-2'
-            } ${
-              isSelected
-                ? roomy
-                  ? 'border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,1),rgba(241,245,249,1))] text-slate-900 shadow-[0_16px_30px_rgba(15,23,42,0.08)]'
-                  : 'border-brand-red bg-brand-red text-white shadow-[0_16px_30px_rgba(239,68,68,0.18)]'
-                : 'border-slate-100 bg-white/95 text-slate-700 shadow-[0_3px_10px_rgba(15,23,42,0.035)] hover:border-slate-200 hover:bg-white'
-            }`}
-          >
-            <div className={roomy ? 'text-[14px] font-semibold leading-5' : compact ? 'text-[11px] font-semibold leading-4' : 'text-[13px] font-semibold leading-5'}>
-              {option.label}
-            </div>
-            {option.caption ? (
-              <div className={`${roomy ? 'mt-1 text-[11px] leading-4' : compact ? 'mt-0.5 text-[8px] leading-3.5' : 'mt-0.5 text-[10px] leading-4'} ${isSelected ? (roomy ? 'text-slate-500' : 'text-white/80') : 'text-slate-400'}`}>
-                {option.caption}
-              </div>
-            ) : null}
-            {option.description ? (
-              <div className={`${roomy ? 'mt-1 line-clamp-2 text-[11px] leading-4.5' : compact ? 'mt-0.5 line-clamp-2 text-[8px] leading-3.5' : 'mt-0.5 line-clamp-2 text-[10px] leading-4'} ${isSelected ? (roomy ? 'text-slate-600' : 'text-white/80') : 'text-slate-500'}`}>
-                {option.description}
-              </div>
-            ) : null}
-          </button>
-        );
-      })}
-    </div>
-  </div>
-);
+  );
+};
 
 export const WeeklyTaskPeriodTrigger: React.FC<{
   summary: string;
@@ -525,26 +556,19 @@ export const WeeklyTaskPeriodCanvas: React.FC<WeeklyTaskPeriodPickerProps & { op
     }`}
   >
     <div className={`transition-transform duration-300 ease-out ${open ? 'translate-y-0' : '-translate-y-4'}`}>
-      <div className="relative overflow-hidden rounded-b-[34px] rounded-t-none border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(248,250,252,0.92),rgba(255,255,255,0.96)_42%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,1))] p-3.5 shadow-[0_30px_80px_rgba(15,23,42,0.1)] md:p-4">
+      <div className="relative overflow-hidden rounded-none border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(248,250,252,0.92),rgba(255,255,255,0.96)_42%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,1))] p-3.5 md:p-4">
         <div className="absolute inset-x-12 top-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
-        <div className="rounded-b-[28px] rounded-t-none border border-white/70 bg-white/90 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur md:p-4">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
-                <Sparkles size={12} />
-                Planning Canvas
+        <div className="rounded-none border border-white/70 bg-white/90 p-3.5 backdrop-blur md:p-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:gap-6">
+              <h3 className="text-[24px] font-semibold tracking-tight text-slate-900">Weekly Planner Focus</h3>
+              <div className="max-w-[320px] rounded-[18px] border border-slate-200 bg-slate-50/90 p-3">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Selected Period</div>
+                <div className="mt-1.5 text-[22px] font-semibold leading-tight text-slate-900">{summary}</div>
+                <div className="mt-1 text-[12px] leading-5 text-slate-600">{detail}</div>
               </div>
-              <h3 className="mt-3 text-[24px] font-semibold tracking-tight text-slate-900">Weekly Planner Focus</h3>
-              <p className="mt-2 max-w-3xl text-[14px] leading-6 text-slate-500">
-                Review the current vision, then move through quarter, month, and week in one place without leaving the planner.
-              </p>
             </div>
-            <div className="flex flex-col gap-3 md:min-w-[320px] md:max-w-[360px]">
-              <div className="rounded-[22px] border border-slate-200 bg-slate-50/90 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Selected Period</div>
-                <div className="mt-2 text-[28px] font-semibold leading-tight text-slate-900">{summary}</div>
-                <div className="mt-2 text-[13px] leading-5 text-slate-500">{detail}</div>
-              </div>
+            <div className="flex flex-col gap-3 md:min-w-[280px] md:max-w-[320px]">
               <button
                 type="button"
                 onClick={onClose}
@@ -615,14 +639,14 @@ export const WeeklyTaskPeriodPicker: React.FC<WeeklyTaskPeriodPickerProps> = ({
 
       {open && !disabled ? (
         <div
-          className={`absolute top-full z-30 mt-2.5 max-w-[calc(100vw-2rem)] border border-slate-200 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.1)] ${
+          className={`absolute top-full z-30 mt-2.5 max-w-[calc(100vw-2rem)] border border-slate-200 bg-white ${
             compactTrigger
               ? 'left-1/2 w-[min(900px,calc(100vw-2rem))] -translate-x-1/2 rounded-[20px] p-3'
               : 'w-[min(1100px,calc(100vw-2rem))] rounded-[26px] p-3.5'
           } ${compactTrigger ? '' : dropdownAlign === 'right' ? 'right-0' : 'left-0'}`}
         >
           {compactTrigger ? (
-            <div className="absolute left-1/2 top-0 h-3 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white shadow-[0_6px_14px_rgba(15,23,42,0.06)]" />
+            <div className="absolute left-1/2 top-0 h-3 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white" />
           ) : null}
           <div className={`grid ${compactTrigger ? 'gap-2.5' : 'gap-3'} ${projectOptions.length ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
             {projectOptions.length && onProjectChange

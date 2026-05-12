@@ -56,7 +56,7 @@ const SpacesTaskModals: React.FC<any> = (props) => {
             setCommentDraft('');
           }}
         >
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-slate-200" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-slate-200" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <div className="text-[13px] text-slate-500">Comments</div>
@@ -172,7 +172,7 @@ const SpacesTaskModals: React.FC<any> = (props) => {
 
       {columnToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm border border-slate-200 p-6">
+          <div className="bg-white rounded-3xl w-full max-w-sm border border-slate-200 p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-2">Remove field</h3>
             <p className="text-[14px] text-slate-600 mb-6">Are you sure you want to remove &quot;{columnToDelete.name}&quot; from all tasks?</p>
             <div className="flex justify-end gap-3">
@@ -208,7 +208,7 @@ const SpacesTaskModals: React.FC<any> = (props) => {
 
       {activeCommentTask && commentToDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm border border-slate-200 p-6">
+          <div className="bg-white rounded-3xl w-full max-w-sm border border-slate-200 p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-2">Delete comment</h3>
             <p className="text-[14px] text-slate-600 mb-6">Are you sure you want to delete this comment?</p>
             <div className="flex justify-end gap-3">
@@ -239,7 +239,7 @@ const SpacesTaskModals: React.FC<any> = (props) => {
 
       {deleteTaskModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm border border-slate-200 p-6">
+          <div className="bg-white rounded-3xl w-full max-w-sm border border-slate-200 p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-2">Delete task</h3>
             <p className="text-[14px] text-slate-600 mb-6">Are you sure you want to delete &quot;{deleteTaskModal.title}&quot;?</p>
             <div className="flex justify-end gap-3">
@@ -266,7 +266,7 @@ const SpacesTaskModals: React.FC<any> = (props) => {
 
       {rejectTaskModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl border border-slate-200 p-6">
+          <div className="bg-white rounded-3xl w-full max-w-xl border border-slate-200 p-6">
             <div className="mb-5">
               <h3 className="text-xl font-semibold text-slate-900">Send task back for updates</h3>
               <p className="mt-2 text-[14px] leading-6 text-slate-600">Share a clear reason for rejection and mention what needs to be updated before the employee submits this task again.</p>
@@ -292,7 +292,7 @@ const SpacesTaskModals: React.FC<any> = (props) => {
 
       {editingTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg border border-slate-200 p-6">
+          <div className="bg-white rounded-3xl w-full max-w-lg border border-slate-200 p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">{editingTaskMode === 'view' ? 'Task details' : 'Edit task'}</h3>
             <div className="space-y-4">
               <div>
