@@ -35,7 +35,7 @@ import {
   normalizeDailyReviewReminderSettings,
   type DailyReviewReminderSettings,
 } from './services/dailyReviewReminderSettings';
-import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT } from './utils/avatar';
+import { getDisplayAvatarUrl, persistSessionEmployeeAvatar, PROFILE_AVATAR_UPDATED_EVENT } from './utils/avatar';
 
 interface GlobalLeaveToast {
   key: string;
@@ -299,6 +299,59 @@ const App: React.FC = () => {
   }, []);
 
   const [state, setState] = useState<PlanningState>(normalizeGoalHierarchy(createDefaultPlanningStateInput()));
+
+  useEffect(() => {
+    if (!isAuthenticated || !state.currentUser?.id) return;
+
+    let active = true;
+    const currentUserId = state.currentUser.id;
+    const currentUserName = state.currentUser.name;
+    const currentUserEmail = state.currentUser.email;
+
+    async function syncCurrentEmployeeProfile() {
+      try {
+        const res = await fetch(`${API_BASE}/employees/${encodeURIComponent(currentUserId)}`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) return;
+        const employee = await res.json();
+        if (!active || !employee) return;
+
+        const nextUser = {
+          id: employee._id || employee.empId || currentUserId,
+          name: employee.empName || currentUserName,
+          role: mapBackendRoleToUiRole(employee.role),
+          email: employee.email || currentUserEmail,
+          avatar: getDisplayAvatarUrl(employee.avatar, employee.empName || currentUserName),
+          status: 'Active',
+          isVerified: true,
+        };
+
+        persistSessionEmployeeAvatar(employee.avatar, employee);
+        setState((prev) => ({
+          ...prev,
+          currentUser: {
+            ...prev.currentUser,
+            ...nextUser,
+            powers: prev.currentUser.powers,
+          },
+          team: prev.team.map((member) =>
+            String(member.id) === String(prev.currentUser.id) || String(member.id) === String(employee.empId)
+              ? { ...member, ...nextUser, powers: member.powers }
+              : member,
+          ),
+        }));
+      } catch (err) {
+        console.warn('Failed to sync current employee profile', err);
+      }
+    }
+
+    syncCurrentEmployeeProfile();
+
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, state.currentUser?.id]);
 
   useEffect(() => {
     const saved = localStorage.getItem('rapidgrow-os-v1');
