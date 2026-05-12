@@ -197,7 +197,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                       </div>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex items-center gap-3 text-[14px] text-slate-700">
+                      <div className="inline-flex items-center gap-3 rounded-2xl px-2 py-1.5 text-[14px] text-slate-700 transition-colors hover:bg-[#f7faff]">
                         <img
                           src={assigneeAvatar}
                           alt={assigneeName}

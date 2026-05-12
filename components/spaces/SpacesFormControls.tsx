@@ -433,11 +433,11 @@ const WeeklyTaskPeriodOptionColumn: React.FC<{
         {heading}
       </div>
       <div
-        className={`space-y-1.5 overflow-y-auto border border-slate-200/90 bg-slate-50/60 ${
-          roomy ? 'max-h-[232px] rounded-[24px] p-2.5' : compact ? 'max-h-[204px] rounded-[15px] p-1.5' : 'max-h-[196px] rounded-[22px] p-2'
+        className={`overflow-y-auto border border-slate-200/90 bg-slate-50/60 ${
+          roomy ? 'h-[232px] rounded-[24px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden' : compact ? 'max-h-[204px] space-y-1.5 rounded-[15px] p-1.5' : 'max-h-[196px] space-y-1.5 rounded-[22px] p-2'
         }`}
       >
-        {options.map((option) => {
+        {options.map((option, index) => {
           const isSelected = option.value === selectedValue;
           const roomyPrimaryLabel = getRoomyPrimaryLabel(option.label);
           return (
@@ -446,27 +446,29 @@ const WeeklyTaskPeriodOptionColumn: React.FC<{
               type="button"
               onClick={() => onSelect(option.value)}
               className={`w-full border text-left transition-all duration-150 ${
-                roomy ? 'rounded-[18px] px-4 py-3' : compact ? 'rounded-[12px] px-2.5 py-1.5' : 'rounded-[16px] px-3 py-2'
+                roomy ? `rounded-none border-x-0 border-t-0 px-4 py-2.5 shadow-none ${index === options.length - 1 ? 'border-b-0' : ''}` : compact ? 'rounded-[12px] px-2.5 py-1.5' : 'rounded-[16px] px-3 py-2'
               } ${
                 isSelected
                   ? roomy
-                    ? 'border-red-200 bg-[linear-gradient(180deg,rgba(254,242,242,1),rgba(254,226,226,0.9))] text-slate-900 shadow-[0_10px_24px_rgba(248,113,113,0.12)]'
+                    ? 'border-b-red-200 bg-red-50/40 text-slate-900'
                     : 'border-brand-red bg-brand-red text-white shadow-[0_16px_30px_rgba(239,68,68,0.18)]'
-                  : 'border-slate-100 bg-white/95 text-slate-700 shadow-[0_3px_10px_rgba(15,23,42,0.035)] hover:border-slate-200 hover:bg-white'
+                  : roomy
+                    ? 'border-b-slate-200 bg-transparent text-slate-700 hover:bg-white/50'
+                    : 'border-slate-100 bg-white/95 text-slate-700 shadow-[0_3px_10px_rgba(15,23,42,0.035)] hover:border-slate-200 hover:bg-white'
               }`}
             >
               {roomy ? (
                 <>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="text-[14px] font-semibold leading-5 text-slate-800">{roomyPrimaryLabel}</div>
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="text-[13px] font-semibold leading-[1.15rem] text-slate-800">{roomyPrimaryLabel}</div>
                     {option.caption ? (
-                      <div className={`shrink-0 text-right text-[12px] font-medium leading-5 ${isSelected ? 'text-rose-500' : 'text-slate-500'}`}>
+                      <div className={`shrink-0 text-right text-[11px] font-medium leading-[1.15rem] ${isSelected ? 'text-rose-500' : 'text-slate-500'}`}>
                         {option.caption}
                       </div>
                     ) : null}
                   </div>
                   {option.description ? (
-                    <div className={`mt-1.5 line-clamp-2 text-[12px] leading-5 ${isSelected ? 'text-slate-900' : 'text-slate-800'}`}>
+                    <div className={`mt-1 line-clamp-2 text-[11px] leading-4 ${isSelected ? 'text-slate-900' : 'text-slate-800'}`}>
                       {option.description}
                     </div>
                   ) : null}
@@ -503,29 +505,38 @@ export const WeeklyTaskPeriodTrigger: React.FC<{
   compactTrigger?: boolean;
   open?: boolean;
   onToggle: () => void;
-}> = ({ summary, detail, disabled = false, compactTrigger = false, open = false, onToggle }) => (
+}> = ({ summary, detail: _detail, disabled = false, compactTrigger = false, open = false, onToggle }) => (
   <button
     type="button"
     onClick={() => !disabled && onToggle()}
     disabled={disabled}
     className={`flex w-full items-center justify-between text-left transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60 ${
       compactTrigger
-        ? 'min-h-[56px] gap-2 rounded-[16px] border border-slate-300 bg-white px-2 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.05)]'
+        ? 'min-h-[60px] gap-3 rounded-[16px] border border-slate-200 bg-white px-3 py-2 shadow-[0_8px_18px_rgba(15,23,42,0.05)]'
         : 'gap-4 rounded-[28px] border border-slate-300 bg-white px-5 py-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)]'
     }`}
   >
-    <div className={`flex min-w-0 items-center ${compactTrigger ? 'gap-1.5' : 'gap-4'}`}>
-      <div
-        className={`flex shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-500 ${
-          compactTrigger ? 'h-7 w-7' : 'h-14 w-14'
-        }`}
-      >
-        <Calendar size={compactTrigger ? 12 : 20} />
-      </div>
-      <div className="min-w-0">
-        <div className={`truncate font-semibold leading-none text-slate-900 ${compactTrigger ? 'text-[13px]' : 'text-[26px]'}`}>{summary}</div>
-        <div className={`truncate uppercase tracking-[0.14em] text-slate-400 ${compactTrigger ? 'mt-0.5 text-[6px]' : 'mt-2 text-[12px]'}`}>{detail}</div>
-      </div>
+    <div className={`flex min-w-0 items-center ${compactTrigger ? 'gap-0' : 'gap-4'}`}>
+      {compactTrigger ? (
+        <div className="min-w-0">
+          <div className="text-[8px] font-semibold uppercase tracking-[0.18em] text-slate-400">Selected Period</div>
+          <div className="mt-1 whitespace-nowrap text-[12px] font-semibold leading-none text-slate-900">{summary}</div>
+        </div>
+      ) : (
+        <>
+          <div
+            className={`flex shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-500 ${
+              compactTrigger ? 'h-7 w-7' : 'h-14 w-14'
+            }`}
+          >
+            <Calendar size={compactTrigger ? 12 : 20} />
+          </div>
+          <div className="min-w-0">
+            <div className={`truncate font-semibold leading-none text-slate-900 ${compactTrigger ? 'text-[13px]' : 'text-[26px]'}`}>{summary}</div>
+            <div className={`truncate uppercase tracking-[0.14em] text-slate-400 ${compactTrigger ? 'mt-0.5 text-[6px]' : 'mt-2 text-[12px]'}`}>{_detail}</div>
+          </div>
+        </>
+      )}
     </div>
     <ChevronDown size={compactTrigger ? 12 : 18} className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
   </button>
@@ -551,31 +562,36 @@ export const WeeklyTaskPeriodCanvas: React.FC<WeeklyTaskPeriodPickerProps & { op
 }) => (
   <div
     aria-hidden={!open}
-    className={`overflow-hidden transition-all duration-300 ease-out ${
+    className={`overflow-hidden transition-[max-height,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
       open ? 'max-h-[828px] opacity-100' : 'pointer-events-none max-h-0 opacity-0'
     }`}
   >
-    <div className={`transition-transform duration-300 ease-out ${open ? 'translate-y-0' : '-translate-y-4'}`}>
+    <div className={`origin-top transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${open ? 'translate-y-0 scale-y-100' : '-translate-y-3 scale-y-95'}`}>
       <div className="relative overflow-hidden rounded-none border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(248,250,252,0.92),rgba(255,255,255,0.96)_42%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,1))] p-3.5 md:p-4">
         <div className="absolute inset-x-12 top-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
         <div className="rounded-none border border-white/70 bg-white/90 p-3.5 backdrop-blur md:p-4">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:gap-6">
-              <h3 className="text-[24px] font-semibold tracking-tight text-slate-900">Weekly Planner Focus</h3>
-              <div className="max-w-[320px] rounded-[18px] border border-slate-200 bg-slate-50/90 p-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Selected Period</div>
-                <div className="mt-1.5 text-[22px] font-semibold leading-tight text-slate-900">{summary}</div>
-                <div className="mt-1 text-[12px] leading-5 text-slate-600">{detail}</div>
+            <div className="flex min-w-0 flex-col gap-2.5 xl:flex-row xl:items-center xl:gap-4">
+              <h3 className="whitespace-nowrap text-[22px] font-semibold leading-none tracking-tight text-slate-900">Weekly Planner Focus</h3>
+              <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+                <div className="w-full max-w-[208px] rounded-[14px] border border-slate-200 bg-slate-50/90 px-3 py-1.5">
+                  <div className="text-[8px] font-semibold uppercase tracking-[0.18em] text-slate-400">Selected Period</div>
+                  <div className="mt-0.5 whitespace-nowrap text-[13px] font-semibold leading-tight text-slate-900">{summary}</div>
+                </div>
+                <div className="whitespace-nowrap text-[12px] font-medium leading-none text-slate-900">{detail}</div>
               </div>
             </div>
-            <div className="flex flex-col gap-3 md:min-w-[280px] md:max-w-[320px]">
+            <div className="flex flex-col items-end gap-3 md:min-w-[240px] md:max-w-[280px]">
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-[14px] font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                aria-label="Close"
+                className="group relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-red text-white transition hover:bg-brand-navy"
               >
-                <X size={14} />
-                Close canvas
+                <span className="pointer-events-none absolute -top-11 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white opacity-0 shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition duration-200 group-hover:opacity-100">
+                  Close canvas
+                </span>
+                <X size={16} strokeWidth={2.2} />
               </button>
             </div>
           </div>

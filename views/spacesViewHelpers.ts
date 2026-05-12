@@ -560,9 +560,9 @@ export function isTaskLockedForView(t: SpacesTask, me: { role?: BackendRole }, m
 
 export function getTaskRowClassesForView(t: SpacesTask, me: { role?: BackendRole }, mode: SpacesMode): string {
   const highlight = getPriorityRowClass(t.priority);
-  const base = 'border-b border-slate-100';
+  const base = 'border-b border-slate-100 transition-colors';
   const isLockedDoneRow = isTaskLockedForView(t, me, mode);
-  if (highlight) return `${base} ${highlight}${isLockedDoneRow ? ' opacity-60' : ''}`;
+  if (highlight) return `${base} ${highlight}${isLockedDoneRow ? ' opacity-60' : ' hover:bg-[#f7faff]'}`;
   return `${base}${isLockedDoneRow ? ' opacity-60' : ' hover:bg-slate-50/50'}`;
 }
 
