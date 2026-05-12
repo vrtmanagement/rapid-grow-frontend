@@ -5,6 +5,7 @@ import { ChatConversationSummary, ChatMessage, ChatUser, ChatAttachment, ChatRep
 import { getUnreadDirectMessageSourceCount } from '../unread';
 import { getSocket } from '../../realtime/socket';
 import { CommunicationContext, CommunicationContextValue } from './CommunicationContextCore';
+import { PROFILE_AVATAR_UPDATED_EVENT } from '../../utils/avatar';
 import {
   getStoredAuth,
   resolveAvatarUrl,
@@ -116,6 +117,40 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     loadUsers();
     loadConversations();
   }, [loadUsers, loadConversations]);
+
+  useEffect(() => {
+    const handleProfileAvatarUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ avatar?: string; empId?: string; userId?: string }>).detail || {};
+      const avatar = resolveAvatarUrl(detail.avatar);
+      if (!avatar) return;
+      const empId = String(detail.empId || '').trim();
+      const userId = String(detail.userId || '').trim();
+
+      setUsers((prev) =>
+        prev.map((user) =>
+          (userId && user.id === userId) || (empId && user.empId === empId)
+            ? { ...user, avatar }
+            : user,
+        ),
+      );
+      setConversations((prev) =>
+        prev.map((conversation) => {
+          if (conversation.type !== 'dm' || !conversation.otherUser) return conversation;
+          const isMatch =
+            (userId && conversation.otherUser.id === userId) ||
+            (empId && conversation.otherUser.empId === empId);
+          return isMatch
+            ? { ...conversation, otherUser: { ...conversation.otherUser, avatar }, avatar }
+            : conversation;
+        }),
+      );
+    };
+
+    window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated as EventListener);
+    return () => {
+      window.removeEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     window.dispatchEvent(

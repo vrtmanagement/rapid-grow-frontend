@@ -3,6 +3,7 @@ import { API_BASE, getAuthHeaders } from '../config/api';
 import { User, Eye, EyeOff, Image as ImageIcon, Check } from 'lucide-react';
 import { PlanningState, TeamMember } from '../types';
 import AvatarCropModal from '../components/profile/AvatarCropModal';
+import { getDisplayAvatarUrl, notifyProfileAvatarUpdated, persistSessionEmployeeAvatar } from '../utils/avatar';
 
 interface Props {
   state: PlanningState;
@@ -28,6 +29,14 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
       const updatedTeam = prev.team.map(m => (m.id === prev.currentUser.id ? updatedUser : m));
       return { ...prev, currentUser: updatedUser, team: updatedTeam };
     });
+    if (typeof updates.avatar === 'string') {
+      persistSessionEmployeeAvatar(updates.avatar);
+      notifyProfileAvatarUpdated({
+        avatar: updates.avatar,
+        empId: employee?.empId,
+        userId: employee?._id || state.currentUser.id,
+      });
+    }
   };
 
   useEffect(() => {
@@ -58,11 +67,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
 
   if (!employee) return null;
 
-  const displayAvatar =
-    avatar ||
-    `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-      (employee.empName || 'User').replace(/\s/g, ''),
-    )}`;
+  const displayAvatar = getDisplayAvatarUrl(avatar, employee.empName);
 
   const handleAvatarFileChange = async (file: File | null) => {
     if (!file) return;
@@ -82,8 +87,16 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || 'Failed to upload profile image');
       const nextAvatar = data.avatar || '';
+      const nextEmployee = { ...employee, ...data, avatar: nextAvatar };
+      setEmployee(nextEmployee);
       setAvatar(nextAvatar);
       setHasChanges(true);
+      persistSessionEmployeeAvatar(nextAvatar, nextEmployee);
+      notifyProfileAvatarUpdated({
+        avatar: nextAvatar,
+        empId: nextEmployee.empId,
+        userId: nextEmployee._id || state.currentUser.id,
+      });
       syncCurrentUser({ avatar: nextAvatar });
     } catch (e: any) {
       setError(e?.message || 'Failed to upload profile image');
@@ -144,20 +157,20 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
       };
       setEmployee(nextEmployee);
       setAvatar(persistedAvatar || '');
+      notifyProfileAvatarUpdated({
+        avatar: persistedAvatar,
+        empId: nextEmployee.empId,
+        userId: nextEmployee._id || state.currentUser.id,
+      });
       syncCurrentUser({ name: nextEmployee.empName, avatar: persistedAvatar || '' });
       setProfilePassword('');
       setHasChanges(false);
 
       try {
-        const stored = localStorage.getItem('rapidgrow-admin');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          parsed.employee = nextEmployee;
-          localStorage.setItem('rapidgrow-admin', JSON.stringify(parsed));
+          persistSessionEmployeeAvatar(persistedAvatar, nextEmployee);
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
-      }
       setInfoMessage('Profile updated successfully.');
     } catch (e: any) {
       setError(e?.message || 'Failed to update profile');

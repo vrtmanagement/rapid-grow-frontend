@@ -1,6 +1,7 @@
 import React from 'react';
 import { Crown, Network, UsersRound } from 'lucide-react';
 import { ProjectTeamHierarchy as ProjectTeamHierarchyType, ProjectTeamMember } from '../../types';
+import { getDisplayAvatarUrl } from '../../utils/avatar';
 
 interface TeamHierarchyProps {
   team?: ProjectTeamHierarchyType;
@@ -10,7 +11,7 @@ function MemberAvatar({ member }: { member: ProjectTeamMember }) {
   return (
     <div className="flex w-full min-w-0 items-center gap-3 rounded-[1.15rem] border border-slate-200/90 bg-white/90 px-3.5 py-3 shadow-[0_10px_26px_rgba(15,23,42,0.06)]">
       <img
-        src={member.avatar}
+        src={getDisplayAvatarUrl(member.avatar, member.name)}
         alt={member.name}
         className="h-11 w-11 rounded-[1rem] border border-slate-200 object-cover"
       />
@@ -60,7 +61,7 @@ const TeamHierarchy: React.FC<TeamHierarchyProps> = ({ team }) => {
           </div>
           <div className="flex items-center gap-4">
             <img
-              src={team.projectManager.avatar}
+              src={getDisplayAvatarUrl(team.projectManager.avatar, team.projectManager.name)}
               alt={team.projectManager.name}
               className="h-16 w-16 rounded-[1.4rem] border border-slate-200 object-cover shadow-[0_10px_24px_rgba(15,23,42,0.12)]"
             />
@@ -79,7 +80,7 @@ const TeamHierarchy: React.FC<TeamHierarchyProps> = ({ team }) => {
             <div className="mb-5 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <img
-                  src={group.lead.avatar}
+                  src={getDisplayAvatarUrl(group.lead.avatar, group.lead.name)}
                   alt={group.lead.name}
                   className="h-14 w-14 rounded-[1.2rem] border border-slate-200 object-cover shadow-sm"
                 />

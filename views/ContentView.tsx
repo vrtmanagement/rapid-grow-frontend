@@ -9,6 +9,7 @@ import MomentsList from '../components/content/MomentsList';
 import SavedDraftsPanel from '../components/content/SavedDraftsPanel';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import Toast from '../components/ui/Toast';
+import { PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } from '../utils/avatar';
 import {
   CalendarDayCounters,
   CONTENT_VIEW_DRAFTS_KEY,
@@ -181,8 +182,9 @@ const ContentView: React.FC = () => {
         (data.users || []).forEach((user: any) => {
           const empId = String(user.empId || user.id || user.userId || '').trim();
           if (!empId) return;
-          if (typeof user.avatar === 'string' && user.avatar.trim()) {
-            next[empId] = user.avatar.trim();
+          const avatar = resolveAvatarUrl(user.avatar);
+          if (avatar) {
+            next[empId] = avatar;
           }
         });
         setUserAvatarByEmpId(next);
@@ -193,6 +195,21 @@ const ContentView: React.FC = () => {
     loadProfiles();
     return () => {
       disposed = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleProfileAvatarUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ avatar?: string; empId?: string }>).detail || {};
+      const empId = String(detail.empId || '').trim();
+      const avatar = resolveAvatarUrl(detail.avatar);
+      if (!empId || !avatar) return;
+      setUserAvatarByEmpId((prev) => ({ ...prev, [empId]: avatar }));
+    };
+
+    window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated as EventListener);
+    return () => {
+      window.removeEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated as EventListener);
     };
   }, []);
 

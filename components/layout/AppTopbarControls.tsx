@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, LogOut, UserCircle } from 'lucide-react';
+import { getDisplayAvatarUrl } from '../../utils/avatar';
 
 interface AppNotification {
   _id: string;
@@ -164,12 +165,7 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
         <div className="mt-0.5 text-xs text-brand-red">{userRole}</div>
       </div>
       <img
-        src={
-          userAvatar ||
-          `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-            (userName || 'User').replace(/\s/g, ''),
-          )}`
-        }
+        src={getDisplayAvatarUrl(userAvatar, userName)}
         className="h-11 w-11 rounded-full border-2 border-white bg-slate-50 object-cover shadow-md"
         alt=""
       />
