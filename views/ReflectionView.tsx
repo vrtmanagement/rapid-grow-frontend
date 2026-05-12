@@ -6,7 +6,7 @@ import { BrainCircuit, Zap, AlertCircle, Sparkles, Send, ShieldCheck } from 'luc
 import { getSocket } from '../realtime/socket';
 import { ReflectionLogSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 import ReflectionHabitsCard from '../components/reflection/ReflectionHabitsCard';
-import { PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } from '../utils/avatar';
+import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } from '../utils/avatar';
 
 interface Props {
   state: PlanningState;
@@ -609,18 +609,13 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-3">
                   {(() => {
-                    const avatarSrc = resolveAvatarUrl(r.avatar || employeeAvatarById[r.empId]);
-                    const initial = (r.empName || r.empId || 'U').trim().charAt(0).toUpperCase() || 'U';
-                    return avatarSrc ? (
-                      <img
-                        src={avatarSrc}
-                        alt={r.empName}
-                        className="h-10 w-10 rounded-full object-cover border border-slate-200"
-                      />
-                    ) : (
-                      <div className="h-10 w-10 rounded-full bg-slate-200 text-slate-700 border border-slate-300 flex items-center justify-center text-xs font-semibold">
-                        {initial}
-                      </div>
+                    const avatarSrc = getDisplayAvatarUrl(r.avatar || employeeAvatarById[r.empId], r.empName || r.empId);
+                    return (
+                    <img
+                      src={avatarSrc}
+                      alt={r.empName}
+                      className="h-10 w-10 rounded-full object-cover border border-slate-200 bg-slate-50"
+                    />
                     );
                   })()}
                   <div className="flex flex-col">
