@@ -125,7 +125,7 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
   return (
     <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="w-full max-w-3xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_36px_90px_rgba(15,23,42,0.18)]"
+        className="w-full max-w-3xl overflow-hidden rounded-[28px] border border-slate-200 bg-white"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
@@ -191,7 +191,7 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
               </div>
 
               <div className="space-y-3">
-                <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+                <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="text-[13px] font-semibold uppercase tracking-[0.14em] text-slate-700">Weekly Planner</div>
@@ -300,7 +300,7 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                   <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Document / Attachments</label>
                   <label className="flex min-h-[132px] cursor-pointer flex-col items-center justify-center rounded-[22px] border border-dashed border-red-200 bg-slate-50/70 px-5 text-center transition hover:bg-red-50/50">
                     <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" className="hidden" onChange={(e) => setTaskDocumentFile(e.target.files?.[0] || null)} />
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
                       <Paperclip size={20} />
                     </div>
                     <div className="mt-3 text-[15px] font-medium text-slate-700">

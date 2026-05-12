@@ -213,7 +213,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
   return (
     <>
       {isWeeklyPlannerCanvasOpen ? (
-        <div className="-mx-16 -mt-16 mb-4 px-3 pt-3">
+        <div className="-mt-16 mb-4 ml-[-2rem] w-[calc(100%+4rem)] pt-3">
           <WeeklyTaskPeriodCanvas
             {...weeklyPeriodPicker}
             open={isWeeklyPlannerCanvasOpen}
@@ -239,7 +239,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1.7fr)]">
-          <div className="order-2 bg-white rounded-3xl shadow-2xl border border-slate-200 space-y-4 p-6">
+          <div className="order-2 bg-white rounded-3xl border border-slate-200 space-y-4 p-6">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-3">
@@ -340,7 +340,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
 
                     {selectedDay ? (
                       <div className="mt-3 overflow-hidden rounded-[18px] border border-slate-200 bg-white">
-                        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/70 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
                           <div className="min-w-0">
                             <div className="hidden min-w-0 items-center gap-1 text-[15px] font-medium text-slate-800">
                               <span>{selectedDay.text}</span>
@@ -357,13 +357,24 @@ const SpacesMainSections: React.FC<any> = (props) => {
                                 </span>
                               ) : null}
                             </div>
-                            <div className="text-[15px] font-medium text-slate-800">
+                            <label className="flex items-start gap-3">
+                              <input
+                                type="checkbox"
+                                checked={selectedDay.completed}
+                                onChange={() => toggleDaily(selectedDay.id)}
+                                disabled={!canManageWeeklyRows}
+                                className="mt-0.5 h-4 w-4"
+                              />
+                              <span className="min-w-0">
+                                <span className="block text-[15px] font-medium text-slate-800">
                               {selectedDay.text}
                               {selectedDayInfo ? ` · ${selectedDayInfo.weekday}, ${selectedDayInfo.dateText}` : ''}
-                            </div>
-                            <div className="mt-1 text-[12px] text-slate-400">
-                              {assignmentsForSelectedDay.length} linked task{assignmentsForSelectedDay.length === 1 ? '' : 's'}
-                            </div>
+                            </span>
+                                <span className="mt-1 block text-[12px] text-slate-400">
+                                  {assignmentsForSelectedDay.length} linked task{assignmentsForSelectedDay.length === 1 ? '' : 's'}
+                                </span>
+                              </span>
+                            </label>
                           </div>
 
                           <button
@@ -424,7 +435,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
             )}
           </div>
 
-          <div className="order-1 bg-white rounded-3xl shadow-2xl border border-slate-200 p-5">
+          <div className="order-1 bg-white rounded-3xl border border-slate-200 p-5">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <h4 className="text-sm font-semibold text-slate-900">Top Priorities</h4>
