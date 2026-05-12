@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
+import { formatContentCreatedStamp } from '../../views/contentViewShared';
 
 type MomentEntry = {
   id: string;
@@ -30,35 +31,41 @@ const MomentsList: React.FC<MomentsListProps> = ({ momentEntries, onEdit, onDele
         {momentEntries
           .slice()
           .sort((a, b) => `${b.date}${b.createdAt}`.localeCompare(`${a.date}${a.createdAt}`))
-          .map((entry) => (
-            <div key={entry.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-amber-700">{entry.date}</p>
-                  <p className="text-base font-medium text-slate-900">{entry.text}</p>
-                  {entry.topic ? (
-                    <p className="text-sm text-slate-500">Topic: {entry.topic}</p>
-                  ) : null}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onEdit(entry)}
-                    className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700"
-                  >
-                    <Pencil size={12} /> Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(entry.id)}
-                    className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-600"
-                  >
-                    <Trash2 size={12} /> Delete
-                  </button>
+          .map((entry) => {
+            const addedStamp = formatContentCreatedStamp(entry.createdAt);
+            return (
+              <div key={entry.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-amber-700">{entry.date}</p>
+                    <p className="text-base font-medium text-slate-900">{entry.text}</p>
+                    {entry.topic ? (
+                      <p className="text-sm text-slate-500">Topic: {entry.topic}</p>
+                    ) : null}
+                    {addedStamp ? (
+                      <p className="text-[11px] text-slate-500">Added {addedStamp}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onEdit(entry)}
+                      className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700"
+                    >
+                      <Pencil size={12} /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(entry.id)}
+                      className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-600"
+                    >
+                      <Trash2 size={12} /> Delete
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
       </div>
     </div>
   );

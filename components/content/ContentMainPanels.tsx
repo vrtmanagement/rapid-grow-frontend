@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BellRing, CalendarDays, Check, ChevronLeft, ChevronRight, Hash, Link2, Plus } from 'lucide-react';
 import { ContentDraftMode } from '../../services/contentApi';
+import { formatContentCreatedStamp } from '../../views/contentViewShared';
 
 type ContentMainPanelsProps = {
   ctx: any;
@@ -351,8 +352,8 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
                                 <div className="truncate text-sm font-semibold text-slate-700">
                                   {item.title || 'Untitled content'}
                                 </div>
-                                <div className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
-                                  Scheduled item
+                                <div className="mt-0.5 text-[11px] font-medium text-slate-500">
+                                  {formatContentCreatedStamp(item.createdAt) || 'Scheduled item'}
                                 </div>
                               </div>
                               <span className={`h-2 w-2 rounded-full ${TYPE_ACCENT[group.type].previewDot}`} />

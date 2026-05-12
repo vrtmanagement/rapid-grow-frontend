@@ -1,7 +1,7 @@
 import React from 'react';
 import { Check, Download, MessageSquareText, Pencil, Trash2, X } from 'lucide-react';
 import { ContentComment, ContentItem } from '../../services/contentApi';
-import { FormattedContentBody, TYPE_ACCENT, TYPE_LABEL, isAdminRole, formatUsDateTime, isImageAsset, triggerAssetDownload, autoResizeTextarea, nameInitials } from '../../views/contentViewShared';
+import { FormattedContentBody, TYPE_ACCENT, TYPE_LABEL, isAdminRole, formatUsDateTime, formatContentCreatedStamp, isImageAsset, triggerAssetDownload, autoResizeTextarea, nameInitials } from '../../views/contentViewShared';
 
 type ContentCardProps = {
   item: ContentItem;
@@ -157,13 +157,8 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
             </h4>
           )}
         </div>
-        <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
-          {new Date(item.createdAt).toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true,
-            timeZone: 'Asia/Kolkata',
-          })}
+        <span className="max-w-[min(100%,11rem)] shrink-0 whitespace-normal rounded-full bg-slate-100 px-3 py-1 text-right text-[11px] font-medium leading-snug text-slate-500 sm:max-w-none sm:text-xs">
+          {formatContentCreatedStamp(item.createdAt) || '—'}
         </span>
       </div>
       <div className="relative mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-600">
