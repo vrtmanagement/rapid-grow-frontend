@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { ChatNotification } from '../types';
+import { getDisplayAvatarUrl } from '../../utils/avatar';
 
 export function NotificationCard({
   notification,
@@ -36,7 +37,7 @@ export function NotificationCard({
       <div className="flex items-start gap-3">
         <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-brand-red/20 bg-brand-red/5">
           {notification.avatar ? (
-            <img src={notification.avatar} alt={notification.senderName} className="h-full w-full object-cover" />
+            <img src={getDisplayAvatarUrl(notification.avatar, notification.senderName)} alt={notification.senderName} className="h-full w-full object-cover" />
           ) : (
             <span className="flex h-full w-full items-center justify-center text-xs font-bold uppercase text-slate-500">
               {notification.senderName.slice(0, 1)}

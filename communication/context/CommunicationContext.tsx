@@ -52,8 +52,10 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     if (!employee) return;
     setCurrentUser({
       id: String(employee._id || employee.empId),
+      empId: String(employee.empId || ''),
       name: employee.empName || employee.name || 'User',
       role: employee.role || 'EMPLOYEE',
+      avatar: resolveAvatarUrl(employee.avatar),
     });
   }, []);
 
@@ -64,6 +66,11 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       const data = await apiListUsers();
       const mapped: ChatUser[] = (data.users || []).map(mapListUsersApiRowToChatUser);
       setUsers(mapped);
+      setCurrentUser((prev) => {
+        if (!prev) return prev;
+        const fresh = mapped.find((user) => user.id === prev.id || user.empId === prev.empId);
+        return fresh ? { ...prev, empId: fresh.empId, name: fresh.name, role: fresh.role, avatar: fresh.avatar } : prev;
+      });
     } catch (e: any) {
       setError(e?.message || 'Failed to load users');
     } finally {
@@ -1001,8 +1008,21 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
 
   const selectedConversation = useMemo(() => {
     if (!selectedConversationKey) return null;
-    return conversations.find((c) => c.conversationKey === selectedConversationKey) || null;
-  }, [conversations, selectedConversationKey]);
+    const conversation = conversations.find((c) => c.conversationKey === selectedConversationKey) || null;
+    if (!conversation || conversation.type !== 'dm' || !conversation.otherUser) return conversation;
+    const freshUser = users.find((user) => user.id === conversation.otherUser?.id || user.empId === conversation.otherUser?.empId);
+    if (!freshUser) return conversation;
+    return {
+      ...conversation,
+      title: freshUser.name || conversation.title,
+      avatar: freshUser.avatar || conversation.avatar,
+      otherUser: {
+        ...conversation.otherUser,
+        ...freshUser,
+        avatar: freshUser.avatar || conversation.otherUser.avatar,
+      },
+    };
+  }, [conversations, selectedConversationKey, users]);
 
   const value: CommunicationContextValue = {
     currentUser,

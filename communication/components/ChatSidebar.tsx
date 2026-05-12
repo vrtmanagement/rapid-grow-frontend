@@ -3,6 +3,7 @@ import { ChatConversationSummary, ChatUser } from '../types';
 import { ImagePlus, Mail, Pencil, Plus, Trash2, UserPlus, X } from 'lucide-react';
 import { MessageActionModal } from './MessageActionModal';
 import { apiUploadFile } from '../api';
+import { getDisplayAvatarUrl } from '../../utils/avatar';
 
 function roleLabel(roleGroup: string) {
   if (roleGroup === 'admin') return 'Admin';
@@ -173,7 +174,7 @@ export function ChatSidebar({
                     <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
                       {c.avatar ? (
                         <img
-                          src={c.avatar}
+                          src={getDisplayAvatarUrl(c.avatar, c.title)}
                           alt={c.title}
                           className="h-full w-full cursor-pointer object-cover"
                           onClick={(e) => {
@@ -260,8 +261,7 @@ export function ChatSidebar({
                 <div className="relative shrink-0">
                   <img
                     src={
-                      currentUser?.avatar ||
-                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent((currentUser?.name || 'you').replace(/\s/g, ''))}`
+                      getDisplayAvatarUrl(currentUser?.avatar, currentUser?.name || 'you')
                     }
                     alt=""
                     className="w-9 h-9 rounded-full border border-slate-200 bg-slate-50 object-cover cursor-pointer"
@@ -299,8 +299,7 @@ export function ChatSidebar({
                   <div className="relative shrink-0">
                     <img
                       src={
-                        u.avatar ||
-                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u.name.replace(/\s/g, ''))}`
+                        getDisplayAvatarUrl(u.avatar, u.name)
                       }
                       alt=""
                       className="w-9 h-9 rounded-full border border-slate-200 bg-slate-50 object-cover cursor-pointer"
@@ -350,7 +349,7 @@ export function ChatSidebar({
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
               {teamAvatar ? (
-                <img src={teamAvatar} alt="Team avatar" className="h-full w-full object-cover" />
+                <img src={getDisplayAvatarUrl(teamAvatar, teamName || 'Team')} alt="Team avatar" className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-slate-500">Team</div>
               )}
@@ -434,7 +433,7 @@ export function ChatSidebar({
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
               {teamAvatar ? (
-                <img src={teamAvatar} alt="Team avatar" className="h-full w-full object-cover" />
+                <img src={getDisplayAvatarUrl(teamAvatar, teamName || 'Team')} alt="Team avatar" className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-slate-500">Team</div>
               )}

@@ -2,7 +2,7 @@ import { createContext } from 'react';
 import { ChatConversationSummary, ChatMessage, ChatNotification, ChatUser } from '../types';
 
 export type CommunicationContextValue = {
-  currentUser: { id: string; name: string; role: string } | null;
+  currentUser: { id: string; name: string; role: string; empId?: string; avatar?: string } | null;
   users: ChatUser[];
   conversations: ChatConversationSummary[];
   usersLoading: boolean;
