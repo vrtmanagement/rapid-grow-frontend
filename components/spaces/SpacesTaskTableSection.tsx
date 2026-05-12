@@ -1,6 +1,7 @@
 import React from 'react';
 import { Eye, MessageSquareText, MoreVertical, Pencil, Plus, X } from 'lucide-react';
 import { TaskHubTableSkeleton, ThemedSelect } from './SpacesFormControls';
+import { getDisplayAvatarUrl } from '../../utils/avatar';
 
 function getPriorityPillClass(priority?: string) {
   const normalized = String(priority || 'medium').trim().toLowerCase();
@@ -30,30 +31,6 @@ function formatDueDateLabel(value?: string) {
   if (!year || !month || !day) return '—';
   const date = new Date(year, month - 1, day);
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function resolveAvatarUrl(apiBase: string, rawAvatar?: string | null): string | undefined {
-  const avatar = String(rawAvatar || '').trim();
-  if (!avatar) return undefined;
-  if (/^(https?:)?\/\//i.test(avatar) || /^data:/i.test(avatar) || /^blob:/i.test(avatar)) {
-    return avatar;
-  }
-
-  let apiOrigin = '';
-  try {
-    apiOrigin = new URL(apiBase).origin;
-  } catch {
-    apiOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-  }
-
-  if (!apiOrigin) return avatar;
-  if (avatar.startsWith('/')) return `${apiOrigin}${avatar}`;
-  return `${apiOrigin}/${avatar.replace(/^\.?\//, '')}`;
-}
-
-function getFallbackAvatarUrl(name?: string) {
-  const seed = encodeURIComponent(String(name || 'User').replace(/\s/g, '').trim() || 'User');
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
 }
 
 const SpacesTaskTableSection: React.FC<any> = (props) => {
@@ -192,7 +169,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
 
                 const assignee = assigneeOptionsForTask(t.assigneeId).find((employee: any) => employee.empId === t.assigneeId);
                 const assigneeName = assignee ? assignee.empName || 'Unknown User' : 'Unassigned';
-                const assigneeAvatar = resolveAvatarUrl(API_BASE, assignee?.avatar) || getFallbackAvatarUrl(assigneeName);
+                const assigneeAvatar = getDisplayAvatarUrl(assignee?.avatar, assigneeName);
 
                 return (
                   <tr key={t.taskId} className={getTaskRowClasses(t)}>

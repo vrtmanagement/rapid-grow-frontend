@@ -8,6 +8,7 @@ import {
   WorkspaceProject,
   WorkspaceTask,
 } from '../../types';
+import { getDisplayAvatarUrl } from '../../utils/avatar';
 
 export interface EmployeeDirectoryRecord {
   _id?: string;
@@ -57,8 +58,6 @@ export const PROJECT_PRIORITY_OPTIONS: Array<Extract<ProjectPriority, 'Low' | 'M
   'Critical',
 ];
 
-const DEFAULT_MEMBER_AVATAR = 'https://api.dicebear.com/7.x/initials/svg?seed=RapidGrow';
-
 function sanitizeText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -84,9 +83,7 @@ export function normalizeProjectPriority(priority: unknown): Extract<ProjectPrio
 }
 
 export function createMemberAvatar(name: string, avatar?: string): string {
-  if (sanitizeText(avatar)) return sanitizeText(avatar);
-  const seed = sanitizeText(name).replace(/\s+/g, '') || 'RapidGrow';
-  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}`;
+  return getDisplayAvatarUrl(sanitizeText(avatar), sanitizeText(name) || 'RapidGrow');
 }
 
 export function mapEmployeeToProjectMember(employee: EmployeeDirectoryRecord, fallbackRole = 'Team Member'): ProjectTeamMember {
@@ -96,7 +93,7 @@ export function mapEmployeeToProjectMember(employee: EmployeeDirectoryRecord, fa
     id,
     name,
     role: sanitizeText(employee.designation) || sanitizeText(employee.role) || fallbackRole,
-    avatar: createMemberAvatar(name, sanitizeText(employee.avatar) || DEFAULT_MEMBER_AVATAR),
+    avatar: createMemberAvatar(name, sanitizeText(employee.avatar)),
     email: sanitizeText(employee.email),
     designation: sanitizeText(employee.designation),
     department: sanitizeText(employee.department),

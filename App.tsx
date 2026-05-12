@@ -35,6 +35,7 @@ import {
   normalizeDailyReviewReminderSettings,
   type DailyReviewReminderSettings,
 } from './services/dailyReviewReminderSettings';
+import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT } from './utils/avatar';
 
 interface GlobalLeaveToast {
   key: string;
@@ -264,10 +265,7 @@ const App: React.FC = () => {
               name: employee.empName || 'Admin',
               role: mapBackendRoleToUiRole(employee.role),
               email: employee.email || '',
-              avatar:
-                employee.avatar && typeof employee.avatar === 'string' && employee.avatar.trim()
-                  ? employee.avatar
-                  : `https://api.dicebear.com/7.x/avataaars/svg?seed=${(employee.empName || 'Admin').replace(/\s/g, '')}`,
+              avatar: getDisplayAvatarUrl(employee.avatar, employee.empName || 'Admin'),
               status: 'Active',
               isVerified: true,
               powers: DEFAULT_POWERS[employee.role as keyof typeof DEFAULT_POWERS] || [],
@@ -333,10 +331,7 @@ const App: React.FC = () => {
               name: employee.empName || 'Admin',
               role: mapBackendRoleToUiRole(employee.role),
               email: employee.email || '',
-              avatar:
-                employee.avatar && typeof employee.avatar === 'string' && employee.avatar.trim()
-                  ? employee.avatar
-                  : `https://api.dicebear.com/7.x/avataaars/svg?seed=${(employee.empName || 'Admin').replace(/\s/g, '')}`,
+              avatar: getDisplayAvatarUrl(employee.avatar, employee.empName || 'Admin'),
               status: 'Active',
               isVerified: true,
               powers: DEFAULT_POWERS[employee.role as keyof typeof DEFAULT_POWERS] || [],
@@ -363,6 +358,37 @@ const App: React.FC = () => {
       setAppStateHydrated(true);
     }
   }, []);
+
+  useEffect(() => {
+    const handleProfileAvatarUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ avatar?: string; empId?: string; userId?: string }>).detail || {};
+      const nextAvatar = getDisplayAvatarUrl(detail.avatar, state.currentUser.name);
+      setState(prev => {
+        const matchesCurrentUser =
+          (!!detail.userId && String(detail.userId) === String(prev.currentUser.id)) ||
+          (!!detail.empId && prev.team.some((member) => String(member.id) === String(detail.empId)));
+        const updatedTeam = prev.team.map((member) => {
+          const isMatch =
+            (!!detail.userId && String(member.id) === String(detail.userId)) ||
+            (!!detail.empId && String(member.id) === String(detail.empId)) ||
+            String(member.id) === String(prev.currentUser.id);
+          return isMatch ? { ...member, avatar: nextAvatar } : member;
+        });
+        return {
+          ...prev,
+          currentUser: matchesCurrentUser || !detail.userId && !detail.empId
+            ? { ...prev.currentUser, avatar: nextAvatar }
+            : prev.currentUser,
+          team: updatedTeam,
+        };
+      });
+    };
+
+    window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated as EventListener);
+    return () => {
+      window.removeEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated as EventListener);
+    };
+  }, [state.currentUser.name]);
 
   useEffect(() => {
     setState(prev => ({

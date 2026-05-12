@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, UserRound, UsersRound, X } from 'lucide-react';
 import { ProjectTeamMember } from '../../types';
 import { PROJECT_PRIORITY_OPTIONS, PROJECT_STATUS_OPTIONS, ProjectFormState } from './projectCharterUtils';
+import { getDisplayAvatarUrl } from '../../utils/avatar';
 
 interface ProjectCharterFormModalProps {
   isOpen: boolean;
@@ -341,7 +342,7 @@ const ProjectCharterFormModal: React.FC<ProjectCharterFormModalProps> = ({
                                       className="h-4 w-4 rounded border-slate-300 text-brand-red focus:ring-brand-red"
                                     />
                                     <img
-                                      src={employee.avatar}
+                                      src={getDisplayAvatarUrl(employee.avatar, employee.name)}
                                       alt={employee.name}
                                       className="h-10 w-10 rounded-2xl border border-slate-200 object-cover"
                                     />

@@ -1,4 +1,4 @@
-import { API_BASE } from '../../config/api';
+import { resolveAvatarUrl as resolveSharedAvatarUrl } from '../../utils/avatar';
 import {
   ChatAttachment,
   ChatReplyRef,
@@ -18,18 +18,7 @@ export function getStoredAuth() {
 }
 
 export function resolveAvatarUrl(rawAvatar?: string | null): string | undefined {
-  const avatar = (rawAvatar || '').trim();
-  if (!avatar) return undefined;
-  if (/^(https?:)?\/\//i.test(avatar) || /^data:/i.test(avatar) || /^blob:/i.test(avatar)) return avatar;
-  let apiOrigin = '';
-  try {
-    apiOrigin = new URL(API_BASE).origin;
-  } catch {
-    apiOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-  }
-  if (!apiOrigin) return avatar;
-  if (avatar.startsWith('/')) return `${apiOrigin}${avatar}`;
-  return `${apiOrigin}/${avatar.replace(/^\.?\//, '')}`;
+  return resolveSharedAvatarUrl(rawAvatar);
 }
 
 export function resolveConversationAvatar(rawAvatar?: string | null): string | undefined {

@@ -4,6 +4,7 @@ import { PlanningState, TeamMember } from '../types';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { User, Eye, EyeOff, Check, Settings, Image as ImageIcon } from 'lucide-react';
 import AvatarCropModal from '../components/profile/AvatarCropModal';
+import { getDisplayAvatarUrl, notifyProfileAvatarUpdated, persistSessionEmployeeAvatar } from '../utils/avatar';
 
 interface Props {
   state: PlanningState;
@@ -49,17 +50,13 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
       const updatedTeam = prev.team.map(m => (m.id === prev.currentUser.id ? updatedUser : m));
       return { ...prev, currentUser: updatedUser, team: updatedTeam };
     });
-    if (updates.avatar) {
-      try {
-        const raw = localStorage.getItem('rapidgrow-admin');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          parsed.employee = { ...(parsed.employee || {}), avatar: updates.avatar };
-          localStorage.setItem('rapidgrow-admin', JSON.stringify(parsed));
-        }
-      } catch {
-        // ignore
-      }
+    if (typeof updates.avatar === 'string') {
+      persistSessionEmployeeAvatar(updates.avatar);
+      notifyProfileAvatarUpdated({
+        avatar: updates.avatar,
+        empId: backendEmployee?.empId,
+        userId: backendEmployee?._id || state.currentUser.id,
+      });
     }
   };
 
@@ -83,7 +80,13 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
         throw new Error(data.message || 'Failed to upload profile image');
       }
       const nextAvatar = data.avatar || '';
+      persistSessionEmployeeAvatar(nextAvatar, data);
       handleUserRecordChange({ avatar: nextAvatar });
+      notifyProfileAvatarUpdated({
+        avatar: nextAvatar,
+        empId: data.empId || backendEmployee?.empId,
+        userId: data._id || backendEmployee?._id || state.currentUser.id,
+      });
       setHasChanges(true);
     } catch (e: any) {
       setProfileError(e?.message || 'Failed to upload profile image');
@@ -139,19 +142,15 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
         avatar: persistedAvatar || state.currentUser.avatar,
       });
       try {
-        const raw = localStorage.getItem('rapidgrow-admin');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          parsed.employee = {
-            ...(parsed.employee || {}),
-            ...data,
-            avatar: persistedAvatar || parsed.employee?.avatar,
-          };
-          localStorage.setItem('rapidgrow-admin', JSON.stringify(parsed));
-        }
+        persistSessionEmployeeAvatar(persistedAvatar, data);
       } catch {
         // ignore
       }
+      notifyProfileAvatarUpdated({
+        avatar: persistedAvatar,
+        empId: data.empId || backendEmployee?.empId,
+        userId: data._id || backendEmployee?._id || state.currentUser.id,
+      });
       setProfilePassword('');
       setHasChanges(false);
       setInfoDialogMessage('Profile updated successfully.');
@@ -162,11 +161,10 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
     }
   };
 
-  const displayAvatar =
-    state.currentUser.avatar ||
-    `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-      (backendEmployee?.empName || state.currentUser.name || 'User').replace(/\s/g, ''),
-    )}`;
+  const displayAvatar = getDisplayAvatarUrl(
+    state.currentUser.avatar,
+    backendEmployee?.empName || state.currentUser.name,
+  );
 
   return (
     <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-500 pb-24 relative">

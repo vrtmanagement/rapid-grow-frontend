@@ -11,6 +11,7 @@ import {
   saveDailyReviewReminderSettings,
   type DailyReviewReminderSettings,
 } from '../services/dailyReviewReminderSettings';
+import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } from '../utils/avatar';
 
 type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | string;
 
@@ -40,25 +41,6 @@ function getBackendInfo() {
   } catch {
     return { role: 'EMPLOYEE' as BackendRole, empId: '' };
   }
-}
-
-function resolveAvatarUrl(rawAvatar?: string | null): string | undefined {
-  const avatar = (rawAvatar || '').trim();
-  if (!avatar) return undefined;
-  if (/^(https?:)?\/\//i.test(avatar) || /^data:/i.test(avatar) || /^blob:/i.test(avatar)) {
-    return avatar;
-  }
-
-  let apiOrigin = '';
-  try {
-    apiOrigin = new URL(API_BASE).origin;
-  } catch {
-    apiOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-  }
-
-  if (!apiOrigin) return avatar;
-  if (avatar.startsWith('/')) return `${apiOrigin}${avatar}`;
-  return `${apiOrigin}/${avatar.replace(/^\.?\//, '')}`;
 }
 
 function formatRoleLabel(role?: BackendRole) {
@@ -203,6 +185,28 @@ const StaffView: React.FC = () => {
   useEffect(() => {
     load();
   }, [hasPermission]);
+
+  useEffect(() => {
+    const handleProfileAvatarUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ avatar?: string; empId?: string; userId?: string }>).detail || {};
+      const avatar = resolveAvatarUrl(detail.avatar);
+      if (!avatar) return;
+      const empId = String(detail.empId || '').trim();
+      const userId = String(detail.userId || '').trim();
+      setRows((prev) =>
+        prev.map((row) =>
+          (userId && row._id === userId) || (empId && row.empId === empId)
+            ? { ...row, avatar }
+            : row,
+        ),
+      );
+    };
+
+    window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated as EventListener);
+    return () => {
+      window.removeEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -714,11 +718,7 @@ const StaffView: React.FC = () => {
               ) : (
                 rows.map((row) => {
                   const editable = canEditRow(row);
-                  const avatarSrc =
-                    resolveAvatarUrl(row.avatar) ||
-                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-                      (row.empName || 'User').replace(/\s/g, ''),
-                    )}`;
+                  const avatarSrc = getDisplayAvatarUrl(row.avatar, row.empName);
 
                   return (
                     <tr

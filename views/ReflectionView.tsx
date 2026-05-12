@@ -6,6 +6,7 @@ import { BrainCircuit, Zap, AlertCircle, Sparkles, Send, ShieldCheck } from 'luc
 import { getSocket } from '../realtime/socket';
 import { ReflectionLogSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 import ReflectionHabitsCard from '../components/reflection/ReflectionHabitsCard';
+import { PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } from '../utils/avatar';
 
 interface Props {
   state: PlanningState;
@@ -44,23 +45,6 @@ function getIndiaDateKey(offsetDays = 0): string {
   const month = parts.find((part) => part.type === 'month')?.value || '01';
   const day = parts.find((part) => part.type === 'day')?.value || '01';
   return `${year}-${month}-${day}`;
-}
-
-function resolveAvatarUrl(rawAvatar?: string | null): string | undefined {
-  const avatar = (rawAvatar || '').trim();
-  if (!avatar) return undefined;
-  if (/^(https?:)?\/\//i.test(avatar) || /^data:/i.test(avatar) || /^blob:/i.test(avatar)) return avatar;
-
-  let apiOrigin = '';
-  try {
-    apiOrigin = new URL(API_BASE).origin;
-  } catch {
-    apiOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-  }
-
-  if (!apiOrigin) return avatar;
-  if (avatar.startsWith('/')) return `${apiOrigin}${avatar}`;
-  return `${apiOrigin}/${avatar.replace(/^\.?\//, '')}`;
 }
 
 const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }) => {
@@ -272,7 +256,7 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
         const map: Record<string, string> = {};
         list.forEach((emp: any) => {
           const empId = String(emp?.empId || '').trim();
-          const avatar = String(emp?.avatar || '').trim();
+          const avatar = resolveAvatarUrl(emp?.avatar);
           if (empId && avatar) {
             map[empId] = avatar;
           }
@@ -283,6 +267,22 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
       }
     };
     loadEmployeeAvatars();
+  }, []);
+
+  useEffect(() => {
+    const handleProfileAvatarUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ avatar?: string; empId?: string }>).detail || {};
+      const empId = String(detail.empId || '').trim();
+      const avatar = resolveAvatarUrl(detail.avatar);
+      if (!empId || !avatar) return;
+      setEmployeeAvatarById((prev) => ({ ...prev, [empId]: avatar }));
+      setRecords((prev) => prev.map((record) => (record.empId === empId ? { ...record, avatar } : record)));
+    };
+
+    window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated as EventListener);
+    return () => {
+      window.removeEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated as EventListener);
+    };
   }, []);
 
   useEffect(() => {
