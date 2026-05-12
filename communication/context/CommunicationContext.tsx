@@ -20,36 +20,100 @@ import {
 type EmployeeAvatarDirectory = {
   byId: Map<string, string>;
   byEmpId: Map<string, string>;
+  byName: Map<string, string>;
 };
+
+function createEmptyAvatarDirectory(): EmployeeAvatarDirectory {
+  return {
+    byId: new Map<string, string>(),
+    byEmpId: new Map<string, string>(),
+    byName: new Map<string, string>(),
+  };
+}
+
+function addAvatarToDirectory(
+  directory: EmployeeAvatarDirectory,
+  input: { id?: unknown; _id?: unknown; empId?: unknown; name?: unknown; empName?: unknown; avatar?: unknown },
+) {
+  const avatar = resolveAvatarUrl(typeof input.avatar === 'string' ? input.avatar : '');
+  if (!avatar) return;
+  const id = String(input.id || input._id || '').trim();
+  const empId = String(input.empId || '').trim();
+  const name = String(input.name || input.empName || '').trim().toLowerCase();
+  if (id) directory.byId.set(id, avatar);
+  if (empId) directory.byEmpId.set(empId, avatar);
+  if (name) directory.byName.set(name, avatar);
+}
+
+function loadStoredAvatarDirectory(): EmployeeAvatarDirectory {
+  const directory = createEmptyAvatarDirectory();
+  try {
+    const auth = getStoredAuth();
+    if (auth?.employee) {
+      addAvatarToDirectory(directory, {
+        _id: auth.employee._id,
+        empId: auth.employee.empId,
+        empName: auth.employee.empName || auth.employee.name,
+        avatar: auth.employee.avatar,
+      });
+    }
+  } catch {
+    // Ignore malformed auth storage.
+  }
+
+  try {
+    const raw = localStorage.getItem('rapidgrow-os-v1');
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed?.currentUser) {
+      addAvatarToDirectory(directory, parsed.currentUser);
+    }
+    if (Array.isArray(parsed?.team)) {
+      parsed.team.forEach((member: any) => addAvatarToDirectory(directory, member));
+    }
+  } catch {
+    // Ignore stale app state storage.
+  }
+
+  return directory;
+}
+
+function mergeAvatarDirectories(...directories: EmployeeAvatarDirectory[]): EmployeeAvatarDirectory {
+  const merged = createEmptyAvatarDirectory();
+  directories.forEach((directory) => {
+    directory.byId.forEach((avatar, key) => merged.byId.set(key, avatar));
+    directory.byEmpId.forEach((avatar, key) => merged.byEmpId.set(key, avatar));
+    directory.byName.forEach((avatar, key) => merged.byName.set(key, avatar));
+  });
+  return merged;
+}
 
 async function loadEmployeeAvatarDirectory(): Promise<EmployeeAvatarDirectory> {
   const byId = new Map<string, string>();
   const byEmpId = new Map<string, string>();
+  const byName = new Map<string, string>();
+  const apiDirectory = { byId, byEmpId, byName };
   try {
     const res = await fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() });
-    if (!res.ok) return { byId, byEmpId };
+    if (!res.ok) return mergeAvatarDirectories(loadStoredAvatarDirectory(), apiDirectory);
     const employees = await res.json().catch(() => []);
-    if (!Array.isArray(employees)) return { byId, byEmpId };
+    if (!Array.isArray(employees)) return mergeAvatarDirectories(loadStoredAvatarDirectory(), apiDirectory);
     employees.forEach((employee: any) => {
-      const avatar = resolveAvatarUrl(employee?.avatar);
-      if (!avatar) return;
-      const id = String(employee?._id || '').trim();
-      const empId = String(employee?.empId || '').trim();
-      if (id) byId.set(id, avatar);
-      if (empId) byEmpId.set(empId, avatar);
+      addAvatarToDirectory(apiDirectory, employee);
     });
   } catch {
     // Communication can still render fallbacks if the broader directory is unavailable.
   }
-  return { byId, byEmpId };
+  return mergeAvatarDirectories(loadStoredAvatarDirectory(), apiDirectory);
 }
 
-function avatarFromDirectory(directory: EmployeeAvatarDirectory, id?: string, empId?: string) {
+function avatarFromDirectory(directory: EmployeeAvatarDirectory, id?: string, empId?: string, name?: string) {
   const normalizedId = String(id || '').trim();
   const normalizedEmpId = String(empId || '').trim();
+  const normalizedName = String(name || '').trim().toLowerCase();
   return (
     (normalizedId ? directory.byId.get(normalizedId) : '') ||
     (normalizedEmpId ? directory.byEmpId.get(normalizedEmpId) : '') ||
+    (normalizedName ? directory.byName.get(normalizedName) : '') ||
     ''
   );
 }
@@ -110,7 +174,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       const storedAvatar = resolveAvatarUrl(storedEmployee.avatar);
       const mapped: ChatUser[] = (data.users || []).map((user: any) => {
         const mappedUser = mapListUsersApiRowToChatUser(user);
-        const directoryAvatar = avatarFromDirectory(avatarDirectory, mappedUser.id, mappedUser.empId);
+        const directoryAvatar = avatarFromDirectory(avatarDirectory, mappedUser.id, mappedUser.empId, mappedUser.name);
         const sessionAvatar =
           storedAvatar &&
           ((storedUserId && mappedUser.id === storedUserId) || (storedEmpId && mappedUser.empId === storedEmpId))
@@ -149,6 +213,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
           avatarDirectory,
           mappedConversation.otherUser.id,
           mappedConversation.otherUser.empId,
+          mappedConversation.otherUser.name,
         );
         if (!directoryAvatar) return mappedConversation;
         return {
