@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, FileText, Plus } from 'lucide-react';
+import { CheckCircle2, Eye, FileText, Paperclip, Plus } from 'lucide-react';
 import { WeeklyTaskPeriodCanvas, WeeklyTaskPeriodTrigger } from './SpacesFormControls';
 import SpacesTaskCreateModal from './SpacesTaskCreateModal';
 import SpacesTaskTableSection from './SpacesTaskTableSection';
@@ -64,6 +64,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
     tasks,
     toggleDaily,
     canManageWeeklyRows,
+    canToggleWeeklyDay,
     createDaysForWeek,
     setTaskFilterMode,
     taskFilterMode,
@@ -170,12 +171,12 @@ const SpacesMainSections: React.FC<any> = (props) => {
   };
   const getTopPriorityCardClasses = (task: any, index: number) => {
     if (isCompletedPriorityStatus(task?.status)) {
-      return 'border border-emerald-200 bg-emerald-50/80';
+      return 'border border-emerald-200 bg-emerald-50/80 hover:bg-emerald-100/70';
     }
     if (index % 2 === 0) {
-      return 'border border-slate-200 border-l-[3px] border-l-brand-red bg-white';
+      return 'border border-slate-200 border-l-[3px] border-l-brand-red bg-white hover:bg-[#f7faff]';
     }
-    return 'border border-slate-200 bg-white';
+    return 'border border-slate-300 border-l-[3px] border-l-slate-400 bg-white hover:bg-[#f7faff]';
   };
   const getTopPriorityPillClasses = (type: 'priority' | 'status' | 'date', value?: string) => {
     if (type === 'priority') {
@@ -195,6 +196,12 @@ const SpacesMainSections: React.FC<any> = (props) => {
 
     return 'bg-slate-50 text-slate-400';
   };
+  const getWeeklyTaskCardClasses = (priorityValue?: string) => {
+    const normalizedPriority = String(priorityValue || 'medium').trim().toLowerCase();
+    if (normalizedPriority === 'high') return 'border border-slate-200 border-t-[3px] border-t-brand-red bg-white hover:bg-[#fff7f7]';
+    if (normalizedPriority === 'low') return 'border border-slate-200 border-t-[3px] border-t-sky-400 bg-white hover:bg-[#f5fbff]';
+    return 'border border-slate-200 border-t-[3px] border-t-amber-400 bg-white hover:bg-[#fffaf2]';
+  };
   const completedTopPriorities = topPriorityTasks.filter((task: any) => isCompletedPriorityStatus(task.status)).length;
   const completedWeekDays = currentWeekDays.filter((day: any) => day.completed).length;
   const currentWeekCode = String(currentWeeklyGroup?.weekLabel || '').trim().toUpperCase();
@@ -209,18 +216,31 @@ const SpacesMainSections: React.FC<any> = (props) => {
     if (weekText) return weekText;
     return 'Untitled Weekly Goal';
   })();
+  const handleSelectedDayToggle = async () => {
+    if (!selectedDay) return;
+    const shouldMarkTasksComplete = !selectedDay.completed;
+    await toggleDaily(selectedDay.id);
+    if (!shouldMarkTasksComplete) return;
+
+    const eligibleTasks = assignmentsForSelectedDay.filter(
+      (task: any) => !isCompletedPriorityStatus(task.status) && (canEditTask(task) || canValidateTask(task)),
+    );
+    await Promise.all(eligibleTasks.map((task: any) => patchTask(task.taskId, { status: 'done' })));
+  };
 
   return (
     <>
-      {isWeeklyPlannerCanvasOpen ? (
-        <div className="-mt-16 mb-4 ml-[-2rem] w-[calc(100%+4rem)] pt-3">
-          <WeeklyTaskPeriodCanvas
-            {...weeklyPeriodPicker}
-            open={isWeeklyPlannerCanvasOpen}
-            onClose={() => setIsWeeklyPlannerCanvasOpen(false)}
-          />
-        </div>
-      ) : null}
+      <div
+        className={`-mx-6 overflow-hidden bg-white transition-all duration-300 ease-out ${
+          isWeeklyPlannerCanvasOpen ? '-mt-16 mb-4 pt-3' : 'mb-0 pt-0'
+        }`}
+      >
+        <WeeklyTaskPeriodCanvas
+          {...weeklyPeriodPicker}
+          open={isWeeklyPlannerCanvasOpen}
+          onClose={() => setIsWeeklyPlannerCanvasOpen(false)}
+        />
+      </div>
 
       <div className="space-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -239,41 +259,35 @@ const SpacesMainSections: React.FC<any> = (props) => {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1.7fr)]">
-          <div className="order-2 bg-white rounded-3xl border border-slate-200 space-y-4 p-6">
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-3">
-                  <h4 className="text-lg font-semibold text-slate-900">Weekly Planner</h4>
-                  {currentWeekDays.length ? (
-                    <span className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-[12px] font-medium text-slate-600">
-                      {completedWeekDays}/{currentWeekDays.length} done
-                    </span>
-                  ) : null}
-                </div>
-                <p className="text-xs text-slate-500">Click a day to review planned execution and linked tasks.</p>
-              </div>
-              {weeklyError ? (
-                <div className="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-medium text-red-700">{weeklyError}</div>
-              ) : null}
-            </div>
+          <div className="order-2 flex h-[38rem] min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-6">
+            {weeklyError ? (
+              <div className="mb-2 shrink-0 self-start rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-medium text-red-700">{weeklyError}</div>
+            ) : null}
 
             {!state || !updateState ? (
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">Weekly planning data is not available in this view.</div>
             ) : !currentWeek ? (
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">No weekly goals are available yet.</div>
             ) : (
-              <div className="pt-1">
+              <div className="flex min-h-0 flex-1 flex-col pt-1">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="space-y-2">
                     <div>
-                      <h5 className="text-xl font-semibold text-slate-900">{currentWeekTitle}</h5>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h5 className="text-xl font-semibold text-slate-900">{currentWeekTitle}</h5>
+                        {currentWeekDays.length ? (
+                          <span className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-[12px] font-medium text-slate-600">
+                            {completedWeekDays}/{currentWeekDays.length} done
+                          </span>
+                        ) : null}
+                      </div>
                       <p className="mt-1 text-[13px] text-slate-500">
                         {currentWeeklyGroup?.breadcrumbLabel || getWeekBreadcrumb(currentWeek.id)}
                       </p>
                     </div>
                   </div>
-                  <div className="grid gap-2 lg:grid-cols-[minmax(0,142px)_minmax(0,142px)]">
-                    <div className="w-full max-w-[142px]">
+                  <div className="grid gap-2 lg:grid-cols-[minmax(0,228px)_minmax(0,176px)]">
+                    <div className="w-full max-w-[228px]">
                       <WeeklyTaskPeriodTrigger
                         summary={weeklyPeriodPicker.summary}
                         detail={weeklyPeriodPicker.detail}
@@ -283,9 +297,9 @@ const SpacesMainSections: React.FC<any> = (props) => {
                         onToggle={() => setIsWeeklyPlannerCanvasOpen((prev) => !prev)}
                       />
                     </div>
-                    <div className="flex min-h-[56px] flex-col justify-center rounded-[16px] border border-slate-200 bg-white px-2.5 py-1.5">
+                    <div className="flex min-h-[60px] flex-col justify-center rounded-[16px] border border-slate-200 bg-white px-3 py-2">
                       <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">Schedule Window</div>
-                      <div className="mt-0.5 text-[13px] font-semibold text-slate-900">{currentWeeklyGroup?.weekRangeLabel}</div>
+                      <div className="mt-1 whitespace-nowrap text-[12px] font-semibold leading-none text-slate-900">{currentWeeklyGroup?.weekRangeLabel}</div>
                     </div>
                   </div>
                 </div>
@@ -319,18 +333,8 @@ const SpacesMainSections: React.FC<any> = (props) => {
                             >
                               <div className="text-[10px] font-semibold uppercase tracking-[0.08em]">{dayInfo.weekday.slice(0, 3)}</div>
                               <div className="mt-0.5 text-[13px] font-semibold">{dayInfo.dateText.split(' ')[1] || dayInfo.dateText}</div>
-                              <div className="mt-1 flex justify-center">
-                                <span
-                                  className={`h-1.5 w-1.5 rounded-full ${
-                                    isSelected && isToday
-                                      ? 'bg-amber-500'
-                                      : isSelected
-                                        ? 'bg-brand-red/70'
-                                        : isToday
-                                          ? 'bg-amber-400'
-                                          : 'bg-slate-300'
-                                  }`}
-                                />
+                              <div className="mt-1 text-[10px] font-medium leading-none">
+                                {dayTaskProgress.completed}/{dayTaskProgress.total}
                               </div>
                             </button>
                           );
@@ -339,8 +343,8 @@ const SpacesMainSections: React.FC<any> = (props) => {
                     </div>
 
                     {selectedDay ? (
-                      <div className="mt-3 overflow-hidden rounded-[18px] border border-slate-200 bg-white">
-                        <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/70 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="mt-3 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-slate-200 bg-white">
+                        <div className="flex flex-col gap-3 border-b border-slate-200 bg-[#eef2f8] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
                           <div className="min-w-0">
                             <div className="hidden min-w-0 items-center gap-1 text-[15px] font-medium text-slate-800">
                               <span>{selectedDay.text}</span>
@@ -357,20 +361,27 @@ const SpacesMainSections: React.FC<any> = (props) => {
                                 </span>
                               ) : null}
                             </div>
-                            <label className="flex items-start gap-3">
+                            <label className={`flex items-center gap-3 ${canToggleWeeklyDay ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
                               <input
                                 type="checkbox"
                                 checked={selectedDay.completed}
-                                onChange={() => toggleDaily(selectedDay.id)}
-                                disabled={!canManageWeeklyRows}
-                                className="mt-0.5 h-4 w-4"
+                                onChange={handleSelectedDayToggle}
+                                disabled={!canToggleWeeklyDay}
+                                className="sr-only"
                               />
+                              <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] border transition-colors ${
+                                selectedDay.completed ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white'
+                              }`}>
+                                <span className={`h-2.5 w-2.5 rounded-[2px] ${
+                                  selectedDay.completed ? 'bg-emerald-500' : 'bg-transparent'
+                                }`} />
+                              </span>
                               <span className="min-w-0">
-                                <span className="block text-[15px] font-medium text-slate-800">
+                                <span className="text-[15px] font-medium text-slate-800">
                               {selectedDay.text}
                               {selectedDayInfo ? ` · ${selectedDayInfo.weekday}, ${selectedDayInfo.dateText}` : ''}
                             </span>
-                                <span className="mt-1 block text-[12px] text-slate-400">
+                                <span className="ml-2 text-[12px] text-slate-400">
                                   {assignmentsForSelectedDay.length} linked task{assignmentsForSelectedDay.length === 1 ? '' : 's'}
                                 </span>
                               </span>
@@ -387,38 +398,108 @@ const SpacesMainSections: React.FC<any> = (props) => {
                           </button>
                         </div>
 
-                        <div className="px-4 py-5">
-                          <div className="space-y-2">
-                            {assignmentsForSelectedDay.length ? assignmentsForSelectedDay.map((task: any) => (
-                              <div key={task.taskId} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                  <div className="min-w-0">
-                                    <div className="truncate text-[14px] font-semibold text-slate-900">{task.title || 'Untitled task'}</div>
-                                    <div className="mt-1 text-[12px] text-slate-500">
-                                      {employeeNameById.get(task.assigneeId || '') || task.assigneeId || 'Unassigned'}
+                        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-2">
+                          {assignmentsForSelectedDay.length ? (
+                            <div className="grid gap-3 xl:grid-cols-2">
+                              {assignmentsForSelectedDay.map((task: any) => (
+                              <div key={task.taskId} className={`rounded-[24px] px-4 py-4 transition-colors ${getWeeklyTaskCardClasses(task.priority)}`}>
+                                <div className="flex flex-col gap-3">
+                                  <div className="flex min-w-0 flex-col gap-2.5 lg:flex-row lg:items-start lg:justify-between">
+                                    <label className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${canEditTask(task) || canValidateTask(task) ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+                                      <input
+                                        type="checkbox"
+                                        checked={isCompletedPriorityStatus(task.status)}
+                                        onChange={(e) => patchTask(task.taskId, { status: e.target.checked ? 'done' : 'todo' })}
+                                        disabled={!canEditTask(task) && !canValidateTask(task)}
+                                        className="sr-only"
+                                      />
+                                      <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${
+                                        isCompletedPriorityStatus(task.status) ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white'
+                                      }`}>
+                                        <span className={`h-3.5 w-3.5 rounded-full border ${
+                                          isCompletedPriorityStatus(task.status) ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 bg-slate-50'
+                                        }`} />
+                                      </span>
+                                    </label>
+                                    <div className="min-w-0 flex-1">
+                                      <>
+                                        <div className="truncate text-[15px] font-semibold text-slate-900">{task.title || 'Untitled task'}</div>
+                                        {String(task.description || '').trim() ? (
+                                          <div className="mt-0.5 line-clamp-1 text-[12px] text-slate-500">{String(task.description || '').trim()}</div>
+                                        ) : null}
+                                      </>
+                                      {/*
                                       {task.dueDate ? ` · Due ${task.dueDate}` : ''}
+                                      */}
+                                    </div>
+                                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-medium lg:justify-end">
+                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">
+                                      {String(task.status || 'todo').trim().replace(/^./, (char: string) => char.toUpperCase())}
+                                    </span>
+                                    <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-amber-700">
+                                      {String(task.priority || 'medium').trim().replace(/^./, (char: string) => char.toUpperCase())}
+                                    </span>
+                                  </div>
+                                  </div>
+
+                                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                                    <div className="space-y-1.5 text-[12px] text-slate-700">
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-[70px] shrink-0 font-semibold text-slate-800">Assignee:</span>
+                                        <span className="text-slate-600">{employeeNameById.get(task.assigneeId || '') || task.assigneeId || 'Unassigned'}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-[70px] shrink-0 font-semibold text-slate-800">Due:</span>
+                                        <span className="text-slate-600">{task.dueDate || '-'}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-[70px] shrink-0 font-semibold text-slate-800">Created by:</span>
+                                        <span className="text-slate-600">{task.createdByName || task.createdByEmpId || 'Unknown'}</span>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-wrap items-center justify-end gap-2.5">
+                                      {String(task.documentName || '').trim() && task.documentUrl ? (
+                                        <button
+                                          type="button"
+                                          onClick={async () => {
+                                            try {
+                                              await forceDownloadDocument(task.documentUrl || '', String(task.documentName || '').trim() || undefined);
+                                            } catch (e: any) {
+                                              setError(e?.message || 'Failed to download document');
+                                            }
+                                          }}
+                                          className="inline-flex max-w-full items-center gap-2 rounded-[14px] border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
+                                        >
+                                          <Paperclip size={14} className="shrink-0 text-slate-500" />
+                                          <span className="max-w-[180px] truncate">{String(task.documentName || '').trim()}</span>
+                                        </button>
+                                      ) : null}
+                                      <button
+                                        type="button"
+                                        onClick={() => navigate(`/spaces/task/${task.taskId}`)}
+                                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+                                        aria-label="View task"
+                                      >
+                                        <Eye size={15} />
+                                      </button>
                                     </div>
                                   </div>
-                                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium">
-                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600">{task.priority || 'medium'}</span>
-                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600">{task.status || 'todo'}</span>
-                                    {task.projectId ? (
-                                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600">{projectNameById.get(task.projectId) || task.projectId}</span>
-                                    ) : null}
-                                  </div>
                                 </div>
                               </div>
-                            )) : (
-                              <div className="flex min-h-[132px] flex-col items-center justify-center px-4 py-8 text-center">
-                                <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-300">
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="flex min-h-0 flex-1 flex-col items-center justify-center py-4">
+                              <div className="w-full max-w-md shrink-0 rounded-2xl border border-slate-200/70 bg-slate-100/95 px-5 py-6 text-center">
+                                <div className="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-200/80">
                                   <FileText size={22} />
                                 </div>
-                                <div className="text-[13px] text-slate-400">
-                                  No tasks planned. Use <span className="font-medium text-slate-500">Add task</span> to get started.
+                                <div className="max-w-sm text-[13px] text-slate-500">
+                                  No tasks planned. Use <span className="font-medium text-slate-600">Add task</span> to get started.
                                 </div>
                               </div>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ) : null}
@@ -435,8 +516,8 @@ const SpacesMainSections: React.FC<any> = (props) => {
             )}
           </div>
 
-          <div className="order-1 bg-white rounded-3xl border border-slate-200 p-5">
-            <div className="flex items-center justify-between gap-2">
+          <div className="order-1 flex h-[38rem] min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-5">
+            <div className="shrink-0 flex items-center justify-between gap-2">
               <div>
                 <h4 className="text-sm font-semibold text-slate-900">Top Priorities</h4>
                 <p className="mt-1 text-[12px] text-slate-500">Priority management for the most important active tasks.</p>
@@ -445,7 +526,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
                 {completedTopPriorities}/{topPriorityTasks.length} done
               </span>
             </div>
-            <div className="mt-4 space-y-2.5">
+            <div className="mt-4 min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-0.5">
               {topPriorityTasks.length > 0 ? topPriorityTasks.map((task: any, index: number) => (
                 <label
                   key={task.taskId}

@@ -201,6 +201,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   );
   const viewerRole = normalizeRole(me.role);
   const canManageWeeklyRows = viewerRole === 'SUPER_ADMIN' || viewerRole === 'ADMIN' || viewerRole === 'TEAM_LEAD';
+  const canToggleWeeklyDay = canManageWeeklyRows || mode === 'employee';
   const assignmentHint =
     viewerRole === 'SUPER_ADMIN' || viewerRole === 'ADMIN'
       ? 'Admin: you can assign tasks to anyone.'
@@ -1423,11 +1424,26 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     });
   }, [createTaskPlannerEnabled, selectedPlannerWeekGroup]);
 
+  const formatWeeklyPeriodSummaryLabel = (label: string | undefined, type: 'quarter' | 'month' | 'week') => {
+    const trimmed = String(label || '').trim();
+    if (!trimmed) {
+      if (type === 'quarter') return 'Quarter ?';
+      if (type === 'month') return 'Month ?';
+      return 'Week ?';
+    }
+
+    const prefix = type === 'quarter' ? 'Q' : type === 'month' ? 'M' : 'W';
+    const match = trimmed.match(new RegExp(`^${prefix}(\\d+)$`, 'i'));
+    if (!match) return trimmed;
+
+    const word = type === 'quarter' ? 'Quarter' : type === 'month' ? 'Month' : 'Week';
+    return `${word} ${match[1]}`;
+  };
+
   const weeklyPeriodPicker = useMemo(
     () => ({
       summary:
-        selectedWeeklyTaskGroup?.weekSummaryLabel ||
-        `${activeQuarterOption?.label || 'Q?'} / ${activeMonthOption?.label || 'M?'} / ${activeWeekOption?.label || 'W?'}`,
+        `${formatWeeklyPeriodSummaryLabel(activeQuarterOption?.label, 'quarter')} / ${formatWeeklyPeriodSummaryLabel(activeMonthOption?.label, 'month')} / ${formatWeeklyPeriodSummaryLabel(activeWeekOption?.label, 'week')}`,
       detail: selectedWeeklyTaskGroup
         ? `${selectedWeeklyTaskGroup.weekRangeLabel} - ${selectedWeeklyTaskGroup.week.text || 'Weekly goal'}`
         : activeMonthOption
@@ -1457,6 +1473,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       activeMonthOption,
       activeQuarterOption,
       activeWeekOption,
+      formatWeeklyPeriodSummaryLabel,
       handleWeeklyProjectChange,
       handleWeeklyMonthChange,
       handleWeeklyQuarterChange,
@@ -1500,7 +1517,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         id,
         state,
         updateState,
-        canManageWeeklyRows,
+        canManageWeeklyRows: canToggleWeeklyDay,
         saveGoalFn: saveGoal,
         setWeeklyError,
       });
@@ -1785,8 +1802,9 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     getDayDisplay,
     setSelectedDayByWeek,
     tasks,
-    toggleDaily,
-    canManageWeeklyRows,
+      toggleDaily,
+      canManageWeeklyRows,
+      canToggleWeeklyDay,
     createDaysForWeek,
     setTaskFilterMode,
     taskFilterMode,
@@ -1861,7 +1879,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   };
 
   return (
-    <div ref={taskHubRootRef} className="-m-16 min-h-full space-y-6 px-6 py-8 animate-in fade-in duration-700">
+    <div ref={taskHubRootRef} className="-m-16 min-h-full space-y-6 px-6 pb-8 pt-4 animate-in fade-in duration-700">
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-[15px]">
           {error}
