@@ -91,16 +91,18 @@ function CommunicationLayout() {
   const selectedTitle = selectedConversation?.title || 'Select a conversation';
   const canCompose = !!currentUser && !!selectedConversationKey;
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [previewEntity, setPreviewEntity] = useState<AvatarPreviewEntity | null>(null);
   const [isClearingChat, setIsClearingChat] = useState(false);
   useEffect(() => {
     setReplyToMessage(null);
+    setEditingMessage(null);
   }, [selectedConversationKey]);
 
   const resolveUserName = (userId: string) => usersById.get(userId)?.name || 'User';
 
   return (
-    <div className="h-[calc(100%+8rem)] w-[calc(100%+8rem)] -mx-16 -my-16 bg-white overflow-hidden">
+    <div className="h-[calc(100%+8rem)] w-[calc(100%+8rem)] -mx-16 -my-16 overflow-hidden bg-[#eef2f7]">
       <div className="h-full flex">
         {currentUser ? (
           <ChatSidebar
@@ -158,7 +160,7 @@ function CommunicationLayout() {
                     type="button"
                     onClick={() => ctx.joinByConversationKey(conversationKey)}
                     className={`shrink-0 px-3 py-2 rounded-full border text-sm font-semibold transition-all ${
-                      active ? 'bg-brand-red/10 border-brand-red/30 text-brand-red ring-1 ring-brand-red/20' : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                      active ? 'bg-[#eef4ff] border-[#d7e5fb] text-slate-900 ring-1 ring-[#d7e5fb]' : 'border-slate-200 hover:bg-slate-50 text-slate-700'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -180,7 +182,7 @@ function CommunicationLayout() {
                         )}
                       </span>
                       <span>{c.title}</span>
-                      {unreadCount > 0 ? <span className="w-2.5 h-2.5 rounded-full bg-brand-red inline-block" aria-hidden /> : null}
+                      {unreadCount > 0 ? <span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block" aria-hidden /> : null}
                     </div>
                   </button>
                 );
@@ -231,7 +233,7 @@ function CommunicationLayout() {
                     {(() => {
                       const dm = conversations.find((c) => c.type === 'dm' && c.otherUser?.id === u.id);
                       return dm && (dm.unreadCount || 0) > 0 ? (
-                        <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-brand-red px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                        <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
                           {dm.unreadCount}
                         </span>
                       ) : null;
@@ -246,7 +248,7 @@ function CommunicationLayout() {
           {communicationLoading ? (
             <CommunicationHeaderSkeleton />
           ) : (
-          <div className="h-16 border-b border-slate-200 bg-white px-5 flex items-center justify-between gap-4">
+          <div className="h-16 border-b border-slate-200 bg-white/95 px-5 flex items-center justify-between gap-4 shadow-sm">
             <div className="min-w-0">
               <div className="flex items-center gap-3">
                 {selectedConversation?.type === 'dm' && liveSelectedDmUser ? (
@@ -263,7 +265,7 @@ function CommunicationLayout() {
                           : null
                       )
                     }
-                    className="w-10 h-10 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 shrink-0"
+                    className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 bg-slate-50 shrink-0 shadow-sm"
                   >
                     <img
                       src={
@@ -284,17 +286,17 @@ function CommunicationLayout() {
                         subtitle: 'Team',
                       });
                     }}
-                    className="w-10 h-10 rounded-2xl border border-brand-red/20 overflow-hidden bg-brand-red/10 flex items-center justify-center"
+                    className="w-10 h-10 rounded-full border border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center shadow-sm"
                   >
                     {selectedConversation?.type === 'channel' && selectedConversation.avatar ? (
                       <img src={getDisplayAvatarUrl(selectedConversation.avatar, selectedConversation.title)} alt={selectedConversation.title} className="h-full w-full object-cover" />
                     ) : (
-                      <Mail size={18} className="text-brand-red" />
+                      <Mail size={18} className="text-slate-600" />
                     )}
                   </button>
                 )}
                 <div className="min-w-0">
-                  <div className="text-lg font-bold text-slate-900 truncate">{selectedTitle}</div>
+                  <div className="text-[16px] font-bold text-slate-900 truncate">{selectedTitle}</div>
                   <div className="text-xs text-slate-500">
                     {selectedConversation?.type === 'dm' && liveSelectedDmUser ? (
                       activeDmTypingUserName ? (
@@ -343,8 +345,8 @@ function CommunicationLayout() {
 
           {/* Messages */}
           {!canCompose ? (
-            <div className="flex-1 flex items-center justify-center bg-slate-50">
-              <div className="text-center max-w-md p-10 bg-white rounded-3xl border border-slate-200">
+            <div className="flex-1 flex items-center justify-center bg-[#f6f8fb]">
+              <div className="text-center max-w-md p-10 bg-white rounded-2xl border border-slate-200 shadow-sm">
                 <div className="text-2xl font-bold text-slate-900">Communication</div>
                 <div className="text-slate-600 mt-2">Select a channel or a person to start chatting in real-time.</div>
               </div>
@@ -358,7 +360,10 @@ function CommunicationLayout() {
               selectedConversationTitle={selectedConversation?.title || ''}
               isGroupChat={selectedConversation?.type === 'channel'}
               usersById={usersById}
-              onEditMessage={(messageId, conversationKey, newContent) => ctx.editMessage(messageId, conversationKey, newContent)}
+              onEditMessage={(message) => {
+                setReplyToMessage(null);
+                setEditingMessage(message);
+              }}
               onDeleteMessage={(messageId, conversationKey) => ctx.deleteMessage(messageId, conversationKey)}
               onReplyMessage={(message) => setReplyToMessage(message)}
             />
@@ -375,6 +380,11 @@ function CommunicationLayout() {
               replyToMessage={replyToMessage}
               onCancelReply={() => setReplyToMessage(null)}
               resolveUserName={resolveUserName}
+              editingMessage={editingMessage}
+              onCancelEdit={() => setEditingMessage(null)}
+              onSaveEdit={async (message, content) => {
+                await ctx.editMessage(message.id, message.conversationKey, content);
+              }}
             />
           ) : null}
         </div>
