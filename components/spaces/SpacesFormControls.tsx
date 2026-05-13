@@ -574,7 +574,7 @@ export const WeeklyTaskPeriodCanvas: React.FC<WeeklyTaskPeriodPickerProps & { op
             <div className="flex min-w-0 flex-col gap-2.5 xl:flex-row xl:items-center xl:gap-4">
               <h3 className="whitespace-nowrap text-[24px] font-semibold leading-none tracking-tight text-slate-900">Weekly Planner Focus</h3>
               <div className="mt-1 flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3 xl:mt-1.5">
-                <div className="w-full max-w-[208px] rounded-[14px] border border-slate-200 bg-slate-50/90 px-3 py-1.5">
+                <div className="w-full max-w-[240px] rounded-[14px] border border-slate-200 bg-slate-50/90 px-3 py-1.5">
                   <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">Selected Period</div>
                   <div className="mt-0.5 whitespace-nowrap text-[14px] font-semibold leading-tight text-slate-900">{summary}</div>
                 </div>
