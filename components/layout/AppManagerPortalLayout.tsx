@@ -99,6 +99,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
     hasPower('WEEKLY_VIEW') ||
     hasPower('DAILY_VIEW');
   const showVisionHeaderTabs = hasVisionAccess && isVisionRoute(location.pathname);
+  const isAddEmployeeRoute = location.pathname === '/employees/add';
 
   return (
     <>
@@ -106,7 +107,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
       <GlobalCommunicationNotifications />
       <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
         <aside
-          className={`${isSidebarOpen ? 'w-52' : 'w-[72px]'} h-full min-h-0 bg-brand-charcoal text-white transition-all duration-500 flex flex-col z-50 relative shrink-0`}
+          className={`${isSidebarOpen ? 'w-48' : 'w-[72px]'} h-full min-h-0 bg-white/90 text-white backdrop-blur-xl transition-all duration-500 flex flex-col z-50 relative shrink-0`}
         >
           <div className="absolute top-0 right-0 h-full w-px bg-slate-200"></div>
 
@@ -242,7 +243,15 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               </div>
             </div>
           </header>
-          <div className={`flex-1 overflow-y-auto bg-slate-100/30 no-scrollbar ${showVisionHeaderTabs ? 'px-12 pb-12 pt-2' : 'p-16'}`}>
+          <div
+            className={`flex-1 bg-slate-100/30 no-scrollbar ${
+              isAddEmployeeRoute
+                ? 'h-full overflow-y-auto px-0 py-5 lg:py-6'
+                : showVisionHeaderTabs
+                  ? 'overflow-y-auto px-12 pb-12 pt-2'
+                  : 'overflow-y-auto p-16'
+            }`}
+          >
             <Routes>
               {hasPower('DASHBOARD_VIEW') && (
                 <Route path="/" element={<DashboardView state={state} loading={planningViewsLoading} />} />

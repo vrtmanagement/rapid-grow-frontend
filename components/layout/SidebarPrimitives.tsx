@@ -69,6 +69,7 @@ export const SidebarLink: React.FC<{ to: string; icon: any; label: string; colla
   const linkRef = useRef<HTMLAnchorElement | null>(null);
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const [tooltipStyle, setTooltipStyle] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const labelSizeClass = label === 'TaskHub' ? 'text-[12px]' : 'text-[13px]';
   const isActive = to === '/workspaces'
     ? location.pathname.startsWith('/workspaces')
     : to.startsWith('/employees')
@@ -116,8 +117,8 @@ export const SidebarLink: React.FC<{ to: string; icon: any; label: string; colla
         {!collapsed && (
           <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
             {isActive
-              ? <span className="text-[13px] font-medium tracking-[-0.01em] text-white truncate">{label}</span>
-              : <span className="text-[13px] font-medium tracking-[-0.01em] truncate group-hover:text-brand-red">{label}</span>
+              ? <span className={`${labelSizeClass} font-medium tracking-[-0.01em] text-white truncate`}>{label}</span>
+              : <span className={`${labelSizeClass} font-medium tracking-[-0.01em] truncate group-hover:text-brand-red`}>{label}</span>
             }
             {badgeCount && badgeCount > 0 ? (
               <span
