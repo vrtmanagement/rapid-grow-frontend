@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { RotateCcw, UserPlus, Eye, EyeOff, ChevronDown } from 'lucide-react';
+import { UserPlus, Eye, EyeOff, ChevronDown } from 'lucide-react';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { PlanningState } from '../types';
 import Toast from '../components/ui/Toast';
@@ -262,28 +262,15 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-700">
+    <div className="mx-auto w-full max-w-[78rem] space-y-4 animate-in fade-in duration-700">
       {toast && <Toast type={toast.type} message={toast.message} />}
-      <div className="flex items-center gap-4">
-        <Link
-          to="/"
-          className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 rounded-full text-[15px] text-brand-grey hover:bg-slate-200 transition-all"
-        >
-          <RotateCcw size={14} /> Back to Dashboard
-        </Link>
+      <div className="max-w-xl">
+        <h2 className="text-[2.15rem] font-semibold leading-tight tracking-tight text-slate-900">Add Employee</h2>
+        <p className="mt-1 text-[16px] leading-7 text-slate-500">Create employee credentials for user portal access.</p>
       </div>
 
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <div className="h-1.5 w-8 bg-brand-red rounded-full"></div>
-          <span className="text-[15px] text-slate-500">Personnel Management</span>
-        </div>
-        <h2 className="text-4xl text-slate-900 leading-none">Add Employee</h2>
-        <p className="text-slate-500 text-lg mt-3">Create employee credentials for user portal access.</p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="bg-white p-12 rounded-3xl shadow-2xl border border-slate-200 space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <form onSubmit={handleSubmit} className="rounded-[32px] border border-slate-200 bg-white px-6 py-7 shadow-[0_28px_70px_-34px_rgba(15,23,42,0.22)] lg:px-7 lg:py-8">
+        <div className="grid grid-cols-1 gap-x-7 gap-y-6 md:grid-cols-2">
           <div>
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Employee ID *</label>
             <input
@@ -308,7 +295,7 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="mt-6 grid grid-cols-1 gap-x-7 gap-y-6 md:grid-cols-2">
           <div>
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Designation *</label>
             <input
@@ -392,7 +379,7 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="mt-6 grid grid-cols-1 gap-x-7 gap-y-6 md:grid-cols-2">
           <div>
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Login Password *</label>
             <div className="relative">
@@ -439,7 +426,7 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="mt-6 grid grid-cols-1 gap-x-7 gap-y-6 md:grid-cols-2">
           <div>
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Email</label>
             <input
@@ -463,7 +450,7 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="mt-6 grid grid-cols-1 gap-x-7 gap-y-6 md:grid-cols-2">
           <div>
             <label className="block text-[13px] font-semibold text-slate-700 mb-2">Role</label>
             <select
@@ -492,7 +479,7 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
         </div>
 
         {isSuperAdmin && form.role !== 'ADMIN' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="mt-6 grid grid-cols-1 gap-x-7 gap-y-6 md:grid-cols-2">
             <div>
               <label className="block text-[13px] font-semibold text-slate-700 mb-2">
                 Which Admin Team *
@@ -514,7 +501,7 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
           </div>
         )}
 
-        <div className="pt-4 flex gap-4">
+        <div className="mt-8 flex flex-wrap gap-4">
           <button
             type="submit"
             disabled={loading}
