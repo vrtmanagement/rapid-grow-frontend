@@ -76,7 +76,7 @@ export function ChatHeaderMenu({ onClearChat, isLoading = false }: ChatHeaderMen
             </button>
             
             <div className="flex items-start gap-4 mb-8">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-red to-red-600 flex items-center justify-center text-white shadow-lg shadow-brand-red/30 flex-shrink-0 mt-1">
+              <div className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-white shadow-lg flex-shrink-0 mt-1">
                 <Trash2 size={24} />
               </div>
               <div className="flex-1 pt-1">
@@ -104,7 +104,7 @@ export function ChatHeaderMenu({ onClearChat, isLoading = false }: ChatHeaderMen
                 type="button"
                 onClick={handleClearChat}
                 disabled={isLoading}
-                className="px-8 py-2.5 rounded-full text-[13px] font-bold tracking-wide text-white bg-gradient-to-r from-brand-red to-red-600 shadow-lg shadow-brand-red/40 hover:shadow-xl hover:shadow-brand-red/50 hover:to-red-700 transition-all duration-200 uppercase disabled:opacity-60 disabled:cursor-not-allowed"
+                className="px-8 py-2.5 rounded-full text-[13px] font-bold tracking-wide text-white bg-slate-900 shadow-lg hover:bg-slate-800 transition-all duration-200 uppercase disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isLoading ? 'Clearing...' : 'Clear Chat'}
               </button>

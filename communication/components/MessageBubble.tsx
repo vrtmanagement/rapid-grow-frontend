@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CornerUpLeft, Download, Eye, FileText, Loader2, MoreVertical, PencilLine, Trash2 } from 'lucide-react';
+import { Check, CheckCheck, CornerUpLeft, Download, Eye, FileText, Loader2, MoreVertical, PencilLine, Trash2 } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
 import { MessageActionModal } from './MessageActionModal';
 import { API_BASE } from '../../config/api';
+import { getDisplayAvatarUrl } from '../../utils/avatar';
 
 function formatTime(iso: string) {
   const d = new Date(iso);
@@ -41,6 +42,26 @@ function getAttachmentBadge(fileName: string, mimeType: string, isImageAttachmen
   return subtype ? subtype.slice(0, 4).toUpperCase() : 'FILE';
 }
 
+function renderLinkedText(text: string) {
+  const parts = String(text || '').split(/(https?:\/\/[^\s]+)/g);
+  return parts.map((part, index) => {
+    if (/^https?:\/\/[^\s]+$/i.test(part)) {
+      return (
+        <a
+          key={`${part}-${index}`}
+          href={part}
+          target="_blank"
+          rel="noreferrer"
+          className="text-blue-700 underline decoration-blue-500 underline-offset-2 hover:text-blue-800"
+        >
+          {part}
+        </a>
+      );
+    }
+    return <React.Fragment key={`${index}-${part.slice(0, 8)}`}>{part}</React.Fragment>;
+  });
+}
+
 export function MessageBubble({
   message,
   isOwn,
@@ -50,29 +71,25 @@ export function MessageBubble({
   onDelete,
   onReply,
   resolveUserName,
+  groupPosition = 'single',
 }: {
   message: ChatMessage;
   isOwn: boolean;
   sender: ChatUser | null;
   showSenderName?: boolean;
-  onEdit?: (newContent: string) => void;
+  onEdit?: () => void;
   onDelete?: () => void;
   onReply?: () => void;
   resolveUserName?: (userId: string) => string;
+  groupPosition?: 'single' | 'first' | 'middle' | 'last';
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPlacement, setMenuPlacement] = useState<'top' | 'bottom' | 'inside'>('top');
-  const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [editValue, setEditValue] = useState(message.content || '');
   const [mounted, setMounted] = useState(false);
   const [actionLoading, setActionLoading] = useState<null | 'download'>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const bubbleRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    setEditValue(message.content || '');
-  }, [message.content]);
 
   useEffect(() => {
     setMounted(true);
@@ -115,13 +132,19 @@ export function MessageBubble({
   }, [menuOpen]);
 
   const bubbleBase = message.deleted
-    ? 'bg-red-300/30 text-slate-700 border-red-300 shadow-none'
+    ? 'bg-slate-100 text-slate-500 border-slate-200 shadow-none'
     : isOwn
-    ? 'bg-brand-red text-white border-brand-red/20 shadow-[0_8px_18px_rgba(236,72,71,0.18)]'
-    : 'bg-white text-slate-900 border-slate-200 shadow-[0_6px_18px_rgba(15,23,42,0.06)]';
-  const bubbleShapeClass = isOwn ? 'rounded-[22px] rounded-br-[1px]' : 'rounded-[22px] rounded-bl-[1px]';
+    ? 'bg-[#e7f0ff] text-slate-900 border-[#d4e2fb] shadow-[0_10px_22px_rgba(37,99,235,0.08)]'
+    : 'bg-white text-slate-900 border-slate-200 shadow-[0_10px_24px_rgba(15,23,42,0.05)]';
+  const isFirstInGroup = groupPosition === 'single' || groupPosition === 'first';
+  const isLastInGroup = groupPosition === 'single' || groupPosition === 'last';
+  const showAvatar = isOwn ? isLastInGroup : isFirstInGroup;
+  const showTail = isOwn ? isLastInGroup : isFirstInGroup;
+  const bubbleShapeClass = isOwn
+    ? `rounded-2xl ${isLastInGroup ? 'rounded-br-sm' : 'rounded-r-lg'}`
+    : `rounded-2xl ${isFirstInGroup ? 'rounded-tl-sm' : 'rounded-l-lg'}`;
 
-  const timeTone = isOwn ? 'text-white/80' : 'text-slate-500';
+  const timeTone = 'text-slate-500';
   const directFileUrl = message.fileUrl || message.attachment?.url || '#';
   const downloadUrl = message.attachment?.fileId
     ? `${API_BASE}/communication/files/${encodeURIComponent(message.attachment.fileId)}`
@@ -148,19 +171,32 @@ export function MessageBubble({
   return (
     <>
       <div
-        className={`group flex ${isOwn ? 'justify-end' : 'justify-start'} my-2 transition-all duration-200 ${
+        className={`group flex ${isOwn ? 'justify-end' : 'justify-start'} my-1.5 transition-all duration-200 ${
           mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
         }`}
       >
-        <div className="relative">
+        <div className={`flex max-w-[86%] gap-2 ${isOwn ? 'flex-row-reverse items-end' : 'flex-row items-start'}`}>
+          <button
+            type="button"
+            disabled={!sender || !showAvatar}
+            className={`h-8 w-8 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm disabled:cursor-default ${showAvatar ? 'opacity-100' : 'opacity-0'} ${isOwn ? 'mb-1' : 'mt-0.5'}`}
+            title={sender?.name || 'User'}
+          >
+            <img
+              src={getDisplayAvatarUrl(sender?.avatar, sender?.name || 'User')}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          </button>
+          <div className="relative min-w-0">
           <div className="absolute right-2 top-2 z-30" ref={menuRef}>
             <button
               type="button"
               className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-all ${
                 menuOpen
-                  ? 'opacity-100 border-white/30 text-white bg-black/20'
-                  : 'opacity-0 group-hover:opacity-100 border-white/30 text-white/90 bg-black/10 hover:bg-black/20'
-              } ${!isOwn ? 'border-slate-200 text-slate-600 bg-white/80 hover:bg-white' : ''}`}
+                  ? 'opacity-100 border-slate-200 text-slate-700 bg-white shadow-sm'
+                  : 'opacity-0 group-hover:opacity-100 border-slate-200 text-slate-600 bg-white/90 hover:bg-white'
+              }`}
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="Message actions"
             >
@@ -193,7 +229,7 @@ export function MessageBubble({
                     type="button"
                     onClick={() => {
                       setMenuOpen(false);
-                      setEditOpen(true);
+                    onEdit?.();
                     }}
                     disabled={!!message.deleted || message.type !== 'text'}
                     className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
@@ -220,13 +256,23 @@ export function MessageBubble({
             ) : null}
           </div>
 
-          <div ref={bubbleRef} className={`relative max-w-[78vw] border ${bubbleBase} ${bubbleShapeClass} px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 ${isOwn ? 'pr-12' : ''}`}>
+          <div ref={bubbleRef} className={`relative max-w-full border ${bubbleBase} ${bubbleShapeClass} px-3.5 py-2 transition-all duration-200 hover:-translate-y-0.5 ${isOwn ? 'pr-12' : ''}`}>
+          {showTail ? (
+            <span
+              className={`absolute h-3 w-3 border ${
+                isOwn
+                  ? '-right-[6px] bottom-3 rounded-br-[10px] border-y border-r border-l-0 border-[#d4e2fb] bg-[#e7f0ff]'
+                  : '-left-[6px] top-3 rounded-bl-[10px] border-y border-l border-r-0 border-slate-200 bg-white'
+              }`}
+              aria-hidden
+            />
+          ) : null}
           {!message.deleted && message.replyTo ? (
-            <div className={`mb-2 rounded-xl border px-3 py-2 ${isOwn ? 'border-white/30 bg-white/15' : 'border-slate-200 bg-slate-100/70'}`}>
-              <div className={`text-[10px] font-semibold ${isOwn ? 'text-white/90' : 'text-slate-600'}`}>
+            <div className="mb-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-[10px] font-semibold text-slate-600">
                 Replying to {resolveUserName?.(message.replyTo.senderId) || 'User'}
               </div>
-              <div className={`mt-1 text-[12px] ${isOwn ? 'text-white/80' : 'text-slate-600'} line-clamp-2`}>
+              <div className="mt-1 line-clamp-2 text-[12px] text-slate-600">
                 {message.replyTo.deleted
                   ? 'Message deleted'
                   : message.replyTo.type === 'text'
@@ -239,9 +285,9 @@ export function MessageBubble({
           {message.deleted && (
             <>
               {showSenderName && !isOwn && sender?.name ? (
-                <div className={`mb-1 text-[11px] font-semibold ${isOwn ? 'text-white/85' : 'text-slate-600'}`}>{sender.name}</div>
+                <div className="mb-1 text-[11px] font-semibold text-slate-600">{sender.name}</div>
               ) : null}
-              <div className="whitespace-pre-wrap break-words text-[14px] leading-relaxed">
+              <div className="whitespace-pre-wrap break-words text-[14px] leading-5">
                 Message deleted
               </div>
             </>
@@ -250,10 +296,10 @@ export function MessageBubble({
           {!message.deleted && message.type === 'text' && (
             <>
               {showSenderName && !isOwn && sender?.name ? (
-                <div className={`mb-1 text-[11px] font-semibold ${isOwn ? 'text-white/85' : 'text-slate-600'}`}>{sender.name}</div>
+                <div className="mb-1 text-[11px] font-semibold text-slate-600">{sender.name}</div>
               ) : null}
-              <div className="whitespace-pre-wrap break-words text-[14px] leading-relaxed">
-                {message.content}
+              <div className="whitespace-pre-wrap break-words text-[14px] leading-5">
+                {renderLinkedText(message.content)}
               </div>
             </>
           )}
@@ -261,21 +307,19 @@ export function MessageBubble({
           {!message.deleted && (message.type === 'image' || message.type === 'file' || message.type === 'attachment') && (message.attachment || message.fileUrl) ? (
             <div className="space-y-2">
               {showSenderName && !isOwn && sender?.name ? (
-                <div className={`text-[11px] font-semibold ${isOwn ? 'text-white/85' : 'text-slate-600'}`}>{sender.name}</div>
+                <div className="text-[11px] font-semibold text-slate-600">{sender.name}</div>
               ) : null}
               {isImageAttachment ? (
                 <div
-                  className={`w-full max-w-[240px] overflow-hidden rounded-[22px] border ${
-                    isOwn ? 'border-white/20 bg-white/10' : 'border-slate-200 bg-white'
-                  } shadow-[0_14px_34px_rgba(15,23,42,0.12)]`}
+                  className="w-full max-w-[280px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_26px_rgba(15,23,42,0.10)]"
                 >
                   <div className="group/image relative">
                     <img
                       src={message.fileUrl || message.attachment?.url || ''}
                       alt={attachmentName}
-                      className="h-36 w-full bg-slate-100 object-cover"
+                      className="h-44 w-full bg-slate-100 object-cover"
                     />
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent opacity-0 transition-opacity duration-200 group-hover/image:opacity-100" />
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent opacity-0 transition-opacity duration-200 group-hover/image:opacity-100" />
                     <button
                       type="button"
                       onClick={triggerDownload}
@@ -287,15 +331,13 @@ export function MessageBubble({
                       {actionLoading === 'download' ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
                     </button>
                   </div>
-                  <div className={`flex items-center gap-3 px-3 py-2.5 ${isOwn ? 'text-white' : 'text-slate-900'}`}>
-                    <div className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold tracking-[0.18em] ${
-                      isOwn ? 'bg-white/15 text-white/90' : 'bg-slate-100 text-slate-600'
-                    }`}>
+                  <div className="flex items-center gap-3 px-3 py-2.5 text-slate-900">
+                    <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[11px] font-bold tracking-[0.18em] text-slate-600">
                       {attachmentBadge}
                     </div>
                     <div className="min-w-0">
                       <div className="truncate text-[13px] font-semibold">{attachmentName}</div>
-                      <div className={`text-[11px] ${isOwn ? 'text-white/75' : 'text-slate-500'}`}>
+                      <div className="text-[11px] text-slate-500">
                         {['Image', attachmentSize].filter(Boolean).join(' | ')}
                       </div>
                     </div>
@@ -309,29 +351,19 @@ export function MessageBubble({
                   onClick={triggerDownload}
                   disabled={!hasDownloadTarget || actionLoading === 'download'}
                   title={`Download ${attachmentName}`}
-                  className={`group/file w-full rounded-[22px] border px-3 py-3 text-left transition-all duration-200 ${
-                    isOwn
-                      ? 'border-white/20 bg-white/10 text-white hover:bg-white/15'
-                      : 'border-slate-200 bg-slate-50 text-slate-900 hover:bg-white'
-                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                  className="group/file w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left text-slate-900 shadow-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
-                      isOwn ? 'bg-white/15 text-white/90' : 'bg-white text-slate-600 shadow-sm'
-                    }`}>
+                    <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#eef4ff] text-slate-700">
                       <FileText size={18} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13px] font-semibold">{attachmentName}</div>
-                      <div className={`text-[11px] ${isOwn ? 'text-white/75' : 'text-slate-500'}`}>
+                      <div className="text-[11px] text-slate-500">
                         {[attachmentBadge, attachmentSize].filter(Boolean).join(' | ')}
                       </div>
                     </div>
-                    <div className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all duration-200 ${
-                      isOwn
-                        ? 'bg-white/15 text-white group-hover/file:bg-white/20'
-                        : 'bg-white text-slate-700 shadow-sm group-hover/file:shadow'
-                    }`}>
+                    <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-700 shadow-sm transition-all duration-200 group-hover/file:shadow">
                       {actionLoading === 'download' ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
                     </div>
                   </div>
@@ -339,14 +371,14 @@ export function MessageBubble({
               )}
 
               {message.content ? (
-                <div className="whitespace-pre-wrap break-words text-[14px] leading-relaxed">
-                  {message.content}
+                <div className="whitespace-pre-wrap break-words text-[14px] leading-5">
+                  {renderLinkedText(message.content)}
                 </div>
               ) : null}
             </div>
           ) : null}
 
-            <div className={`mt-2 flex items-center justify-end gap-2 text-[11px] ${timeTone}`}>
+            <div className={`mt-1 flex items-center justify-end gap-1.5 text-[11px] leading-none ${timeTone}`}>
               {!message.deleted && message.editedAt ? (
                 <span className="text-[10px] opacity-80">edited</span>
               ) : null}
@@ -355,59 +387,21 @@ export function MessageBubble({
                 <span
                   className={
                     message.tick.state === 'seen'
-                      ? 'inline-flex items-center text-sky-600'
+                      ? 'inline-flex items-center text-blue-600'
                       : message.tick.state === 'delivered'
-                        ? 'text-slate-400 font-black'
-                        : 'text-slate-400 font-black'
+                        ? 'inline-flex items-center text-slate-400'
+                        : 'inline-flex items-center text-slate-400'
                   }
                   title={`Status: ${message.tick.state}`}
                 >
-                  {message.tick.state === 'seen' ? <Eye size={12} /> : message.tick.state === 'delivered' ? '✓✓' : '✓'}
+                  {message.tick.state === 'seen' ? <Eye size={12} /> : message.tick.state === 'delivered' ? <CheckCheck size={13} /> : <Check size={13} />}
                 </span>
               ) : null}
             </div>
           </div>
         </div>
       </div>
-
-      <MessageActionModal
-        open={editOpen}
-        title="Edit message"
-        description="Update your message below."
-        onClose={() => setEditOpen(false)}
-      >
-        <div className="space-y-4">
-          <textarea
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            rows={4}
-            className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
-            placeholder="Write your message..."
-          />
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setEditOpen(false)}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const trimmed = editValue.trim();
-                if (!trimmed) return;
-                onEdit?.(trimmed);
-                setEditOpen(false);
-              }}
-              disabled={!editValue.trim().length}
-              className="rounded-xl border border-brand-red/30 bg-brand-red px-4 py-2 text-sm font-semibold text-white hover:opacity-95 disabled:opacity-50"
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      </MessageActionModal>
+      </div>
 
       <MessageActionModal
         open={deleteOpen}

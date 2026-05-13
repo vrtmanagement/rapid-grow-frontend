@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, Eye, FileText, Paperclip, Plus } from 'lucide-react';
+import { CheckCircle2, Eye, FileText, Paperclip, Plus, UploadCloud, WandSparkles } from 'lucide-react';
 import { WeeklyTaskPeriodCanvas, WeeklyTaskPeriodTrigger } from './SpacesFormControls';
 import SpacesTaskCreateModal from './SpacesTaskCreateModal';
 import SpacesTaskTableSection from './SpacesTaskTableSection';
@@ -35,6 +35,9 @@ const SpacesMainSections: React.FC<any> = (props) => {
     handleCreate,
     saving,
     uploadingTaskDocument,
+    aiAssigning,
+    aiAssignFileName,
+    handleAiAssignPdfUpload,
     error,
     isTaskCreateModalOpen,
     openTaskCreateModal,
@@ -568,6 +571,43 @@ const SpacesMainSections: React.FC<any> = (props) => {
           </div>
         </div>
       </div>
+
+      {mode === 'manager' ? (
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
+                <WandSparkles size={18} />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-[15px] font-semibold text-slate-900">AI Assign</h4>
+                <p className="mt-0.5 truncate text-[12px] text-slate-500">
+                  {aiAssigning ? `Processing ${aiAssignFileName || 'PDF'}...` : 'Upload a PDF to create and assign TaskHub items.'}
+                </p>
+              </div>
+            </div>
+            <label className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition ${
+              aiAssigning
+                ? 'bg-slate-100 text-slate-400'
+                : 'bg-brand-red text-white hover:bg-brand-red/90'
+            }`}>
+              <UploadCloud size={16} />
+              {aiAssigning ? 'Assigning...' : 'Upload PDF'}
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                disabled={aiAssigning}
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] || null;
+                  event.target.value = '';
+                  handleAiAssignPdfUpload(file);
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>

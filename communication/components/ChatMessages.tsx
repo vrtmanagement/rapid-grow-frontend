@@ -68,6 +68,41 @@ function TypingBubble({ label }: { label?: string | null }) {
   );
 }
 
+function getMessageDateKey(iso: string) {
+  const date = new Date(iso);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function formatDateDivider(iso: string) {
+  const date = new Date(iso);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const todayKey = formatter.format(new Date());
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = formatter.format(yesterday);
+  const messageKey = formatter.format(date);
+
+  if (messageKey === todayKey) return 'Today';
+  if (messageKey === yesterdayKey) return 'Yesterday';
+
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
 export function ChatMessages({
   currentUserId,
   messages,
@@ -87,7 +122,7 @@ export function ChatMessages({
   selectedConversationTitle: string;
   isGroupChat: boolean;
   usersById: Map<string, ChatUser>;
-  onEditMessage: (messageId: string, conversationKey: string, newContent: string) => void;
+  onEditMessage: (message: ChatMessage) => void;
   onDeleteMessage: (messageId: string, conversationKey: string) => void;
   onReplyMessage: (message: ChatMessage) => void;
 }) {
@@ -98,13 +133,8 @@ export function ChatMessages({
   }, [messages.length]);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-6">
-      <div className="w-full">
-        <div className="mb-4">
-          <div className="text-xs text-slate-500">
-            Chatting in <span className="font-semibold text-slate-700">{selectedConversationTitle}</span>
-          </div>
-        </div>
+    <div className="flex-1 overflow-y-auto bg-[#f6f8fb] px-4 py-6">
+      <div className="mx-auto w-full max-w-5xl">
 
         {messagesLoading ? (
           <ChatMessagesSkeleton />
@@ -115,21 +145,49 @@ export function ChatMessages({
           </div>
         ) : (
           <div>
-            {messages.map((m) => {
+            {messages.map((m, index) => {
               const isOwn = m.senderId === currentUserId;
               const sender = usersById.get(m.senderId) || null;
+              const previousMessage = index > 0 ? messages[index - 1] : null;
+              const nextMessage = index < messages.length - 1 ? messages[index + 1] : null;
+              const showDateDivider =
+                !previousMessage || getMessageDateKey(previousMessage.createdAt) !== getMessageDateKey(m.createdAt);
+              const previousSameSender =
+                !!previousMessage &&
+                previousMessage.senderId === m.senderId &&
+                getMessageDateKey(previousMessage.createdAt) === getMessageDateKey(m.createdAt);
+              const nextSameSender =
+                !!nextMessage &&
+                nextMessage.senderId === m.senderId &&
+                getMessageDateKey(nextMessage.createdAt) === getMessageDateKey(m.createdAt);
+              const groupPosition = previousSameSender
+                ? nextSameSender
+                  ? 'middle'
+                  : 'last'
+                : nextSameSender
+                  ? 'first'
+                  : 'single';
               return (
-                <MessageBubble
-                  key={m.id}
-                  message={m}
-                  isOwn={isOwn}
-                  sender={sender}
-                  showSenderName={isGroupChat}
-                  onEdit={(newContent) => onEditMessage(m.id, m.conversationKey, newContent)}
-                  onDelete={() => onDeleteMessage(m.id, m.conversationKey)}
-                  onReply={() => onReplyMessage(m)}
-                  resolveUserName={(userId) => usersById.get(userId)?.name || 'User'}
-                />
+                <React.Fragment key={m.id}>
+                  {showDateDivider ? (
+                    <div className="sticky top-2 z-10 my-5 flex justify-center">
+                      <span className="rounded-full border border-slate-200 bg-white/95 px-3 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">
+                        {formatDateDivider(m.createdAt)}
+                      </span>
+                    </div>
+                  ) : null}
+                  <MessageBubble
+                    message={m}
+                    isOwn={isOwn}
+                    sender={sender}
+                    showSenderName={isGroupChat}
+                    groupPosition={groupPosition}
+                    onEdit={() => onEditMessage(m)}
+                    onDelete={() => onDeleteMessage(m.id, m.conversationKey)}
+                    onReply={() => onReplyMessage(m)}
+                    resolveUserName={(userId) => usersById.get(userId)?.name || 'User'}
+                  />
+                </React.Fragment>
               );
             })}
             {typingUserNames.length > 0 ? (

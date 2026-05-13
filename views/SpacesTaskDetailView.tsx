@@ -117,9 +117,14 @@ const SpacesTaskDetailView: React.FC<Props> = () => {
     }
   };
 
+  const dash = (value?: string | null) => {
+    const s = String(value ?? '').trim();
+    return s ? s : <span className="text-slate-400">-</span>;
+  };
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
-      <div className="text-[13px] text-slate-500 flex items-center gap-2 bg-gradient-to-r from-white to-red-50 border border-red-100 rounded-full px-4 py-2 w-fit shadow-sm">
+    <div className="max-w-6xl mx-auto space-y-5 animate-in fade-in duration-500">
+      <div className="text-[13px] text-slate-500 flex items-center gap-2">
         <Link to="/spaces" className="hover:text-brand-red">
           Task Hub
         </Link>
@@ -127,86 +132,85 @@ const SpacesTaskDetailView: React.FC<Props> = () => {
         <span className="text-slate-700">Task Details</span>
       </div>
 
-      <div className="bg-gradient-to-br from-white via-red-50/20 to-sky-50/30 border border-red-100 rounded-3xl shadow-[0_30px_80px_rgba(15,23,42,0.14)] p-8 space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.14em] text-red-500">Task Hub</p>
-            <h2 className="text-2xl text-slate-900">Task Details</h2>
-          </div>
-          <button
-            type="button"
-            onClick={() => navigate('/spaces')}
-            className="px-4 py-2 rounded-full border border-red-200 text-[13px] text-slate-700 bg-white hover:bg-red-50"
-          >
-            Back
-          </button>
-        </div>
-
-        {loading ? <p className="text-slate-500 text-sm">Loading...</p> : null}
-        {error ? <p className="text-red-600 text-sm">{error}</p> : null}
-
-        {!loading && !error && task ? (
-          <div className="space-y-5">
-            <div>
-              <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">Title</p>
-              <p className="text-xl text-slate-900">{task.title}</p>
-            </div>
-
-            <div>
-              <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">Description</p>
-              <p className="text-sm text-slate-700 whitespace-pre-wrap">{task.description || '-'}</p>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4 text-sm">
-              <div className="rounded-2xl border border-red-100 bg-white px-4 py-3 shadow-sm">
-                <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">Project</p>
-                <p className="text-slate-700">{projectLabel}</p>
-              </div>
-              <div className="rounded-2xl border border-red-100 bg-white px-4 py-3 shadow-sm">
-                <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">Assignee</p>
-                <p className="text-slate-700">{task.assigneeName || task.assigneeId || 'Unassigned'}</p>
-              </div>
-              <div className="rounded-2xl border border-red-100 bg-white px-4 py-3 shadow-sm">
-                <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">Due Date</p>
-                <p className="text-slate-700">{task.dueDate || '-'}</p>
-              </div>
-              <div className="rounded-2xl border border-red-100 bg-white px-4 py-3 shadow-sm">
-                <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">Priority</p>
-                <p className="text-slate-700 capitalize">{task.priority || '-'}</p>
-              </div>
-              <div className="rounded-2xl border border-red-100 bg-white px-4 py-3 shadow-sm">
-                <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">Status</p>
-                <p className="text-slate-700">{normalizeStatusLabel(task.status)}</p>
-              </div>
-              <div className="rounded-2xl border border-red-100 bg-white px-4 py-3 shadow-sm">
-                <p className="text-xs uppercase tracking-wider text-slate-500 mb-1">Created By</p>
-                <p className="text-slate-700">{task.createdByName || task.createdByEmpId || '-'}</p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-red-100 bg-white px-4 py-4 shadow-sm">
-              <p className="text-xs uppercase tracking-wider text-slate-500 mb-2">Document</p>
-              {task.documentUrl ? (
-                <button
-                  type="button"
-                  onClick={handleDownload}
-                  disabled={downloading}
-                  className="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-[13px] font-semibold text-brand-red hover:bg-red-100 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {downloading
-                    ? 'Downloading...'
-                    : `Download ${task.documentName || 'Document'}`}
-                </button>
-              ) : (
-                <p className="text-sm text-slate-500">No document attached.</p>
-              )}
-            </div>
-          </div>
-        ) : null}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xl font-semibold text-slate-900">Task Details</h2>
+        <button
+          type="button"
+          onClick={() => navigate('/spaces')}
+          className="px-3 py-1.5 rounded-lg border border-brand-red/20 bg-rose-50 text-brand-red text-sm font-semibold hover:bg-rose-100"
+        >
+          Back
+        </button>
       </div>
+
+      {loading ? <p className="text-slate-500 text-sm">Loading...</p> : null}
+      {error ? <p className="text-red-600 text-sm">{error}</p> : null}
+
+      {!loading && !error && task ? (
+        <section className="rounded-lg bg-white p-6 shadow-sm">
+          <div className="space-y-3">
+            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
+              <p className="text-slate-500">Title</p>
+              <p className="font-bold text-slate-900 break-words">{task.title}</p>
+            </div>
+            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
+              <p className="text-slate-500">Description</p>
+              <div className="text-slate-900 whitespace-pre-wrap break-words">
+                {task.description?.trim() ? task.description : <span className="text-slate-400">-</span>}
+              </div>
+            </div>
+            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
+              <p className="text-slate-500">Document</p>
+              <div className="text-slate-900 break-words">
+                {task.documentUrl ? (
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    disabled={downloading}
+                    className="text-blue-700 hover:underline text-left disabled:opacity-60 disabled:cursor-not-allowed disabled:no-underline"
+                  >
+                    {downloading ? 'Downloading...' : `Download ${task.documentName || 'document'}`}
+                  </button>
+                ) : (
+                  <span className="text-slate-400">-</span>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
+              <p className="text-slate-500">Project</p>
+              <p className="text-slate-900 break-words">{projectLabel}</p>
+            </div>
+            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
+              <p className="text-slate-500">Assignee</p>
+              <p className="text-slate-900 break-words">
+                {task.assigneeName || task.assigneeId || 'Unassigned'}
+              </p>
+            </div>
+            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
+              <p className="text-slate-500">Due Date</p>
+              <p className="text-slate-900 break-words">{dash(task.dueDate)}</p>
+            </div>
+            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
+              <p className="text-slate-500">Priority</p>
+              <p className="text-slate-900 capitalize break-words">{dash(task.priority)}</p>
+            </div>
+            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
+              <p className="text-slate-500">Status</p>
+              <div>
+                <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                  {normalizeStatusLabel(task.status)}
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
+              <p className="text-slate-500">Created By</p>
+              <p className="text-slate-900 break-words">{dash(task.createdByName || task.createdByEmpId)}</p>
+            </div>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 };
 
 export default SpacesTaskDetailView;
-

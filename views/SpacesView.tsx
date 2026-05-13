@@ -78,6 +78,8 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [status, setStatus] = useState<TaskStatus>('todo');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [taskDocumentFile, setTaskDocumentFile] = useState<File | null>(null);
+  const [aiAssigning, setAiAssigning] = useState(false);
+  const [aiAssignFileName, setAiAssignFileName] = useState('');
   const [uploadingTaskDocument, setUploadingTaskDocument] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -788,6 +790,43 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       documentMimeType: String(uploaded.documentMimeType || file.type || ''),
     };
   }, []);
+
+  const handleAiAssignPdfUpload = useCallback(async (file: File | null) => {
+    if (!file || aiAssigning) return;
+    setError(null);
+    setAiAssigning(true);
+    setAiAssignFileName(file.name || 'PDF');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const session = getStoredAuthSession();
+      const token = typeof session?.token === 'string' ? session.token : '';
+      const response = await fetch(`${API_BASE}/ai-assign/upload`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to run AI Assign');
+      }
+
+      const createdTasks = Array.isArray(data?.tasks)
+        ? data.tasks.map((task: SpacesTask) => normalizeTaskForUi(task))
+        : [];
+      setTasks((prev) => createdTasks.reduce((next, task) => upsertTaskById(next, task), prev));
+      if (!createdTasks.length && data?.message) {
+        setError(String(data.message));
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Failed to run AI Assign');
+    } finally {
+      setAiAssigning(false);
+      setAiAssignFileName('');
+    }
+  }, [aiAssigning]);
 
   const createTaskInternal = useCallback(async (params: {
     title: string;
@@ -1775,6 +1814,9 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     handleCreate,
     saving,
     uploadingTaskDocument,
+    aiAssigning,
+    aiAssignFileName,
+    handleAiAssignPdfUpload,
     error,
     isTaskCreateModalOpen,
     openTaskCreateModal,
