@@ -284,15 +284,15 @@ const SpacesMainSections: React.FC<any> = (props) => {
       >
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-1.5 w-8 rounded-full bg-brand-red" />
-            <span className="text-[15px] text-slate-500">Task Hub</span>
+            <div className="h-2 w-10 rounded-full bg-brand-red" />
+            <span className="text-[20px] font-medium text-slate-900">Task Hub</span>
           </div>
           <button
             type="button"
             onClick={() => openTaskCreateModal()}
-            className="inline-flex items-center gap-2 rounded-full bg-brand-red px-6 py-3 text-[15px] font-black text-white shadow-lg transition-colors hover:bg-brand-navy"
+            className="inline-flex items-center gap-2 rounded-full bg-brand-red px-4 py-2 text-[14px] font-semibold text-white shadow-lg transition-colors hover:bg-brand-navy"
           >
-            <Plus size={18} />
+            <Plus size={16} />
             Create Task
           </button>
         </div>

@@ -93,7 +93,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
       <GlobalCommunicationNotifications />
       <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
         <aside
-          className={`${isSidebarOpen ? 'w-52' : 'w-[72px]'} h-full min-h-0 bg-brand-charcoal text-white transition-all duration-500 flex flex-col z-50 relative shrink-0`}
+          className={`${isSidebarOpen ? 'w-48' : 'w-[72px]'} h-full min-h-0 bg-white/90 text-white backdrop-blur-xl transition-all duration-500 flex flex-col z-50 relative shrink-0`}
         >
           <div className="absolute top-0 right-0 h-full w-px bg-slate-200" />
           <div className="px-3.5 py-4 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
