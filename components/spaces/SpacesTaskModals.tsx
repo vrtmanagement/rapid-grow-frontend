@@ -45,6 +45,13 @@ const SpacesTaskModals: React.FC<any> = (props) => {
     deleteTask,
     setEditingTask,
   } = props;
+  const [isDeletingTask, setIsDeletingTask] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!deleteTaskModal) {
+      setIsDeletingTask(false);
+    }
+  }, [deleteTaskModal]);
 
   return (
     <>
@@ -238,26 +245,42 @@ const SpacesTaskModals: React.FC<any> = (props) => {
       )}
 
       {deleteTaskModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl w-full max-w-sm border border-slate-200 p-6">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => {
+            if (isDeletingTask) return;
+            setDeleteTaskModal(null);
+          }}
+        >
+          <div className="bg-white rounded-3xl w-full max-w-sm border border-slate-200 p-6" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-slate-900 mb-2">Delete task</h3>
             <p className="text-[14px] text-slate-600 mb-6">Are you sure you want to delete &quot;{deleteTaskModal.title}&quot;?</p>
             <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setDeleteTaskModal(null)} className="px-4 py-2 rounded-full border border-slate-200 text-[13px] text-slate-700 hover:bg-slate-50">Cancel</button>
+              <button type="button" disabled={isDeletingTask} onClick={() => setDeleteTaskModal(null)} className="px-4 py-2 rounded-full border border-slate-200 text-[13px] text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">Cancel</button>
               <button
                 type="button"
+                disabled={isDeletingTask}
                 onClick={async () => {
+                  setIsDeletingTask(true);
                   try {
                     await deleteTask(deleteTaskModal.taskId);
                   } catch (e: any) {
                     setError(e?.message || 'Failed to delete task');
                   } finally {
+                    setIsDeletingTask(false);
                     setDeleteTaskModal(null);
                   }
                 }}
-                className="px-5 py-2 rounded-full bg-brand-red text-white text-[13px] font-semibold hover:bg-brand-navy"
+                className="inline-flex min-w-[116px] items-center justify-center gap-2 rounded-full bg-brand-red px-5 py-2 text-[13px] font-semibold text-white hover:bg-brand-navy disabled:cursor-not-allowed disabled:opacity-80"
               >
-                Delete
+                {isDeletingTask ? (
+                  <>
+                    <span className="h-3.5 w-3.5 rounded-full border-2 border-white/80 border-t-transparent animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
               </button>
             </div>
           </div>

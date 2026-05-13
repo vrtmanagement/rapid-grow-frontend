@@ -429,12 +429,12 @@ const WeeklyTaskPeriodOptionColumn: React.FC<{
 
   return (
     <div className="min-w-0">
-      <div className={`px-1 font-semibold uppercase tracking-[0.2em] text-slate-400 ${compact ? 'mb-1 text-[9px]' : 'mb-2 text-[10px]'}`}>
+      <div className={`px-1 font-semibold uppercase tracking-[0.2em] text-slate-400 ${compact ? 'mb-1 text-[9px]' : 'mb-2 text-[11px]'}`}>
         {heading}
       </div>
       <div
         className={`overflow-y-auto border border-slate-200/90 bg-slate-50/60 ${
-          roomy ? 'h-[232px] rounded-[24px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden' : compact ? 'max-h-[204px] space-y-1.5 rounded-[15px] p-1.5' : 'max-h-[196px] space-y-1.5 rounded-[22px] p-2'
+          roomy ? 'h-[304px] rounded-[24px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden' : compact ? 'max-h-[204px] space-y-1.5 rounded-[15px] p-1.5' : 'max-h-[196px] space-y-1.5 rounded-[22px] p-2'
         }`}
       >
         {options.map((option, index) => {
@@ -446,7 +446,7 @@ const WeeklyTaskPeriodOptionColumn: React.FC<{
               type="button"
               onClick={() => onSelect(option.value)}
               className={`w-full border text-left transition-all duration-150 ${
-                roomy ? `rounded-none border-x-0 border-t-0 px-4 py-2.5 shadow-none ${index === options.length - 1 ? 'border-b-0' : ''}` : compact ? 'rounded-[12px] px-2.5 py-1.5' : 'rounded-[16px] px-3 py-2'
+                roomy ? `rounded-none border-x-0 border-t-0 px-4 py-3.5 shadow-none ${index === options.length - 1 ? 'border-b-0' : ''}` : compact ? 'rounded-[12px] px-2.5 py-1.5' : 'rounded-[16px] px-3 py-2'
               } ${
                 isSelected
                   ? roomy
@@ -460,15 +460,15 @@ const WeeklyTaskPeriodOptionColumn: React.FC<{
               {roomy ? (
                 <>
                   <div className="flex items-start justify-between gap-2.5">
-                    <div className="text-[13px] font-semibold leading-[1.15rem] text-slate-800">{roomyPrimaryLabel}</div>
+                    <div className="text-[14px] font-semibold leading-5 text-slate-800">{roomyPrimaryLabel}</div>
                     {option.caption ? (
-                      <div className={`shrink-0 text-right text-[11px] font-medium leading-[1.15rem] ${isSelected ? 'text-rose-500' : 'text-slate-500'}`}>
+                      <div className={`shrink-0 text-right text-[12px] font-medium leading-5 ${isSelected ? 'text-rose-500' : 'text-slate-500'}`}>
                         {option.caption}
                       </div>
                     ) : null}
                   </div>
                   {option.description ? (
-                    <div className={`mt-1 line-clamp-2 text-[11px] leading-4 ${isSelected ? 'text-slate-900' : 'text-slate-800'}`}>
+                    <div className={`mt-1 line-clamp-2 text-[12px] leading-[1.15rem] ${isSelected ? 'text-slate-900' : 'text-slate-800'}`}>
                       {option.description}
                     </div>
                   ) : null}
@@ -562,8 +562,8 @@ export const WeeklyTaskPeriodCanvas: React.FC<WeeklyTaskPeriodPickerProps & { op
 }) => (
   <div
     aria-hidden={!open}
-    className={`overflow-hidden transition-[max-height,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-      open ? 'max-h-[828px] opacity-100' : 'pointer-events-none max-h-0 opacity-0'
+    className={`transition-[max-height,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+      open ? 'max-h-[2000px] overflow-visible opacity-100' : 'pointer-events-none max-h-0 overflow-hidden opacity-0'
     }`}
   >
     <div className={`origin-top transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${open ? 'translate-y-0 scale-y-100' : '-translate-y-3 scale-y-95'}`}>
@@ -572,13 +572,13 @@ export const WeeklyTaskPeriodCanvas: React.FC<WeeklyTaskPeriodPickerProps & { op
         <div className="rounded-none border border-white/70 bg-white/90 p-3.5 backdrop-blur md:p-4">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex min-w-0 flex-col gap-2.5 xl:flex-row xl:items-center xl:gap-4">
-              <h3 className="whitespace-nowrap text-[22px] font-semibold leading-none tracking-tight text-slate-900">Weekly Planner Focus</h3>
-              <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+              <h3 className="whitespace-nowrap text-[24px] font-semibold leading-none tracking-tight text-slate-900">Weekly Planner Focus</h3>
+              <div className="mt-1 flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3 xl:mt-1.5">
                 <div className="w-full max-w-[208px] rounded-[14px] border border-slate-200 bg-slate-50/90 px-3 py-1.5">
-                  <div className="text-[8px] font-semibold uppercase tracking-[0.18em] text-slate-400">Selected Period</div>
-                  <div className="mt-0.5 whitespace-nowrap text-[13px] font-semibold leading-tight text-slate-900">{summary}</div>
+                  <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">Selected Period</div>
+                  <div className="mt-0.5 whitespace-nowrap text-[14px] font-semibold leading-tight text-slate-900">{summary}</div>
                 </div>
-                <div className="whitespace-nowrap text-[12px] font-medium leading-none text-slate-900">{detail}</div>
+                <div className="whitespace-nowrap text-[13px] font-medium leading-none text-slate-900">{detail}</div>
               </div>
             </div>
             <div className="flex flex-col items-end gap-3 md:min-w-[240px] md:max-w-[280px]">
@@ -588,8 +588,8 @@ export const WeeklyTaskPeriodCanvas: React.FC<WeeklyTaskPeriodPickerProps & { op
                 aria-label="Close"
                 className="group relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-red text-white transition hover:bg-brand-navy"
               >
-                <span className="pointer-events-none absolute -top-11 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white opacity-0 shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition duration-200 group-hover:opacity-100">
-                  Close canvas
+                <span className="pointer-events-none absolute right-0 top-full mt-2 whitespace-nowrap rounded-[10px] border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 opacity-0 transition duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+                  Close planner
                 </span>
                 <X size={16} strokeWidth={2.2} />
               </button>

@@ -84,6 +84,23 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
     getAuthHeaders,
   } = props;
   const [activeRowMenuId, setActiveRowMenuId] = React.useState<string | null>(null);
+  const activeRowMenuRef = React.useRef<HTMLDivElement | null>(null);
+  const activeRowMenuButtonRef = React.useRef<HTMLButtonElement | null>(null);
+
+  React.useEffect(() => {
+    if (!activeRowMenuId) return undefined;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (activeRowMenuRef.current?.contains(target) || activeRowMenuButtonRef.current?.contains(target)) {
+        return;
+      }
+      setActiveRowMenuId(null);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [activeRowMenuId]);
 
   return (
     <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
@@ -245,6 +262,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                           ) : null}
                           <div className="relative">
                             <button
+                              ref={activeRowMenuId === t.taskId ? activeRowMenuButtonRef : undefined}
                               type="button"
                               onClick={() => setActiveRowMenuId((prev) => (prev === t.taskId ? null : t.taskId))}
                               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
@@ -253,7 +271,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                               <MoreVertical size={16} />
                             </button>
                             {activeRowMenuId === t.taskId ? (
-                              <div className="absolute right-0 top-full z-20 mt-2 w-40 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2">
+                              <div ref={activeRowMenuRef} className="absolute right-0 top-full z-20 mt-2 w-40 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2">
                                 <button
                                   type="button"
                                   onClick={() => {

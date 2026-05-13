@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { CheckCircle2, Eye, FileText, Paperclip, Plus, UploadCloud, WandSparkles } from 'lucide-react';
 import { WeeklyTaskPeriodCanvas, WeeklyTaskPeriodTrigger } from './SpacesFormControls';
 import SpacesTaskCreateModal from './SpacesTaskCreateModal';
@@ -7,6 +7,37 @@ import SpacesTaskModals from './SpacesTaskModals';
 
 const SpacesMainSections: React.FC<any> = (props) => {
   const [isWeeklyPlannerCanvasOpen, setIsWeeklyPlannerCanvasOpen] = useState(false);
+  const canvasSectionRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isWeeklyPlannerCanvasOpen) return;
+
+    let scrollParent: HTMLElement | null = canvasSectionRef.current;
+    while (scrollParent && scrollParent.parentElement) {
+      const { overflowY } = window.getComputedStyle(scrollParent);
+      if (overflowY === 'auto' || overflowY === 'scroll') break;
+      scrollParent = scrollParent.parentElement;
+    }
+
+    const previousScrollParentOverflow = scrollParent?.style.overflow ?? '';
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+
+    if (scrollParent) {
+      scrollParent.style.overflow = 'hidden';
+    }
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      if (scrollParent) {
+        scrollParent.style.overflow = previousScrollParentOverflow;
+      }
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, [isWeeklyPlannerCanvasOpen]);
+
   const {
     me,
     title,
@@ -234,8 +265,9 @@ const SpacesMainSections: React.FC<any> = (props) => {
   return (
     <>
       <div
+        ref={canvasSectionRef}
         className={`-mx-6 overflow-hidden bg-white transition-all duration-300 ease-out ${
-          isWeeklyPlannerCanvasOpen ? '-mt-16 mb-4 pt-3' : 'mb-0 pt-0'
+          isWeeklyPlannerCanvasOpen ? '-mt-16 mb-4 pt-5' : 'mb-0 pb-0 pt-0'
         }`}
       >
         <WeeklyTaskPeriodCanvas
@@ -245,7 +277,11 @@ const SpacesMainSections: React.FC<any> = (props) => {
         />
       </div>
 
-      <div className="space-y-4">
+      <div
+        className={`space-y-4 transition-[filter,opacity] duration-300 ease-out ${
+          isWeeklyPlannerCanvasOpen ? 'pointer-events-none blur-[6px] opacity-60' : 'blur-0 opacity-100'
+        }`}
+      >
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
             <div className="h-1.5 w-8 rounded-full bg-brand-red" />
