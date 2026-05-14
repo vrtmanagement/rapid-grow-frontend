@@ -618,7 +618,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
               <div className="min-w-0">
                 <h4 className="text-[15px] font-semibold text-slate-900">AI Assign</h4>
                 <p className="mt-0.5 truncate text-[12px] text-slate-500">
-                  {aiAssigning ? `Processing ${aiAssignFileName || 'PDF'}...` : 'Upload a PDF to create and assign TaskHub items.'}
+                  {aiAssigning ? `Processing ${aiAssignFileName || 'file'}...` : 'Upload a document or sheet to create and assign TaskHub items.'}
                 </p>
               </div>
             </div>
@@ -628,10 +628,10 @@ const SpacesMainSections: React.FC<any> = (props) => {
                 : 'bg-brand-red text-white hover:bg-brand-red/90'
             }`}>
               <UploadCloud size={16} />
-              {aiAssigning ? 'Assigning...' : 'Upload PDF'}
+              {aiAssigning ? 'Assigning...' : 'Upload File'}
               <input
                 type="file"
-                accept="application/pdf,.pdf"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
                 disabled={aiAssigning}
                 className="hidden"
                 onChange={(event) => {
