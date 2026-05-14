@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, MessageSquareText, MoreVertical, Pencil, Plus, X } from 'lucide-react';
+import { CheckSquare, Eye, MessageSquareText, MoreVertical, Pencil, Plus, X } from 'lucide-react';
 import { TaskHubTableSkeleton, ThemedSelect } from './SpacesFormControls';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
 
@@ -75,6 +75,10 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
     setEditingTaskMode,
     setEditingTaskDraft,
     setDeleteTaskModal,
+    selectedTaskIds = [],
+    canBulkManageTasks,
+    toggleTaskSelection,
+    canSelectTask,
     taskPage,
     TASKS_PER_PAGE,
     setTaskPage,
@@ -86,6 +90,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
   const [activeRowMenuId, setActiveRowMenuId] = React.useState<string | null>(null);
   const activeRowMenuRef = React.useRef<HTMLDivElement | null>(null);
   const activeRowMenuButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const hasSelectedTasks = selectedTaskIds.length > 0;
 
   React.useEffect(() => {
     if (!activeRowMenuId) return undefined;
@@ -184,12 +189,22 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                 const planningMonthLabel = String(t.customFields?.planningMonthLabel || '').trim();
                 const planningTag = [planningMonthLabel, planningWeekLabel, planningDayText].filter(Boolean).join(' · ');
 
+                const isSelected = selectedTaskIds.includes(t.taskId);
                 const assignee = assigneeOptionsForTask(t.assigneeId).find((employee: any) => employee.empId === t.assigneeId);
                 const assigneeName = assignee ? assignee.empName || 'Unknown User' : 'Unassigned';
                 const assigneeAvatar = getDisplayAvatarUrl(assignee?.avatar, assigneeName);
 
                 return (
-                  <tr key={t.taskId} className={getTaskRowClasses(t)}>
+                  <tr
+                    key={t.taskId}
+                    onClick={(event) => {
+                      if (!hasSelectedTasks || isSelected || !canSelectTask?.(t)) return;
+                      const target = event.target as HTMLElement;
+                      if (target.closest('button, select, textarea, a, [role="button"]')) return;
+                      toggleTaskSelection?.(t);
+                    }}
+                    className={`${getTaskRowClasses(t)} ${hasSelectedTasks && canSelectTask?.(t) && !isSelected ? 'cursor-pointer' : ''} ${isSelected ? '!bg-red-50/80 ring-1 ring-inset ring-red-200' : ''}`}
+                  >
                     <td className="px-3 py-3">
                       <input
                         defaultValue={t.title}
@@ -252,7 +267,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                       </td>
                     ))}
                     <td className="px-2 py-3 text-right">
-                      {(canValidateTask(t) || canEditTask(t) || canDeleteTask(t)) ? (
+                      {(canValidateTask(t) || canEditTask(t) || canDeleteTask(t) || (canBulkManageTasks && canSelectTask?.(t))) ? (
                         <div className="inline-flex items-center gap-2">
                           {canValidateTask(t) ? (
                             <>
@@ -308,6 +323,23 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                                   >
                                     <Pencil size={14} />
                                     Edit task
+                                  </button>
+                                ) : null}
+                                {canBulkManageTasks && canSelectTask?.(t) ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveRowMenuId(null);
+                                      toggleTaskSelection?.(t);
+                                    }}
+                                    className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium transition ${
+                                      isSelected
+                                        ? 'bg-red-50 text-brand-red hover:bg-red-100'
+                                        : 'text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <CheckSquare size={14} />
+                                    {isSelected ? 'Unselect' : 'Select'}
                                   </button>
                                 ) : null}
                                 {canDeleteTask(t) ? (
