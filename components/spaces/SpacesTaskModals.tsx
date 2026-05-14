@@ -30,6 +30,11 @@ const SpacesTaskModals: React.FC<any> = (props) => {
     setCommentToDeleteId,
     deleteTaskModal,
     setDeleteTaskModal,
+    bulkDeleteTaskModalOpen,
+    setBulkDeleteTaskModalOpen,
+    selectedTaskCount,
+    bulkSaving,
+    deleteSelectedTasks,
     rejectTaskModal,
     rejectFeedbackDraft,
     setRejectFeedbackDraft,
@@ -238,6 +243,48 @@ const SpacesTaskModals: React.FC<any> = (props) => {
                 className="px-5 py-2 rounded-full bg-brand-red text-white text-[13px] font-semibold hover:bg-brand-navy"
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkDeleteTaskModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => {
+            if (bulkSaving) return;
+            setBulkDeleteTaskModalOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-3xl w-full max-w-sm border border-slate-200 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Delete selected tasks</h3>
+            <p className="text-[14px] text-slate-600 mb-6">
+              Are you sure you want to delete {selectedTaskCount} selected task{selectedTaskCount === 1 ? '' : 's'}?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={bulkSaving}
+                onClick={() => setBulkDeleteTaskModalOpen(false)}
+                className="px-4 py-2 rounded-full border border-slate-200 text-[13px] text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                No
+              </button>
+              <button
+                type="button"
+                disabled={bulkSaving}
+                onClick={deleteSelectedTasks}
+                className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded-full bg-brand-red px-5 py-2 text-[13px] font-semibold text-white hover:bg-brand-navy disabled:cursor-not-allowed disabled:opacity-80"
+              >
+                {bulkSaving ? (
+                  <>
+                    <span className="h-3.5 w-3.5 rounded-full border-2 border-white/80 border-t-transparent animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Yes'
+                )}
               </button>
             </div>
           </div>

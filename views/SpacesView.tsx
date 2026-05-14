@@ -116,6 +116,13 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [editingTask, setEditingTask] = useState<SpacesTask | null>(null);
   const [editingTaskMode, setEditingTaskMode] = useState<'view' | 'edit'>('view');
   const [editingTaskDraft, setEditingTaskDraft] = useState<Partial<SpacesTask>>({});
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  const [bulkStatus, setBulkStatus] = useState<TaskStatus>('todo');
+  const [bulkAssigneeId, setBulkAssigneeId] = useState('');
+  const [bulkDueDate, setBulkDueDate] = useState('');
+  const [bulkTouched, setBulkTouched] = useState({ status: false, assigneeId: false, dueDate: false });
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkDeleteTaskModalOpen, setBulkDeleteTaskModalOpen] = useState(false);
   const projectNameById = useMemo(() => {
     const map = new Map<string, string>();
     projects.forEach((p) => map.set(p.id, p.name));
@@ -203,6 +210,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   );
   const viewerRole = normalizeRole(me.role);
   const canManageWeeklyRows = viewerRole === 'SUPER_ADMIN' || viewerRole === 'ADMIN' || viewerRole === 'TEAM_LEAD';
+  const canBulkManageTasks = mode === 'manager' && canManageWeeklyRows;
   const canToggleWeeklyDay = canManageWeeklyRows || mode === 'employee';
   const assignmentHint =
     viewerRole === 'SUPER_ADMIN' || viewerRole === 'ADMIN'
@@ -1684,6 +1692,123 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const canDeleteTask = (t: SpacesTask): boolean => canDeleteTaskForView(t, me, mode);
   const canEditDueDate = (t: SpacesTask): boolean => canEditDueDateForView(t, isTaskLocked, canEditTask);
   const canChangeStatus = (t: SpacesTask): boolean => canChangeStatusForView(t, mode, me, isTaskLocked, canEditTask);
+  const canSelectTask = (t: SpacesTask): boolean =>
+    canBulkManageTasks && !isTaskLocked(t) && (canEditTask(t) || canDeleteTask(t) || canChangeStatus(t));
+
+  useEffect(() => {
+    setSelectedTaskIds((prev) => {
+      if (!prev.length) return prev;
+      const availableIds = new Set(tasks.map((task) => task.taskId));
+      const next = prev.filter((taskId) => availableIds.has(taskId));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [tasks]);
+
+  useEffect(() => {
+    if (canBulkManageTasks) return;
+    setSelectedTaskIds([]);
+  }, [canBulkManageTasks]);
+
+  const selectedTasks = useMemo(
+    () => selectedTaskIds.map((taskId) => tasks.find((task) => task.taskId === taskId)).filter((task): task is SpacesTask => !!task),
+    [selectedTaskIds, tasks],
+  );
+
+  const toggleTaskSelection = (task: SpacesTask) => {
+    if (!canSelectTask(task)) return;
+    setSelectedTaskIds((prev) =>
+      prev.includes(task.taskId)
+        ? prev.filter((taskId) => taskId !== task.taskId)
+        : [...prev, task.taskId],
+    );
+  };
+
+  const clearSelectedTasks = () => {
+    setSelectedTaskIds([]);
+    setBulkAssigneeId('');
+    setBulkDueDate('');
+    setBulkStatus('todo');
+    setBulkTouched({ status: false, assigneeId: false, dueDate: false });
+  };
+
+  const applyBulkTaskUpdate = async (updates: Partial<SpacesTask>) => {
+    if (!selectedTasks.length || bulkSaving) return;
+
+    const hasStatusUpdate = Object.prototype.hasOwnProperty.call(updates, 'status');
+    const hasAssigneeUpdate = Object.prototype.hasOwnProperty.call(updates, 'assigneeId');
+    const hasDueDateUpdate = Object.prototype.hasOwnProperty.call(updates, 'dueDate');
+    const eligibleTasks = selectedTasks
+      .filter((task) => canSelectTask(task))
+      .map((task) => {
+        const taskUpdates: Partial<SpacesTask> = {};
+        if (hasStatusUpdate && canChangeStatus(task)) taskUpdates.status = updates.status;
+        if (hasAssigneeUpdate && canEditTask(task)) taskUpdates.assigneeId = updates.assigneeId;
+        if (hasDueDateUpdate && canEditDueDate(task)) taskUpdates.dueDate = updates.dueDate;
+        return { task, updates: taskUpdates };
+      })
+      .filter((entry) => Object.keys(entry.updates).length > 0);
+
+    if (!eligibleTasks.length) {
+      setError('No selected tasks can receive these changes.');
+      return;
+    }
+
+    setBulkSaving(true);
+    setError(null);
+    try {
+      for (const entry of eligibleTasks) {
+        const ok = await patchTask(entry.task.taskId, entry.updates);
+        if (!ok) {
+          throw new Error('One or more selected tasks could not be updated.');
+        }
+      }
+      clearSelectedTasks();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to update selected tasks');
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  const saveBulkTaskChanges = async () => {
+    const updates: Partial<SpacesTask> = {};
+    if (bulkTouched.status) updates.status = bulkStatus;
+    if (bulkTouched.assigneeId) updates.assigneeId = bulkAssigneeId;
+    if (bulkTouched.dueDate) updates.dueDate = bulkDueDate;
+
+    if (!Object.keys(updates).length) {
+      setError('Choose a status, assignee, or due date change before saving.');
+      return;
+    }
+
+    await applyBulkTaskUpdate(updates);
+  };
+
+  const deleteSelectedTasks = async () => {
+    if (!selectedTasks.length || bulkSaving) return;
+    const deletableTasks = selectedTasks.filter((task) => canSelectTask(task) && canDeleteTask(task));
+    if (!deletableTasks.length) {
+      setError('No selected tasks can be deleted.');
+      return;
+    }
+
+    setBulkSaving(true);
+    setError(null);
+    try {
+      for (const task of deletableTasks) {
+        const ok = await deleteTask(task.taskId);
+        if (!ok) {
+          throw new Error('One or more selected tasks could not be deleted.');
+        }
+      }
+      clearSelectedTasks();
+      setBulkDeleteTaskModalOpen(false);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to delete selected tasks');
+    } finally {
+      setBulkSaving(false);
+    }
+  };
 
   const handleApproveTask = async (t: SpacesTask) => {
     if (!canValidateTask(t) || t.status === 'done') return;
@@ -1887,6 +2012,25 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     setEditingTaskMode,
     setEditingTaskDraft,
     setDeleteTaskModal,
+    selectedTaskIds,
+    selectedTaskCount: selectedTasks.length,
+    canBulkManageTasks,
+    bulkSaving,
+    bulkStatus,
+    setBulkStatus,
+    bulkAssigneeId,
+    setBulkAssigneeId,
+    bulkDueDate,
+    setBulkDueDate,
+    bulkTouched,
+    setBulkTouched,
+    toggleTaskSelection,
+    clearSelectedTasks,
+    saveBulkTaskChanges,
+    bulkDeleteTaskModalOpen,
+    setBulkDeleteTaskModalOpen,
+    deleteSelectedTasks,
+    canSelectTask,
     taskPage,
     TASKS_PER_PAGE,
     setTaskPage,
