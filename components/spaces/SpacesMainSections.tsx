@@ -476,6 +476,24 @@ const SpacesMainSections: React.FC<any> = (props) => {
     setEditingTaskMode,
     setEditingTaskDraft,
     setDeleteTaskModal,
+    selectedTaskIds,
+    selectedTaskCount,
+    canBulkManageTasks,
+    bulkSaving,
+    bulkStatus,
+    setBulkStatus,
+    bulkAssigneeId,
+    setBulkAssigneeId,
+    bulkDueDate,
+    setBulkDueDate,
+    bulkTouched,
+    setBulkTouched,
+    clearSelectedTasks,
+    saveBulkTaskChanges,
+    setBulkDeleteTaskModalOpen,
+    deleteSelectedTasks,
+    toggleTaskSelection,
+    canSelectTask,
     taskPage,
     TASKS_PER_PAGE,
     setTaskPage,
@@ -948,7 +966,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
               <div className="min-w-0">
                 <h4 className="text-[15px] font-semibold text-slate-900">AI Assign</h4>
                 <p className="mt-0.5 truncate text-[12px] text-slate-500">
-                  {aiAssigning ? `Processing ${aiAssignFileName || 'PDF'}...` : 'Upload a PDF to create and assign TaskHub items.'}
+                  {aiAssigning ? `Processing ${aiAssignFileName || 'file'}...` : 'Upload a document or sheet to create and assign TaskHub items.'}
                 </p>
               </div>
             </div>
@@ -958,10 +976,10 @@ const SpacesMainSections: React.FC<any> = (props) => {
                 : 'bg-brand-red text-white hover:bg-brand-red/90'
             }`}>
               <UploadCloud size={16} />
-              {aiAssigning ? 'Assigning...' : 'Upload PDF'}
+              {aiAssigning ? 'Assigning...' : 'Upload File'}
               <input
                 type="file"
-                accept="application/pdf,.pdf"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
                 disabled={aiAssigning}
                 className="hidden"
                 onChange={(event) => {
@@ -995,7 +1013,77 @@ const SpacesMainSections: React.FC<any> = (props) => {
         </div>
       </div>
 
-      <SpacesTaskTableSection columns={columns} isRenamingColumnId={isRenamingColumnId} renameDraft={renameDraft} setRenameDraft={setRenameDraft} setIsRenamingColumnId={setIsRenamingColumnId} setActiveColumnMenuId={setActiveColumnMenuId} sortedTasks={sortedTasks} setColumns={setColumns} setError={setError} activeColumnMenuId={activeColumnMenuId} setColumnToDelete={setColumnToDelete} handleAddColumn={handleAddColumn} spacesLoading={spacesLoading} paginatedTasks={paginatedTasks} canEditTask={canEditTask} isTaskLocked={isTaskLocked} getTaskRowClasses={getTaskRowClasses} patchTask={patchTask} projectNameById={projectNameById} mode={mode} me={me} assigneeOptionsForTask={assigneeOptionsForTask} employeesLoading={employeesLoading} canEditDueDate={canEditDueDate} priorityOptions={priorityOptions} canChangeStatus={canChangeStatus} statusOptions={statusOptions} forceDownloadDocument={forceDownloadDocument} canCommentOnTask={canCommentOnTask} setCommentTaskId={setCommentTaskId} setModalStatus={setModalStatus} canValidateTask={canValidateTask} canDeleteTask={canDeleteTask} handleApproveTask={handleApproveTask} handleRejectTask={handleRejectTask} navigate={navigate} setEditingTask={setEditingTask} setEditingTaskMode={setEditingTaskMode} setEditingTaskDraft={setEditingTaskDraft} setDeleteTaskModal={setDeleteTaskModal} taskPage={taskPage} TASKS_PER_PAGE={TASKS_PER_PAGE} setTaskPage={setTaskPage} visibleTaskPages={visibleTaskPages} totalTaskPages={totalTaskPages} API_BASE={API_BASE} getAuthHeaders={getAuthHeaders} />
+      {canBulkManageTasks && selectedTaskCount > 0 ? (
+        <div className="sticky top-0 z-30 rounded-2xl border border-red-100 bg-red-50/95 px-4 py-3 shadow-sm backdrop-blur">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-red text-sm font-semibold text-white">
+                {selectedTaskCount}
+              </div>
+              <div>
+                <div className="text-[13px] font-semibold text-slate-900">Selected tasks</div>
+                <div className="text-[12px] text-slate-500">Apply changes to all selected rows.</div>
+              </div>
+            </div>
+            <div className="grid gap-2 md:grid-cols-[minmax(150px,1fr)_auto_minmax(170px,1fr)_auto_minmax(150px,1fr)_auto_auto_auto] md:items-center">
+              <select
+                value={bulkStatus}
+                onChange={(event) => {
+                  setBulkStatus(event.target.value);
+                  setBulkTouched((prev: any) => ({ ...prev, status: true }));
+                }}
+                disabled={bulkSaving}
+                className="h-10 rounded-xl border border-red-100 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 disabled:opacity-60"
+              >
+                {statusOptions.map((option: any) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <div className={`h-10 rounded-xl border px-3 py-2 text-[12px] font-semibold ${bulkTouched?.status ? 'border-red-200 bg-red-100 text-brand-red' : 'border-slate-200 bg-white text-slate-400'}`}>Status</div>
+              <select
+                value={bulkAssigneeId}
+                onChange={(event) => {
+                  setBulkAssigneeId(event.target.value);
+                  setBulkTouched((prev: any) => ({ ...prev, assigneeId: true }));
+                }}
+                disabled={bulkSaving || employeesLoading}
+                className="h-10 rounded-xl border border-red-100 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 disabled:opacity-60"
+              >
+                <option value="">Unassigned</option>
+                {assignableEmployees.map((employee: any) => (
+                  <option key={employee.empId} value={employee.empId}>{employee.empId === me.id ? `${employee.empName} (You)` : employee.empName || employee.empId}</option>
+                ))}
+              </select>
+              <div className={`h-10 rounded-xl border px-3 py-2 text-[12px] font-semibold ${bulkTouched?.assigneeId ? 'border-red-200 bg-red-100 text-brand-red' : 'border-slate-200 bg-white text-slate-400'}`}>Assignee</div>
+              <input
+                type="date"
+                value={bulkDueDate}
+                onChange={(event) => {
+                  setBulkDueDate(event.target.value);
+                  setBulkTouched((prev: any) => ({ ...prev, dueDate: true }));
+                }}
+                disabled={bulkSaving}
+                className="h-10 rounded-xl border border-red-100 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 disabled:opacity-60"
+              />
+              <div className={`h-10 rounded-xl border px-3 py-2 text-[12px] font-semibold ${bulkTouched?.dueDate ? 'border-red-200 bg-red-100 text-brand-red' : 'border-slate-200 bg-white text-slate-400'}`}>
+                Due date
+              </div>
+              <button type="button" onClick={clearSelectedTasks} disabled={bulkSaving} className="h-10 rounded-xl border border-red-100 bg-white px-3 text-[12px] font-semibold text-slate-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60">
+                Clear
+              </button>
+              <div className="hidden h-10 w-px bg-red-200 md:block" />
+              <button type="button" onClick={saveBulkTaskChanges} disabled={bulkSaving || !bulkTouched || (!bulkTouched.status && !bulkTouched.assigneeId && !bulkTouched.dueDate)} className="h-10 rounded-xl bg-slate-900 px-4 text-[12px] font-semibold text-white transition hover:bg-brand-red disabled:cursor-not-allowed disabled:opacity-60">
+                {bulkSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button type="button" onClick={() => setBulkDeleteTaskModalOpen(true)} disabled={bulkSaving} className="h-10 rounded-xl bg-brand-red px-3 text-[12px] font-semibold text-white transition hover:bg-brand-navy disabled:cursor-not-allowed disabled:opacity-60">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <SpacesTaskTableSection columns={columns} isRenamingColumnId={isRenamingColumnId} renameDraft={renameDraft} setRenameDraft={setRenameDraft} setIsRenamingColumnId={setIsRenamingColumnId} setActiveColumnMenuId={setActiveColumnMenuId} sortedTasks={sortedTasks} setColumns={setColumns} setError={setError} activeColumnMenuId={activeColumnMenuId} setColumnToDelete={setColumnToDelete} handleAddColumn={handleAddColumn} spacesLoading={spacesLoading} paginatedTasks={paginatedTasks} canEditTask={canEditTask} isTaskLocked={isTaskLocked} getTaskRowClasses={getTaskRowClasses} patchTask={patchTask} projectNameById={projectNameById} mode={mode} me={me} assigneeOptionsForTask={assigneeOptionsForTask} employeesLoading={employeesLoading} canEditDueDate={canEditDueDate} priorityOptions={priorityOptions} canChangeStatus={canChangeStatus} statusOptions={statusOptions} forceDownloadDocument={forceDownloadDocument} canCommentOnTask={canCommentOnTask} setCommentTaskId={setCommentTaskId} setModalStatus={setModalStatus} canValidateTask={canValidateTask} canDeleteTask={canDeleteTask} handleApproveTask={handleApproveTask} handleRejectTask={handleRejectTask} navigate={navigate} setEditingTask={setEditingTask} setEditingTaskMode={setEditingTaskMode} setEditingTaskDraft={setEditingTaskDraft} setDeleteTaskModal={setDeleteTaskModal} selectedTaskIds={selectedTaskIds} canBulkManageTasks={canBulkManageTasks} toggleTaskSelection={toggleTaskSelection} canSelectTask={canSelectTask} taskPage={taskPage} TASKS_PER_PAGE={TASKS_PER_PAGE} setTaskPage={setTaskPage} visibleTaskPages={visibleTaskPages} totalTaskPages={totalTaskPages} API_BASE={API_BASE} getAuthHeaders={getAuthHeaders} />
 
       <SpacesTaskCreateModal
         open={isTaskCreateModalOpen}
@@ -1037,7 +1125,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
         plannerSummary={plannerSummary}
       />
 
-      <SpacesTaskModals activeCommentTask={activeCommentTask} setCommentTaskId={setCommentTaskId} setCommentDraft={setCommentDraft} commentDraft={commentDraft} me={me} editingCommentId={editingCommentId} setEditingCommentId={setEditingCommentId} editCommentDraft={editCommentDraft} setEditCommentDraft={setEditCommentDraft} API_BASE={API_BASE} getAuthHeaders={getAuthHeaders} setTasks={setTasks} setError={setError} mode={mode} modalStatus={modalStatus} setModalStatus={setModalStatus} handleAddComment={handleAddComment} submittingComment={submittingComment} columnToDelete={columnToDelete} setColumnToDelete={setColumnToDelete} setColumns={setColumns} sortedTasks={sortedTasks} commentToDeleteId={commentToDeleteId} setCommentToDeleteId={setCommentToDeleteId} deleteTaskModal={deleteTaskModal} setDeleteTaskModal={setDeleteTaskModal} rejectTaskModal={rejectTaskModal} rejectFeedbackDraft={rejectFeedbackDraft} setRejectFeedbackDraft={setRejectFeedbackDraft} rejectingTask={rejectingTask} confirmRejectTask={confirmRejectTask} editingTask={editingTask} editingTaskMode={editingTaskMode} editingTaskDraft={editingTaskDraft} setEditingTaskDraft={setEditingTaskDraft} assignableEmployees={assignableEmployees} forceDownloadDocument={forceDownloadDocument} patchTask={patchTask} deleteTask={deleteTask} setEditingTask={setEditingTask} />
+      <SpacesTaskModals activeCommentTask={activeCommentTask} setCommentTaskId={setCommentTaskId} setCommentDraft={setCommentDraft} commentDraft={commentDraft} me={me} editingCommentId={editingCommentId} setEditingCommentId={setEditingCommentId} editCommentDraft={editCommentDraft} setEditCommentDraft={setEditCommentDraft} API_BASE={API_BASE} getAuthHeaders={getAuthHeaders} setTasks={setTasks} setError={setError} mode={mode} modalStatus={modalStatus} setModalStatus={setModalStatus} handleAddComment={handleAddComment} submittingComment={submittingComment} columnToDelete={columnToDelete} setColumnToDelete={setColumnToDelete} setColumns={setColumns} sortedTasks={sortedTasks} commentToDeleteId={commentToDeleteId} setCommentToDeleteId={setCommentToDeleteId} deleteTaskModal={deleteTaskModal} setDeleteTaskModal={setDeleteTaskModal} bulkDeleteTaskModalOpen={props.bulkDeleteTaskModalOpen} setBulkDeleteTaskModalOpen={props.setBulkDeleteTaskModalOpen} selectedTaskCount={selectedTaskCount} bulkSaving={bulkSaving} deleteSelectedTasks={deleteSelectedTasks} rejectTaskModal={rejectTaskModal} rejectFeedbackDraft={rejectFeedbackDraft} setRejectFeedbackDraft={setRejectFeedbackDraft} rejectingTask={rejectingTask} confirmRejectTask={confirmRejectTask} editingTask={editingTask} editingTaskMode={editingTaskMode} editingTaskDraft={editingTaskDraft} setEditingTaskDraft={setEditingTaskDraft} assignableEmployees={assignableEmployees} forceDownloadDocument={forceDownloadDocument} patchTask={patchTask} deleteTask={deleteTask} setEditingTask={setEditingTask} />
     </>
     
   );
