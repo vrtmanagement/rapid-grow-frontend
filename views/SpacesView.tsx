@@ -382,6 +382,28 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   }, []);
 
   useEffect(() => {
+    const onRefresh = () => {
+      void loadSpaces();
+    };
+    const onAiTasksCreated = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (Array.isArray(detail) && detail.length) {
+        const incoming = detail.map((task: SpacesTask) => normalizeTaskForUi(task));
+        setTasks((prev) => incoming.reduce((next, task) => upsertTaskById(next, task), prev));
+        return;
+      }
+      void loadSpaces();
+    };
+    window.addEventListener('rapidgrow:spaces-refresh', onRefresh);
+    window.addEventListener('rapidgrow:ai-tasks-created', onAiTasksCreated as EventListener);
+    return () => {
+      window.removeEventListener('rapidgrow:spaces-refresh', onRefresh);
+      window.removeEventListener('rapidgrow:ai-tasks-created', onAiTasksCreated as EventListener);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (!me.id) return;
     const unreadCount = tasks.filter(
       (task) => task.assigneeId === me.id && task.isViewed === false && task.status !== 'done',
@@ -454,6 +476,12 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
             }),
           );
         }
+        return;
+      }
+
+      if (action === 'ai_assign_tasks_created' && Array.isArray(payload?.tasks)) {
+        const incoming = payload.tasks.map((task: SpacesTask) => normalizeTaskForUi(task));
+        setTasks((prev) => incoming.reduce((next, task) => upsertTaskById(next, task), prev));
         return;
       }
 

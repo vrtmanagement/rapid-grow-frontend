@@ -265,10 +265,12 @@ const ExecutionMatrix: React.FC = () => {
     };
 
     socket.on('performance:update', handleRealtimeUpdate);
+    window.addEventListener('rapidgrow:performance-refresh', handleRealtimeUpdate);
 
     return () => {
       ignore = true;
       socket.off('performance:update', handleRealtimeUpdate);
+      window.removeEventListener('rapidgrow:performance-refresh', handleRealtimeUpdate);
       if (refreshTimeout.current) {
         window.clearTimeout(refreshTimeout.current);
       }
