@@ -272,9 +272,14 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     };
 
     socket.on('spaces:changed', onSpacesChanged);
+    const onWindowRefresh = () => {
+      void loadLinkedSpaceTasks({ preserveExisting: true });
+    };
+    window.addEventListener('rapidgrow:spaces-refresh', onWindowRefresh);
     return () => {
       cancelled = true;
       socket.off('spaces:changed', onSpacesChanged);
+      window.removeEventListener('rapidgrow:spaces-refresh', onWindowRefresh);
     };
   }, [project?.id]);
 
