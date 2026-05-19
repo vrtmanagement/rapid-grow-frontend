@@ -3,6 +3,8 @@ import { PlanningState, TeamMember } from '../types';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { Camera, Check, Eye, EyeOff } from 'lucide-react';
 import AvatarCropModal from '../components/profile/AvatarCropModal';
+import TwoFactorSettingsPanel from '../components/security/TwoFactorSettingsPanel';
+import ThemeLanguagePanel from '../components/settings/ThemeLanguagePanel';
 import { getDisplayAvatarUrl, notifyProfileAvatarUpdated, persistSessionEmployeeAvatar } from '../utils/avatar';
 
 interface Props {
@@ -329,6 +331,11 @@ const ProfileView: React.FC<Props> = ({ state, updateState }) => {
           </div>
         </div>
       )}
+
+      <div className="mt-8 space-y-6">
+        <ThemeLanguagePanel />
+        <TwoFactorSettingsPanel />
+      </div>
 
       <AvatarCropModal
         open={!!pendingAvatarFile}

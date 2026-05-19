@@ -548,6 +548,40 @@ export function buildWeeklyTaskCustomFields(day: Goal, weeklyGroup: WeeklyTaskGr
   };
 }
 
+const ADMIN_CREATOR_ROLES = new Set<BackendRole>(['SUPER_ADMIN', 'ADMIN']);
+
+/** Hide admin-created TaskHub rows from team leads / employees (still show if assigned to them). */
+export function shouldHideAdminTaskFromViewer(
+  task: SpacesTask,
+  me: { id?: string; role?: BackendRole },
+  employeeById: Map<string, EmployeeOption>,
+  teamMemberIds?: Set<string>,
+): boolean {
+  const viewerRole = normalizeRole(me.role);
+  if (viewerRole === 'SUPER_ADMIN' || viewerRole === 'ADMIN') return false;
+
+  const createdRole = (task.createdByRole || '').toUpperCase() as BackendRole;
+  if (!ADMIN_CREATOR_ROLES.has(createdRole)) return false;
+
+  const assigneeId = String(task.assigneeId || '').trim();
+  if (!assigneeId) return true;
+
+  const assigneeRole = normalizeRole(employeeById.get(assigneeId)?.role || 'EMPLOYEE');
+  if (assigneeRole === 'SUPER_ADMIN' || assigneeRole === 'ADMIN') return true;
+
+  if (viewerRole === 'EMPLOYEE') {
+    return assigneeId !== me.id;
+  }
+
+  if (viewerRole === 'TEAM_LEAD') {
+    const allowed = new Set(teamMemberIds || []);
+    if (me.id) allowed.add(me.id);
+    return !allowed.has(assigneeId);
+  }
+
+  return true;
+}
+
 export function isTaskLockedForView(t: SpacesTask, me: { role?: BackendRole }, mode: SpacesMode): boolean {
   const role = (me.role || '').toUpperCase() as BackendRole;
   const createdRole = (t.createdByRole || '').toUpperCase() as BackendRole;

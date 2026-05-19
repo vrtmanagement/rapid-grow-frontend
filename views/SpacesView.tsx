@@ -38,6 +38,7 @@ import {
   handleAddColumnHelper,
   getTaskRowClassesForView,
   isTaskLockedForView,
+  shouldHideAdminTaskFromViewer,
   isSubmittedStatus,
   normalizeRole,
   normalizeTaskForUi,
@@ -111,6 +112,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [rejectFeedbackDraft, setRejectFeedbackDraft] = useState('');
   const [rejectingTask, setRejectingTask] = useState(false);
   const [taskFilterMode, setTaskFilterMode] = useState<TaskFilterMode>('all');
+  const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | ''>('');
   const [taskSearch, setTaskSearch] = useState('');
   const [taskPage, setTaskPage] = useState(1);
   const [editingTask, setEditingTask] = useState<SpacesTask | null>(null);
@@ -964,7 +966,15 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     return normalizedTask;
   }, [appendProjectTaskToState, me.id, me.role, mode, projects, uploadTaskDocument]);
 
-  const visibleTasks = useMemo(() => tasks, [tasks]);
+  const teamMemberIds = useMemo(
+    () => new Set(assignableEmployees.map((emp) => emp.empId)),
+    [assignableEmployees],
+  );
+
+  const visibleTasks = useMemo(
+    () => tasks.filter((t) => !shouldHideAdminTaskFromViewer(t, me, employeeById, teamMemberIds)),
+    [tasks, me, employeeById, teamMemberIds],
+  );
 
   const taskBelongsToMe = useCallback(
     (task: SpacesTask) =>
@@ -985,6 +995,10 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       );
     }
 
+    if (taskStatusFilter) {
+      list = list.filter((t) => t.status === taskStatusFilter);
+    }
+
     const term = taskSearch.trim().toLowerCase();
     if (!term) return list;
 
@@ -1001,7 +1015,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         createdByName.toLowerCase().includes(term)
       );
     });
-  }, [visibleTasks, taskFilterMode, taskSearch, me.id, employeeNameById, taskBelongsToMe]);
+  }, [visibleTasks, taskFilterMode, taskStatusFilter, taskSearch, me.id, employeeNameById, taskBelongsToMe]);
 
   const sortedTasks = useMemo(() => {
     if (filteredTasks.length === 0) return filteredTasks;
@@ -1025,7 +1039,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       String(today.getMonth() + 1).padStart(2, '0'),
       String(today.getDate()).padStart(2, '0'),
     ].join('-');
-    const pending = tasks.filter((task) => {
+    const pending = visibleTasks.filter((task) => {
       if (me.id && !taskBelongsToMe(task)) return false;
       if (!activePriorityStatuses.has(task.status)) return false;
       if (!String(task.title || '').trim()) return false;
@@ -1054,11 +1068,11 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       })
       .slice(0, 5);
-  }, [tasks, me.id, taskBelongsToMe]);
+  }, [visibleTasks, me.id, taskBelongsToMe]);
 
   const weeklyTaskGroups = useMemo<WeeklyTaskGroup[]>(
-    () => buildWeeklyTaskGroups(state, tasks, parseDateValue),
-    [state, tasks],
+    () => buildWeeklyTaskGroups(state, visibleTasks, parseDateValue),
+    [state, visibleTasks],
   );
   const isNoVisionSelected = selectedWeeklyProjectId === NO_VISION_SELECTOR_VALUE;
   const noVisionWeeklyGroups = useMemo<WeeklyTaskGroup[]>(() => {
@@ -1680,7 +1694,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
 
   useEffect(() => {
     setTaskPage(1);
-  }, [taskFilterMode, taskSearch, mode]);
+  }, [taskFilterMode, taskStatusFilter, taskSearch, mode]);
 
   useEffect(() => {
     setTaskPage((prev) => Math.min(prev, totalTaskPages));
@@ -2003,6 +2017,8 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     createDaysForWeek,
     setTaskFilterMode,
     taskFilterMode,
+    taskStatusFilter,
+    setTaskStatusFilter,
     taskSearch,
     setTaskSearch,
     columns,

@@ -3,6 +3,7 @@ export type BackendRole = typeof BACKEND_ROLES[number];
 
 export type PermissionKey =
   | 'EMPLOYEE_CREATE'
+  | 'EMPLOYEE_INVITE'
   | 'EMPLOYEE_UPDATE'
   | 'EMPLOYEE_DELETE'
   | 'EMPLOYEE_LIST'

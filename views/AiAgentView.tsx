@@ -650,16 +650,33 @@ const AiAgentView: React.FC = () => {
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900">Assignments</h2>
               <ul className="mt-3 space-y-3">
-                {assignments.map((row, index) => (
+                {assignments.map((row, index) => {
+                  const sourceTask = tasks.find((task) => task.title === row.taskTitle);
+                  const skills =
+                    row.matchedSkills?.length
+                      ? row.matchedSkills
+                      : sourceTask?.skillsNeeded || [];
+                  return (
                   <li key={`assign-${index}`} className="rounded-lg border border-emerald-100 bg-white p-3 text-sm">
                     <p className="font-medium text-slate-900">{row.taskTitle}</p>
                     <p className="text-slate-600">
                       → {row.assignedTo}
                       {row.employeeId ? ` (${row.employeeId})` : ''}
                     </p>
+                    {skills.length > 0 && (
+                      <p className="mt-1 text-xs text-emerald-800">
+                        Matched skills: {skills.join(', ')}
+                      </p>
+                    )}
+                    {(row.workloadHours != null || row.capacityHours != null) && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Workload: {row.workloadHours ?? '—'}h / {row.capacityHours ?? 40}h capacity
+                      </p>
+                    )}
                     <p className="mt-1 text-slate-500">{row.reason}</p>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </div>
           )}

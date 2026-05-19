@@ -14,6 +14,9 @@ export type TaskAssignment = {
   assignedTo: string;
   employeeId: string;
   reason: string;
+  matchedSkills?: string[];
+  workloadHours?: number;
+  capacityHours?: number;
 };
 
 export type ProjectPlanEstimate = {

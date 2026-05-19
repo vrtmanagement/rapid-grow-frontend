@@ -229,8 +229,9 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
       return;
     }
 
-    if (form.password.length < 6) {
-      setError('Password must be at least 6 characters');
+    const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+    if (!strongPasswordPattern.test(form.password)) {
+      setError('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.');
       return;
     }
 

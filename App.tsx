@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HashRouter } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
+import { I18nProvider } from './context/I18nContext';
+import ClientPortalView from './views/ClientPortalView';
 import { PlanningState } from './types';
 import { normalizeGoalHierarchy } from './appNormalizeGoalHierarchy';
 import {
@@ -11,6 +14,11 @@ import {
   createDefaultPlanningStateInput,
 } from './appSeedConstants';
 import LoginView from './views/LoginView';
+import InviteAcceptView from './views/InviteAcceptView';
+import WorkspaceSignupView from './views/WorkspaceSignupView';
+import ForgotPasswordView from './views/ForgotPasswordView';
+import ResetPasswordView from './views/ResetPasswordView';
+import OnboardingTour from './components/onboarding/OnboardingTour';
 import { CommunicationProvider } from './communication/context/CommunicationContext';
 import { apiListConversations } from './communication/api';
 import { getUnreadDirectMessageSourceCount } from './communication/unread';
@@ -102,6 +110,14 @@ function isDailyReviewReminderNotification(notification?: Partial<AppShellNotifi
   return String(notification?.type || '').trim().toLowerCase() === DAILY_REVIEW_REMINDER_TYPE;
 }
 
+function getPublicHashPath() {
+  return window.location.hash.replace(/^#\/?/, '').split('?')[0];
+}
+
+function isInviteAcceptPath(path = getPublicHashPath()) {
+  return path === 'invite' || path === 'invite/accept' || path.startsWith('invite/');
+}
+
 function getDismissedDailyReviewReminderDateKeys(): string[] {
   try {
     const raw = localStorage.getItem(DISMISSED_DAILY_REVIEW_REMINDER_STORAGE_KEY);
@@ -180,6 +196,7 @@ const App: React.FC = () => {
   const { permissions, hasPermission, loading: permissionsLoading } = usePermissions();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [publicHashPath, setPublicHashPath] = useState(getPublicHashPath);
   const [appStateHydrated, setAppStateHydrated] = useState(false);
   const [goalsHydrated, setGoalsHydrated] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -285,6 +302,12 @@ const App: React.FC = () => {
     return () => {
       window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
     };
+  }, []);
+
+  useEffect(() => {
+    const syncHashPath = () => setPublicHashPath(getPublicHashPath());
+    window.addEventListener('hashchange', syncHashPath);
+    return () => window.removeEventListener('hashchange', syncHashPath);
   }, []);
 
   const handleLoginSuccess = useCallback(() => {
@@ -1073,7 +1096,23 @@ const App: React.FC = () => {
     return null;
   }
 
+  if (isInviteAcceptPath(publicHashPath)) {
+    return <InviteAcceptView onAcceptSuccess={handleLoginSuccess} />;
+  }
+
   if (!isAuthenticated) {
+    if (publicHashPath === 'signup' || publicHashPath === 'workspaces/signup') {
+      return <WorkspaceSignupView onSignupSuccess={handleLoginSuccess} />;
+    }
+    if (publicHashPath === 'password/forgot' || publicHashPath === 'password/reset') {
+      if (publicHashPath === 'password/reset') {
+        return <ResetPasswordView onResetSuccess={handleLoginSuccess} />;
+      }
+      return <ForgotPasswordView />;
+    }
+    if (publicHashPath.startsWith('client-portal/')) {
+      return <ClientPortalView />;
+    }
     return <LoginView onLoginSuccess={handleLoginSuccess} />;
   }
 
@@ -1083,7 +1122,10 @@ const App: React.FC = () => {
 
   if (state.currentUser.role === 'Employee') {
     return (
+      <ThemeProvider>
+        <I18nProvider>
       <HashRouter>
+        <OnboardingTour role={state.currentUser.role} />
         <CommunicationProvider>
           <AppEmployeePortalLayout
             globalToastsElement={globalToastsElement}
@@ -1108,11 +1150,16 @@ const App: React.FC = () => {
           />
         </CommunicationProvider>
       </HashRouter>
+        </I18nProvider>
+      </ThemeProvider>
     );
   }
 
   return (
+    <ThemeProvider>
+      <I18nProvider>
     <HashRouter>
+      <OnboardingTour role={state.currentUser.role} />
       <CommunicationProvider>
         <AppManagerPortalLayout
           globalToastsElement={globalToastsElement}
@@ -1139,6 +1186,8 @@ const App: React.FC = () => {
         />
       </CommunicationProvider>
     </HashRouter>
+      </I18nProvider>
+    </ThemeProvider>
   );
 };
 
