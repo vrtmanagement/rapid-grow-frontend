@@ -15,6 +15,7 @@ import {
   FileText,
   HardDrive,
   UsersRound,
+  Bot,
 } from 'lucide-react';
 import { PlanningState } from '../../types';
 import Vision from '../../views/Vision';
@@ -39,6 +40,7 @@ import PermissionsView from '../../views/PermissionsView';
 import AnalysisView from '../../views/AnalysisView';
 import CRMPage from '../../views/CRMPage';
 import CRMLeadDetailPage from '../../views/CRMLeadDetailPage';
+import AiAgentView from '../../views/AiAgentView';
 import AccessDenied from '../AccessDenied';
 import { SidebarLink, SidebarToggleButton } from './SidebarPrimitives';
 import { NotificationBellMenu, UserAccountMenu } from './AppTopbarControls';
@@ -147,6 +149,14 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                     icon={<Database size={20} />}
                     label="TaskHub"
                     badgeCount={taskCount}
+                    collapsed={!isSidebarOpen}
+                  />
+                )}
+                {hasPower('SPACES_VIEW') && (
+                  <SidebarLink
+                    to="/ai-agent"
+                    icon={<Bot size={20} />}
+                    label="AI Agent"
                     collapsed={!isSidebarOpen}
                   />
                 )}
@@ -259,6 +269,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {hasPower('SPACES_VIEW') && (
                 <Route path="/spaces" element={<SpacesView mode="manager" state={state} updateState={updateState} />} />
               )}
+              {hasPower('SPACES_VIEW') && <Route path="/ai-agent" element={<AiAgentView />} />}
               {hasPower('SPACES_VIEW') && <Route path="/spaces/task/:taskId" element={<SpacesTaskDetailView mode="manager" />} />}
               {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance" element={<AttendanceView mode="manager" />} />}
               {hasPower('EMPLOYEE_CREATE') && <Route path="/employees/add" element={<AddEmployeeView state={state} />} />}
