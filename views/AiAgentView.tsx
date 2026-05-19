@@ -1,6 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bot, ExternalLink, FileUp, Loader2, Sparkles, Users } from 'lucide-react';
+import {
+  Bot,
+  CalendarDays,
+  DollarSign,
+  ExternalLink,
+  FileUp,
+  Loader2,
+  Sparkles,
+  Users,
+} from 'lucide-react';
 import AccessDenied from '../components/AccessDenied';
 import Toast from '../components/ui/Toast';
 import { usePermissions } from '../context/usePermissions';
@@ -69,6 +78,8 @@ const AiAgentView: React.FC = () => {
   const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([]);
   const [capacity, setCapacity] = useState<Record<string, unknown> | null>(null);
   const [projectPlan, setProjectPlan] = useState<ProjectPlan | null>(null);
+  const [hourlyRate, setHourlyRate] = useState('75');
+  const [estimateCurrency, setEstimateCurrency] = useState('USD');
   const [loading, setLoading] = useState('');
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -304,14 +315,23 @@ const AiAgentView: React.FC = () => {
     }
     setLoading('project');
     try {
+      const parsedRate = Number(hourlyRate);
       const data = await generateProjectPlan({
         text: meetingText.trim(),
         file: file || undefined,
+        hourlyRate: Number.isFinite(parsedRate) && parsedRate > 0 ? parsedRate : undefined,
+        currency: estimateCurrency.trim() || undefined,
       });
       setProjectPlan(data.plan);
       setTasks(data.plan.tasks || []);
       setActiveTab('project');
-      showToast('success', `Project plan: ${data.plan.projectName}`);
+      const est = data.plan.estimate;
+      showToast(
+        'success',
+        est
+          ? `${data.plan.projectName}: ~${est.estimatedDays} days, ${est.peopleNeeded} people, ${est.currency} ${est.totalPrice.toLocaleString()}`
+          : `Project plan: ${data.plan.projectName}`,
+      );
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : 'Project plan generation failed.');
     } finally {
@@ -428,7 +448,8 @@ const AiAgentView: React.FC = () => {
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">AI Agent</h1>
             <p className="mt-1 text-sm text-slate-600">
-              Extract tasks from notes, assign intelligently, track performance, and manage delays.
+              Extract tasks from notes, generate project plans with time and cost estimates from documents,
+              assign intelligently, and manage delays.
             </p>
           </div>
         </div>
@@ -468,12 +489,12 @@ const AiAgentView: React.FC = () => {
                 </option>
               ))}
             </select>
-            <label className="block text-sm font-medium text-slate-800">Meeting notes / text</label>
+            <label className="block text-sm font-medium text-slate-800">Notes or project document text</label>
             <textarea
               value={meetingText}
               onChange={(e) => setMeetingText(e.target.value)}
               rows={6}
-              placeholder="Paste standup notes, meeting minutes, or action items..."
+              placeholder="Paste a project brief, SOW, requirements doc, meeting notes, or action items..."
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-800 focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red"
             />
             <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -527,13 +548,34 @@ const AiAgentView: React.FC = () => {
               >
                 Check capacity
               </button>
+              <label className="text-xs text-slate-600">
+                Rate/hr
+                <input
+                  type="number"
+                  min={1}
+                  value={hourlyRate}
+                  onChange={(e) => setHourlyRate(e.target.value)}
+                  className="mt-1 block w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                />
+              </label>
+              <label className="text-xs text-slate-600">
+                Currency
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={estimateCurrency}
+                  onChange={(e) => setEstimateCurrency(e.target.value.toUpperCase())}
+                  className="mt-1 block w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                />
+              </label>
               <button
                 type="button"
                 onClick={runProjectPlan}
                 disabled={!!loading}
-                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-brand-red/30 bg-brand-red/5 px-4 py-2 text-sm font-semibold text-brand-red disabled:opacity-60"
               >
-                Document → project plan
+                {loading === 'project' ? <Loader2 size={16} className="animate-spin" /> : <FileUp size={16} />}
+                Document → plan & estimate
               </button>
             </div>
           </div>
@@ -701,12 +743,205 @@ const AiAgentView: React.FC = () => {
         </div>
       )}
 
-      {activeTab === 'project' && projectPlan && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-3 text-sm">
-          <h2 className="text-lg font-semibold text-slate-900">{projectPlan.projectName}</h2>
-          <p className="text-slate-600">{projectPlan.description}</p>
-          <p className="font-semibold">Milestones: {projectPlan.milestones?.length ?? 0}</p>
-          <p className="font-semibold">Tasks: {projectPlan.tasks?.length ?? 0} (loaded into extract table)</p>
+      {activeTab === 'project' && (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Project plan from document</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Upload a project document or paste scope text. AI returns a delivery plan with estimated days,
+                team size, and price.
+              </p>
+            </div>
+            <label className="block text-sm font-medium text-slate-800">Project document / scope</label>
+            <textarea
+              value={meetingText}
+              onChange={(e) => setMeetingText(e.target.value)}
+              rows={6}
+              placeholder="Paste requirements, SOW, proposal, or project brief..."
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-800 focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red"
+            />
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,.txt,.csv,.xls,.xlsx"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                className="block w-full max-w-md text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold"
+              />
+              <label className="text-xs text-slate-600">
+                Rate/hr
+                <input
+                  type="number"
+                  min={1}
+                  value={hourlyRate}
+                  onChange={(e) => setHourlyRate(e.target.value)}
+                  className="mt-1 block w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                />
+              </label>
+              <label className="text-xs text-slate-600">
+                Currency
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={estimateCurrency}
+                  onChange={(e) => setEstimateCurrency(e.target.value.toUpperCase())}
+                  className="mt-1 block w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={runProjectPlan}
+                disabled={!!loading}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-red px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {loading === 'project' ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Sparkles size={16} />
+                )}
+                Generate plan & estimate
+              </button>
+            </div>
+            {file && (
+              <p className="text-xs text-slate-500">
+                File selected: <span className="font-medium text-slate-700">{file.name}</span>
+              </p>
+            )}
+          </div>
+
+          {!projectPlan && (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+              No plan yet. Add text or upload a PDF/DOC above, then click{' '}
+              <strong>Generate plan & estimate</strong>.
+            </div>
+          )}
+          {projectPlan && (
+            <>
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">{projectPlan.projectName}</h2>
+                  <p className="mt-2 text-sm text-slate-600">{projectPlan.description}</p>
+                </div>
+                {projectPlan.estimate && (
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <CalendarDays size={18} />
+                        <span className="text-xs font-semibold uppercase tracking-wide">Duration</span>
+                      </div>
+                      <p className="mt-2 text-2xl font-bold text-slate-900">
+                        {projectPlan.estimate.estimatedDays}
+                        <span className="ml-1 text-sm font-medium text-slate-500">working days</span>
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {projectPlan.estimate.totalHours} total hours
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <Users size={18} />
+                        <span className="text-xs font-semibold uppercase tracking-wide">Team</span>
+                      </div>
+                      <p className="mt-2 text-2xl font-bold text-slate-900">
+                        {projectPlan.estimate.peopleNeeded}
+                        <span className="ml-1 text-sm font-medium text-slate-500">people</span>
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">Recommended team size</p>
+                    </div>
+                    <div className="rounded-xl border border-brand-red/20 bg-brand-red/5 p-4">
+                      <div className="flex items-center gap-2 text-brand-red">
+                        <DollarSign size={18} />
+                        <span className="text-xs font-semibold uppercase tracking-wide">Price</span>
+                      </div>
+                      <p className="mt-2 text-2xl font-bold text-slate-900">
+                        {projectPlan.estimate.currency}{' '}
+                        {projectPlan.estimate.totalPrice.toLocaleString()}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        @ {projectPlan.estimate.hourlyRate} {projectPlan.estimate.currency}/hr
+                        {projectPlan.estimate.priceBreakdown
+                          ? ` · ${projectPlan.estimate.priceBreakdown}`
+                          : ''}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {projectPlan.estimate?.assumptions && projectPlan.estimate.assumptions.length > 0 && (
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Assumptions</p>
+                    <ul className="mt-1 list-disc pl-5 text-sm text-slate-600">
+                      {projectPlan.estimate.assumptions.map((line, i) => (
+                        <li key={`assume-${i}`}>{line}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {projectPlan.estimate?.risks && projectPlan.estimate.risks.length > 0 && (
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Risks</p>
+                    <ul className="mt-1 list-disc pl-5 text-sm text-slate-600">
+                      {projectPlan.estimate.risks.map((line, i) => (
+                        <li key={`risk-est-${i}`}>{line}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {projectPlan.milestones && projectPlan.milestones.length > 0 && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    Milestones ({projectPlan.milestones.length})
+                  </h3>
+                  <ul className="mt-3 space-y-2 text-sm">
+                    {projectPlan.milestones.map((milestone, i) => (
+                      <li
+                        key={`ms-${i}`}
+                        className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+                      >
+                        <span className="font-semibold text-slate-900">{milestone.name}</span>
+                        {milestone.dueDate && (
+                          <span className="ml-2 text-slate-500">· {milestone.dueDate}</span>
+                        )}
+                        {milestone.description && (
+                          <p className="mt-1 text-slate-600">{milestone.description}</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Tasks ({projectPlan.tasks?.length ?? 0})
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Loaded into the extract table — use Assign to team to sync to TaskHub.
+                </p>
+                <div className="mt-3 max-h-64 overflow-y-auto space-y-2 text-sm">
+                  {(projectPlan.tasks || []).map((task, i) => (
+                    <div
+                      key={`plan-task-${i}`}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2"
+                    >
+                      <span className="font-medium text-slate-900">{task.title}</span>
+                      <span className="text-slate-500">
+                        {task.priority} · {task.estimatedHours || '—'}h
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('extract')}
+                  className="mt-4 rounded-lg bg-brand-red px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Go to Extract & Assign
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
