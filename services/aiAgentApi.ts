@@ -16,11 +16,24 @@ export type TaskAssignment = {
   reason: string;
 };
 
+export type ProjectPlanEstimate = {
+  estimatedDays: number;
+  peopleNeeded: number;
+  totalHours: number;
+  hourlyRate: number;
+  currency: string;
+  totalPrice: number;
+  priceBreakdown?: string;
+  assumptions?: string[];
+  risks?: string[];
+};
+
 export type ProjectPlan = {
   projectName: string;
   description: string;
   milestones: Array<{ name: string; dueDate?: string; description?: string }>;
   tasks: ExtractedTask[];
+  estimate?: ProjectPlanEstimate;
 };
 
 export type PendingApprovalTask = {
@@ -199,7 +212,12 @@ export async function getCapacityPlanning(tasks: ExtractedTask[] = []) {
   return res.json();
 }
 
-export async function generateProjectPlan(options: { text?: string; file?: File }) {
+export async function generateProjectPlan(options: {
+  text?: string;
+  file?: File;
+  hourlyRate?: number;
+  currency?: string;
+}) {
   const token = getStoredAuthSession()?.token;
   let res: Response;
 
@@ -207,6 +225,8 @@ export async function generateProjectPlan(options: { text?: string; file?: File 
     const form = new FormData();
     form.append('file', options.file);
     if (options.text) form.append('text', options.text);
+    if (options.hourlyRate != null) form.append('hourlyRate', String(options.hourlyRate));
+    if (options.currency) form.append('currency', options.currency);
     res = await fetch(`${API_BASE}/ai/generate-project-plan`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -216,7 +236,11 @@ export async function generateProjectPlan(options: { text?: string; file?: File 
     res = await fetch(`${API_BASE}/ai/generate-project-plan`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ text: options.text || '' }),
+      body: JSON.stringify({
+        text: options.text || '',
+        hourlyRate: options.hourlyRate,
+        currency: options.currency,
+      }),
     });
   }
 
