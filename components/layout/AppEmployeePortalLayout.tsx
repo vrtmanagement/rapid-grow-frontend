@@ -93,7 +93,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
       <GlobalCommunicationNotifications />
       <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
         <aside
-          className={`${isSidebarOpen ? 'w-48' : 'w-[72px]'} h-full min-h-0 bg-white/90 text-white backdrop-blur-xl transition-all duration-500 flex flex-col z-50 relative shrink-0`}
+          className={`${isSidebarOpen ? 'w-48 max-sm:w-[72px]' : 'w-[72px]'} h-full min-h-0 bg-white/90 text-white backdrop-blur-xl transition-all duration-500 flex flex-col z-50 relative shrink-0`}
         >
           <div className="absolute top-0 right-0 h-full w-px bg-slate-200" />
           <div className="px-3.5 py-4 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
@@ -102,7 +102,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
                 <span className="text-white text-lg">RG</span>
               </div>
               {isSidebarOpen && (
-                <span className="text-[15px] font-medium text-brand-red truncate">Employee Portal</span>
+                <span className="hidden text-[15px] font-medium text-brand-red truncate sm:inline">Employee Portal</span>
               )}
             </div>
             <SidebarToggleButton isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
@@ -163,11 +163,11 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
         </aside>
         <main className="flex-1 flex flex-col h-screen overflow-hidden">
           <header
-            className={`bg-white/90 backdrop-blur-xl border-b border-slate-200 px-8 shrink-0 z-40 relative ${
+            className={`bg-white/90 backdrop-blur-xl border-b border-slate-200 px-4 sm:px-8 shrink-0 z-40 relative ${
               showVisionHeaderTabs ? 'min-h-[92px] py-4' : 'h-20 flex items-center justify-end'
             }`}
           >
-            <div className={`flex w-full items-center gap-6 ${showVisionHeaderTabs ? 'justify-between' : 'justify-end'}`}>
+            <div className={`flex w-full items-center gap-3 sm:gap-6 ${showVisionHeaderTabs ? 'justify-between' : 'justify-end'}`}>
               {showVisionHeaderTabs ? (
                 <div className="min-w-0 flex-1">
                   <VisionHeaderTabs />
@@ -196,7 +196,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
               </div>
             </div>
           </header>
-          <div className={`flex-1 overflow-y-auto bg-slate-100/30 ${showVisionHeaderTabs ? 'px-12 pb-12 pt-2' : 'p-16'}`}>
+          <div className={`flex-1 overflow-y-auto bg-slate-100/30 ${showVisionHeaderTabs ? 'px-4 pb-8 pt-2 sm:px-8 lg:px-12 lg:pb-12' : 'p-4 sm:p-8 lg:p-16'}`}>
             <Routes>
               {hasPower('DASHBOARD_VIEW') && <Route path="/" element={<EmployeeDashboardView />} />}
               {hasPower('SPACES_VIEW') && (

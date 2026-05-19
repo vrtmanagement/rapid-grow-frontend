@@ -9,6 +9,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             colors: {
@@ -39,6 +40,10 @@
         /* Force browser default font and disable text-transform to ensure sentence/title case visuals */
         body, #root {
           background-color: #f8fafc;
+        }
+        html.dark body, html.dark #root {
+          background-color: #0f172a;
+          color: #e2e8f0;
         }
         /* Override any utility classes that force uppercase or custom fonts so the app uses the browser default */
         body, body * {

@@ -107,7 +107,7 @@ export const SidebarLink: React.FC<{ to: string; icon: any; label: string; colla
         ref={linkRef}
         to={to}
         aria-label={label}
-        className={`relative flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all group ${isActive ? 'bg-brand-red text-white shadow-xl' : 'text-slate-500 hover:bg-white/5 hover:text-white'} ${collapsed ? 'justify-center px-0 py-2.5' : ''}`}
+        className={`relative flex items-center gap-3 px-3.5 py-2.5 rounded-lg transition-all group max-sm:justify-center max-sm:px-0 ${isActive ? 'bg-brand-red text-white shadow-xl' : 'text-slate-500 hover:bg-white/5 hover:text-white'} ${collapsed ? 'justify-center px-0 py-2.5' : ''}`}
         onMouseEnter={() => collapsed && setTooltipOpen(true)}
         onMouseLeave={() => setTooltipOpen(false)}
         onFocus={() => collapsed && setTooltipOpen(true)}
@@ -115,7 +115,7 @@ export const SidebarLink: React.FC<{ to: string; icon: any; label: string; colla
       >
         <div className={`${isActive ? 'scale-105 text-white' : 'opacity-70 text-slate-500 group-hover:text-brand-red group-hover:opacity-100'} transition-transform shrink-0`}>{icon}</div>
         {!collapsed && (
-          <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+          <div className="hidden min-w-0 flex-1 items-center justify-between gap-2 sm:flex">
             {isActive
               ? <span className={`${labelSizeClass} font-medium tracking-[-0.01em] text-white truncate`}>{label}</span>
               : <span className={`${labelSizeClass} font-medium tracking-[-0.01em] truncate group-hover:text-brand-red`}>{label}</span>

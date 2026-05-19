@@ -12,6 +12,7 @@ import {
   type DailyReviewReminderSettings,
 } from '../services/dailyReviewReminderSettings';
 import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } from '../utils/avatar';
+import EmployeeSkillsPanel from '../components/employees/EmployeeSkillsPanel';
 
 type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | string;
 
@@ -954,6 +955,8 @@ const StaffView: React.FC = () => {
                   }
                 />
               </div>
+
+              {editing.empId && <EmployeeSkillsPanel empId={editing.empId} />}
             </div>
 
             <div className="mt-6 flex justify-end gap-3">

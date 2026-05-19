@@ -94,7 +94,7 @@ This document lists **everything required** to reach **100% market-ready, high-v
 | C1 | **Employee Skills Profile UI** | Show learned skills, proficiency, last used | P0 |
 | C2 | **Strengths dashboard** | Top strengths per person and per team | P0 |
 | C3 | **Skill gap analysis** | Required vs available skills for projects | P1 |
-| C4 | **Task completion analytics** | On-time %, overdue trend, by person/project | P0 |
+| C4 | **Task completion analytics** | On-time %, overdue trend, by person/project | P0 |  
 | C5 | **Team workload heatmap** | Hours assigned vs capacity per week | P0 |
 | C6 | **Unified company health screen** | One view: goals + tasks + attendance + CRM | P0 |
 | C7 | **Performance reviews (lightweight)** | Quarterly templates, manager notes, goals link | P1 |
@@ -326,3 +326,143 @@ With **current pace (solo/small team)**: prioritize **Phase 1 (33 items)** first
 
 *Rapid Grow OS — Product Completion Roadmap v1.0*  
 *Confidential — for internal planning and investor/partner discussions.*
+
+
+---
+
+## Appendix B - Simple Developer Task Plan
+
+**Developers:** Michael and Kabir  
+**Role:** Both are full-stack developers  
+**Rule:** Michael starts first with the foundation work. Kabir starts at the same time on independent frontend/product work that does not depend on Michael's backend changes.
+
+### Priority Meaning
+
+| Priority | Meaning |
+|----------|---------|
+| P1 | Must do first. Required for product to work safely. |
+| P2 | Do after P1. Required for sellable MVP. |
+| P3 | Do after MVP is stable. Improves product value. |
+| P4 | [x] Polish, scale, and advanced features (see setup table below P4 tasks). |
+
+---
+
+## P1 - Foundation Tasks
+
+| Order | Owner | Task | Description | Dependency |
+|-------|-------|------|-------------|------------|
+| 1 | Michael | [x] Multi-tenancy setup | Add `companyId` to main backend data and make sure one company cannot access another company's data. | None |
+| 2 | Michael | [x] Workspace signup backend | Create backend APIs for company signup, owner account creation, and default company setup. | Multi-tenancy setup |
+| 3 | Michael | [x] Invite employee backend | Create invite link, accept invite, set password, and invite expiry APIs. | Workspace signup backend |
+| 4 | Michael | [x] Role and permission API checks | Check every important API so Admin, Team Lead, Employee, and Super Admin only access allowed data. | Multi-tenancy setup |
+| 5 | Michael | [x] Password reset and security backend | Add password reset, password rules, token expiry, and account lock protection. | Workspace signup backend |
+| 6 | Kabir | [x] Frontend audit and cleanup | Review current pages, routes, API calls, components, mobile issues, and make a cleanup list. This does not depend on Michael. | None |
+| 7 | Kabir | [x] Common UI and error components | Create or clean shared buttons, forms, loading states, empty states, and readable error messages. | Frontend audit |
+| 8 | Kabir | [x] Workspace signup UI | Build company signup screens and connect them to the workspace signup API. | Common UI components |
+| 9 | Kabir | [x] Invite accept UI | Build invite accept and password setup screens and connect them to invite APIs. | Common UI components |
+| 10 | Kabir | [x] Mobile layout cleanup | Improve responsive layout for TaskHub, attendance, dashboard, and navigation. | Frontend audit |
+
+
+---
+
+## P2 - Sellable MVP Tasks
+
+| Order | Owner | Task | Description | Dependency |
+|-------|-------|------|-------------|------------|
+| 1 | Michael | [x] Two-factor authentication backend | Add TOTP setup, verify, disable, and admin 2FA enforcement. | Password reset and security backend |
+| 2 | Michael | [x] Audit logs backend | Track who changed tasks, employees, permissions, CRM records, goals, and AI approvals. | Role and permission API checks |
+| 3 | Michael | [x] Billing backend | Add Stripe customer, trial, subscription, checkout, and webhook handling. | Workspace signup backend |
+| 4 | Michael | [x] Health check and deployment setup | Add `/health`, staging/production env setup, deployment checklist, and secrets handling. | Core backend stable |
+| 5 | Michael | [x] Backend tests | Add API tests for signup, invite, tenant isolation, permissions, password reset, and billing webhooks. | P1 and P2 backend tasks |
+| 6 | Kabir | [x] Connect signup UI to backend | Connect workspace signup screens to Michael's live APIs. | Workspace signup backend |
+| 7 | Kabir | [x] Connect invite UI to backend | Connect invite accept flow to Michael's live APIs. | Invite employee backend |
+| 8 | Kabir | [x] Security screens | Build password reset and 2FA setup/verify screens. | Password reset backend, 2FA backend |
+| 9 | Kabir | [x] Employee skills profile UI | Show employee skills, proficiency, last used date, and related tasks. | Existing skills data or API contract |
+| 10 | Kabir | [x] Task analytics dashboard | Show on-time percentage, overdue trend, and task completion by person/project. | Tenant-safe task APIs |
+| 11 | Kabir | [x] Workload heatmap | Show weekly assigned hours vs employee capacity. | Capacity/task APIs |
+| 12 | Kabir | [x] Skills-aware AI assignment UI | Show matched skills and workload while assigning AI-generated tasks. | Skills data and AI assignment contract |
+| 13 | Kabir | [x] Goal-task linking UI | Allow goals to connect with TaskHub tasks and show progress from task completion. | Goal/task API contract |
+| 14 | Kabir | [x] Onboarding tour | Add first-login guidance for owner and employee users. | Signup and invite UI complete |
+| 15 | Kabir | [x] E2E tests | Test signup, invite accept, login, create task, complete task, and goal progress flow. | Main MVP screens complete |
+
+---
+
+## P3 - Product Value Tasks
+
+| Order | Owner | Task | Description | Dependency |
+|-------|-------|------|-------------|------------|
+| 1 | Michael | [x] Task dependencies backend | Add blocked-by and blocks relationships between tasks, with circular dependency checks. | TaskHub backend stable |
+| 2 | Michael | [x] Recurring tasks backend | Add daily, weekly, and monthly recurring task generation. | TaskHub backend stable |
+| 3 | Michael | [x] Time tracking backend | Add estimated hours, actual hours, and manual time entries. | TaskHub backend stable |
+| 4 | Michael | [x] AI usage tracking backend | Track AI calls, cost, and usage per company. | Billing backend |
+| 5 | Michael | [x] AI settings backend | Add company-level AI defaults like rate, currency, and approval rules. | Multi-tenancy setup |
+| 6 | Michael | [x] Departments and teams backend | Add departments/teams and filters for employees, tasks, and analytics. | Employee backend stable |
+| 7 | Michael | [x] Lead to project backend | Convert won CRM lead into project charter and starter tasks. | CRM and project backend stable |
+| 8 | Kabir | [x] Strengths dashboard | Show top strengths by employee and team. | Employee skills profile UI |
+| 9 | Kabir | [x] Skill gap analysis UI | Show required vs available skills for a project or team. | Strengths dashboard |
+| 10 | Kabir | [x] Task dependency UI | Show blocked task badges and dependency selector. | Task dependencies backend |
+| 11 | Kabir | [x] Recurring task UI | Add recurrence controls to task creation/editing. | Recurring tasks backend |
+| 12 | Kabir | [x] Time tracking UI | Add timer/manual entry and actual vs estimated hours display. | Time tracking backend |
+| 13 | Kabir | [x] AI usage dashboard UI | Show calls, cost, and usage limits per company. | AI usage tracking backend |
+| 14 | Kabir | [x] AI settings UI | Build company settings for AI defaults and approval rules. | AI settings backend |
+| 15 | Kabir | [x] Org chart UI | Show company hierarchy using employees, managers, departments, and teams. | Departments and teams backend |
+| 16 | Kabir | [x] Lead to project UI | Add button and flow to convert a won lead into a project. | Lead to project backend |
+| 17 | Kabir | [x] Global search | Search tasks, people, leads, and projects. | Search API or existing module APIs |
+
+---
+
+## P4 - Scale and Polish Tasks
+
+| Order | Owner | Task | Description | Dependency |
+|-------|-------|------|-------------|------------|
+| 1 | Michael | [x] Plan limits backend | Enforce max users, AI calls, and storage based on subscription plan. | Billing and AI usage tracking |
+| 2 | Michael | [x] Super Admin backend | Add tenant list, usage view, suspend/reactivate company, and support audit. | Multi-tenancy and billing |
+| 3 | Michael | [x] Data export backend | Export company tasks, employees, CRM, and goals. | Multi-tenancy setup |
+| 4 | Michael | [x] Data deletion backend | Add account closure, retention rules, and deletion queue. | Data export backend |
+| 5 | Michael | [x] Rate limiting | Add API and AI endpoint rate limits by company/user/IP. | Auth and tenant setup |
+| 6 | Michael | [x] File upload security | Add file type validation, size limits, and virus scanning. | Existing upload flow |
+| 7 | Michael | [x] Advanced project backend | Add budget vs actual, Gantt data, and client portal APIs. | Task dependencies and time tracking |
+| 8 | Kabir | [x] Super Admin UI | Build tenant management, usage, suspend/reactivate, and support screens. | Super Admin backend |
+| 9 | Kabir | [x] Plan limit UI | Show usage limits, upgrade prompts, and blocked action messages. | Plan limits backend |
+| 10 | Kabir | [x] Data export/delete UI | Build export request and account closure screens. | Data export/delete backend |
+| 11 | Kabir | [x] Gantt/timeline UI | Show visual project timeline using task dependencies. | Advanced project backend |
+| 12 | Kabir | [x] Client portal UI | Build read-only project progress view for external clients. | Client portal backend |
+| 13 | Kabir | [x] Dark mode | Add user theme preference and clean color tokens. | Design system stable |
+| 14 | Kabir | [x] Hindi localization | Add English/Hindi text structure for main screens. | UI text cleanup |
+
+---
+
+### P4 setup and configuration (manual steps)
+
+Add these after deploying P4. **Do not run `tenant:backfill` or destructive migrations** on production unless you have a planned migration — existing data stays under `LEGACY_COMPANY_ID` (default `legacy-company`).
+
+| Area | Variable / link | Where | Notes |
+|------|-----------------|-------|-------|
+| Multi-tenant legacy | `LEGACY_COMPANY_ID=legacy-company` | auth-service, user-service `.env` | Must match existing Mongo `companyId` on employees/tasks. |
+| Stripe billing | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | auth-service | From [Stripe Dashboard](https://dashboard.stripe.com/apikeys). |
+| Stripe prices | `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_GROWTH`, `STRIPE_PRICE_BUSINESS` | auth-service | Create Products/Prices in Stripe; paste Price IDs. |
+| Checkout URLs | `STRIPE_CHECKOUT_SUCCESS_URL`, `STRIPE_CHECKOUT_CANCEL_URL`, `STRIPE_PORTAL_RETURN_URL` | auth-service | e.g. `https://your-app/#/profile` success/cancel/portal return. |
+| Stripe webhook | `POST https://<gateway>/api/billing/webhook` | Stripe → Developers → Webhooks | Events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`. |
+| Plan limits | (no extra keys) | auth + user-service | Limits in `auth-service/src/config/planLimits.js`; enforced on invite, employee create, AI usage. |
+| Rate limits | `GATEWAY_RATE_LIMIT_MAX`, `GATEWAY_RATE_LIMIT_WINDOW_MS` | api-gateway | Default 300 req/min per IP. |
+| User-service limits | `API_RATE_LIMIT_MAX`, `AI_RATE_LIMIT_MAX` | user-service | In-memory per company/user (optional env in middleware). |
+| Upload security | `UPLOAD_MAX_SIZE_MB`, `UPLOAD_VIRUS_SCAN_ENABLED` | user-service | MIME/size checks on avatars; virus scan stub (eicar test filename). |
+| Account closure | `ACCOUNT_RETENTION_DAYS` | user-service | Default 30 days before scheduled deletion (queue only; no auto-wipe in code). |
+| AI cost | `AI_DEFAULT_COST_PER_CALL` | user-service | Used in usage logs. |
+| Frontend API | `VITE_API_URL=http://localhost:5000/api` | rapid-grow-performance-hub `.env` | Gateway base including `/api`. |
+| Client portal link | `#/client-portal/<token>` | Share with clients | Enable via `PATCH /api/projects/:projectId/advanced` with `{ "clientPortalEnabled": true }`; token returned on project. |
+| Super Admin UI | Log in as `SUPER_ADMIN_EMAIL` (see `appSeedConstants.ts`) | Frontend | Routes: `/super-admin`. |
+| Data export | `POST /api/data-export` | Admin UI → Settings → Data & privacy | Downloads JSON; does not delete data. |
+
+---
+
+## Immediate Work Summary
+
+| Developer | Start Now | Why |
+|-----------|-----------|-----|
+| Michael | P1 Order 1: Multi-tenancy setup | This is the backend foundation for almost every other feature. |
+| Kabir | P1 Orders 6-10 | These tasks are independent and can be done while Michael works on backend foundation. |
+
+## Dependency Rule
+
+Michael should finish the backend contract for each feature before Kabir connects the final live UI. Kabir can still create the UI first with mock data, document the required API shape, and then switch to the real API when Michael completes it.
