@@ -83,7 +83,7 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMo
         return {
           date: formatFullDate(dateKey),
           hours: 9,
-          color: '#cbd5e1',
+          color: '#94a3b8',
           loginTime: 'Absent',
           logoutTime: 'Absent',
           statusLabel: 'Attendance',

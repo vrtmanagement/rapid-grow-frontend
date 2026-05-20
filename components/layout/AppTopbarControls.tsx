@@ -241,11 +241,11 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
         <div className="fixed right-8 top-20 z-[9999] w-56 rounded-xl border border-slate-200 bg-white py-2 shadow-lg">
           <button
             type="button"
-            onClick={() => { setUserMenuOpen(false); window.location.hash = '#/profile'; }}
+            onClick={() => { setUserMenuOpen(false); window.location.hash = '#/profile?mode=settings'; }}
             className="flex w-full items-center gap-3 px-4 py-3 text-left text-slate-700 transition-colors hover:bg-slate-50"
           >
             <UserCircle size={18} className="text-slate-500" />
-            Core Identity
+            Profile Settings
           </button>
           <button
             type="button"
