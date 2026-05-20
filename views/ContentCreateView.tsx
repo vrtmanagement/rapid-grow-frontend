@@ -187,6 +187,15 @@ function normalizeAllowedInlineHtml(value: string) {
     .replace(/&lt;(\/?)(?:b|strong)&gt;/gi, '<$1strong>')
     .replace(/&lt;(\/?)(?:i|em)&gt;/gi, '<$1em>')
     .replace(/&lt;(\/?)u&gt;/gi, '<$1u>')
+    .replace(/&lt;(\/?)p&gt;/gi, '<$1p>')
+    .replace(/&lt;(\/?)div&gt;/gi, '<$1div>')
+    .replace(/&lt;(\/?)ul&gt;/gi, '<$1ul>')
+    .replace(/&lt;(\/?)ol&gt;/gi, '<$1ol>')
+    .replace(/&lt;(\/?)li&gt;/gi, '<$1li>')
+    .replace(/&lt;(\/?)h([1-4])&gt;/gi, '<$1h$2>')
+    .replace(/&lt;a href=&quot;(https?:\/\/[^&<>\s]+)&quot;&gt;/gi, '<a href="$1">')
+    .replace(/&lt;a href=&#39;(https?:\/\/[^&<>\s]+)&#39;&gt;/gi, '<a href="$1">')
+    .replace(/&lt;\/a&gt;/gi, '</a>')
     .replace(/&lt;br\s*\/?&gt;/gi, '<br>');
 }
 
@@ -211,10 +220,31 @@ function serializeEditorNode(node: Node): string {
   }
 
   const content = Array.from(element.childNodes).map(serializeEditorNode).join('');
+  const fontWeight = String(element.style?.fontWeight || '').trim();
+  const fontStyle = String(element.style?.fontStyle || '').trim().toLowerCase();
+  const textDecoration = String(element.style?.textDecoration || element.style?.textDecorationLine || '').trim().toLowerCase();
+  const isBoldStyle = fontWeight === 'bold' || Number(fontWeight) >= 600;
+  const isItalicStyle = fontStyle === 'italic';
+  const isUnderlineStyle = textDecoration.includes('underline');
 
-  if (tag === 'strong' || tag === 'b') return content.trim() ? `<strong>${content}</strong>` : content;
-  if (tag === 'em' || tag === 'i') return content.trim() ? `<em>${content}</em>` : content;
-  if (tag === 'u') return content.trim() ? `<u>${content}</u>` : content;
+  if (!content.trim()) return content;
+  if (tag === 'strong' || tag === 'b') return `<strong>${content}</strong>`;
+  if (tag === 'em' || tag === 'i') return `<em>${content}</em>`;
+  if (tag === 'u') return `<u>${content}</u>`;
+  if (tag === 'a') {
+    const href = String((element as HTMLAnchorElement).href || element.getAttribute('href') || '').trim();
+    return /^https?:\/\//i.test(href) ? `<a href="${escapeRichTextHtml(href)}">${content}</a>` : content;
+  }
+  if (tag === 'li') return `<li>${content}</li>`;
+  if (tag === 'ul' || tag === 'ol') return `<${tag}>${content}</${tag}>`;
+  if (/^h[1-4]$/.test(tag)) return `<${tag}>${content}</${tag}>`;
+  if (isBoldStyle || isItalicStyle || isUnderlineStyle) {
+    let next = content;
+    if (isUnderlineStyle) next = `<u>${next}</u>`;
+    if (isItalicStyle) next = `<em>${next}</em>`;
+    if (isBoldStyle) next = `<strong>${next}</strong>`;
+    return next;
+  }
   if (tag === 'div' || tag === 'p') return `${content}\n`;
 
   return content;
