@@ -75,14 +75,42 @@ function getStatusBadgeClass(status?: string) {
     : 'bg-red-500 text-white';
 }
 
-function formatTimeLabel(time: string) {
-  const [rawHour, rawMinute] = String(time || '').split(':');
-  const hour = Number(rawHour);
-  const minute = Number(rawMinute);
-  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return '--:--';
-  const suffix = hour >= 12 ? 'PM' : 'AM';
-  const displayHour = hour % 12 || 12;
-  return `${String(displayHour).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${suffix}`;
+const REMINDER_HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) =>
+  String(index + 1).padStart(2, '0'),
+);
+const REMINDER_MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) =>
+  String(index).padStart(2, '0'),
+);
+const REMINDER_MERIDIEM_OPTIONS = ['AM', 'PM'] as const;
+
+function parseReminderTimeValue(timeValue?: string) {
+  const [hourRaw = '21', minuteRaw = '40'] = String(timeValue || '21:40').split(':');
+  const hour24 = Math.min(23, Math.max(0, Number(hourRaw) || 0));
+  const minute = Math.min(59, Math.max(0, Number(minuteRaw) || 0));
+  const meridiem = hour24 >= 12 ? 'PM' : 'AM';
+  const hour12 = hour24 % 12 || 12;
+
+  return {
+    hour: String(hour12).padStart(2, '0'),
+    minute: String(minute).padStart(2, '0'),
+    meridiem,
+  } as { hour: string; minute: string; meridiem: 'AM' | 'PM' };
+}
+
+function buildReminderTimeValue(hour: string, minute: string, meridiem: 'AM' | 'PM') {
+  const hourNumber = Math.min(12, Math.max(1, Number(hour) || 12));
+  const minuteNumber = Math.min(59, Math.max(0, Number(minute) || 0));
+  let hour24 = hourNumber % 12;
+  if (meridiem === 'PM') {
+    hour24 += 12;
+  }
+
+  return `${String(hour24).padStart(2, '0')}:${String(minuteNumber).padStart(2, '0')}`;
+}
+
+function formatReminderTimeLabel(timeValue?: string) {
+  const parsed = parseReminderTimeValue(timeValue);
+  return `${parsed.hour}:${parsed.minute} ${parsed.meridiem}`;
 }
 
 const DEFAULT_REMINDER_SETTINGS = getDefaultDailyReviewReminderSettings();
@@ -111,22 +139,32 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   const [openActionMenuRowId, setOpenActionMenuRowId] = useState<string | null>(null);
   const [actionMenuPosition, setActionMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [reminderSettings, setReminderSettings] = useState<DailyReviewReminderSettings>(DEFAULT_REMINDER_SETTINGS);
-  const [reminderEnabled, setReminderEnabled] = useState(DEFAULT_REMINDER_SETTINGS.enabled);
-  const [reminderTime, setReminderTime] = useState(DEFAULT_REMINDER_SETTINGS.time);
+  const [reminderDraft, setReminderDraft] = useState<{ enabled: boolean; time: string }>({
+    enabled: DEFAULT_REMINDER_SETTINGS.enabled,
+    time: DEFAULT_REMINDER_SETTINGS.time,
+  });
   const [reminderLoading, setReminderLoading] = useState(mode === 'manager');
   const [reminderSaving, setReminderSaving] = useState(false);
   const [reminderError, setReminderError] = useState<string | null>(null);
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
   const departmentMenuRef = useRef<HTMLDivElement | null>(null);
   const statusMenuRef = useRef<HTMLDivElement | null>(null);
   const actionMenuRef = useRef<HTMLDivElement | null>(null);
   const actionMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const staffTableCardRef = useRef<HTMLDivElement | null>(null);
+  const timePickerRef = useRef<HTMLDivElement | null>(null);
 
   const isAdmin = backendRole === 'ADMIN' || backendRole === 'SUPER_ADMIN';
   const isTeamLead = backendRole === 'TEAM_LEAD';
   const canCreateEmployee = mode === 'manager' && hasPermission('EMPLOYEE_CREATE') && !!state;
   const canInviteEmployee = mode === 'manager' && hasPermission('EMPLOYEE_INVITE');
   const canViewProfile = isAdmin || isTeamLead;
+  const reminderDirty =
+    reminderDraft.enabled !== reminderSettings.enabled || reminderDraft.time !== reminderSettings.time;
+  const reminderTimeSelection = useMemo(
+    () => parseReminderTimeValue(reminderDraft.time),
+    [reminderDraft.time],
+  );
 
   const departmentOptions = useMemo(
     () =>
@@ -215,8 +253,10 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
       .then((settings) => {
         if (!isActive) return;
         setReminderSettings(settings);
-        setReminderEnabled(settings.enabled);
-        setReminderTime(settings.time);
+        setReminderDraft({
+          enabled: settings.enabled,
+          time: settings.time,
+        });
       })
       .catch((err: any) => {
         if (!isActive) return;
@@ -294,6 +334,31 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
       document.removeEventListener('keydown', handleEscape);
     };
   }, [openActionMenuRowId]);
+
+  useEffect(() => {
+    if (!timePickerOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (timePickerRef.current && target && !timePickerRef.current.contains(target)) {
+        setTimePickerOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setTimePickerOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [timePickerOpen]);
 
   useEffect(() => {
     if (!departmentMenuOpen && !statusMenuOpen) return;
@@ -399,22 +464,40 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   };
 
   const handleSaveReminderSettings = async () => {
+    if (!isAdmin || !reminderDirty) return;
     setReminderSaving(true);
     setReminderError(null);
     try {
       const updated = await saveDailyReviewReminderSettings({
-        enabled: reminderEnabled,
-        time: reminderTime,
+        enabled: reminderDraft.enabled,
+        time: reminderDraft.time,
       });
       setReminderSettings(updated);
-      setReminderEnabled(updated.enabled);
-      setReminderTime(updated.time);
+      setReminderDraft({
+        enabled: updated.enabled,
+        time: updated.time,
+      });
       setToast({ type: 'success', message: 'Daily reminder settings updated successfully.' });
     } catch (err: any) {
       setReminderError(err?.message || 'Failed to update daily reminder settings');
     } finally {
       setReminderSaving(false);
     }
+  };
+
+  const handleReminderTimePartChange = (
+    part: 'hour' | 'minute' | 'meridiem',
+    value: string,
+  ) => {
+    const nextSelection = {
+      ...reminderTimeSelection,
+      [part]: value,
+    } as { hour: string; minute: string; meridiem: 'AM' | 'PM' };
+
+    setReminderDraft((prev) => ({
+      ...prev,
+      time: buildReminderTimeValue(nextSelection.hour, nextSelection.minute, nextSelection.meridiem),
+    }));
   };
 
   const handleActionMenuToggle = (rowId: string, event: React.MouseEvent<HTMLButtonElement>) => {
@@ -448,8 +531,9 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   const activeActionRow = openActionMenuRowId
     ? rows.find((row) => row._id === openActionMenuRowId) || null
     : null;
-  const reminderStatusChipLabel = reminderEnabled ? 'ACTIVE' : 'PAUSED';
-  const reminderScheduleLabel = formatTimeLabel(reminderTime);
+  const reminderStatusChipLabel = reminderDraft.enabled ? 'ACTIVE' : 'PAUSED';
+  const reminderScheduleLabel = formatReminderTimeLabel(reminderSettings.time);
+  const reminderDraftScheduleLabel = formatReminderTimeLabel(reminderDraft.time);
 
   return (
     <div className="-m-16 min-h-full space-y-5 p-8 animate-in fade-in duration-700">
@@ -857,30 +941,30 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
             </div>
           </div>
 
-          <div className="grid gap-6 px-6 py-6 xl:grid-cols-[1.25fr_minmax(360px,0.95fr)]">
-            <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_right,_rgba(251,191,36,0.12),_transparent_45%),white] px-6 py-6">
-              <div className="flex items-start gap-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-slate-200 bg-white text-slate-700 shadow-sm">
-                  <Clock3 size={20} />
-                </div>
-                <div>
-                  <h4 className="text-[16px] font-semibold tracking-[-0.02em] text-slate-900">
-                    Current schedule
-                  </h4>
-                  <p className="mt-3 text-[14px] leading-8 text-slate-600">
-                    {reminderEnabled
-                      ? `The daily reminder is scheduled for all staff members at ${reminderScheduleLabel}.`
-                      : 'The daily reminder is currently paused for all staff members.'}
-                  </p>
-                  <p className="mt-3 text-[14px] leading-8 text-slate-500">
-                    This setting controls the daily reminder email and the reminder notification timing together.
-                  </p>
+          <div className="grid gap-5 px-6 py-5 xl:grid-cols-[1.25fr_minmax(360px,0.95fr)]">
+              <div className="self-start rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_right,_rgba(251,191,36,0.18),_rgba(255,255,255,0)_48%),linear-gradient(180deg,rgba(255,251,243,1)_0%,rgba(255,255,255,1)_100%)] px-6 py-5">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-slate-200 bg-white text-slate-700 shadow-sm">
+                    <Clock3 size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-[16px] font-semibold tracking-[-0.02em] text-slate-900">
+                      Current schedule
+                    </h4>
+                    <p className="mt-3 text-[14px] leading-7 text-slate-600">
+                      {reminderSettings.enabled
+                        ? `The daily reminder is scheduled for all staff members at ${reminderScheduleLabel}.`
+                        : 'The daily reminder is currently paused for all staff members.'}
+                    </p>
+                    <p className="mt-4 text-[14px] leading-7 text-slate-500">
+                      This setting controls the daily reminder email and the reminder notification timing together.
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="rounded-[28px] border border-slate-200 bg-white px-5 py-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
-              <div className="rounded-[20px] border border-slate-200 bg-slate-50/40 px-5 py-4">
+            <div className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+              <div className="rounded-[20px] border border-slate-200 bg-slate-50/40 px-4 py-3">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h4 className="text-[15px] font-semibold tracking-[-0.02em] text-slate-900">
@@ -893,53 +977,164 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
 
                   <button
                     type="button"
-                    onClick={() => setReminderEnabled((prev) => !prev)}
+                    role="switch"
+                    aria-checked={reminderDraft.enabled}
+                    onClick={() =>
+                      setReminderDraft((prev) => ({ ...prev, enabled: !prev.enabled }))
+                    }
                     disabled={reminderLoading || reminderSaving}
                     className={`relative h-9 w-[62px] rounded-full transition ${
-                      reminderEnabled ? 'bg-emerald-500' : 'bg-slate-300'
+                      reminderDraft.enabled ? 'bg-emerald-500' : 'bg-slate-300'
                     } disabled:cursor-not-allowed disabled:opacity-60`}
                     aria-label="Toggle reminder status"
                   >
                     <span
                       className={`absolute top-1 h-7 w-7 rounded-full bg-white shadow-sm transition ${
-                        reminderEnabled ? 'left-[30px]' : 'left-1'
+                        reminderDraft.enabled ? 'left-[30px]' : 'left-1'
                       }`}
                     />
                   </button>
                 </div>
               </div>
 
-              <div className="mt-5">
+              <div className="mt-4">
                 <label className="mb-3 block text-[15px] font-semibold tracking-[-0.02em] text-slate-900">
                   Reminder time
                 </label>
-                <div className="rounded-[20px] border border-slate-200 bg-white px-5 py-4">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-slate-50 text-slate-700">
-                      <Clock3 size={20} />
+                <div className="relative" ref={timePickerRef}>
+                  <button
+                    type="button"
+                    onClick={() => setTimePickerOpen((prev) => !prev)}
+                    disabled={reminderLoading || reminderSaving}
+                    className={`flex w-full items-center justify-between rounded-[20px] border bg-white px-5 py-3.5 text-left transition ${
+                      timePickerOpen
+                        ? 'border-slate-900 shadow-[0_0_0_3px_rgba(244,63,94,0.10)]'
+                        : 'border-slate-200 hover:border-slate-300'
+                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                  >
+                    <div className="flex min-w-0 items-center gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-slate-50 text-slate-700">
+                        <Clock3 size={20} />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[18px] font-semibold tracking-[-0.02em] text-slate-900">
+                          {reminderDraftScheduleLabel}
+                        </div>
+                        <div className="mt-1 text-[12px] uppercase tracking-[0.16em] text-slate-400">
+                          Custom time picker
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[18px] font-semibold tracking-[-0.02em] text-slate-900">
-                        {reminderScheduleLabel}
-                      </div>
-                      <div className="mt-1 text-[12px] uppercase tracking-[0.16em] text-slate-400">
-                        Custom time picker
-                      </div>
-                    </div>
-
-                    <input
-                      type="time"
-                      value={reminderTime}
-                      onChange={(event) => setReminderTime(event.target.value)}
-                      disabled={reminderLoading || reminderSaving}
-                      className="h-[42px] rounded-[10px] border border-slate-200 px-3 text-[14px] text-slate-700 outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 disabled:cursor-not-allowed disabled:bg-slate-100"
+                    <ChevronDown
+                      size={20}
+                      className={`shrink-0 text-slate-400 transition ${timePickerOpen ? 'rotate-180' : ''}`}
                     />
-                  </div>
+                  </button>
+
+                  {timePickerOpen ? (
+                    <div className="absolute left-0 right-0 top-full z-20 mt-3 rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.16)]">
+                      <div className="grid grid-cols-[1fr_1fr_110px] gap-4">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                            Hour
+                          </p>
+                          <div className="mt-2 max-h-56 space-y-2 overflow-y-auto rounded-[20px] border border-slate-200 bg-slate-50/80 p-3">
+                            {REMINDER_HOUR_OPTIONS.map((hour) => {
+                              const selected = reminderTimeSelection.hour === hour;
+                              return (
+                                <button
+                                  key={hour}
+                                  type="button"
+                                  onClick={() => handleReminderTimePartChange('hour', hour)}
+                                  className={`flex w-full items-center justify-center rounded-2xl px-3 py-3 text-[14px] font-semibold transition ${
+                                    selected
+                                      ? 'bg-red-500 text-white shadow-sm'
+                                      : 'text-slate-600 hover:bg-white hover:text-slate-900'
+                                  }`}
+                                >
+                                  {hour}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                            Minute
+                          </p>
+                          <div className="mt-2 max-h-56 space-y-2 overflow-y-auto rounded-[20px] border border-slate-200 bg-slate-50/80 p-3">
+                            {REMINDER_MINUTE_OPTIONS.map((minute) => {
+                              const selected = reminderTimeSelection.minute === minute;
+                              return (
+                                <button
+                                  key={minute}
+                                  type="button"
+                                  onClick={() => handleReminderTimePartChange('minute', minute)}
+                                  className={`flex w-full items-center justify-center rounded-2xl px-3 py-3 text-[14px] font-semibold transition ${
+                                    selected
+                                      ? 'bg-red-500 text-white shadow-sm'
+                                      : 'text-slate-600 hover:bg-white hover:text-slate-900'
+                                  }`}
+                                >
+                                  {minute}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                            Period
+                          </p>
+                          <div className="mt-2 space-y-2 rounded-[20px] border border-slate-200 bg-slate-50/80 p-3">
+                            {REMINDER_MERIDIEM_OPTIONS.map((meridiem) => {
+                              const selected = reminderTimeSelection.meridiem === meridiem;
+                              return (
+                                <button
+                                  key={meridiem}
+                                  type="button"
+                                  onClick={() => handleReminderTimePartChange('meridiem', meridiem)}
+                                  className={`flex w-full items-center justify-center rounded-2xl px-3 py-4 text-[14px] font-semibold transition ${
+                                    selected
+                                      ? 'bg-red-500 text-white shadow-sm'
+                                      : 'text-slate-600 hover:bg-white hover:text-slate-900'
+                                  }`}
+                                >
+                                  {meridiem}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between rounded-[20px] border border-slate-200 bg-slate-50/80 px-4 py-3">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                            Selected time
+                          </p>
+                          <p className="mt-1 text-[14px] font-semibold text-slate-900">
+                            {reminderDraftScheduleLabel}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setTimePickerOpen(false)}
+                          className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
-              <p className="mt-4 text-[13px] leading-7 text-slate-500">
+              <p className="mt-3 text-[13px] leading-7 text-slate-500">
                 Time is stored in {reminderSettings.timezone || 'Asia/Kolkata'} and applied to both email and
                 notification reminders.
               </p>
@@ -950,15 +1145,19 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
                 </div>
               ) : null}
 
-              <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-[13px] text-slate-500">
-                  {reminderLoading ? 'Loading reminder settings...' : 'Reminder settings are up to date.'}
+                  {reminderLoading
+                    ? 'Loading reminder settings...'
+                    : reminderDirty
+                      ? 'You have unsaved reminder changes.'
+                      : 'Reminder settings are up to date.'}
                 </p>
 
                 <button
                   type="button"
                   onClick={handleSaveReminderSettings}
-                  disabled={reminderLoading || reminderSaving}
+                  disabled={reminderLoading || reminderSaving || !reminderDirty}
                   className="inline-flex items-center justify-center rounded-full bg-[#f87171] px-6 py-3 text-[15px] font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {reminderSaving ? 'Saving...' : 'Save changes'}
