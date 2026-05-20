@@ -417,10 +417,9 @@ export function autoResizeTextarea(target: HTMLTextAreaElement) {
   }
 }
 
-function renderStyledDescription(text: string) {
+function renderPlainDescriptionTokens(text: string, keyPrefix: string) {
   const value = String(text || '');
-  if (!value.trim()) return 'No description';
-  const tokenRegex = /(<(?:strong|b)>([\s\S]*?)<\/(?:strong|b)>|<(?:em|i)>([\s\S]*?)<\/(?:em|i)>|<u>([\s\S]*?)<\/u>|https?:\/\/\S+|#[^\s#]+)/gi;
+  const tokenRegex = /(https?:\/\/\S+|#[^\s#]+)/gi;
   const fragments: React.ReactNode[] = [];
   let lastIndex = 0;
   let matchIndex = 0;
@@ -428,14 +427,14 @@ function renderStyledDescription(text: string) {
 
   while ((match = tokenRegex.exec(value)) !== null) {
     if (match.index > lastIndex) {
-      fragments.push(<React.Fragment key={`plain-${matchIndex}`}>{value.slice(lastIndex, match.index)}</React.Fragment>);
+      fragments.push(<React.Fragment key={`${keyPrefix}-plain-${matchIndex}`}>{value.slice(lastIndex, match.index)}</React.Fragment>);
     }
 
     const token = match[0];
     if (/^https?:\/\/\S+$/i.test(token)) {
       fragments.push(
         <a
-          key={`link-${matchIndex}`}
+          key={`${keyPrefix}-link-${matchIndex}`}
           href={token}
           target="_blank"
           rel="noreferrer"
@@ -446,27 +445,9 @@ function renderStyledDescription(text: string) {
       );
     } else if (/^#[^\s#]+$/.test(token)) {
       fragments.push(
-        <strong key={`hash-${matchIndex}`} className="font-semibold text-slate-800">
+        <strong key={`${keyPrefix}-hash-${matchIndex}`} className="font-semibold text-slate-800">
           {token}
         </strong>,
-      );
-    } else if (/^<(?:strong|b)>/i.test(token)) {
-      fragments.push(
-        <strong key={`bold-${matchIndex}`} className="font-semibold text-slate-800">
-          {token.replace(/^<(?:strong|b)>/i, '').replace(/<\/(?:strong|b)>$/i, '')}
-        </strong>,
-      );
-    } else if (/^<(?:em|i)>/i.test(token)) {
-      fragments.push(
-        <em key={`italic-${matchIndex}`} className="italic text-slate-700">
-          {token.replace(/^<(?:em|i)>/i, '').replace(/<\/(?:em|i)>$/i, '')}
-        </em>,
-      );
-    } else if (/^<u>/i.test(token)) {
-      fragments.push(
-        <span key={`underline-${matchIndex}`} className="underline decoration-1 underline-offset-2">
-          {token.replace(/^<u>/i, '').replace(/<\/u>$/i, '')}
-        </span>,
       );
     }
 
@@ -475,10 +456,55 @@ function renderStyledDescription(text: string) {
   }
 
   if (lastIndex < value.length) {
-    fragments.push(<React.Fragment key={`plain-tail`}>{value.slice(lastIndex)}</React.Fragment>);
+    fragments.push(<React.Fragment key={`${keyPrefix}-plain-tail`}>{value.slice(lastIndex)}</React.Fragment>);
   }
 
   return fragments;
+}
+
+function renderRichDescriptionNode(node: ChildNode, key: string): React.ReactNode {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return <React.Fragment key={key}>{renderPlainDescriptionTokens(node.textContent || '', key)}</React.Fragment>;
+  }
+
+  if (node.nodeType !== Node.ELEMENT_NODE) return null;
+
+  const element = node as HTMLElement;
+  const tag = element.tagName.toLowerCase();
+  const children = Array.from(element.childNodes).map((child, index) => renderRichDescriptionNode(child, `${key}-${index}`));
+
+  if (tag === 'br') return <br key={key} />;
+  if (tag === 'strong' || tag === 'b') return <strong key={key} className="font-semibold text-slate-800">{children}</strong>;
+  if (tag === 'em' || tag === 'i') return <em key={key} className="italic text-slate-700">{children}</em>;
+  if (tag === 'u') return <span key={key} className="underline decoration-1 underline-offset-2">{children}</span>;
+  if (tag === 'a') {
+    const href = String(element.getAttribute('href') || '').trim();
+    if (!/^https?:\/\//i.test(href)) return <React.Fragment key={key}>{children}</React.Fragment>;
+    return <a key={key} href={href} target="_blank" rel="noreferrer" className="text-blue-600 underline">{children}</a>;
+  }
+  if (tag === 'ul') return <ul key={key} className="my-2 list-disc space-y-1 pl-5">{children}</ul>;
+  if (tag === 'ol') return <ol key={key} className="my-2 list-decimal space-y-1 pl-5">{children}</ol>;
+  if (tag === 'li') return <li key={key}>{children}</li>;
+  if (tag === 'h1') return <h1 key={key} className="mb-2 mt-3 text-2xl font-semibold text-slate-900">{children}</h1>;
+  if (tag === 'h2') return <h2 key={key} className="mb-2 mt-3 text-xl font-semibold text-slate-900">{children}</h2>;
+  if (tag === 'h3') return <h3 key={key} className="mb-1.5 mt-2.5 text-lg font-semibold text-slate-900">{children}</h3>;
+  if (tag === 'h4') return <h4 key={key} className="mb-1.5 mt-2 text-base font-semibold text-slate-900">{children}</h4>;
+  if (tag === 'p' || tag === 'div') return <p key={key} className="mb-2 last:mb-0">{children}</p>;
+
+  return <React.Fragment key={key}>{children}</React.Fragment>;
+}
+
+function renderStyledDescription(text: string) {
+  const value = String(text || '');
+  if (!value.trim()) return 'No description';
+
+  if (/<\/?(?:strong|b|em|i|u|a|ul|ol|li|h[1-4]|p|div|br)\b/i.test(value) && typeof document !== 'undefined') {
+    const root = document.createElement('div');
+    root.innerHTML = value;
+    return Array.from(root.childNodes).map((node, index) => renderRichDescriptionNode(node, `rich-${index}`));
+  }
+
+  return renderPlainDescriptionTokens(value, 'plain');
 }
 
 export function isImageAsset(asset: ContentAsset) {
