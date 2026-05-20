@@ -1,37 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Filter, FolderKanban, Plus, Search } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { BarChart3, Filter, FolderKanban, Plus, Search } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { WorkspaceProject } from '../../types';
 import ProjectCard from './ProjectCard';
-import { API_BASE, getAuthHeaders } from '../../config/api';
-import { getSocket } from '../../realtime/socket';
-
-interface LinkedSpaceTask {
-  taskId?: string;
-  projectTaskId?: string;
-  projectId?: string;
-  title?: string;
-  description?: string;
-  status?: string;
-  priority?: 'low' | 'medium' | 'high';
-  assigneeId?: string;
-  dueDate?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-function normalizeLinkedTaskStatus(status?: string): 'todo' | 'doing' | 'review' | 'done' | 'blocked' {
-  const normalized = String(status || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, '_');
-
-  if (['todo', 'to_do', 'pending', 'open'].includes(normalized)) return 'todo';
-  if (['doing', 'in_progress', 'progress', 'ongoing'].includes(normalized)) return 'doing';
-  if (['review', 'submitted', 'submit', 'for_review'].includes(normalized)) return 'review';
-  if (['done', 'completed', 'complete', 'closed'].includes(normalized)) return 'done';
-  if (['blocked', 'on_hold', 'hold'].includes(normalized)) return 'blocked';
-  return 'todo';
-}
+import ProgressBar from './ProgressBar';
 
 interface ProjectListProps {
   projects: WorkspaceProject[];
@@ -39,6 +11,10 @@ interface ProjectListProps {
   statusFilter: string;
   priorityFilter: string;
   loading?: boolean;
+  liveTasksByProject?: Record<string, WorkspaceProject['tasks']>;
+  generalTasks?: WorkspaceProject['tasks'];
+  taskHubLoading?: boolean;
+  taskHubFailed?: boolean;
   canCreate?: boolean;
   canDelete?: boolean;
   onCreate: () => void;
@@ -54,6 +30,10 @@ const ProjectList: React.FC<ProjectListProps> = ({
   statusFilter,
   priorityFilter,
   loading = false,
+  liveTasksByProject = {},
+  generalTasks = [],
+  taskHubLoading = false,
+  taskHubFailed = false,
   canCreate = false,
   canDelete = false,
   onCreate,
@@ -62,93 +42,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
   onStatusFilterChange,
   onPriorityFilterChange,
 }) => {
-  const [liveTasksByProject, setLiveTasksByProject] = useState<Record<string, WorkspaceProject['tasks']>>({});
-  const [taskHubLoading, setTaskHubLoading] = useState(true);
-  const [taskHubFailed, setTaskHubFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadLinkedTasks = async () => {
-      try {
-        setTaskHubLoading(true);
-        const response = await fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() });
-        if (!response.ok) {
-          throw new Error('Failed to load linked project tasks');
-        }
-
-        const data = await response.json().catch(() => ({}));
-        const groupedTasks = (Array.isArray(data?.tasks) ? data.tasks : []).reduce(
-          (acc: Record<string, WorkspaceProject['tasks']>, task: LinkedSpaceTask) => {
-            const projectId = String(task?.projectId || '').trim();
-            const taskId = String(task?.projectTaskId || task?.taskId || '').trim();
-            if (!projectId || !taskId) return acc;
-
-            if (!acc[projectId]) {
-              acc[projectId] = [];
-            }
-
-            acc[projectId].push({
-              id: taskId,
-              projectId,
-              title: String(task.title || '').trim() || 'Untitled Task',
-              description: String(task.description || '').trim(),
-              status: normalizeLinkedTaskStatus(task.status),
-              priority: task.priority === 'high' || task.priority === 'low' ? task.priority : 'medium',
-              assigneeId: String(task.assigneeId || '').trim() || undefined,
-              dueDate: String(task.dueDate || '').trim() || undefined,
-              createdAt: String(task.createdAt || '') || new Date().toISOString(),
-              updatedAt: String(task.updatedAt || task.createdAt || '') || new Date().toISOString(),
-            });
-
-            return acc;
-          },
-          {},
-        );
-
-        Object.values(groupedTasks).forEach((tasks) => {
-          tasks.sort((left, right) => {
-            const leftTime = new Date(left.updatedAt || left.createdAt).getTime();
-            const rightTime = new Date(right.updatedAt || right.createdAt).getTime();
-            return rightTime - leftTime;
-          });
-        });
-
-        if (!cancelled) {
-          setLiveTasksByProject(groupedTasks);
-          setTaskHubFailed(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setTaskHubFailed(true);
-        }
-      } finally {
-        if (!cancelled) {
-          setTaskHubLoading(false);
-        }
-      }
-    };
-
-    void loadLinkedTasks();
-
-    const socket = getSocket();
-    const onSpacesChanged = (payload: any) => {
-      const action = String(payload?.action || '').trim();
-      if (!['task_created', 'task_updated', 'task_deleted'].includes(action)) {
-        return;
-      }
-
-      void loadLinkedTasks();
-    };
-
-    socket.on('spaces:changed', onSpacesChanged);
-    return () => {
-      cancelled = true;
-      socket.off('spaces:changed', onSpacesChanged);
-    };
-  }, []);
-
-  const isListLoading = loading || (!taskHubFailed && taskHubLoading);
+  const hasCachedTaskCards = projects.length > 0 || generalTasks.length > 0;
+  const isListLoading = loading || (!taskHubFailed && taskHubLoading && !hasCachedTaskCards);
   const projectCards = useMemo(
     () =>
       projects.map((project) => ({
@@ -244,7 +139,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
             </div>
           ))}
         </div>
-      ) : projects.length === 0 ? (
+      ) : projects.length === 0 && generalTasks.length === 0 ? (
         <div className="rounded-[2rem] border border-dashed border-slate-200 bg-white px-8 py-16 text-center shadow-sm">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-slate-100 text-slate-400">
             <FolderKanban size={28} />
@@ -268,14 +163,16 @@ const ProjectList: React.FC<ProjectListProps> = ({
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          <GeneralTasksCard tasks={generalTasks} />
           {projectCards.map(({ project, liveTasks }) => (
             <ProjectCard
               key={project.id}
               project={project}
-              to={`/workspaces/${project.id}`}
+              to={`/workspaces/${encodeURIComponent(project.id)}`}
               canDelete={canDelete}
               onDelete={onDelete}
               liveTasks={liveTasks}
+              actionLabel="Open charter"
             />
           ))}
         </div>
@@ -283,5 +180,66 @@ const ProjectList: React.FC<ProjectListProps> = ({
     </div>
   );
 };
+
+function GeneralTasksCard({ tasks }: { tasks: WorkspaceProject['tasks'] }) {
+  const total = tasks.length;
+  const completed = tasks.filter((task) => ['done', 'review'].includes(String(task.status || '').toLowerCase())).length;
+  const progress = total ? Math.round((completed / total) * 100) : 0;
+  const updatedAt = tasks[0]?.updatedAt || tasks[0]?.createdAt || new Date().toISOString();
+
+  return (
+    <ProjectCardShell to="/workspaces/general-tasks">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-800 via-brand-red to-amber-300 opacity-70" />
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="flex h-14 w-14 items-center justify-center rounded-[1.35rem] bg-brand-red text-white shadow-lg shadow-brand-red/10">
+          <BarChart3 size={22} />
+        </div>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+          General tasks
+        </span>
+      </div>
+      <div className="space-y-3">
+        <div>
+          <h3 className="text-xl font-semibold text-slate-950 transition-colors group-hover:text-brand-red">General tasks</h3>
+          <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">
+            TaskHub work that is not linked to a project charter. Open details and analytics for this general task pool.
+          </p>
+        </div>
+        <ProgressBar value={progress} label="General task progress" />
+      </div>
+      <div className="mt-6 grid gap-3 rounded-[1.5rem] border border-slate-100 bg-slate-50/80 p-4 text-sm text-slate-600">
+        <div className="flex items-center justify-between gap-3">
+          <span>Total tasks</span>
+          <span className="font-semibold text-slate-900">{total}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span>Completed</span>
+          <span className="font-semibold text-slate-900">{completed}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span>Last updated</span>
+          <span className="font-semibold text-slate-900">{new Date(updatedAt).toLocaleDateString()}</span>
+        </div>
+      </div>
+      <div className="mt-6 flex items-center justify-between text-sm font-semibold text-slate-900">
+        <span>{completed} of {total} tasks complete</span>
+        <span className="inline-flex items-center gap-2 text-brand-red transition-transform group-hover:translate-x-1">
+          Open details
+        </span>
+      </div>
+    </ProjectCardShell>
+  );
+}
+
+function ProjectCardShell({ to, children }: { to: string; children: React.ReactNode }) {
+  return (
+    <Link
+      to={to}
+      className="group relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:border-brand-red/30 hover:shadow-2xl"
+    >
+      {children}
+    </Link>
+  );
+}
 
 export default ProjectList;

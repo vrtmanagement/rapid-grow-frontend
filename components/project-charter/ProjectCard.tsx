@@ -19,9 +19,17 @@ interface ProjectCardProps {
   canDelete?: boolean;
   onDelete?: (projectId: string) => void;
   liveTasks?: WorkspaceProject['tasks'];
+  actionLabel?: string;
 }
 
-const ProjectCard: React.FC<ProjectCardProps> = ({ project, to, canDelete = false, onDelete, liveTasks }) => {
+const ProjectCard: React.FC<ProjectCardProps> = ({
+  project,
+  to,
+  canDelete = false,
+  onDelete,
+  liveTasks,
+  actionLabel = 'Open charter',
+}) => {
   const scopedTasks =
     liveTasks ||
     (project.tasks || []).filter((task) => !project.id || task.projectId === project.id);
@@ -98,7 +106,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, to, canDelete = fals
       <div className="mt-6 flex items-center justify-between text-sm font-semibold text-slate-900">
         <span>{metrics.completed} of {metrics.total} tasks complete</span>
         <span className="inline-flex items-center gap-2 text-brand-red transition-transform group-hover:translate-x-1">
-          Open charter
+          {actionLabel}
           <ArrowUpRight size={16} />
         </span>
       </div>

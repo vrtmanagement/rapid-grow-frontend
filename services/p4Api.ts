@@ -1,19 +1,5 @@
 import { API_BASE, getAuthHeaders } from '../config/api';
 
-export type ProjectOption = { id: string; name: string };
-
-export async function fetchProjectOptions(): Promise<ProjectOption[]> {
-  const res = await fetch(`${API_BASE}/project-charters`, { headers: getAuthHeaders() });
-  if (!res.ok) throw new Error('Failed to load projects');
-  const rows = await res.json().catch(() => []);
-  return (Array.isArray(rows) ? rows : [])
-    .map((row: { clientProjectId?: string; id?: string; name?: string; projectName?: string }) => ({
-      id: String(row.clientProjectId || row.id || '').trim(),
-      name: String(row.name || row.projectName || 'Untitled project').trim(),
-    }))
-    .filter((row) => row.id);
-}
-
 export async function fetchPlanUsage() {
   const res = await fetch(`${API_BASE}/plan/usage`, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error('Failed to load plan usage');
@@ -72,14 +58,6 @@ export async function requestAccountClosure(reason: string, retentionDays = 30) 
 export async function getAccountClosureStatus() {
   const res = await fetch(`${API_BASE}/account/closure`, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error('Failed to load closure status');
-  return res.json();
-}
-
-export async function fetchProjectGantt(projectId: string) {
-  const res = await fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/gantt`, {
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) throw new Error('Failed to load Gantt data');
   return res.json();
 }
 

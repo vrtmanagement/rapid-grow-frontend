@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchAiUsage } from '../services/p3Api';
 
-const AiUsageDashboardView: React.FC = () => {
+const AiUsageDashboardView: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
@@ -11,7 +11,7 @@ const AiUsageDashboardView: React.FC = () => {
   const summary = data?.summary;
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">AI usage</h1>
+      {!embedded && <h1 className="text-2xl font-bold text-slate-900">AI usage</h1>}
       {summary && (
         <div className="grid gap-4 sm:grid-cols-3">
           <Stat label="Calls" value={summary.totalCalls} />
