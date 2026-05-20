@@ -10,6 +10,31 @@ interface Props {
 }
 
 const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMonth }) => {
+  const getMonthWorkingDates = () => {
+    const monthSource = selectedMonth || summary?.start?.slice(0, 7);
+    if (!monthSource) return [];
+
+    const [yearText, monthText] = monthSource.split('-');
+    const year = Number(yearText);
+    const monthIndex = Number(monthText) - 1;
+    if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || monthIndex < 0) return [];
+
+    const now = new Date();
+    const isCurrentMonth =
+      now.getFullYear() === year && now.getMonth() === monthIndex;
+    const lastDay = isCurrentMonth ? now.getDate() : new Date(year, monthIndex + 1, 0).getDate();
+    const dates: string[] = [];
+
+    for (let day = 1; day <= lastDay; day += 1) {
+      const current = new Date(year, monthIndex, day);
+      if (current.getDay() !== 0) {
+        dates.push(`${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
+      }
+    }
+
+    return dates;
+  };
+
   const formatTime = (value?: string | null) => {
     if (!value) return 'N/A';
     const parsed = new Date(value);
@@ -44,8 +69,28 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMo
     return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
   };
 
+  const recordedDays = new Map(
+    (summary?.days ?? []).map((day) => [day.date, day]),
+  );
+
+  const workingDates = getMonthWorkingDates();
+  const datesToShow = workingDates.length > 0 ? workingDates : (summary?.days ?? []).map((day) => day.date);
+
   const chartData =
-    summary?.days.map((d) => {
+    datesToShow.map((dateKey) => {
+      const d = recordedDays.get(dateKey);
+      if (!d) {
+        return {
+          date: formatFullDate(dateKey),
+          hours: 9,
+          color: '#cbd5e1',
+          loginTime: 'Absent',
+          logoutTime: 'Absent',
+          statusLabel: 'Attendance',
+          attendanceState: 'Absent',
+        };
+      }
+
       const hours = d.minutes / 60;
       const sortedSessions = [...(d.sessions || [])].sort((a, b) => (
         new Date(a.loginTime).getTime() - new Date(b.loginTime).getTime()
@@ -62,6 +107,7 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMo
           ? 'Active now'
           : formatTime(lastSession?.effectiveLogoutTime || lastSession?.logoutTime),
         statusLabel: isOpenSession ? 'Status' : 'Logout time',
+        attendanceState: 'Present',
       };
     }) ?? [];
 
@@ -132,6 +178,10 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMo
                       <p className="text-sm font-semibold text-slate-900">{label}</p>
                       <div className="mt-2 space-y-1.5 text-xs text-slate-600">
                         <div className="flex items-center justify-between gap-4">
+                          <span>Attendance</span>
+                          <span className="font-semibold text-slate-900">{entry?.attendanceState || 'Present'}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
                           <span>Hours</span>
                           <span className="font-semibold text-slate-900">{entry?.hours?.toFixed?.(2) ?? '0.00'}h</span>
                         </div>
@@ -154,7 +204,7 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMo
                   fontSize: 12,
                 }}
               />
-              <Bar dataKey="hours" radius={[8, 8, 0, 0]} barSize={32}>
+              <Bar dataKey="hours" radius={[8, 8, 0, 0]} barSize={32} minPointSize={8}>
                 {chartData.map((entry, index) => (
                   <Cell key={index} fill={entry.color} />
                 ))}
