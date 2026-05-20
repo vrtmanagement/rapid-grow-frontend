@@ -6,6 +6,7 @@ import { getReadableError, parseApiResponse } from '../../services/apiClient';
 const TwoFactorSettingsPanel: React.FC = () => {
   const [enabled, setEnabled] = useState(false);
   const [requiredForRole, setRequiredForRole] = useState(false);
+  const [globallyDisabled, setGloballyDisabled] = useState(false);
   const [setupSecret, setSetupSecret] = useState('');
   const [otpauthUrl, setOtpauthUrl] = useState('');
   const [verifyCode, setVerifyCode] = useState('');
@@ -19,6 +20,7 @@ const TwoFactorSettingsPanel: React.FC = () => {
     const data = await parseApiResponse<any>(res);
     setEnabled(Boolean(data.twoFactorEnabled));
     setRequiredForRole(Boolean(data.requiredForRole));
+    setGloballyDisabled(Boolean(data.globallyDisabled));
   };
 
   useEffect(() => {
@@ -91,7 +93,9 @@ const TwoFactorSettingsPanel: React.FC = () => {
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Two-factor authentication</h2>
         <p className="text-sm text-slate-600 mt-1">
-          {enabled
+          {globallyDisabled
+            ? 'Authenticator login is turned off for this environment.'
+            : enabled
             ? 'Your account is protected with an authenticator app.'
             : requiredForRole
               ? 'Required for your role — enable 2FA to stay signed in.'
@@ -101,7 +105,13 @@ const TwoFactorSettingsPanel: React.FC = () => {
       <ErrorAlert message={error} />
       {message && <p className="text-sm text-emerald-700">{message}</p>}
 
-      {!enabled && !setupSecret && (
+      {globallyDisabled && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          2FA is disabled in development mode. Existing authenticator settings are kept for later, but login will not ask for a code.
+        </p>
+      )}
+
+      {!globallyDisabled && !enabled && !setupSecret && (
         <button
           type="button"
           onClick={startSetup}
@@ -112,7 +122,7 @@ const TwoFactorSettingsPanel: React.FC = () => {
         </button>
       )}
 
-      {setupSecret && (
+      {!globallyDisabled && setupSecret && (
         <SetupBlock
           setupSecret={setupSecret}
           otpauthUrl={otpauthUrl}
@@ -123,7 +133,7 @@ const TwoFactorSettingsPanel: React.FC = () => {
         />
       )}
 
-      {enabled && (
+      {!globallyDisabled && enabled && (
         <div className="flex flex-wrap gap-2 items-end">
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Code to disable</label>

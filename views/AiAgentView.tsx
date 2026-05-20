@@ -741,21 +741,44 @@ const AiAgentView: React.FC = () => {
         </div>
       )}
 
-      {activeTab === 'capacity' && capacity && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm text-sm text-slate-700 space-y-2">
-          <p>
-            Utilization: {String(capacity.utilizationPct)}% · Can absorb:{' '}
-            {capacity.canAbsorb ? 'Yes' : 'No'}
-          </p>
-          <p>
-            Available hours: {String(capacity.availableHours)} / {String(capacity.totalCapacityHours)}
-          </p>
-          {Array.isArray(capacity.recommendations) && (
-            <ul className="list-disc pl-5">
-              {(capacity.recommendations as string[]).map((line, i) => (
-                <li key={`cap-${i}`}>{line}</li>
-              ))}
-            </ul>
+      {activeTab === 'capacity' && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm text-sm text-slate-700 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Capacity planning</h2>
+              <p className="mt-1 text-slate-600">Check total team availability before publishing new assignments.</p>
+            </div>
+            <button
+              type="button"
+              onClick={loadCapacity}
+              disabled={!!loading}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-red px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {loading === 'capacity' ? <Loader2 size={16} className="animate-spin" /> : null}
+              Refresh capacity
+            </button>
+          </div>
+          {capacity ? (
+            <div className="space-y-2">
+              <p>
+                Utilization: {String(capacity.utilizationPct)}% / Can absorb:{' '}
+                {capacity.canAbsorb ? 'Yes' : 'No'}
+              </p>
+              <p>
+                Available hours: {String(capacity.availableHours)} / {String(capacity.totalCapacityHours)}
+              </p>
+              {Array.isArray(capacity.recommendations) && (
+                <ul className="list-disc pl-5">
+                  {(capacity.recommendations as string[]).map((line, i) => (
+                    <li key={`cap-${i}`}>{line}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-slate-600">
+              No capacity snapshot loaded yet. Click Refresh capacity to load current team workload.
+            </div>
           )}
         </div>
       )}
