@@ -56,7 +56,6 @@ import DataPrivacyView from '../../views/DataPrivacyView';
 import BillingSettingsView from '../../views/BillingSettingsView';
 import AuditLogsView from '../../views/AuditLogsView';
 import PlanLimitsBanner from '../plan/PlanLimitsBanner';
-import GlobalSearchModal from '../../components/search/GlobalSearchModal';
 import { useI18n } from '../../context/I18nContext';
 import AccessDenied from '../AccessDenied';
 import { SidebarLink, SidebarToggleButton } from './SidebarPrimitives';
@@ -110,7 +109,6 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
   markNotificationRead,
   handleLogout,
 }) => {
-  const [searchOpen, setSearchOpen] = React.useState(false);
   const { t } = useI18n();
   const location = useLocation();
   const hasVisionAccess =
@@ -124,7 +122,6 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
   return (
     <>
       {globalToastsElement}
-      <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
       <GlobalCommunicationNotifications />
       <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
         <aside
@@ -266,13 +263,6 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                 </div>
               ) : null}
               <div className="flex items-center gap-3 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setSearchOpen(true)}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  Search
-                </button>
                 <NotificationBellMenu
                   notificationMenuOpen={notificationMenuOpen}
                   unreadNotificationCount={unreadNotificationCount}
