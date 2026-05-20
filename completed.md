@@ -13,7 +13,7 @@ This document lists what is **implemented and working**, what still needs **manu
 
 ### P2 — Sellable MVP
 - 2FA (TOTP) on auth-service; security settings UI.
-- Audit logs API (`GET /api/audit-logs`); no dedicated admin audit UI yet.
+- Audit logs API (`GET /api/audit-logs`) and admin audit UI (`/settings/audit-logs`).
 - Stripe billing: checkout, portal, webhook handlers (backend).
 - AI usage logging and internal ingest from ai-agent-service.
 - Task analytics, workload heatmap, employee skills, onboarding tour, global search.

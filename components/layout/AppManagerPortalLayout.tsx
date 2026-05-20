@@ -22,6 +22,11 @@ import {
   CreditCard,
   ScrollText,
   UserPlus2,
+  BarChart3,
+  Activity,
+  UserRoundCog,
+  Network,
+  KeyRound,
 } from 'lucide-react';
 import { PlanningState } from '../../types';
 import Vision from '../../views/Vision';
@@ -186,6 +191,22 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                     collapsed={!isSidebarOpen}
                   />
                 )}
+                {hasPower('DASHBOARD_VIEW') && (
+                  <SidebarLink
+                    to="/analytics/tasks"
+                    icon={<BarChart3 size={20} />}
+                    label="Task analytics"
+                    collapsed={!isSidebarOpen}
+                  />
+                )}
+                {(isAdmin || isSuperAdmin) && (
+                  <SidebarLink
+                    to="/analytics/workload"
+                    icon={<Activity size={20} />}
+                    label="Workload"
+                    collapsed={!isSidebarOpen}
+                  />
+                )}
                 {hasPower('ATTENDANCE_VIEW') && (
                   <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />
                 )}
@@ -246,6 +267,15 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
             {hasPower('STAFF_VIEW') && (
               <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={!isSidebarOpen} />
             )}
+            {hasPower('STAFF_VIEW') && (
+              <SidebarLink to="/strengths" icon={<BrainCircuit size={20} />} label="Strengths" collapsed={!isSidebarOpen} />
+            )}
+            {hasPower('STAFF_VIEW') && (
+              <SidebarLink to="/strengths/gaps" icon={<UserRoundCog size={20} />} label="Skill gaps" collapsed={!isSidebarOpen} />
+            )}
+            {hasPower('STAFF_VIEW') && (
+              <SidebarLink to="/org-chart" icon={<Network size={20} />} label="Org chart" collapsed={!isSidebarOpen} />
+            )}
             {hasPower('CRM_VIEW') && (
               <SidebarLink to="/crm" icon={<UsersRound size={20} />} label={t('crm')} collapsed={!isSidebarOpen} />
             )}
@@ -257,6 +287,15 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
             )}
             {isAdmin && (
               <SidebarLink to="/settings/audit-logs" icon={<ScrollText size={20} />} label="Audit log" collapsed={!isSidebarOpen} />
+            )}
+            {isAdmin && (
+              <SidebarLink to="/ai/usage" icon={<Bot size={20} />} label="AI usage" collapsed={!isSidebarOpen} />
+            )}
+            {isAdmin && (
+              <SidebarLink to="/ai/settings" icon={<Settings size={20} />} label="AI settings" collapsed={!isSidebarOpen} />
+            )}
+            {isAdmin && (
+              <SidebarLink to="/settings/security" icon={<KeyRound size={20} />} label="Security" collapsed={!isSidebarOpen} />
             )}
             {isAdmin && (
               <SidebarLink to="/settings/privacy" icon={<Shield size={20} />} label={t('dataPrivacy')} collapsed={!isSidebarOpen} />
