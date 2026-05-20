@@ -11,7 +11,6 @@ import {
   ShieldAlert,
   ShieldCheck,
   Database,
-  UserPlus,
   FileText,
   HardDrive,
   UsersRound,
@@ -34,7 +33,6 @@ import ReflectionView from '../../views/ReflectionView';
 import DashboardView from '../../views/DashboardView';
 import WorkspacesView from '../../views/WorkspacesView';
 import ProfileView from '../../views/ProfileView';
-import AddEmployeeView from '../../views/AddEmployeeView';
 import SpacesView from '../../views/SpacesView';
 import FeedbackView from '../../views/FeedbackView';
 import AttendanceView from '../../views/AttendanceView';
@@ -65,7 +63,6 @@ import DataPrivacyView from '../../views/DataPrivacyView';
 import GanttTimelineView from '../../views/GanttTimelineView';
 import BillingSettingsView from '../../views/BillingSettingsView';
 import AuditLogsView from '../../views/AuditLogsView';
-import InviteEmployeeView from '../../views/InviteEmployeeView';
 import PlanLimitsBanner from '../plan/PlanLimitsBanner';
 import GlobalSearchModal from '../../components/search/GlobalSearchModal';
 import { useI18n } from '../../context/I18nContext';
@@ -131,7 +128,6 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
     hasPower('WEEKLY_VIEW') ||
     hasPower('DAILY_VIEW');
   const showVisionHeaderTabs = hasVisionAccess && isVisionRoute(location.pathname);
-  const isAddEmployeeRoute = location.pathname === '/employees/add';
 
   return (
     <>
@@ -224,22 +220,6 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                 )}
                 <div className="h-px bg-white/5 mx-2.5 my-3.5"></div>
               </>
-            )}
-            {hasPower('EMPLOYEE_CREATE') && (
-              <SidebarLink
-                to="/employees/add"
-                icon={<UserPlus size={20} />}
-                label={isSuperAdmin ? 'Add Branch' : 'Add Employee'}
-                collapsed={!isSidebarOpen}
-              />
-            )}
-            {hasPower('EMPLOYEE_INVITE') && (
-              <SidebarLink
-                to="/employees/invite"
-                icon={<UserPlus2 size={20} />}
-                label="Invite by email"
-                collapsed={!isSidebarOpen}
-              />
             )}
             {isAdmin && (
               <SidebarLink to="/permissions" icon={<ShieldAlert size={20} />} label="Permissions" collapsed={!isSidebarOpen} />
@@ -350,11 +330,9 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
           </header>
           <div
             className={`flex-1 bg-slate-100/30 no-scrollbar ${
-              isAddEmployeeRoute
-                ? 'h-full overflow-y-auto px-0 py-5 lg:py-6'
-                : showVisionHeaderTabs
-                  ? 'overflow-y-auto px-4 pb-8 pt-2 sm:px-8 lg:px-12 lg:pb-12'
-                  : 'overflow-y-auto p-4 sm:p-8 lg:p-16'
+              showVisionHeaderTabs
+                ? 'overflow-y-auto px-4 pb-8 pt-2 sm:px-8 lg:px-12 lg:pb-12'
+                : 'overflow-y-auto p-4 sm:p-8 lg:p-16'
             }`}
           >
             {isAdmin && (
@@ -384,8 +362,18 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {hasPower('SPACES_VIEW') && <Route path="/ai-agent" element={<AiAgentView />} />}
               {hasPower('SPACES_VIEW') && <Route path="/spaces/task/:taskId" element={<SpacesTaskDetailView mode="manager" />} />}
               {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance" element={<AttendanceView mode="manager" />} />}
-              {hasPower('EMPLOYEE_CREATE') && <Route path="/employees/add" element={<AddEmployeeView state={state} />} />}
-              {hasPower('EMPLOYEE_INVITE') && <Route path="/employees/invite" element={<InviteEmployeeView />} />}
+              {hasPower('EMPLOYEE_CREATE') && (
+                <Route
+                  path="/employees/add"
+                  element={<Navigate to={hasPower('STAFF_VIEW') ? '/staff' : '/'} replace />}
+                />
+              )}
+              {hasPower('EMPLOYEE_INVITE') && (
+                <Route
+                  path="/employees/invite"
+                  element={<Navigate to={hasPower('STAFF_VIEW') ? '/staff' : '/'} replace />}
+                />
+              )}
               {hasPower('PROFILE_VIEW') && (
                 <Route path="/profile" element={<ProfileView state={state} updateState={updateState} />} />
               )}
@@ -434,7 +422,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {isAdmin && hasPower('ANALYSIS_VIEW') && <Route path="/analysis" element={<AnalysisView />} />}
               {isAdmin && hasPower('FEEDBACK_VIEW') && <Route path="/feedback" element={<FeedbackView />} />}
               {isAdmin && <Route path="/permissions" element={<PermissionsView canEdit={true} />} />}
-              {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView />} />}
+              {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView mode="manager" state={state} />} />}
               {hasPower('CRM_VIEW') && <Route path="/crm" element={<CRMPage />} />}
               {hasPower('CRM_VIEW') && <Route path="/crm/lead/:leadId" element={<CRMLeadDetailPage />} />}
               {isSuperAdmin && <Route path="/super-admin" element={<SuperAdminView />} />}

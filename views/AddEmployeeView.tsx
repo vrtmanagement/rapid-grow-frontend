@@ -60,9 +60,17 @@ function getAllowedRoles(currentUser: PlanningState['currentUser']): { value: st
 
 interface AddEmployeeViewProps {
   state: PlanningState;
+  embedded?: boolean;
+  onSuccess?: () => void;
+  onCancel?: () => void;
 }
 
-const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
+const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({
+  state,
+  embedded = false,
+  onSuccess,
+  onCancel,
+}) => {
   const allowedRoles = useMemo(() => getAllowedRoles(state.currentUser), [state.currentUser]);
   const isSuperAdmin =
     state.currentUser.email === 'superadmin@example.com';
@@ -229,9 +237,8 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
       return;
     }
 
-    const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
-    if (!strongPasswordPattern.test(form.password)) {
-      setError('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.');
+    if (form.password.length < 6) {
+      setError('Password must be at least 6 characters long.');
       return;
     }
 
@@ -291,6 +298,7 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
             ? 'Team lead profile created successfully.'
             : 'Employee profile created successfully.',
       });
+      onSuccess?.();
     } catch (_err: any) {
       const message = _err?.message || 'Failed to add employee';
       const normalized = String(message).toLowerCase();
@@ -298,7 +306,24 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
       if (normalized.includes('employee id already exists')) {
         setToast({
           type: 'error',
-          message: 'This employee ID is already in use.',
+          message: normalized.includes('admin team')
+            ? 'This employee ID is already in use in this admin team.'
+            : 'This employee ID is already in use.',
+        });
+      } else if (normalized.includes('email') && normalized.includes('duplicate')) {
+        setToast({
+          type: 'error',
+          message: 'This email address is already in use.',
+        });
+      } else if (normalized.includes('e11000') && normalized.includes('email')) {
+        setToast({
+          type: 'error',
+          message: 'This email address is already in use.',
+        });
+      } else if (message && message !== 'Failed to add employee') {
+        setToast({
+          type: 'error',
+          message,
         });
       } else {
         setToast({
@@ -317,16 +342,26 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
   };
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-[78rem] flex-col space-y-4 animate-in fade-in duration-700">
+    <div
+      className={`mx-auto flex h-full w-full flex-col space-y-4 animate-in fade-in duration-700 ${
+        embedded ? '' : 'max-w-[78rem]'
+      }`}
+    >
       {toast && <Toast type={toast.type} message={toast.message} />}
-      <div className="max-w-2xl">
-        <h2 className="text-[2rem] font-semibold leading-tight tracking-tight text-slate-900">Add Employee</h2>
-        <p className="mt-2 text-[14px] leading-6 text-slate-500">Create employee credentials for user portal access.</p>
-      </div>
+      {!embedded && (
+        <div className="max-w-2xl">
+          <h2 className="text-[2rem] font-semibold leading-tight tracking-tight text-slate-900">Add Employee</h2>
+          <p className="mt-2 text-[14px] leading-6 text-slate-500">Create employee credentials for user portal access.</p>
+        </div>
+      )}
 
       <form
         onSubmit={handleSubmit}
-        className="rounded-[12px] border border-slate-200 bg-white px-6 py-5 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.3)] lg:px-6 lg:py-5"
+        className={
+          embedded
+            ? 'bg-transparent px-0 py-0 shadow-none'
+            : 'rounded-[12px] border border-slate-200 bg-white px-6 py-5 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.3)] lg:px-6 lg:py-5'
+        }
       >
         <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
           <div>
@@ -716,7 +751,11 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
             disabled={loading}
             className="inline-flex items-center gap-2 rounded-[8px] bg-brand-red px-5 py-2.5 text-[14px] font-semibold text-white shadow-[0_16px_28px_-18px_rgba(239,68,68,0.85)] transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <UserPlus size={15} />
+            {loading ? (
+              <span className="h-[15px] w-[15px] animate-spin rounded-full border-2 border-white/35 border-t-white" />
+            ) : (
+              <UserPlus size={15} />
+            )}
             {loading
               ? 'Adding...'
               : form.role === 'ADMIN'
@@ -725,12 +764,22 @@ const AddEmployeeView: React.FC<AddEmployeeViewProps> = ({ state }) => {
               ? 'Add Team Lead'
               : 'Add Employee'}
           </button>
-          <Link
-            to="/"
-            className="rounded-[8px] bg-slate-100 px-5 py-2.5 text-[14px] font-semibold text-slate-700 transition-colors hover:bg-slate-200"
-          >
-            Cancel
-          </Link>
+          {embedded ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-[8px] bg-slate-100 px-5 py-2.5 text-[14px] font-semibold text-slate-700 transition-colors hover:bg-slate-200"
+            >
+              Cancel
+            </button>
+          ) : (
+            <Link
+              to="/"
+              className="rounded-[8px] bg-slate-100 px-5 py-2.5 text-[14px] font-semibold text-slate-700 transition-colors hover:bg-slate-200"
+            >
+              Cancel
+            </Link>
+          )}
         </div>
       </form>
     </div>
