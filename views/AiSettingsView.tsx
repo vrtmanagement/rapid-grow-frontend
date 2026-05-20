@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchAiSettings, updateAiSettings } from '../services/p3Api';
 
-const AiSettingsView: React.FC = () => {
+const AiSettingsView: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const [form, setForm] = useState({
     hourlyRate: 75,
     currency: 'USD',
@@ -24,8 +24,8 @@ const AiSettingsView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-lg space-y-4">
-      <h1 className="text-2xl font-bold text-slate-900">AI settings</h1>
+    <div className={`${embedded ? 'max-w-2xl' : 'max-w-lg'} space-y-4`}>
+      {!embedded && <h1 className="text-2xl font-bold text-slate-900">AI settings</h1>}
       {(['hourlyRate', 'currency', 'monthlyCallLimit', 'defaultProvider'] as const).map((key) => (
         <div key={key}>
           <label className="block text-sm font-semibold text-slate-700 mb-1">{key}</label>

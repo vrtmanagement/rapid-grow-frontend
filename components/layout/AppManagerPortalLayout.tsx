@@ -17,13 +17,9 @@ import {
   Bot,
   Building2,
   Shield,
-  GanttChart,
   CreditCard,
   ScrollText,
   UserPlus2,
-  BarChart3,
-  Activity,
-  UserRoundCog,
   Network,
   KeyRound,
 } from 'lucide-react';
@@ -51,16 +47,12 @@ import CRMPage from '../../views/CRMPage';
 import CRMLeadDetailPage from '../../views/CRMLeadDetailPage';
 import AiAgentView from '../../views/AiAgentView';
 import TaskAnalyticsView from '../../views/TaskAnalyticsView';
-import WorkloadHeatmapView from '../../views/WorkloadHeatmapView';
 import SecuritySettingsView from '../../views/SecuritySettingsView';
 import StrengthsDashboardView from '../../views/StrengthsDashboardView';
-import SkillGapAnalysisView from '../../views/SkillGapAnalysisView';
-import AiUsageDashboardView from '../../views/AiUsageDashboardView';
-import AiSettingsView from '../../views/AiSettingsView';
+import AiUsageSettingsView from '../../views/AiUsageSettingsView';
 import OrgChartView from '../../views/OrgChartView';
 import SuperAdminView from '../../views/SuperAdminView';
 import DataPrivacyView from '../../views/DataPrivacyView';
-import GanttTimelineView from '../../views/GanttTimelineView';
 import BillingSettingsView from '../../views/BillingSettingsView';
 import AuditLogsView from '../../views/AuditLogsView';
 import PlanLimitsBanner from '../plan/PlanLimitsBanner';
@@ -187,22 +179,6 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                     collapsed={!isSidebarOpen}
                   />
                 )}
-                {hasPower('DASHBOARD_VIEW') && (
-                  <SidebarLink
-                    to="/analytics/tasks"
-                    icon={<BarChart3 size={20} />}
-                    label="Task analytics"
-                    collapsed={!isSidebarOpen}
-                  />
-                )}
-                {(isAdmin || isSuperAdmin) && (
-                  <SidebarLink
-                    to="/analytics/workload"
-                    icon={<Activity size={20} />}
-                    label="Workload"
-                    collapsed={!isSidebarOpen}
-                  />
-                )}
                 {hasPower('ATTENDANCE_VIEW') && (
                   <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />
                 )}
@@ -248,10 +224,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={!isSidebarOpen} />
             )}
             {hasPower('STAFF_VIEW') && (
-              <SidebarLink to="/strengths" icon={<BrainCircuit size={20} />} label="Strengths" collapsed={!isSidebarOpen} />
-            )}
-            {hasPower('STAFF_VIEW') && (
-              <SidebarLink to="/strengths/gaps" icon={<UserRoundCog size={20} />} label="Skill gaps" collapsed={!isSidebarOpen} />
+              <SidebarLink to="/strengths" icon={<BrainCircuit size={20} />} label="Strengths & skill gaps" collapsed={!isSidebarOpen} />
             )}
             {hasPower('STAFF_VIEW') && (
               <SidebarLink to="/org-chart" icon={<Network size={20} />} label="Org chart" collapsed={!isSidebarOpen} />
@@ -269,19 +242,13 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               <SidebarLink to="/settings/audit-logs" icon={<ScrollText size={20} />} label="Audit log" collapsed={!isSidebarOpen} />
             )}
             {isAdmin && (
-              <SidebarLink to="/ai/usage" icon={<Bot size={20} />} label="AI usage" collapsed={!isSidebarOpen} />
-            )}
-            {isAdmin && (
-              <SidebarLink to="/ai/settings" icon={<Settings size={20} />} label="AI settings" collapsed={!isSidebarOpen} />
+              <SidebarLink to="/ai/usage" icon={<Bot size={20} />} label="AI usage & settings" collapsed={!isSidebarOpen} />
             )}
             {isAdmin && (
               <SidebarLink to="/settings/security" icon={<KeyRound size={20} />} label="Security" collapsed={!isSidebarOpen} />
             )}
             {isAdmin && (
               <SidebarLink to="/settings/privacy" icon={<Shield size={20} />} label={t('dataPrivacy')} collapsed={!isSidebarOpen} />
-            )}
-            {(isAdmin || isSuperAdmin) && (
-              <SidebarLink to="/projects/gantt" icon={<GanttChart size={20} />} label={t('gantt')} collapsed={!isSidebarOpen} />
             )}
           </nav>
         </aside>
@@ -347,14 +314,11 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {hasPower('DASHBOARD_VIEW') && (
                 <Route path="/analytics/tasks" element={<TaskAnalyticsView />} />
               )}
-              {(isAdmin || isSuperAdmin) && (
-                <Route path="/analytics/workload" element={<WorkloadHeatmapView />} />
-              )}
               <Route path="/settings/security" element={<SecuritySettingsView />} />
               <Route path="/strengths" element={<StrengthsDashboardView />} />
-              <Route path="/strengths/gaps" element={<SkillGapAnalysisView />} />
-              <Route path="/ai/usage" element={<AiUsageDashboardView />} />
-              <Route path="/ai/settings" element={<AiSettingsView />} />
+              <Route path="/strengths/gaps" element={<StrengthsDashboardView />} />
+              <Route path="/ai/usage" element={<AiUsageSettingsView />} />
+              <Route path="/ai/settings" element={<AiUsageSettingsView />} />
               <Route path="/org-chart" element={<OrgChartView />} />
               {hasPower('SPACES_VIEW') && (
                 <Route path="/spaces" element={<SpacesView mode="manager" state={state} updateState={updateState} />} />
@@ -429,9 +393,6 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {isAdmin && <Route path="/settings/billing" element={<BillingSettingsView />} />}
               {isAdmin && <Route path="/settings/audit-logs" element={<AuditLogsView />} />}
               {isAdmin && <Route path="/settings/privacy" element={<DataPrivacyView />} />}
-              {(isAdmin || isSuperAdmin) && (
-                <Route path="/projects/gantt" element={<GanttTimelineView />} />
-              )}
               <Route path="*" element={<AccessDenied />} />
             </Routes>
           </div>

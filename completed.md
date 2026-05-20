@@ -33,7 +33,7 @@ This document lists what is **implemented and working**, what still needs **manu
 | Account closure | `POST/GET /api/account/closure` (scheduled, retention) | Data & privacy |
 | Rate limiting | Gateway IP limit; user-service per company/user; AI limit middleware | — |
 | Upload security | MIME, extension, size; optional virus stub | Avatar upload path |
-| Advanced project | Gantt tasks, budget, client portal token | `/projects/gantt`, `#/client-portal/:token` |
+| Advanced project | Budget, client portal token | `#/client-portal/:token` |
 
 
 ---
@@ -106,7 +106,7 @@ Copy from each service `.env.example` and fill **values** (keys are already list
 ### 3. TaskHub / Spaces
 1. Tasks, projects (charters), CRM, goals live in user-service.
 2. P3 adds dependencies, time entries, recurring cron (when `RECURRING_TASKS_CRON_ENABLED=true`).
-3. P4 adds project **budget**, **Gantt** task list API, and **client portal** token.
+3. P4 adds project **budget** and **client portal** token.
 
 ### 4. AI usage and plan limits
 1. ai-agent-service calls user-service `POST /internal/ai-usage` after AI calls.
@@ -144,7 +144,6 @@ Browser → api-gateway (:5000/api/*)
 | PATCH | `/api/super-admin/tenants/:id/status` | Super Admin |
 | POST/GET | `/api/data-export` | Admin |
 | POST/GET | `/api/account/closure` | Admin |
-| GET | `/api/projects/:projectId/gantt` | Admin, Team Lead |
 | PATCH | `/api/projects/:projectId/advanced` | Admin |
 | GET | `/api/client-portal/:token` | Public (no auth) |
 
