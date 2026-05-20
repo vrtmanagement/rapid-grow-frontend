@@ -203,6 +203,94 @@ function descriptionToEditorHtml(value: string) {
   return normalizeAllowedInlineHtml(escapeRichTextHtml(value).replace(/\r\n?/g, '\n')).replace(/\n/g, '<br>');
 }
 
+function normalizeLooseListMarkup(value: string) {
+  const lines = String(value || '').replace(/\r/g, '').split('\n');
+  const output: string[] = [];
+  let index = 0;
+
+  const closeList = (type: 'ol' | 'ul', items: string[]) => {
+    if (items.length) output.push(`<${type}>${items.map((item) => `<li>${item.trim()}</li>`).join('')}</${type}>`);
+  };
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    const numberMarker = trimmed.match(/^(\d+)[.)]?$/);
+    const numberInline = trimmed.match(/^(\d+)[.)]\s+(.+)$/);
+    const bulletMarker = /^[•·*-]$/.test(trimmed);
+    const bulletInline = trimmed.match(/^[•·*-]\s+(.+)$/);
+
+    if (numberMarker || numberInline || bulletMarker || bulletInline) {
+      const type: 'ol' | 'ul' = numberMarker || numberInline ? 'ol' : 'ul';
+      const items: string[] = [];
+
+      while (index < lines.length) {
+        const current = lines[index].trim();
+        const currentNumberMarker = current.match(/^(\d+)[.)]?$/);
+        const currentNumberInline = current.match(/^(\d+)[.)]\s+(.+)$/);
+        const currentBulletMarker = /^[•·*-]$/.test(current);
+        const currentBulletInline = current.match(/^[•·*-]\s+(.+)$/);
+        const isSameType =
+          type === 'ol'
+            ? Boolean(currentNumberMarker || currentNumberInline)
+            : Boolean(currentBulletMarker || currentBulletInline);
+
+        if (!isSameType) break;
+
+        if (currentNumberInline || currentBulletInline) {
+          items.push((currentNumberInline?.[2] || currentBulletInline?.[1] || '').trim());
+          index += 1;
+          continue;
+        }
+
+        let nextIndex = index + 1;
+        while (nextIndex < lines.length && !lines[nextIndex].trim()) nextIndex += 1;
+        const nextText = lines[nextIndex]?.trim() || '';
+        if (!nextText) break;
+
+        items.push(nextText);
+        index = nextIndex + 1;
+      }
+
+      closeList(type, items);
+      continue;
+    }
+
+    output.push(line);
+    index += 1;
+  }
+
+  return output.join('\n');
+}
+
+function flattenListItemBlocks(value: string) {
+  const root = document.createElement('div');
+  root.innerHTML = value;
+
+  root.querySelectorAll('li').forEach((item) => {
+    Array.from(item.children).forEach((child) => {
+      const tag = child.tagName.toLowerCase();
+      if (tag !== 'div' && tag !== 'p') return;
+      while (child.firstChild) {
+        item.insertBefore(child.firstChild, child);
+      }
+      child.remove();
+    });
+
+    while (
+      item.firstChild &&
+      (
+        (item.firstChild.nodeType === Node.TEXT_NODE && !(item.firstChild.textContent || '').trim()) ||
+        (item.firstChild.nodeType === Node.ELEMENT_NODE && (item.firstChild as HTMLElement).tagName.toLowerCase() === 'br')
+      )
+    ) {
+      item.firstChild.remove();
+    }
+  });
+
+  return root.innerHTML;
+}
+
 function serializeEditorNode(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) {
     return node.textContent || '';
@@ -252,14 +340,18 @@ function serializeEditorNode(node: Node): string {
 
 function editorHtmlToDescription(value: string) {
   const root = document.createElement('div');
-  root.innerHTML = value;
-  return Array.from(root.childNodes)
+  root.innerHTML = flattenListItemBlocks(value);
+  const serialized = Array.from(root.childNodes)
     .map(serializeEditorNode)
     .join('')
     .replace(/\u00a0/g, ' ')
     .replace(/\r/g, '')
     .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n');
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/<\/(?:ol|ul)>\n+/g, (match) => match.trimEnd())
+    .replace(/\n+<(?:ol|ul)>/g, (match) => match.trimStart())
+    .replace(/<\/li>\n+<li>/g, '</li><li>');
+  return normalizeLooseListMarkup(serialized);
 }
 
 function getEditorSelectionToolbarPosition() {
@@ -1161,11 +1253,11 @@ const ContentCreateView: React.FC = () => {
                   }
 
                   const text = event.clipboardData.getData('text/plain');
-                  const sanitizedText = descriptionToEditorHtml(text);
+                  const sanitizedText = descriptionToEditorHtml(normalizeLooseListMarkup(text));
                   document.execCommand('insertHTML', false, sanitizedText);
                   handleDescriptionInput();
                 }}
-                className="min-h-[70vh] whitespace-pre-wrap break-words px-3.5 py-3 leading-7 text-[15px] text-slate-700 outline-none"
+                className="min-h-[70vh] whitespace-pre-wrap break-words px-3.5 py-3 leading-7 text-[15px] text-slate-700 outline-none [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:text-lg [&_h3]:font-semibold [&_h4]:font-semibold [&_li>div]:inline [&_li>p]:inline [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:space-y-0.5 [&_ol]:pl-6 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:space-y-0.5 [&_ul]:pl-6"
               />
             </div>
             <div className="mt-1.5 flex items-center justify-between gap-3">
