@@ -1,13 +1,13 @@
 import React from 'react';
-import TwoFactorSettingsPanel from '../components/security/TwoFactorSettingsPanel';
+import SecuritySettingsPanel from '../components/security/SecuritySettingsPanel';
 
 const SecuritySettingsView: React.FC = () => (
-  <div className="max-w-2xl mx-auto space-y-6">
+  <div className="mx-auto max-w-4xl space-y-6">
     <div>
-      <h1 className="text-2xl font-bold text-slate-900">Security</h1>
-      <p className="text-slate-600 mt-1">Manage two-factor authentication and account protection.</p>
+      <h1 className="text-3xl font-bold text-slate-900">Security</h1>
+      <p className="mt-2 text-slate-600">Manage account protection, password security, and two-factor authentication.</p>
     </div>
-    <TwoFactorSettingsPanel />
+    <SecuritySettingsPanel />
   </div>
 );
 

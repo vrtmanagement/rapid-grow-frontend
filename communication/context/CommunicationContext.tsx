@@ -7,6 +7,13 @@ import { getSocket } from '../../realtime/socket';
 import { CommunicationContext, CommunicationContextValue } from './CommunicationContextCore';
 import { PROFILE_AVATAR_UPDATED_EVENT } from '../../utils/avatar';
 import {
+  normalizeNotificationPreferences,
+  NOTIFICATION_PREFERENCES_STORAGE_KEY,
+  NOTIFICATION_PREFERENCES_UPDATED_EVENT,
+  readStoredNotificationPreferences,
+  type NotificationPreferences,
+} from '../../services/notificationPreferences';
+import {
   getStoredAuth,
   resolveAvatarUrl,
   ensureSocketConnected,
@@ -130,6 +137,9 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   const [typingUserIds, setTypingUserIds] = useState<Record<string, true>>({});
   const [error, setError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<ChatNotification[]>([]);
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(
+    readStoredNotificationPreferences,
+  );
 
   const socket = useMemo(() => getSocket(), []);
 
@@ -159,6 +169,34 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       avatar: resolveAvatarUrl(employee.avatar),
     });
   }, []);
+
+  useEffect(() => {
+    const handleNotificationPreferencesUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<NotificationPreferences>).detail;
+      setNotificationPreferences(normalizeNotificationPreferences(detail));
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== NOTIFICATION_PREFERENCES_STORAGE_KEY) return;
+      setNotificationPreferences(readStoredNotificationPreferences());
+    };
+
+    window.addEventListener(NOTIFICATION_PREFERENCES_UPDATED_EVENT, handleNotificationPreferencesUpdated);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener(NOTIFICATION_PREFERENCES_UPDATED_EVENT, handleNotificationPreferencesUpdated);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (notificationPreferences.communicationMessages && notificationPreferences.toastPreviews) return;
+
+    Object.values(notificationTimersRef.current).forEach((timer) => window.clearTimeout(timer as number));
+    notificationTimersRef.current = {};
+    setNotifications([]);
+  }, [notificationPreferences.communicationMessages, notificationPreferences.toastPreviews]);
 
   const loadUsers = useCallback(async () => {
     setUsersLoading(true);
@@ -458,7 +496,11 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
 
       const isIncoming = mapped.senderId !== currentUserRef.current?.id;
       const isCurrentConversationOpen = selectedConversationKeyRef.current === conversationKey;
-      const shouldNotify = isIncoming && !isCurrentConversationOpen;
+      const shouldNotify =
+        isIncoming &&
+        !isCurrentConversationOpen &&
+        notificationPreferences.communicationMessages &&
+        notificationPreferences.toastPreviews;
 
       if (shouldNotify) {
         const sender =
@@ -743,7 +785,12 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       socket.off('comm:message:deleted', handleMessageDeleted);
       socket.off('comm:unread:cleared', handleUnreadCleared);
     };
-  }, [scheduleNotificationAutoDismiss, socket]);
+  }, [
+    notificationPreferences.communicationMessages,
+    notificationPreferences.toastPreviews,
+    scheduleNotificationAutoDismiss,
+    socket,
+  ]);
 
   const joinByConversationKey = useCallback(
     async (conversationKey: string) => {

@@ -8,6 +8,26 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>RG</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
+      (function () {
+        try {
+          var key = 'rapidgrow-theme';
+          var stored = localStorage.getItem(key);
+          var preference = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var resolved = preference === 'system' ? (prefersDark ? 'dark' : 'light') : preference;
+          document.documentElement.classList.toggle('dark', resolved === 'dark');
+          document.documentElement.dataset.theme = resolved;
+          document.documentElement.dataset.themePreference = preference;
+          document.documentElement.style.colorScheme = resolved;
+        } catch (_) {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.dataset.theme = 'light';
+          document.documentElement.dataset.themePreference = 'system';
+          document.documentElement.style.colorScheme = 'light';
+        }
+      })();
+    </script>
+    <script>
       tailwind.config = {
         darkMode: 'class',
         theme: {
@@ -41,10 +61,6 @@
         body, #root {
           background-color: #f8fafc;
         }
-        html.dark body, html.dark #root {
-          background-color: #0f172a;
-          color: #e2e8f0;
-        }
         /* Override any utility classes that force uppercase or custom fonts so the app uses the browser default */
         body, body * {
           /* font-family: initial !important;
@@ -67,21 +83,6 @@
             0%, 100% { opacity: 1; }
             50% { opacity: .7; }
         }
-        
-        ::-webkit-scrollbar {
-          width: 6px;
-        }
-        ::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-          background: #94a3b8;
-        }
-
         /* Datalist styling helpers */
         input[list]::-webkit-calendar-picker-indicator {
           display: none !important;

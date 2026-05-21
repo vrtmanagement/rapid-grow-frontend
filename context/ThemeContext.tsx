@@ -1,35 +1,80 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-type Theme = 'light' | 'dark';
+export type Theme = 'light' | 'dark' | 'system';
+type ResolvedTheme = 'light' | 'dark';
 
 interface ThemeContextValue {
   theme: Theme;
+  resolvedTheme: ResolvedTheme;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
 }
 
 const STORAGE_KEY = 'rapidgrow-theme';
+const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)';
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+function getStoredTheme(): Theme {
+  if (typeof window === 'undefined') return 'system';
+  const stored = window.localStorage.getItem(STORAGE_KEY);
+  return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+}
+
+function getSystemTheme(): ResolvedTheme {
+  if (typeof window === 'undefined') return 'light';
+  return window.matchMedia(SYSTEM_DARK_QUERY).matches ? 'dark' : 'light';
+}
+
+function resolveTheme(theme: Theme): ResolvedTheme {
+  return theme === 'system' ? getSystemTheme() : theme;
+}
+
+function applyResolvedTheme(theme: Theme, resolvedTheme: ResolvedTheme) {
+  const root = document.documentElement;
+  root.classList.toggle('dark', resolvedTheme === 'dark');
+  root.dataset.theme = resolvedTheme;
+  root.dataset.themePreference = theme;
+  root.style.colorScheme = resolvedTheme;
+}
+
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === 'dark' ? 'dark' : 'light';
-  });
+  const [theme, setThemeState] = useState<Theme>(getStoredTheme);
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => resolveTheme(getStoredTheme()));
+
+  useEffect(() => {
+    const media = window.matchMedia(SYSTEM_DARK_QUERY);
+    const syncTheme = () => {
+      const nextResolvedTheme = resolveTheme(theme);
+      setResolvedTheme(nextResolvedTheme);
+      applyResolvedTheme(theme, nextResolvedTheme);
+    };
+
+    syncTheme();
+
+    const handleSystemThemeChange = () => {
+      if (theme === 'system') {
+        syncTheme();
+      }
+    };
+
+    media.addEventListener('change', handleSystemThemeChange);
+    return () => media.removeEventListener('change', handleSystemThemeChange);
+  }, [theme]);
 
   const setTheme = (next: Theme) => {
     setThemeState(next);
-    localStorage.setItem(STORAGE_KEY, next);
+    window.localStorage.setItem(STORAGE_KEY, next);
   };
 
-  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
+  const toggleTheme = () => {
+    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+  };
 
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
-
-  const value = useMemo(() => ({ theme, setTheme, toggleTheme }), [theme]);
+  const value = useMemo(
+    () => ({ theme, resolvedTheme, setTheme, toggleTheme }),
+    [theme, resolvedTheme],
+  );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };

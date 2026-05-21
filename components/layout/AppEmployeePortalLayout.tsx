@@ -91,11 +91,11 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
     <>
       {globalToastsElement}
       <GlobalCommunicationNotifications />
-      <div className="h-screen flex overflow-hidden bg-[#f1f5f9]">
+      <div className="flex h-screen overflow-hidden bg-[#f1f5f9] dark:bg-slate-950">
         <aside
-          className={`${isSidebarOpen ? 'w-48 max-sm:w-[72px]' : 'w-[72px]'} h-full min-h-0 bg-white/90 text-white backdrop-blur-xl transition-all duration-500 flex flex-col z-50 relative shrink-0`}
+          className={`${isSidebarOpen ? 'w-48 max-sm:w-[72px]' : 'w-[72px]'} relative z-50 flex h-full min-h-0 shrink-0 flex-col bg-white/90 text-white backdrop-blur-xl transition-all duration-500 dark:bg-slate-950/95`}
         >
-          <div className="absolute top-0 right-0 h-full w-px bg-slate-200" />
+          <div className="absolute top-0 right-0 h-full w-px bg-slate-200 dark:bg-slate-800" />
           <div className="px-3.5 py-4 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <div className="w-10 h-10 bg-brand-red flex items-center justify-center rounded shadow-lg shrink-0">
@@ -146,7 +146,8 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
               <SidebarLink
                 to="/communication"
                 icon={<Mail size={20} />}
-                label={communicationUnreadCount > 0 ? `Communication (${communicationUnreadCount})` : 'Communication'}
+                label="Communication"
+                badgeCount={communicationUnreadCount}
                 collapsed={!isSidebarOpen}
               />
             )}
@@ -163,7 +164,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
         </aside>
         <main className="flex-1 flex flex-col h-screen overflow-hidden">
           <header
-            className={`bg-white/90 backdrop-blur-xl border-b border-slate-200 px-4 sm:px-8 shrink-0 z-40 relative ${
+            className={`relative z-40 shrink-0 border-b border-slate-200 bg-white/90 px-4 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95 sm:px-8 ${
               showVisionHeaderTabs ? 'min-h-[92px] py-4' : 'h-20 flex items-center justify-end'
             }`}
           >
@@ -196,7 +197,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
               </div>
             </div>
           </header>
-          <div className={`flex-1 overflow-y-auto bg-slate-100/30 ${showVisionHeaderTabs ? 'px-4 pb-8 pt-2 sm:px-8 lg:px-12 lg:pb-12' : 'p-4 sm:p-8 lg:p-16'}`}>
+          <div className={`flex-1 overflow-y-auto bg-white dark:bg-slate-950/40 ${showVisionHeaderTabs ? 'px-4 pb-8 pt-2 sm:px-8 lg:px-12 lg:pb-12' : 'p-4 sm:p-8 lg:p-16'}`}>
             <Routes>
               {hasPower('DASHBOARD_VIEW') && <Route path="/" element={<EmployeeDashboardView />} />}
               {hasPower('SPACES_VIEW') && (
