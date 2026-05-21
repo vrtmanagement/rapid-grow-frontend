@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title>Rapid Grow OS</title>
+  <defs>
+    <linearGradient id="rapid-grow-gradient" x1="16" x2="112" y1="16" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E61C21" />
+      <stop offset="1" stop-color="#1E2B82" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="30" fill="url(#rapid-grow-gradient)" />
+  <circle cx="64" cy="64" r="38" fill="rgba(255,255,255,0.18)" />
+  <text
+    x="64"
+    y="74"
+    fill="#ffffff"
+    font-family="Segoe UI, Arial, sans-serif"
+    font-size="42"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    RG
+  </text>
+</svg>

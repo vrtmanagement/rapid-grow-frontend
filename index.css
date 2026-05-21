@@ -267,6 +267,19 @@ html.dark .app-sidebar-tooltip-arrow {
   border-color: var(--border-default) !important;
 }
 
+html.dark .app-topbar-tooltip {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-secondary) !important;
+  box-shadow: none !important;
+  --tw-ring-color: transparent !important;
+}
+
+html.dark .app-topbar-tooltip-arrow {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-default) !important;
+}
+
 html.dark .bg-\[\#f1f5f9\],
 html.dark .bg-slate-50,
 html.dark .bg-slate-50\/60,

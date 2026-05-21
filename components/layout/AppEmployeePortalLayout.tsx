@@ -98,8 +98,8 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
           <div className="app-sidebar-border absolute top-0 right-0 h-full w-px bg-slate-200 dark:bg-slate-800" />
           <div className="app-sidebar-header px-3.5 py-4 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <div className="w-10 h-10 bg-brand-red flex items-center justify-center rounded shadow-lg shrink-0">
-                <span className="text-white text-lg">RG</span>
+              <div className="w-10 h-10 overflow-hidden rounded shadow-lg shrink-0 bg-white">
+                <img src="/favicon.svg" alt="Rapid Grow OS" className="h-full w-full object-contain" />
               </div>
               {isSidebarOpen && (
                 <span className="hidden text-[15px] font-medium text-brand-red truncate sm:inline">Employee Portal</span>
