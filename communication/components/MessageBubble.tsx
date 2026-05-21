@@ -52,7 +52,7 @@ function renderLinkedText(text: string) {
           href={part}
           target="_blank"
           rel="noreferrer"
-          className="text-blue-700 underline decoration-blue-500 underline-offset-2 hover:text-blue-800"
+          className="communication-message-link text-blue-700 underline decoration-blue-500 underline-offset-2 hover:text-blue-800"
         >
           {part}
         </a>
@@ -256,19 +256,22 @@ export function MessageBubble({
             ) : null}
           </div>
 
-          <div ref={bubbleRef} className={`relative max-w-full border ${bubbleBase} ${bubbleShapeClass} px-3.5 py-2 transition-all duration-200 hover:-translate-y-0.5 ${isOwn ? 'pr-12' : ''}`}>
+          <div
+            ref={bubbleRef}
+            className={`communication-message-bubble relative max-w-full border ${bubbleBase} ${bubbleShapeClass} px-3.5 py-2 transition-all duration-200 hover:-translate-y-0.5 ${isOwn ? 'communication-message-bubble-own pr-12' : 'communication-message-bubble-peer'} ${message.deleted ? 'communication-message-bubble-deleted' : ''}`}
+          >
           {showTail ? (
             <span
-              className={`absolute h-3 w-3 border ${
+              className={`communication-message-tail absolute h-3 w-3 border ${
                 isOwn
-                  ? '-right-[6px] bottom-3 rounded-br-[10px] border-y border-r border-l-0 border-[#d4e2fb] bg-[#e7f0ff]'
-                  : '-left-[6px] top-3 rounded-bl-[10px] border-y border-l border-r-0 border-slate-200 bg-white'
+                  ? 'communication-message-tail-own -right-[6px] bottom-3 rounded-br-[10px] border-y border-r border-l-0 border-[#d4e2fb] bg-[#e7f0ff]'
+                  : 'communication-message-tail-peer -left-[6px] top-3 rounded-bl-[10px] border-y border-l border-r-0 border-slate-200 bg-white'
               }`}
               aria-hidden
             />
           ) : null}
           {!message.deleted && message.replyTo ? (
-            <div className="mb-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="communication-message-reply mb-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="text-[10px] font-semibold text-slate-600">
                 Replying to {resolveUserName?.(message.replyTo.senderId) || 'User'}
               </div>
@@ -378,7 +381,7 @@ export function MessageBubble({
             </div>
           ) : null}
 
-            <div className={`mt-1 flex items-center justify-end gap-1.5 text-[11px] leading-none ${timeTone}`}>
+            <div className={`communication-message-time mt-1 flex items-center justify-end gap-1.5 text-[11px] leading-none ${timeTone}`}>
               {!message.deleted && message.editedAt ? (
                 <span className="text-[10px] opacity-80">edited</span>
               ) : null}

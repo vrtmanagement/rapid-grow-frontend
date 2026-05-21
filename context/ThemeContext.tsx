@@ -10,15 +10,22 @@ interface ThemeContextValue {
   toggleTheme: () => void;
 }
 
-const STORAGE_KEY = 'rapidgrow-theme';
+const STORAGE_KEY = 'theme';
+const LEGACY_STORAGE_KEY = 'rapidgrow-theme';
 const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)';
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function getStoredTheme(): Theme {
   if (typeof window === 'undefined') return 'system';
+
   const stored = window.localStorage.getItem(STORAGE_KEY);
-  return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+  if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
+
+  const legacyStored = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+  if (legacyStored === 'light' || legacyStored === 'dark' || legacyStored === 'system') return legacyStored;
+
+  return 'system';
 }
 
 function getSystemTheme(): ResolvedTheme {
@@ -43,7 +50,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => resolveTheme(getStoredTheme()));
 
   useEffect(() => {
-    const media = window.matchMedia(SYSTEM_DARK_QUERY);
     const syncTheme = () => {
       const nextResolvedTheme = resolveTheme(theme);
       setResolvedTheme(nextResolvedTheme);
@@ -52,6 +58,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     syncTheme();
 
+    const media = window.matchMedia(SYSTEM_DARK_QUERY);
     const handleSystemThemeChange = () => {
       if (theme === 'system') {
         syncTheme();
@@ -62,9 +69,24 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => media.removeEventListener('change', handleSystemThemeChange);
   }, [theme]);
 
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY && event.key !== LEGACY_STORAGE_KEY) return;
+      const nextTheme = getStoredTheme();
+      setThemeState(nextTheme);
+      const nextResolvedTheme = resolveTheme(nextTheme);
+      setResolvedTheme(nextResolvedTheme);
+      applyResolvedTheme(nextTheme, nextResolvedTheme);
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
   const setTheme = (next: Theme) => {
     setThemeState(next);
     window.localStorage.setItem(STORAGE_KEY, next);
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
   };
 
   const toggleTheme = () => {

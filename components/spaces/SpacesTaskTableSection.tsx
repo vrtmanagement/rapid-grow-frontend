@@ -5,9 +5,9 @@ import { getDisplayAvatarUrl } from '../../utils/avatar';
 
 function getPriorityPillClass(priority?: string) {
   const normalized = String(priority || 'medium').trim().toLowerCase();
-  if (normalized === 'high') return 'bg-rose-50 text-rose-500';
-  if (normalized === 'low') return 'bg-sky-50 text-sky-600';
-  return 'bg-amber-50 text-amber-600';
+  if (normalized === 'high') return 'border border-rose-200 bg-rose-100 text-rose-700';
+  if (normalized === 'low') return 'border border-sky-200 bg-sky-100 text-sky-700';
+  return 'border border-amber-200 bg-amber-100 text-amber-700';
 }
 
 function getPriorityLabel(priority?: string) {
@@ -246,11 +246,25 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                       </span>
                     </td>
                     <td className="px-3 py-3">
-                      <span className={`inline-flex items-center rounded-full px-3 py-1.5 text-[13px] font-medium ${getPriorityPillClass(t.priority)}`}>
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-semibold tracking-[-0.01em] ${getPriorityPillClass(t.priority)}`}>
                         {getPriorityLabel(t.priority)}
                       </span>
                     </td>
-                    <td className="px-3 py-3"><ThemedSelect value={t.status} onChange={(value) => canChangeStatus(t) && patchTask(t.taskId, { status: value })} options={statusOptions} disabled={!canChangeStatus(t)} compact={true} /></td>
+                    <td className="px-3 py-3">
+                      {t.status === 'done' ? (
+                        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-[12px] font-semibold tracking-[-0.01em] text-emerald-700">
+                          Done
+                        </span>
+                      ) : (
+                        <ThemedSelect
+                          value={t.status}
+                          onChange={(value) => canChangeStatus(t) && patchTask(t.taskId, { status: value })}
+                          options={statusOptions}
+                          disabled={!canChangeStatus(t)}
+                          compact={true}
+                        />
+                      )}
+                    </td>
                     <td className="px-3 py-3">
                       {t.documentUrl ? (
                         <button type="button" onClick={async () => { try { await forceDownloadDocument(t.documentUrl || '', t.documentName || undefined); } catch (e: any) { setError(e?.message || 'Failed to download document'); } }} className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[12px] font-semibold text-brand-red hover:bg-red-50">Download</button>

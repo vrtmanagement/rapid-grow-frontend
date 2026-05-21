@@ -16,11 +16,109 @@ import {
   NotebookPen,
   Palmtree,
   Send,
+  Sun,
+  Moon,
   UserCircle,
   UsersRound,
 } from 'lucide-react';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
 import type { AppShellNotification } from './authenticatedShellTypes';
+import { useTheme } from '../../context/ThemeContext';
+
+type TopbarTooltipPlacement = 'top' | 'bottom';
+
+const TopbarTooltip: React.FC<{ label: string; top: number; left: number; placement: TopbarTooltipPlacement }> = ({
+  label,
+  top,
+  left,
+  placement,
+}) =>
+  createPortal(
+    <div
+      className="pointer-events-none fixed z-[9999] whitespace-nowrap"
+      style={{
+        top,
+        left,
+        transform: placement === 'top' ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
+        marginTop: placement === 'top' ? '-10px' : '10px',
+      }}
+    >
+      <span className="app-topbar-tooltip relative inline-flex items-center rounded-xl border border-brand-red/15 bg-white/95 px-3 py-2 text-[12px] font-semibold tracking-[-0.01em] text-slate-700 shadow-[0_14px_30px_rgba(15,23,42,0.14)] ring-1 ring-white/70 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-200 dark:ring-slate-800/80">
+        {label}
+        <span
+          className={`app-topbar-tooltip-arrow absolute left-1/2 h-2.5 w-2.5 -translate-x-1/2 rotate-45 border-brand-red/15 bg-white/95 dark:border-slate-700 dark:bg-slate-900/95 ${
+            placement === 'top'
+              ? 'top-full -translate-y-1/2 border-b border-r'
+              : 'bottom-full translate-y-1/2 border-l border-t'
+          }`}
+          aria-hidden="true"
+        />
+      </span>
+    </div>,
+    document.body,
+  );
+
+const IconTooltipButton: React.FC<
+  React.PropsWithChildren<{
+    label: string;
+    onClick?: () => void;
+    className: string;
+    ariaExpanded?: boolean;
+    ariaHaspopup?: boolean | 'true' | 'false' | 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog';
+  }>
+> = ({ label, onClick, className, ariaExpanded, ariaHaspopup, children }) => {
+  const buttonRef = React.useRef<HTMLButtonElement | null>(null);
+  const [tooltipOpen, setTooltipOpen] = React.useState(false);
+  const [tooltipStyle, setTooltipStyle] = React.useState<{ top: number; left: number; placement: TopbarTooltipPlacement }>({
+    top: 0,
+    left: 0,
+    placement: 'top',
+  });
+
+  React.useEffect(() => {
+    if (!tooltipOpen) return;
+
+    const updateTooltipPosition = () => {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const placement: TopbarTooltipPlacement = rect.top < 56 ? 'bottom' : 'top';
+      setTooltipStyle({
+        top: placement === 'top' ? rect.top : rect.bottom,
+        left: rect.left + rect.width / 2,
+        placement,
+      });
+    };
+
+    updateTooltipPosition();
+    window.addEventListener('scroll', updateTooltipPosition, true);
+    window.addEventListener('resize', updateTooltipPosition);
+    return () => {
+      window.removeEventListener('scroll', updateTooltipPosition, true);
+      window.removeEventListener('resize', updateTooltipPosition);
+    };
+  }, [tooltipOpen]);
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={onClick}
+        onMouseEnter={() => setTooltipOpen(true)}
+        onMouseLeave={() => setTooltipOpen(false)}
+        onFocus={() => setTooltipOpen(true)}
+        onBlur={() => setTooltipOpen(false)}
+        className={className}
+        aria-label={label}
+        aria-expanded={ariaExpanded}
+        aria-haspopup={ariaHaspopup}
+      >
+        {children}
+      </button>
+      {tooltipOpen && <TopbarTooltip label={label} top={tooltipStyle.top} left={tooltipStyle.left} placement={tooltipStyle.placement} />}
+    </>
+  );
+};
 
 function getNotificationIconMeta(notification: AppShellNotification): { Icon: LucideIcon; wrapClass: string } {
   const t = String(notification.type || '').trim();
@@ -95,16 +193,15 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
   markNotificationRead,
 }) => (
   <div className="relative">
-    <button
-      type="button"
+    <IconTooltipButton
+      label="Notifications"
       onClick={() => {
         setNotificationMenuOpen((value) => !value);
         setUserMenuOpen(false);
       }}
-      className="relative flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white"
-      aria-label="Notifications"
-      aria-expanded={notificationMenuOpen}
-      aria-haspopup="true"
+      className="app-topbar-icon-button relative flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white"
+      ariaExpanded={notificationMenuOpen}
+      ariaHaspopup="true"
     >
       <Bell size={18} />
       {unreadNotificationCount > 0 && (
@@ -112,12 +209,12 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
           {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
         </span>
       )}
-    </button>
+    </IconTooltipButton>
     {notificationMenuOpen && createPortal(
       <>
         <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setNotificationMenuOpen(false)} />
-        <div className="fixed right-4 top-20 z-[9999] w-[min(100vw-1.25rem,28rem)] overflow-hidden rounded-2xl bg-white shadow-[0_22px_50px_rgba(15,23,42,0.16)] dark:bg-slate-900 sm:right-8">
-          <div className="border-b border-slate-100 px-4 py-3.5 dark:border-slate-800 sm:px-5 sm:py-4">
+        <div className="app-popover-card fixed right-4 top-20 z-[9999] w-[min(100vw-1.25rem,28rem)] overflow-hidden rounded-2xl bg-white shadow-[0_22px_50px_rgba(15,23,42,0.16)] dark:bg-slate-900 sm:right-8">
+          <div className="app-popover-section border-b border-slate-100 px-4 py-3.5 dark:border-slate-800 sm:px-5 sm:py-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Notifications</p>
@@ -147,7 +244,7 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
                 return (
                   <div
                     key={notification._id}
-                    className={`border-b border-slate-100 last:border-b-0 ${rowTint}`}
+                    className={`app-popover-row border-b border-slate-100 last:border-b-0 ${rowTint}`}
                   >
                     <button
                       type="button"
@@ -177,7 +274,7 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
                         <button
                           type="button"
                           onClick={() => void markNotificationRead(notification._id)}
-                          className="text-xs font-semibold text-brand-red hover:text-slate-900"
+                          className="app-popover-link text-xs font-semibold text-brand-red hover:text-slate-900"
                         >
                           Mark as read
                         </button>
@@ -194,6 +291,23 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
     )}
   </div>
 );
+
+export const ThemeToggleButton: React.FC = () => {
+  const { resolvedTheme, toggleTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const Icon = isDark ? Sun : Moon;
+  const label = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+
+  return (
+    <IconTooltipButton
+      label={label}
+      onClick={toggleTheme}
+      className="app-topbar-icon-button flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white"
+    >
+      <Icon size={18} />
+    </IconTooltipButton>
+  );
+};
 
 interface UserAccountMenuProps {
   userMenuOpen: boolean;
@@ -221,7 +335,7 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
         setUserMenuOpen((v) => !v);
         setNotificationMenuOpen(false);
       }}
-      className="flex items-center gap-4 rounded-xl py-1 pr-1 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+      className="app-user-menu-trigger flex items-center gap-4 rounded-xl py-1 pr-1 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
       aria-expanded={userMenuOpen}
       aria-haspopup="true"
     >
@@ -238,11 +352,11 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
     {userMenuOpen && createPortal(
       <>
         <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setUserMenuOpen(false)} />
-        <div className="fixed right-8 top-20 z-[9999] w-56 rounded-xl border border-slate-200 bg-white py-2 shadow-lg dark:border-slate-800 dark:bg-slate-900">
+        <div className="app-popover-card fixed right-8 top-20 z-[9999] w-56 rounded-xl border border-slate-200 bg-white py-2 shadow-lg dark:border-slate-800 dark:bg-slate-900">
           <button
             type="button"
             onClick={() => { setUserMenuOpen(false); window.location.hash = '#/profile'; }}
-            className="flex w-full items-center gap-3 px-4 py-3 text-left text-slate-700 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+            className="app-popover-row flex w-full items-center gap-3 px-4 py-3 text-left text-slate-700 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
           >
             <UserCircle size={18} className="text-slate-500" />
             Profile
@@ -250,7 +364,7 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
           <button
             type="button"
             onClick={() => { setUserMenuOpen(false); onLogout(); }}
-            className="flex w-full items-center gap-3 px-4 py-3 text-left text-slate-700 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+            className="app-popover-row flex w-full items-center gap-3 px-4 py-3 text-left text-slate-700 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
           >
             <LogOut size={18} className="text-slate-500" />
             Logout

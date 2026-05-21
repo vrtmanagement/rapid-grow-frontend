@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useAnimationControls, useReducedMotion } from 'framer-motion';
 import { CheckCircle2, Eye, FileText, Paperclip, Plus, UploadCloud, WandSparkles } from 'lucide-react';
-import { WeeklyTaskPeriodCanvas, WeeklyTaskPeriodTrigger } from './SpacesFormControls';
+import { ThemedSelect, WeeklyTaskPeriodCanvas, WeeklyTaskPeriodTrigger } from './SpacesFormControls';
 import SpacesTaskCreateModal from './SpacesTaskCreateModal';
 import SpacesTaskTableSection from './SpacesTaskTableSection';
 import SpacesTaskModals from './SpacesTaskModals';
@@ -440,6 +440,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
     setTaskFilterMode,
     taskFilterMode,
     taskStatusFilter,
+    taskStatusFilterOptions,
     setTaskStatusFilter,
     taskSearch,
     setTaskSearch,
@@ -1007,19 +1008,15 @@ const SpacesMainSections: React.FC<any> = (props) => {
             <button type="button" onClick={() => setTaskFilterMode('assigned')} className={`px-4 py-1.5 text-[13px] rounded-full ${taskFilterMode === 'assigned' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>Assigned</button>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <select
-              value={taskStatusFilter}
-              onChange={(event) => setTaskStatusFilter(event.target.value)}
-              className="w-full sm:w-44 rounded-full border border-slate-200 bg-white px-4 py-2 text-[14px] text-slate-700 outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
-              aria-label="Filter by status"
-            >
-              <option value="">All statuses</option>
-              {statusOptions.map((option: { value: string; label: string }) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <div className="w-full sm:w-44">
+              <ThemedSelect
+                value={taskStatusFilter}
+                onChange={setTaskStatusFilter}
+                options={taskStatusFilterOptions}
+                compact={true}
+                fullWidthCompact={true}
+              />
+            </div>
             <div className="flex items-center gap-2">
               <input value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} placeholder="Search by employee ID or name..." className="w-full md:w-80 rounded-full border border-slate-200 px-4 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red" />
               {taskSearch.trim() ? (

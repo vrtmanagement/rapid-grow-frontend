@@ -56,7 +56,6 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const [approverLeaves, setApproverLeaves] = useState<LeaveRequest[]>([]);
   const [leaveLoading, setLeaveLoading] = useState(false);
   const [leaveInitialLoaded, setLeaveInitialLoaded] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [loginLoading, setLoginLoading] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
@@ -165,10 +164,6 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       return leaves;
     }
   }, []);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
 
   useEffect(() => {
     leaveInitialLoadedRef.current = leaveInitialLoaded;
@@ -843,8 +838,6 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         }}
         activeView={activeView}
         onActiveViewChange={setActiveView}
-        theme={theme}
-        onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
         subtitle={isEmployeePortal ? 'Your Presence Radar' : 'Team Attendance Console'}
         leaveNotifications={leaveNotifications}
         unreadNotificationCount={unreadLeaveNotificationCount}

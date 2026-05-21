@@ -10,8 +10,6 @@ interface Props {
   onSelectMonth: (month: string) => void;
   activeView: 'attendance' | 'leave';
   onActiveViewChange: (view: 'attendance' | 'leave') => void;
-  theme: 'light' | 'dark';
-  onToggleTheme: () => void;
   subtitle: string;
   leaveNotifications?: LeaveNotificationItem[];
   unreadNotificationCount?: number;
@@ -28,8 +26,6 @@ const AttendanceHeader: React.FC<Props> = ({
   onSelectMonth,
   activeView,
   onActiveViewChange,
-  theme,
-  onToggleTheme,
   subtitle,
   leaveNotifications = [],
   unreadNotificationCount = 0,

@@ -2,21 +2,16 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme, type Theme } from '../../context/ThemeContext';
 
-type ResolvedPreviewTheme = 'light' | 'dark';
-
-const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)';
-
-const getSystemTheme = (): ResolvedPreviewTheme => {
-  if (typeof window === 'undefined') return 'light';
-  return window.matchMedia(SYSTEM_DARK_QUERY).matches ? 'dark' : 'light';
-};
-
 const formatThemeLabel = (value: Theme) => value.charAt(0).toUpperCase() + value.slice(1);
+const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)';
 
 const ThemeLanguagePanel: React.FC = () => {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const [draftTheme, setDraftTheme] = useState<Theme>(theme);
-  const [systemTheme, setSystemTheme] = useState<ResolvedPreviewTheme>(getSystemTheme);
+  const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') return 'light';
+    return window.matchMedia(SYSTEM_DARK_QUERY).matches ? 'dark' : 'light';
+  });
   const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle');
 
   useEffect(() => {
@@ -38,7 +33,7 @@ const ThemeLanguagePanel: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [saveState]);
 
-  const previewTheme = useMemo<ResolvedPreviewTheme>(
+  const previewTheme = useMemo(
     () => (draftTheme === 'system' ? systemTheme : draftTheme),
     [draftTheme, systemTheme],
   );
@@ -85,7 +80,7 @@ const ThemeLanguagePanel: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-3">
             <span className={`inline-flex items-center rounded-full border px-4 py-2 text-sm font-medium ${infoPillClassName}`}>
-              Current: {resolvedTheme === 'dark' ? 'Dark' : 'Light'}
+              Current: {theme === 'system' ? `System (${resolvedTheme === 'dark' ? 'Dark' : 'Light'})` : resolvedTheme === 'dark' ? 'Dark' : 'Light'}
             </span>
             <button
               type="button"
@@ -131,10 +126,8 @@ const ThemeLanguagePanel: React.FC = () => {
                     </span>
                     <div className="min-w-0">
                       <p className="text-lg font-semibold tracking-[-0.01em]">{label}</p>
-                      <p className={`mt-1 text-xs font-medium ${
-                        isSelected ? 'text-white/80' : secondaryTextClassName
-                      }`}>
-                        {value === 'system' ? 'Recommended default' : `${label} appearance`}
+                      <p className={`mt-1 text-xs font-medium ${isSelected ? 'text-white/80' : secondaryTextClassName}`}>
+                        {value === 'system' ? `Follow device setting (${systemTheme === 'dark' ? 'Dark' : 'Light'})` : `${label} appearance`}
                       </p>
                     </div>
                   </div>
@@ -150,7 +143,11 @@ const ThemeLanguagePanel: React.FC = () => {
               Selected theme: {formatThemeLabel(draftTheme)}
             </p>
             <p className={`mt-1 text-xs ${secondaryTextClassName}`}>
-              {hasChanges ? 'Save to apply this choice throughout the workspace.' : 'Your appearance setting is already applied.'}
+              {hasChanges
+                ? 'Save to apply this choice throughout the workspace.'
+                : draftTheme === 'system'
+                  ? `Your workspace is following your device setting: ${systemTheme === 'dark' ? 'Dark' : 'Light'}.`
+                  : 'Your appearance setting is already applied.'}
             </p>
           </div>
           <div className="text-xs font-medium uppercase tracking-[0.18em] text-brand-red">

@@ -249,6 +249,18 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     ];
   }, [mode]);
 
+  const taskStatusFilterOptions = useMemo(
+    () => [
+      { value: '', label: 'All statuses' },
+      { value: 'todo', label: 'To Do' },
+      { value: 'doing', label: 'Doing' },
+      { value: 'review', label: 'Submitted' },
+      { value: 'done', label: 'Done' },
+      { value: 'blocked', label: 'Blocked' },
+    ],
+    [],
+  );
+
   const projectSelectOptions = useMemo(
     () => [
       { value: '', label: 'No project' },
@@ -993,6 +1005,10 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       list = list.filter(
         (t) => t.assigneeId === me.id && t.createdByEmpId !== me.id,
       );
+    }
+
+    if (taskFilterMode === 'all' && !taskStatusFilter) {
+      list = list.filter((t) => t.status !== 'done');
     }
 
     if (taskStatusFilter) {
@@ -2018,6 +2034,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     setTaskFilterMode,
     taskFilterMode,
     taskStatusFilter,
+    taskStatusFilterOptions,
     setTaskStatusFilter,
     taskSearch,
     setTaskSearch,

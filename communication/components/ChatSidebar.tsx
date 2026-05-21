@@ -130,8 +130,8 @@ export function ChatSidebar({
   };
 
   return (
-    <div className="w-80 hidden lg:flex flex-col border-r border-slate-200 bg-white">
-      <div className="flex h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white px-6">
+    <div className="communication-sidebar w-80 hidden lg:flex flex-col border-r border-slate-200 bg-white">
+      <div className="communication-sidebar-header flex h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white px-6">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-slate-900 font-bold">Communication</div>
@@ -145,7 +145,7 @@ export function ChatSidebar({
         <div className="px-4 pt-4 pb-2">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Teams</div>
+              <div className="communication-sidebar-section-label text-xs font-semibold text-slate-500 uppercase tracking-wide">Teams</div>
             </div>
             {canManageTeams ? (
               <button
@@ -180,8 +180,8 @@ export function ChatSidebar({
             return (
               <div
                 key={c.conversationKey}
-                className={`w-full text-left px-3 py-2.5 rounded-xl transition-all border ${
-                  active ? 'bg-[#eef4ff] border-[#d7e5fb] ring-1 ring-[#d7e5fb]' : 'border-transparent hover:bg-slate-50'
+                className={`communication-sidebar-item w-full text-left px-3 py-2.5 rounded-xl transition-all border ${
+                  active ? 'communication-sidebar-item-active bg-[#eef4ff] border-[#d7e5fb] ring-1 ring-[#d7e5fb]' : 'border-transparent hover:bg-slate-50'
                 }`}
               >
                 <div className="flex w-full items-center justify-between gap-3">
@@ -208,8 +208,8 @@ export function ChatSidebar({
                       )}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold text-slate-900 truncate">{c.title}</div>
-                      <div className="mt-0.5 text-xs text-slate-500 truncate">{c.lastMessagePreview || 'No messages yet'}</div>
+                      <div className="communication-sidebar-title text-sm font-semibold text-slate-900 truncate">{c.title}</div>
+                      <div className="communication-sidebar-preview mt-0.5 text-xs text-slate-500 truncate">{c.lastMessagePreview || 'No messages yet'}</div>
                     </div>
                   </button>
                   <div className="shrink-0 flex items-center gap-2">
@@ -271,14 +271,14 @@ export function ChatSidebar({
             );
           })}
           {!loading && !teamConversations.length ? (
-            <div className="px-3 py-5 text-sm text-slate-500">
+            <div className="communication-sidebar-preview px-3 py-5 text-sm text-slate-500">
               {canManageTeams ? 'No teams yet. Create one to start group chat.' : 'You are not part of any team yet.'}
             </div>
           ) : null}
         </div>
 
         <div className="px-4 pt-4 pb-2 border-t border-slate-200">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">People</div>
+          <div className="communication-sidebar-section-label text-xs font-semibold text-slate-500 uppercase tracking-wide">People</div>
         </div>
         <div className="px-2 pb-10">
           {loading ? (
@@ -304,8 +304,8 @@ export function ChatSidebar({
               key="self-chat"
               type="button"
               onClick={() => onStartDmWithUser(currentUserId)}
-              className={`w-full text-left px-3 py-2 rounded-xl transition-all border ${
-                selectedConversationKey === selfDm.conversationKey ? 'bg-[#eef4ff] border-[#d7e5fb]' : 'border-transparent hover:bg-slate-50'
+              className={`communication-sidebar-item w-full text-left px-3 py-2 rounded-xl transition-all border ${
+                selectedConversationKey === selfDm.conversationKey ? 'communication-sidebar-item-active bg-[#eef4ff] border-[#d7e5fb]' : 'border-transparent hover:bg-slate-50'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -324,8 +324,8 @@ export function ChatSidebar({
                   <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white bg-emerald-500" aria-hidden />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold text-slate-900 truncate">{currentUser?.name || 'You'} (You)</div>
-                  <div className="text-xs text-slate-500 truncate">{selfDm.lastMessagePreview || 'Message yourself'}</div>
+                  <div className="communication-sidebar-title text-sm font-semibold text-slate-900 truncate">{currentUser?.name || 'You'} (You)</div>
+                  <div className="communication-sidebar-preview text-xs text-slate-500 truncate">{selfDm.lastMessagePreview || 'Message yourself'}</div>
                 </div>
               </div>
             </button>
@@ -342,8 +342,8 @@ export function ChatSidebar({
                 key={u.id}
                 type="button"
                 onClick={() => onStartDmWithUser(u.id)}
-                className={`w-full text-left px-3 py-2 rounded-xl transition-all border ${
-                  active ? 'bg-[#eef4ff] border-[#d7e5fb]' : 'border-transparent hover:bg-slate-50'
+                className={`communication-sidebar-item w-full text-left px-3 py-2 rounded-xl transition-all border ${
+                  active ? 'communication-sidebar-item-active bg-[#eef4ff] border-[#d7e5fb]' : 'border-transparent hover:bg-slate-50'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -368,10 +368,10 @@ export function ChatSidebar({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-semibold text-slate-900 truncate">{u.name}</div>
-                      <div className="text-[11px] text-slate-500 shrink-0">{roleLabel(u.roleGroup)}</div>
+                      <div className="communication-sidebar-title text-sm font-semibold text-slate-900 truncate">{u.name}</div>
+                      <div className="communication-sidebar-meta text-[11px] text-slate-500 shrink-0">{roleLabel(u.roleGroup)}</div>
                     </div>
-                    <div className={`text-xs truncate ${showTypingStatus ? 'font-medium text-emerald-600' : 'text-slate-500'}`}>
+                    <div className={`communication-sidebar-preview text-xs truncate ${showTypingStatus ? 'font-medium text-emerald-600' : 'text-slate-500'}`}>
                       {showTypingStatus ? 'Typing...' : (dm?.lastMessagePreview || 'Start chat')}
                     </div>
                   </div>
@@ -385,7 +385,7 @@ export function ChatSidebar({
             );
           })}
           {!loading && people.length === 0 && (
-            <div className="px-3 py-5 text-sm text-slate-500">No users found.</div>
+            <div className="communication-sidebar-preview px-3 py-5 text-sm text-slate-500">No users found.</div>
           )}
         </div>
       </div>

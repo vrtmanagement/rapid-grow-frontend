@@ -10,8 +10,28 @@ interface Props {
 }
 
 const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMonth }) => {
+  const getMonthValueFromDate = (value?: string) => {
+    if (!value) return '';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      year: 'numeric',
+      month: '2-digit',
+      timeZone: 'Asia/Kolkata',
+    });
+
+    const parts = formatter.formatToParts(parsed);
+    const year = parts.find((part) => part.type === 'year')?.value || '';
+    const month = parts.find((part) => part.type === 'month')?.value || '';
+    return year && month ? `${year}-${month}` : '';
+  };
+
   const getMonthWorkingDates = () => {
-    const monthSource = selectedMonth || summary?.start?.slice(0, 7);
+    const monthSource =
+      selectedMonth ||
+      (summary?.days?.length ? String(summary.days[0]?.date || '').slice(0, 7) : '') ||
+      getMonthValueFromDate(summary?.start);
     if (!monthSource) return [];
 
     const [yearText, monthText] = monthSource.split('-');

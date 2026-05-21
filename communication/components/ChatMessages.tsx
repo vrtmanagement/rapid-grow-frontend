@@ -133,13 +133,13 @@ export function ChatMessages({
   }, [messages.length]);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#f6f8fb] px-4 py-6">
+    <div className="communication-messages flex-1 overflow-y-auto bg-[#f6f8fb] px-4 py-6">
       <div className="mx-auto w-full max-w-5xl">
 
         {messagesLoading ? (
           <ChatMessagesSkeleton />
         ) : messages.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
+          <div className="communication-empty-state rounded-2xl border border-slate-200 bg-white p-10 text-center">
             <div className="text-lg font-semibold text-slate-900">No messages yet</div>
             <div className="text-sm text-slate-500 mt-2">Send the first message to start the conversation.</div>
           </div>
@@ -171,7 +171,7 @@ export function ChatMessages({
                 <React.Fragment key={m.id}>
                   {showDateDivider ? (
                     <div className="sticky top-2 z-10 my-5 flex justify-center">
-                      <span className="rounded-full border border-slate-200 bg-white/95 px-3 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">
+                      <span className="communication-date-divider rounded-full border border-slate-200 bg-white/95 px-3 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">
                         {formatDateDivider(m.createdAt)}
                       </span>
                     </div>
