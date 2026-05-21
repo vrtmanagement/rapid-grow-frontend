@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { HashRouter } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { I18nProvider } from './context/I18nContext';
@@ -43,6 +43,17 @@ import {
   normalizeDailyReviewReminderSettings,
   type DailyReviewReminderSettings,
 } from './services/dailyReviewReminderSettings';
+import {
+  fetchNotificationPreferences,
+  filterNotificationsByPreferences,
+  getDefaultNotificationPreferences,
+  isNotificationEnabledForType,
+  normalizeNotificationPreferences,
+  NOTIFICATION_PREFERENCES_STORAGE_KEY,
+  NOTIFICATION_PREFERENCES_UPDATED_EVENT,
+  readStoredNotificationPreferences,
+  type NotificationPreferences,
+} from './services/notificationPreferences';
 import { getDisplayAvatarUrl, persistSessionEmployeeAvatar, PROFILE_AVATAR_UPDATED_EVENT } from './utils/avatar';
 
 interface GlobalLeaveToast {
@@ -212,6 +223,9 @@ const App: React.FC = () => {
   const [dailyReviewReminderSettings, setDailyReviewReminderSettings] = useState<DailyReviewReminderSettings>(
     getDefaultDailyReviewReminderSettings(),
   );
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(
+    readStoredNotificationPreferences,
+  );
   const shownLeaveToastKeysRef = useRef<Record<string, true>>({});
   const shownTaskToastKeysRef = useRef<Record<string, true>>({});
   const shownReminderToastKeysRef = useRef<Record<string, true>>({});
@@ -266,6 +280,55 @@ const App: React.FC = () => {
 
     return () => {
       window.removeEventListener(DAILY_REVIEW_REMINDER_SETTINGS_UPDATED_EVENT, handleSettingsUpdated);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setNotificationPreferences(getDefaultNotificationPreferences());
+      return;
+    }
+
+    let active = true;
+
+    async function loadNotificationPreferences() {
+      try {
+        const preferences = await fetchNotificationPreferences();
+        if (active) {
+          setNotificationPreferences(preferences);
+        }
+      } catch (err) {
+        console.warn('Failed to load notification preferences', err);
+        if (active) {
+          setNotificationPreferences(readStoredNotificationPreferences());
+        }
+      }
+    }
+
+    loadNotificationPreferences();
+
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    const handleNotificationPreferencesUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<NotificationPreferences>).detail;
+      setNotificationPreferences(normalizeNotificationPreferences(detail));
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== NOTIFICATION_PREFERENCES_STORAGE_KEY) return;
+      setNotificationPreferences(readStoredNotificationPreferences());
+    };
+
+    window.addEventListener(NOTIFICATION_PREFERENCES_UPDATED_EVENT, handleNotificationPreferencesUpdated);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener(NOTIFICATION_PREFERENCES_UPDATED_EVENT, handleNotificationPreferencesUpdated);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 
@@ -678,11 +741,15 @@ const App: React.FC = () => {
       return [designation, department].filter(Boolean).join(' | ');
     };
 
-  const showGlobalLeaveToast = (toast: GlobalLeaveToast) => {
-    if (shownLeaveToastKeysRef.current[toast.key]) return;
-    shownLeaveToastKeysRef.current[toast.key] = true;
-    setGlobalLeaveToast(toast);
-  };
+    const canShowLeaveToasts =
+      notificationPreferences.leaveUpdates && notificationPreferences.toastPreviews;
+
+    const showGlobalLeaveToast = (toast: GlobalLeaveToast) => {
+      if (!canShowLeaveToasts) return;
+      if (shownLeaveToastKeysRef.current[toast.key]) return;
+      shownLeaveToastKeysRef.current[toast.key] = true;
+      setGlobalLeaveToast(toast);
+    };
 
     const onLeaveCreated = (payload: any) => {
       const approverRole = String(payload?.approverRole || '').toUpperCase();
@@ -743,7 +810,7 @@ const App: React.FC = () => {
       socket.off('leave:created', onLeaveCreated);
       socket.off('leave:updated', onLeaveUpdated);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, notificationPreferences.leaveUpdates, notificationPreferences.toastPreviews]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -752,8 +819,11 @@ const App: React.FC = () => {
     const backendEmployee = session?.employee || {};
     const backendEmpId = String(backendEmployee.empId || '').trim();
     const socket = getSocket();
+    const canShowTaskToasts =
+      notificationPreferences.aiTaskAlerts && notificationPreferences.toastPreviews;
 
     const showGlobalTaskToast = (toast: GlobalTaskToast) => {
+      if (!canShowTaskToasts) return;
       if (shownTaskToastKeysRef.current[toast.key]) return;
       shownTaskToastKeysRef.current[toast.key] = true;
       setGlobalTaskToast(toast);
@@ -827,7 +897,7 @@ const App: React.FC = () => {
     return () => {
       socket.off('task:validation', onTaskValidation);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, notificationPreferences.aiTaskAlerts, notificationPreferences.toastPreviews]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -837,8 +907,6 @@ const App: React.FC = () => {
     if (lastCommunicationUnreadRef.current === null) {
       lastCommunicationUnreadRef.current = communicationUnreadCount;
       return;
-    }
-    if (communicationUnreadCount > lastCommunicationUnreadRef.current) {
     }
     lastCommunicationUnreadRef.current = communicationUnreadCount;
   }, [communicationUnreadCount, isAuthenticated]);
@@ -960,6 +1028,7 @@ const App: React.FC = () => {
 
     const onNotificationCreated = (payload: any) => {
       if (!payload || String(payload.empId || '').trim() !== backendEmpId) return;
+      if (!isNotificationEnabledForType(notificationPreferences, payload?.type)) return;
       setNotifications((prev) => {
         const next = [payload as AppShellNotification, ...prev.filter((item) => item._id !== payload._id)];
         return next.sort(
@@ -1003,10 +1072,17 @@ const App: React.FC = () => {
       socket.off('notification:created', onNotificationCreated);
       socket.off('notification:read', onNotificationRead);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, notificationPreferences]);
+
+  const visibleNotifications = useMemo(
+    () => filterNotificationsByPreferences(notifications, notificationPreferences),
+    [notificationPreferences, notifications],
+  );
 
   useEffect(() => {
-    const unreadNotification = notifications.find((notification) => {
+    if (!notificationPreferences.toastPreviews) return;
+
+    const unreadNotification = visibleNotifications.find((notification) => {
       if (notification.isRead) return false;
       if (isDailyReviewReminderNotification(notification)) {
         if (isDailyReviewReminderToastDismissed(notification)) return false;
@@ -1028,7 +1104,7 @@ const App: React.FC = () => {
     };
     shownReminderToastKeysRef.current[toastKey] = true;
     setGlobalReminderToast(reminderToast);
-  }, [dailyReviewReminderSettings, notifications]);
+  }, [dailyReviewReminderSettings, notificationPreferences.toastPreviews, visibleNotifications]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -1040,7 +1116,10 @@ const App: React.FC = () => {
       return;
     }
 
-    if (communicationUnreadCount > lastCommunicationUnreadRef.current) {
+    const canShowCommunicationToasts =
+      notificationPreferences.communicationMessages && notificationPreferences.toastPreviews;
+
+    if (canShowCommunicationToasts && communicationUnreadCount > lastCommunicationUnreadRef.current) {
       const toastKey = `communication:${communicationUnreadCount}:${Date.now()}`;
       if (!shownReminderToastKeysRef.current[toastKey]) {
         const communicationToast: GlobalReminderToast = {
@@ -1055,10 +1134,40 @@ const App: React.FC = () => {
       }
     }
     lastCommunicationUnreadRef.current = communicationUnreadCount;
-  }, [communicationUnreadCount, isAuthenticated]);
+  }, [
+    communicationUnreadCount,
+    isAuthenticated,
+    notificationPreferences.communicationMessages,
+    notificationPreferences.toastPreviews,
+  ]);
+
+  useEffect(() => {
+    if (!notificationPreferences.toastPreviews) {
+      setGlobalLeaveToast(null);
+      setGlobalTaskToast(null);
+      setGlobalReminderToast(null);
+      return;
+    }
+
+    if (!notificationPreferences.leaveUpdates) {
+      setGlobalLeaveToast(null);
+    }
+    if (!notificationPreferences.aiTaskAlerts) {
+      setGlobalTaskToast(null);
+    }
+    if (!notificationPreferences.communicationMessages && globalReminderToast?.route === '/communication') {
+      setGlobalReminderToast(null);
+    }
+  }, [
+    globalReminderToast?.route,
+    notificationPreferences.aiTaskAlerts,
+    notificationPreferences.communicationMessages,
+    notificationPreferences.leaveUpdates,
+    notificationPreferences.toastPreviews,
+  ]);
 
   const planningViewsLoading = !appStateHydrated || !goalsHydrated;
-  const unreadNotificationCount = notifications.filter((notification) => !notification.isRead).length;
+  const unreadNotificationCount = visibleNotifications.filter((notification) => !notification.isRead).length;
   const notificationToastTopClass = globalLeaveToast && globalTaskToast
     ? 'top-[14.5rem]'
     : globalLeaveToast || globalTaskToast
@@ -1070,7 +1179,7 @@ const App: React.FC = () => {
         globalLeaveToast={globalLeaveToast}
         globalTaskToast={globalTaskToast}
         globalReminderToast={globalReminderToast}
-        notifications={notifications}
+        notifications={visibleNotifications}
         notificationToastTopClass={notificationToastTopClass}
         openNotification={openNotification}
         setGlobalTaskToast={setGlobalTaskToast}
@@ -1143,7 +1252,7 @@ const App: React.FC = () => {
             setUserMenuOpen={setUserMenuOpen}
             unreadNotificationCount={unreadNotificationCount}
             notificationsLoading={notificationsLoading}
-            notifications={notifications}
+            notifications={visibleNotifications}
             openNotification={openNotification}
             markNotificationRead={markNotificationRead}
             handleLogout={handleLogout}
@@ -1179,7 +1288,7 @@ const App: React.FC = () => {
           setUserMenuOpen={setUserMenuOpen}
           unreadNotificationCount={unreadNotificationCount}
           notificationsLoading={notificationsLoading}
-          notifications={notifications}
+          notifications={visibleNotifications}
           openNotification={openNotification}
           markNotificationRead={markNotificationRead}
           handleLogout={handleLogout}

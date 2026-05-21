@@ -101,7 +101,7 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
         setNotificationMenuOpen((value) => !value);
         setUserMenuOpen(false);
       }}
-      className="relative flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900"
+      className="relative flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white"
       aria-label="Notifications"
       aria-expanded={notificationMenuOpen}
       aria-haspopup="true"
@@ -116,8 +116,8 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
     {notificationMenuOpen && createPortal(
       <>
         <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setNotificationMenuOpen(false)} />
-        <div className="fixed right-4 top-20 z-[9999] w-[min(100vw-1.25rem,28rem)] overflow-hidden rounded-2xl bg-white shadow-[0_22px_50px_rgba(15,23,42,0.16)] sm:right-8">
-          <div className="border-b border-slate-100 px-4 py-3.5 sm:px-5 sm:py-4">
+        <div className="fixed right-4 top-20 z-[9999] w-[min(100vw-1.25rem,28rem)] overflow-hidden rounded-2xl bg-white shadow-[0_22px_50px_rgba(15,23,42,0.16)] dark:bg-slate-900 sm:right-8">
+          <div className="border-b border-slate-100 px-4 py-3.5 dark:border-slate-800 sm:px-5 sm:py-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Notifications</p>
@@ -221,7 +221,7 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
         setUserMenuOpen((v) => !v);
         setNotificationMenuOpen(false);
       }}
-      className="flex items-center gap-4 rounded-xl py-1 pr-1 transition-colors hover:bg-slate-50"
+      className="flex items-center gap-4 rounded-xl py-1 pr-1 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
       aria-expanded={userMenuOpen}
       aria-haspopup="true"
     >
@@ -231,26 +231,26 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
       </div>
       <img
         src={getDisplayAvatarUrl(userAvatar, userName)}
-        className="h-11 w-11 rounded-full border-2 border-white bg-slate-50 object-cover shadow-md"
+        className="h-11 w-11 rounded-full border-2 border-white bg-slate-50 object-cover shadow-md dark:border-slate-800 dark:bg-slate-900"
         alt=""
       />
     </button>
     {userMenuOpen && createPortal(
       <>
         <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setUserMenuOpen(false)} />
-        <div className="fixed right-8 top-20 z-[9999] w-56 rounded-xl border border-slate-200 bg-white py-2 shadow-lg">
+        <div className="fixed right-8 top-20 z-[9999] w-56 rounded-xl border border-slate-200 bg-white py-2 shadow-lg dark:border-slate-800 dark:bg-slate-900">
           <button
             type="button"
-            onClick={() => { setUserMenuOpen(false); window.location.hash = '#/profile?mode=settings'; }}
-            className="flex w-full items-center gap-3 px-4 py-3 text-left text-slate-700 transition-colors hover:bg-slate-50"
+            onClick={() => { setUserMenuOpen(false); window.location.hash = '#/profile'; }}
+            className="flex w-full items-center gap-3 px-4 py-3 text-left text-slate-700 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
           >
             <UserCircle size={18} className="text-slate-500" />
-            Profile Settings
+            Profile
           </button>
           <button
             type="button"
             onClick={() => { setUserMenuOpen(false); onLogout(); }}
-            className="flex w-full items-center gap-3 px-4 py-3 text-left text-slate-700 transition-colors hover:bg-slate-50"
+            className="flex w-full items-center gap-3 px-4 py-3 text-left text-slate-700 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
           >
             <LogOut size={18} className="text-slate-500" />
             Logout
