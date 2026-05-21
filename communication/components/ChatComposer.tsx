@@ -96,7 +96,7 @@ export function ChatComposer({
   };
 
   return (
-    <div className="border-t border-slate-200 bg-white/95 p-4 shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
+    <div className="communication-composer border-t border-slate-200 bg-white/95 p-4 shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
       {files.length > 0 ? (
         <div className="mb-3 space-y-2">
           {files.map((file, index) => (

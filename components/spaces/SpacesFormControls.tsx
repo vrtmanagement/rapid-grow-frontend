@@ -3,34 +3,34 @@ import { createPortal } from 'react-dom';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 export const CREATE_INPUT_CLASS =
-  'w-full rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[15px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15';
+  'themed-control themed-text-input w-full rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[15px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15';
 
 const CREATE_SELECT_TRIGGER_CLASS =
-  'flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[15px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+  'themed-control themed-select-trigger flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[15px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 const CREATE_SELECT_MENU_CLASS =
-  'absolute left-0 top-full z-30 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white';
+  'themed-control-menu absolute left-0 top-full z-30 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white';
 
 const CREATE_SELECT_OPTION_CLASS =
-  'w-full px-5 py-3 text-left text-[15px] text-slate-700 transition-colors hover:bg-red-50 hover:text-brand-red';
+  'themed-control-option w-full px-5 py-3 text-left text-[15px] text-slate-700 transition-colors hover:bg-red-50 hover:text-brand-red';
 
 const TABLE_SELECT_TRIGGER_CLASS =
-  'flex w-[124px] max-w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 pr-4 py-2 text-[13px] text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+  'themed-control themed-select-trigger flex w-[124px] max-w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 pr-4 py-2 text-[13px] text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 const COMPACT_FULL_WIDTH_SELECT_TRIGGER_CLASS =
-  'flex w-full items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+  'themed-control themed-select-trigger flex w-full items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 const TABLE_SELECT_MENU_CLASS =
-  'absolute left-0 top-full z-30 mt-1.5 w-full overflow-hidden rounded-xl border border-slate-200 bg-white';
+  'themed-control-menu absolute left-0 top-full z-30 mt-1.5 w-full overflow-hidden rounded-xl border border-slate-200 bg-white';
 
 const TABLE_SELECT_OPTION_CLASS =
-  'w-full px-4 py-2.5 text-left text-[13px] text-slate-700 transition-colors hover:bg-red-50 hover:text-brand-red';
+  'themed-control-option w-full px-4 py-2.5 text-left text-[13px] text-slate-700 transition-colors hover:bg-red-50 hover:text-brand-red';
 
 const TABLE_DATE_TRIGGER_CLASS =
-  'w-[138px] max-w-full rounded-xl border border-slate-200 bg-white px-4 pr-10 py-2 text-center text-[13px] text-slate-700 outline-none transition-colors hover:border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+  'themed-control themed-date-trigger w-[138px] max-w-full rounded-xl border border-slate-200 bg-white px-4 pr-10 py-2 text-center text-[13px] text-slate-700 outline-none transition-colors hover:border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 const COMPACT_FULL_WIDTH_DATE_TRIGGER_CLASS =
-  'w-full rounded-2xl border border-slate-200 bg-white px-4 pr-10 py-2.5 text-left text-[14px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors hover:border-slate-300 focus:ring-2 focus:ring-brand-red/15 focus:border-brand-red disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+  'themed-control themed-date-trigger w-full rounded-2xl border border-slate-200 bg-white px-4 pr-10 py-2.5 text-left text-[14px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors hover:border-slate-300 focus:ring-2 focus:ring-brand-red/15 focus:border-brand-red disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 const CALENDAR_WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
@@ -182,7 +182,7 @@ export const ThemedDatePicker: React.FC<{
       </button>
 
       {open && !disabled && (
-        <div className={`absolute left-0 z-30 border border-slate-200 bg-white ${compact ? `w-[248px] rounded-[18px] p-2 ${openAbove ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}` : `w-[270px] rounded-[22px] p-2.5 ${openAbove ? 'bottom-full mb-2' : 'top-full mt-2'}`}`}>
+        <div className={`themed-control-menu themed-date-picker absolute left-0 z-30 border border-slate-200 bg-white ${compact ? `w-[248px] rounded-[18px] p-2 ${openAbove ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}` : `w-[270px] rounded-[22px] p-2.5 ${openAbove ? 'bottom-full mb-2' : 'top-full mt-2'}`}`}>
           <div className={`flex items-center justify-between ${compact ? 'mb-1.5' : 'mb-2'}`}>
             <div className={`${compact ? 'text-[13px]' : 'text-[14px]'} font-semibold text-slate-900`}>{monthLabel}</div>
             <div className="flex items-center gap-2">
@@ -193,7 +193,7 @@ export const ThemedDatePicker: React.FC<{
 
           <div className={`grid grid-cols-7 ${compact ? 'mb-1 gap-0.5' : 'mb-1.5 gap-1'}`}>
             {CALENDAR_WEEKDAYS.map((day) => (
-              <div key={day} className={`text-center font-semibold uppercase tracking-[0.08em] text-slate-400 ${compact ? 'text-[10px]' : 'text-[11px]'}`}>{day}</div>
+              <div key={day} className={`themed-date-weekday text-center font-semibold uppercase tracking-[0.08em] text-slate-400 ${compact ? 'text-[10px]' : 'text-[11px]'}`}>{day}</div>
             ))}
           </div>
 
@@ -203,14 +203,14 @@ export const ThemedDatePicker: React.FC<{
               const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
               const isTodayValue = isSameDay(day, today);
               return (
-                <button key={day.toISOString()} type="button" onClick={() => handleSelect(day)} className={`${compact ? 'h-7 rounded-lg text-[12px]' : 'h-8 rounded-xl text-[13px]'} transition-colors ${isSelected ? 'bg-brand-red text-white shadow-md' : inCurrentMonth ? 'text-slate-700 hover:bg-slate-100' : 'text-slate-300 hover:bg-slate-50'} ${isTodayValue && !isSelected ? 'border border-brand-red/20 bg-red-50 text-brand-red' : ''}`}>
+                <button key={day.toISOString()} type="button" onClick={() => handleSelect(day)} className={`themed-day-cell ${compact ? 'h-7 rounded-lg text-[12px]' : 'h-8 rounded-xl text-[13px]'} transition-colors ${isSelected ? 'is-selected bg-brand-red text-white shadow-md' : inCurrentMonth ? 'text-slate-700 hover:bg-slate-100' : 'is-outside text-slate-300 hover:bg-slate-50'} ${isTodayValue && !isSelected ? 'is-today border border-brand-red/20 bg-red-50 text-brand-red' : ''}`}>
                   {day.getDate()}
                 </button>
               );
             })}
           </div>
 
-          <div className={`flex items-center justify-between border-t border-slate-100 ${compact ? 'mt-1.5 pt-1.5' : 'mt-2 pt-2'}`}>
+          <div className={`themed-date-picker-footer flex items-center justify-between border-t border-slate-100 ${compact ? 'mt-1.5 pt-1.5' : 'mt-2 pt-2'}`}>
             <button type="button" onClick={() => { onChange(''); setOpen(false); }} className={`${compact ? 'text-[11px]' : 'text-[12px]'} font-semibold text-slate-500 hover:text-brand-red`}>Clear</button>
             <button type="button" onClick={() => handleSelect(new Date())} className={`rounded-full bg-brand-red font-semibold text-white hover:bg-brand-navy ${compact ? 'px-3 py-1 text-[11px]' : 'px-3.5 py-1.5 text-[12px]'}`}>Today</button>
           </div>
@@ -429,11 +429,11 @@ const WeeklyTaskPeriodOptionColumn: React.FC<{
 
   return (
     <div className="min-w-0">
-      <div className={`px-1 font-semibold uppercase tracking-[0.2em] text-slate-400 ${compact ? 'mb-1 text-[9px]' : 'mb-2 text-[11px]'}`}>
-        {heading}
-      </div>
+        <div className={`themed-period-heading px-1 font-semibold uppercase tracking-[0.2em] text-slate-400 ${compact ? 'mb-1 text-[9px]' : 'mb-2 text-[11px]'}`}>
+          {heading}
+        </div>
       <div
-        className={`overflow-y-auto border border-slate-200/90 bg-slate-50/60 ${
+        className={`themed-period-column overflow-y-auto border border-slate-200/90 bg-slate-50/60 ${
           roomy ? 'h-[304px] rounded-[24px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden' : compact ? 'max-h-[204px] space-y-1.5 rounded-[15px] p-1.5' : 'max-h-[196px] space-y-1.5 rounded-[22px] p-2'
         }`}
       >
@@ -445,7 +445,7 @@ const WeeklyTaskPeriodOptionColumn: React.FC<{
               key={option.value}
               type="button"
               onClick={() => onSelect(option.value)}
-              className={`w-full border text-left transition-all duration-150 ${
+              className={`themed-period-option w-full border text-left transition-all duration-150 ${
                 roomy ? `rounded-none border-x-0 border-t-0 px-4 py-3.5 shadow-none ${index === options.length - 1 ? 'border-b-0' : ''}` : compact ? 'rounded-[12px] px-2.5 py-1.5' : 'rounded-[16px] px-3 py-2'
               } ${
                 isSelected
@@ -510,7 +510,7 @@ export const WeeklyTaskPeriodTrigger: React.FC<{
     type="button"
     onClick={() => !disabled && onToggle()}
     disabled={disabled}
-    className={`flex w-full items-center justify-between text-left transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60 ${
+    className={`themed-period-trigger flex w-full items-center justify-between text-left transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60 ${
       compactTrigger
         ? 'min-h-[60px] gap-3 rounded-[16px] border border-slate-200 bg-white px-3 py-2 shadow-[0_8px_18px_rgba(15,23,42,0.05)]'
         : 'gap-4 rounded-[28px] border border-slate-300 bg-white px-5 py-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)]'
@@ -567,7 +567,7 @@ export const WeeklyTaskPeriodCanvas: React.FC<WeeklyTaskPeriodPickerProps & { op
     }`}
   >
     <div className={`origin-top transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${open ? 'translate-y-0 scale-y-100' : '-translate-y-3 scale-y-95'}`}>
-      <div className="relative overflow-hidden rounded-none border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(248,250,252,0.92),rgba(255,255,255,0.96)_42%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,1))] p-3.5 md:p-4">
+      <div className="themed-period-canvas relative overflow-hidden rounded-none border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(248,250,252,0.92),rgba(255,255,255,0.96)_42%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,1))] p-3.5 md:p-4">
         <div className="absolute inset-x-12 top-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
         <div className="rounded-none border border-white/70 bg-white/90 p-3.5 backdrop-blur md:p-4">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -655,7 +655,7 @@ export const WeeklyTaskPeriodPicker: React.FC<WeeklyTaskPeriodPickerProps> = ({
 
       {open && !disabled ? (
         <div
-          className={`absolute top-full z-30 mt-2.5 max-w-[calc(100vw-2rem)] border border-slate-200 bg-white ${
+          className={`themed-control-menu absolute top-full z-30 mt-2.5 max-w-[calc(100vw-2rem)] border border-slate-200 bg-white ${
             compactTrigger
               ? 'left-1/2 w-[min(900px,calc(100vw-2rem))] -translate-x-1/2 rounded-[20px] p-3'
               : 'w-[min(1100px,calc(100vw-2rem))] rounded-[26px] p-3.5'

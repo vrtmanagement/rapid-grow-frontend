@@ -102,7 +102,7 @@ function CommunicationLayout() {
   const resolveUserName = (userId: string) => usersById.get(userId)?.name || 'User';
 
   return (
-    <div className="h-[calc(100%+8rem)] w-[calc(100%+8rem)] -mx-16 -my-16 overflow-hidden bg-[#eef2f7]">
+    <div className="communication-workspace h-[calc(100%+8rem)] w-[calc(100%+8rem)] -mx-16 -my-16 overflow-hidden bg-[#eef2f7]">
       <div className="h-full flex">
         {currentUser ? (
           <ChatSidebar
@@ -147,7 +147,7 @@ function CommunicationLayout() {
           {communicationLoading ? (
             <CommunicationMobileSkeleton />
           ) : (
-          <div className="lg:hidden border-b border-slate-200 bg-white px-3 py-2">
+          <div className="communication-mobile-picker lg:hidden border-b border-slate-200 bg-white px-3 py-2">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Teams</div>
             <div className="flex gap-2 overflow-x-auto pb-1">
               {conversations.filter((c) => c.type === 'channel').map((c) => {
@@ -248,7 +248,7 @@ function CommunicationLayout() {
           {communicationLoading ? (
             <CommunicationHeaderSkeleton />
           ) : (
-          <div className="h-16 border-b border-slate-200 bg-white/95 px-5 flex items-center justify-between gap-4 shadow-sm">
+          <div className="communication-header h-16 border-b border-slate-200 bg-white/95 px-5 flex items-center justify-between gap-4 shadow-sm">
             <div className="min-w-0">
               <div className="flex items-center gap-3">
                 {selectedConversation?.type === 'dm' && liveSelectedDmUser ? (
@@ -345,8 +345,8 @@ function CommunicationLayout() {
 
           {/* Messages */}
           {!canCompose ? (
-            <div className="flex-1 flex items-center justify-center bg-[#f6f8fb]">
-              <div className="text-center max-w-md p-10 bg-white rounded-2xl border border-slate-200 shadow-sm">
+            <div className="communication-empty-shell flex-1 flex items-center justify-center bg-[#f6f8fb]">
+              <div className="communication-empty-state text-center max-w-md p-10 bg-white rounded-2xl border border-slate-200 shadow-sm">
                 <div className="text-2xl font-bold text-slate-900">Communication</div>
                 <div className="text-slate-600 mt-2">Select a channel or a person to start chatting in real-time.</div>
               </div>

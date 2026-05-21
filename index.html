@@ -10,11 +10,21 @@
     <script>
       (function () {
         try {
-          var key = 'rapidgrow-theme';
+          var key = 'theme';
+          var legacyKey = 'rapidgrow-theme';
           var stored = localStorage.getItem(key);
-          var preference = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+          var legacyStored = localStorage.getItem(legacyKey);
           var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          var resolved = preference === 'system' ? (prefersDark ? 'dark' : 'light') : preference;
+          var preference =
+            stored === 'light' || stored === 'dark' || stored === 'system'
+              ? stored
+              : legacyStored === 'light' || legacyStored === 'dark' || legacyStored === 'system'
+                ? legacyStored
+                : 'system';
+          var resolved =
+            preference === 'system'
+              ? (prefersDark ? 'dark' : 'light')
+              : preference;
           document.documentElement.classList.toggle('dark', resolved === 'dark');
           document.documentElement.dataset.theme = resolved;
           document.documentElement.dataset.themePreference = preference;

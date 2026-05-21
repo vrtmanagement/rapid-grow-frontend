@@ -59,7 +59,7 @@ import PlanLimitsBanner from '../plan/PlanLimitsBanner';
 import { useI18n } from '../../context/I18nContext';
 import AccessDenied from '../AccessDenied';
 import { SidebarLink, SidebarToggleButton } from './SidebarPrimitives';
-import { NotificationBellMenu, UserAccountMenu } from './AppTopbarControls';
+import { NotificationBellMenu, ThemeToggleButton, UserAccountMenu } from './AppTopbarControls';
 import type { AppShellNotification } from './authenticatedShellTypes';
 
 export interface AppManagerPortalLayoutProps {
@@ -123,13 +123,13 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
     <>
       {globalToastsElement}
       <GlobalCommunicationNotifications />
-      <div className="flex h-screen overflow-hidden bg-[#f1f5f9] dark:bg-slate-950">
+      <div className="app-shell flex h-screen overflow-hidden bg-[#f1f5f9] dark:bg-slate-950">
         <aside
-          className={`${isSidebarOpen ? 'w-48 max-sm:w-[72px]' : 'w-[72px]'} relative z-50 flex h-full min-h-0 shrink-0 flex-col bg-white/90 text-white backdrop-blur-xl transition-all duration-500 dark:bg-slate-950/95`}
+          className={`app-sidebar ${isSidebarOpen ? 'w-48 max-sm:w-[72px]' : 'w-[72px]'} relative z-50 flex h-full min-h-0 shrink-0 flex-col bg-white/90 text-white backdrop-blur-xl transition-all duration-500 dark:bg-slate-950/95`}
         >
-          <div className="absolute top-0 right-0 h-full w-px bg-slate-200 dark:bg-slate-800"></div>
+          <div className="app-sidebar-border absolute top-0 right-0 h-full w-px bg-slate-200 dark:bg-slate-800"></div>
 
-          <div className="px-3.5 py-4 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
+          <div className="app-sidebar-header px-3.5 py-4 border-b border-white/5 flex items-center justify-between gap-2 shrink-0">
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <div className="w-10 h-10 bg-brand-red flex items-center justify-center rounded shadow-lg shrink-0">
                 <span className="text-white text-lg">RG</span>
@@ -179,7 +179,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                 {hasPower('ATTENDANCE_VIEW') && (
                   <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />
                 )}
-                <div className="h-px bg-white/5 mx-2.5 my-3.5"></div>
+                <div className="app-sidebar-divider h-px bg-white/5 mx-2.5 my-3.5"></div>
                 {hasVisionAccess && (
                   <SidebarLink to="/yearly" icon={<Target size={20} />} label="Vision" collapsed={!isSidebarOpen} />
                 )}
@@ -191,7 +191,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                     collapsed={!isSidebarOpen}
                   />
                 )}
-                <div className="h-px bg-white/5 mx-2.5 my-3.5"></div>
+                <div className="app-sidebar-divider h-px bg-white/5 mx-2.5 my-3.5"></div>
               </>
             )}
             {isAdmin && (
@@ -253,7 +253,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
 
         <main className="flex-1 flex flex-col h-screen overflow-hidden">
           <header
-            className={`relative z-40 shrink-0 border-b border-slate-200 bg-white/90 px-4 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95 sm:px-8 ${
+            className={`app-topbar relative z-40 shrink-0 border-b border-slate-200 bg-white/90 px-4 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95 sm:px-8 ${
               showVisionHeaderTabs ? 'min-h-[92px] py-4' : 'h-20 flex items-center justify-end'
             }`}
           >
@@ -264,6 +264,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                 </div>
               ) : null}
               <div className="flex items-center gap-3 shrink-0">
+                <ThemeToggleButton />
                 <NotificationBellMenu
                   notificationMenuOpen={notificationMenuOpen}
                   unreadNotificationCount={unreadNotificationCount}
@@ -287,7 +288,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
             </div>
           </header>
           <div
-            className={`no-scrollbar flex-1 bg-white dark:bg-slate-950/40 ${
+            className={`app-content no-scrollbar flex-1 bg-white dark:bg-slate-950/40 ${
               showVisionHeaderTabs
                 ? 'overflow-y-auto px-4 pb-8 pt-2 sm:px-8 lg:px-12 lg:pb-12'
                 : 'overflow-y-auto p-4 sm:p-8 lg:p-16'

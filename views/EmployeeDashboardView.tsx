@@ -36,9 +36,11 @@ interface RecentAttendanceDay {
   fullDate: string;
   minutes: number;
   hours: number;
+  barHours: number;
   percentOfTarget: number;
   loginTime: string;
   logoutTime: string;
+  isAbsent: boolean;
 }
 
 interface PerformanceSnapshot {
@@ -136,6 +138,8 @@ function buildRecentAttendanceDays(summary: AttendanceSummaryResponse | null): R
     const dateKey = formatLocalDateKey(date);
     const detail = detailsByDate.get(dateKey);
     const minutes = detail?.minutes || 0;
+    const hours = formatHours(minutes);
+    const isAbsent = !detail || minutes <= 0;
 
     return {
       dateKey,
@@ -143,10 +147,12 @@ function buildRecentAttendanceDays(summary: AttendanceSummaryResponse | null): R
       shortDate: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       fullDate: formatAttendanceDate(dateKey),
       minutes,
-      hours: formatHours(minutes),
+      hours,
+      barHours: isAbsent ? 9 : hours,
       percentOfTarget: Math.min(100, Math.round((minutes / ATTENDANCE_TARGET_MINUTES) * 100)),
-      loginTime: detail?.loginTime || '--',
-      logoutTime: detail?.logoutTime || '--',
+      loginTime: isAbsent ? 'Absent' : detail?.loginTime || '--',
+      logoutTime: isAbsent ? 'Absent' : detail?.logoutTime || '--',
+      isAbsent,
     };
   });
 }
@@ -217,7 +223,13 @@ function roundMetric(value: number) {
   return Math.round(value * 10) / 10;
 }
 
-function getAttendanceFillStyle(hours: number) {
+function getAttendanceFillStyle(hours: number, isAbsent = false) {
+  if (isAbsent) {
+    return {
+      background: 'linear-gradient(180deg, #CBD5E1 0%, #94A3B8 100%)',
+    };
+  }
+
   return {
     background: `linear-gradient(180deg, ${getHoursColor(hours)}CC 0%, ${getHoursColor(hours)} 100%)`,
   };
@@ -862,7 +874,7 @@ const EmployeeDashboardView: React.FC = () => {
                         <div className="absolute inset-x-0 bottom-0 top-0 flex items-end justify-between gap-4">
                           {attendanceDays.map((day) => {
                             const barHeight =
-                              day.hours <= 0 ? 0 : Math.max(12, (day.hours / attendanceChartTop) * 100);
+                              day.barHours <= 0 ? 0 : Math.max(12, (day.barHours / attendanceChartTop) * 100);
                             const isHovered = hoveredAttendanceDay === day.dateKey;
                             return (
                               <div
@@ -894,9 +906,9 @@ const EmployeeDashboardView: React.FC = () => {
                                   <div
                                     className="w-full max-w-[40px] rounded-t-[12px] transition-all duration-500"
                                     style={{
-                                      ...getAttendanceFillStyle(day.hours),
+                                      ...getAttendanceFillStyle(day.hours, day.isAbsent),
                                       height: `${barHeight}%`,
-                                      minHeight: day.hours > 0 ? '12px' : '2px',
+                                      minHeight: day.barHours > 0 ? '12px' : '2px',
                                     }}
                                   />
                                 </div>

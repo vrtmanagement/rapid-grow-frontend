@@ -16,11 +16,14 @@ import {
   NotebookPen,
   Palmtree,
   Send,
+  Sun,
+  Moon,
   UserCircle,
   UsersRound,
 } from 'lucide-react';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
 import type { AppShellNotification } from './authenticatedShellTypes';
+import { useTheme } from '../../context/ThemeContext';
 
 function getNotificationIconMeta(notification: AppShellNotification): { Icon: LucideIcon; wrapClass: string } {
   const t = String(notification.type || '').trim();
@@ -101,7 +104,7 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
         setNotificationMenuOpen((value) => !value);
         setUserMenuOpen(false);
       }}
-      className="relative flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white"
+      className="app-topbar-icon-button relative flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white"
       aria-label="Notifications"
       aria-expanded={notificationMenuOpen}
       aria-haspopup="true"
@@ -116,8 +119,8 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
     {notificationMenuOpen && createPortal(
       <>
         <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setNotificationMenuOpen(false)} />
-        <div className="fixed right-4 top-20 z-[9999] w-[min(100vw-1.25rem,28rem)] overflow-hidden rounded-2xl bg-white shadow-[0_22px_50px_rgba(15,23,42,0.16)] dark:bg-slate-900 sm:right-8">
-          <div className="border-b border-slate-100 px-4 py-3.5 dark:border-slate-800 sm:px-5 sm:py-4">
+        <div className="app-popover-card fixed right-4 top-20 z-[9999] w-[min(100vw-1.25rem,28rem)] overflow-hidden rounded-2xl bg-white shadow-[0_22px_50px_rgba(15,23,42,0.16)] dark:bg-slate-900 sm:right-8">
+          <div className="app-popover-section border-b border-slate-100 px-4 py-3.5 dark:border-slate-800 sm:px-5 sm:py-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Notifications</p>
@@ -147,7 +150,7 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
                 return (
                   <div
                     key={notification._id}
-                    className={`border-b border-slate-100 last:border-b-0 ${rowTint}`}
+                    className={`app-popover-row border-b border-slate-100 last:border-b-0 ${rowTint}`}
                   >
                     <button
                       type="button"
@@ -177,7 +180,7 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
                         <button
                           type="button"
                           onClick={() => void markNotificationRead(notification._id)}
-                          className="text-xs font-semibold text-brand-red hover:text-slate-900"
+                          className="app-popover-link text-xs font-semibold text-brand-red hover:text-slate-900"
                         >
                           Mark as read
                         </button>
@@ -194,6 +197,24 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
     )}
   </div>
 );
+
+export const ThemeToggleButton: React.FC = () => {
+  const { resolvedTheme, toggleTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  const Icon = isDark ? Sun : Moon;
+
+  return (
+    <button
+      type="button"
+      onClick={toggleTheme}
+      className="app-topbar-icon-button flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white"
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+    >
+      <Icon size={18} />
+    </button>
+  );
+};
 
 interface UserAccountMenuProps {
   userMenuOpen: boolean;
@@ -221,7 +242,7 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
         setUserMenuOpen((v) => !v);
         setNotificationMenuOpen(false);
       }}
-      className="flex items-center gap-4 rounded-xl py-1 pr-1 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+      className="app-user-menu-trigger flex items-center gap-4 rounded-xl py-1 pr-1 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
       aria-expanded={userMenuOpen}
       aria-haspopup="true"
     >
@@ -238,11 +259,11 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
     {userMenuOpen && createPortal(
       <>
         <div className="fixed inset-0 z-[9998]" aria-hidden onClick={() => setUserMenuOpen(false)} />
-        <div className="fixed right-8 top-20 z-[9999] w-56 rounded-xl border border-slate-200 bg-white py-2 shadow-lg dark:border-slate-800 dark:bg-slate-900">
+        <div className="app-popover-card fixed right-8 top-20 z-[9999] w-56 rounded-xl border border-slate-200 bg-white py-2 shadow-lg dark:border-slate-800 dark:bg-slate-900">
           <button
             type="button"
             onClick={() => { setUserMenuOpen(false); window.location.hash = '#/profile'; }}
-            className="flex w-full items-center gap-3 px-4 py-3 text-left text-slate-700 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+            className="app-popover-row flex w-full items-center gap-3 px-4 py-3 text-left text-slate-700 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
           >
             <UserCircle size={18} className="text-slate-500" />
             Profile
@@ -250,7 +271,7 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
           <button
             type="button"
             onClick={() => { setUserMenuOpen(false); onLogout(); }}
-            className="flex w-full items-center gap-3 px-4 py-3 text-left text-slate-700 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+            className="app-popover-row flex w-full items-center gap-3 px-4 py-3 text-left text-slate-700 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
           >
             <LogOut size={18} className="text-slate-500" />
             Logout
