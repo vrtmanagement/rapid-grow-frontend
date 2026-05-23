@@ -40,14 +40,15 @@ interface StaffViewProps {
 function getBackendInfo() {
   try {
     const raw = localStorage.getItem('rapidgrow-admin');
-    if (!raw) return { role: 'EMPLOYEE' as BackendRole, empId: '' };
+    if (!raw) return { role: 'EMPLOYEE' as BackendRole, empId: '', userId: '' };
     const parsed = JSON.parse(raw);
     return {
       role: (parsed?.employee?.role || 'EMPLOYEE') as BackendRole,
       empId: parsed?.employee?.empId || '',
+      userId: parsed?.employee?._id || '',
     };
   } catch {
-    return { role: 'EMPLOYEE' as BackendRole, empId: '' };
+    return { role: 'EMPLOYEE' as BackendRole, empId: '', userId: '' };
   }
 }
 
@@ -120,6 +121,10 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   const backendInfo = useMemo(() => getBackendInfo(), []);
   const backendRole = backendInfo.role;
   const backendEmpId = backendInfo.empId;
+  const backendUserId = backendInfo.userId;
+  const isAdmin = backendRole === 'ADMIN' || backendRole === 'SUPER_ADMIN';
+  const isTeamLead = backendRole === 'TEAM_LEAD';
+  const canShowReminderControls = mode === 'manager' && (isAdmin || isTeamLead);
 
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -143,7 +148,7 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
     enabled: DEFAULT_REMINDER_SETTINGS.enabled,
     time: DEFAULT_REMINDER_SETTINGS.time,
   });
-  const [reminderLoading, setReminderLoading] = useState(mode === 'manager');
+  const [reminderLoading, setReminderLoading] = useState(false);
   const [reminderSaving, setReminderSaving] = useState(false);
   const [reminderError, setReminderError] = useState<string | null>(null);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
@@ -154,8 +159,6 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   const staffTableCardRef = useRef<HTMLDivElement | null>(null);
   const timePickerRef = useRef<HTMLDivElement | null>(null);
 
-  const isAdmin = backendRole === 'ADMIN' || backendRole === 'SUPER_ADMIN';
-  const isTeamLead = backendRole === 'TEAM_LEAD';
   const canCreateEmployee = mode === 'manager' && hasPermission('EMPLOYEE_CREATE') && !!state;
   const canInviteEmployee = mode === 'manager' && hasPermission('EMPLOYEE_INVITE');
   const canViewProfile = isAdmin || isTeamLead;
@@ -165,6 +168,8 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
     () => parseReminderTimeValue(reminderDraft.time),
     [reminderDraft.time],
   );
+  const isCurrentUserRow = (row: EmployeeRow) =>
+    Boolean((backendEmpId && row.empId === backendEmpId) || (backendUserId && row._id === backendUserId));
 
   const departmentOptions = useMemo(
     () =>
@@ -181,21 +186,29 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    return rows.filter((row) => {
-      const matchesQuery =
-        !query ||
-        [row.empName, row.email, row.empId, row.designation, row.department, row.phone].some((value) =>
-          String(value || '').toLowerCase().includes(query),
-        );
+    return rows
+      .filter((row) => {
+        const matchesQuery =
+          !query ||
+          [row.empName, row.email, row.empId, row.designation, row.department, row.phone].some((value) =>
+            String(value || '').toLowerCase().includes(query),
+          );
 
-      const matchesDepartment =
-        departmentFilter === 'all' || String(row.department || '').trim() === departmentFilter;
-      const matchesStatus =
-        statusFilter === 'all' || String(row.status || '').toLowerCase() === statusFilter;
+        const matchesDepartment =
+          departmentFilter === 'all' || String(row.department || '').trim() === departmentFilter;
+        const matchesStatus =
+          statusFilter === 'all' || String(row.status || '').toLowerCase() === statusFilter;
 
-      return matchesQuery && matchesDepartment && matchesStatus;
-    });
-  }, [rows, searchQuery, departmentFilter, statusFilter]);
+        return matchesQuery && matchesDepartment && matchesStatus;
+      })
+      .sort((left, right) => {
+        const leftIsCurrentUser = isCurrentUserRow(left);
+        const rightIsCurrentUser = isCurrentUserRow(right);
+
+        if (leftIsCurrentUser === rightIsCurrentUser) return 0;
+        return leftIsCurrentUser ? -1 : 1;
+      });
+  }, [rows, searchQuery, departmentFilter, statusFilter, backendEmpId, backendUserId]);
 
   const canEditRow = (row: EmployeeRow) => {
     if (!hasPermission('EMPLOYEE_UPDATE')) return false;
@@ -243,7 +256,10 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   }, [hasPermission]);
 
   useEffect(() => {
-    if (mode !== 'manager') return;
+    if (!canShowReminderControls) {
+      setReminderLoading(false);
+      return;
+    }
 
     let isActive = true;
     setReminderLoading(true);
@@ -270,7 +286,7 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
     return () => {
       isActive = false;
     };
-  }, [mode]);
+  }, [canShowReminderControls]);
 
   useEffect(() => {
     const handleProfileAvatarUpdated = (event: Event) => {
@@ -796,6 +812,7 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
                   const deletable = canDeleteRow(row);
                   const canOpenActions = editable || deletable || canViewProfile;
                   const avatarSrc = getDisplayAvatarUrl(row.avatar, row.empName);
+                  const isCurrentUser = isCurrentUserRow(row);
 
                   return (
                     <tr key={row._id} className="border-b border-slate-100 transition hover:bg-slate-50/40">
@@ -805,7 +822,12 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
                             <img src={avatarSrc} alt={row.empName} className="h-full w-full object-cover" />
                           </div>
                           <div className="min-w-0">
-                            <div className="truncate text-[14px] font-medium text-slate-900">{row.empName}</div>
+                            <div className="flex items-center gap-2">
+                              <div className="truncate text-[14px] font-medium text-slate-900">{row.empName}</div>
+                              {isCurrentUser ? (
+                                <span className="shrink-0 text-[12px] font-medium text-slate-500">(You)</span>
+                              ) : null}
+                            </div>
                             <div className="mt-0.5 truncate text-[12px] text-slate-500">{row.email || '--'}</div>
                           </div>
                         </div>
@@ -914,7 +936,7 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
         ) : null}
       </div>
 
-      {mode === 'manager' ? (
+      {canShowReminderControls ? (
         <div className="rounded-xl border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
           <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex items-start gap-4">
@@ -1040,7 +1062,7 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                             Hour
                           </p>
-                          <div className="mt-2 max-h-56 space-y-2 overflow-y-auto rounded-[20px] border border-slate-200 bg-slate-50/80 p-3">
+                          <div className="mt-2 max-h-44 space-y-2 overflow-y-auto rounded-[20px] border border-slate-200 bg-slate-50/80 p-3">
                             {REMINDER_HOUR_OPTIONS.map((hour) => {
                               const selected = reminderTimeSelection.hour === hour;
                               return (
@@ -1065,7 +1087,7 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
                           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                             Minute
                           </p>
-                          <div className="mt-2 max-h-56 space-y-2 overflow-y-auto rounded-[20px] border border-slate-200 bg-slate-50/80 p-3">
+                          <div className="mt-2 max-h-44 space-y-2 overflow-y-auto rounded-[20px] border border-slate-200 bg-slate-50/80 p-3">
                             {REMINDER_MINUTE_OPTIONS.map((minute) => {
                               const selected = reminderTimeSelection.minute === minute;
                               return (

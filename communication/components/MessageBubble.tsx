@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Check, CheckCheck, CornerUpLeft, Download, Eye, FileText, Loader2, MoreVertical, PencilLine, Trash2 } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
 import { MessageActionModal } from './MessageActionModal';
-import { API_BASE } from '../../config/api';
+import { apiDownloadCommunicationFile } from '../api';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
 
 function formatTime(iso: string) {
@@ -146,26 +146,34 @@ export function MessageBubble({
 
   const timeTone = 'text-slate-500';
   const directFileUrl = message.fileUrl || message.attachment?.url || '#';
-  const downloadUrl = message.attachment?.fileId
-    ? `${API_BASE}/communication/files/${encodeURIComponent(message.attachment.fileId)}`
-    : directFileUrl;
   const attachmentName = message.attachment?.fileName || 'Attachment';
   const attachmentMimeType = message.attachment?.mimeType || '';
   const isImageAttachment = message.type === 'image' || attachmentMimeType.startsWith('image/');
   const attachmentSize = formatAttachmentSize(message.attachment?.size);
   const attachmentBadge = getAttachmentBadge(attachmentName, attachmentMimeType, isImageAttachment);
-  const hasDownloadTarget = downloadUrl !== '#';
+  const hasDownloadTarget = !!String(message.attachment?.fileId || '').trim() || directFileUrl !== '#';
 
-  const triggerDownload = () => {
+  const triggerDownload = async () => {
     if (!hasDownloadTarget) return;
     setActionLoading('download');
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = attachmentName || 'file';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => setActionLoading(null), 1200);
+    try {
+      if (message.attachment?.fileId) {
+        await apiDownloadCommunicationFile(message.attachment.fileId, attachmentName || 'file');
+        return;
+      }
+
+      const link = document.createElement('a');
+      link.href = directFileUrl;
+      link.download = attachmentName || 'file';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('Failed to download communication attachment', error);
+      window.alert(error instanceof Error ? error.message : 'Failed to download attachment');
+    } finally {
+      window.setTimeout(() => setActionLoading(null), 400);
+    }
   };
 
   return (

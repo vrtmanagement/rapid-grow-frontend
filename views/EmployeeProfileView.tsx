@@ -114,6 +114,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
   const [hasChanges, setHasChanges] = useState(false);
   const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [resumeEditModalAfterAvatarCrop, setResumeEditModalAfterAvatarCrop] = useState(false);
   const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummaryResponse | null>(null);
   const [leaveHistory, setLeaveHistory] = useState<LeaveRequest[]>([]);
   const [reportsToName, setReportsToName] = useState('-');
@@ -267,6 +268,29 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
 
   const canEditExtendedFields = ['ADMIN', 'SUPER_ADMIN', 'TEAM_LEAD'].includes(String(employee?.role || '').toUpperCase());
 
+  const handleAvatarPickerOpen = useCallback(
+    (file: File | null, options?: { returnToEditModal?: boolean }) => {
+      if (!file) return;
+      setError(null);
+      setInfoMessage(null);
+      const shouldReturnToEditModal = Boolean(options?.returnToEditModal);
+      setResumeEditModalAfterAvatarCrop(shouldReturnToEditModal);
+      if (shouldReturnToEditModal) {
+        setEditModalOpen(false);
+      }
+      setPendingAvatarFile(file);
+    },
+    [],
+  );
+
+  const handleAvatarCropClose = useCallback(() => {
+    setPendingAvatarFile(null);
+    if (resumeEditModalAfterAvatarCrop) {
+      setEditModalOpen(true);
+      setResumeEditModalAfterAvatarCrop(false);
+    }
+  }, [resumeEditModalAfterAvatarCrop]);
+
   const handleAvatarFileChange = async (file: File | null) => {
     if (!file || !employee?._id) return;
     setUploadingAvatar(true);
@@ -284,7 +308,10 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || 'Failed to upload profile image');
 
-      const nextAvatar = data.avatar || '';
+      const nextAvatar =
+        typeof data.avatar === 'string' && data.avatar.trim()
+          ? data.avatar.trim()
+          : String(avatar || employee?.avatar || '').trim();
       const nextEmployee = { ...employee, ...data, avatar: nextAvatar };
       setEmployee(nextEmployee);
       setAvatar(nextAvatar);
@@ -348,9 +375,14 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || 'Failed to update profile');
 
+      const nextAvatar =
+        typeof data.avatar === 'string'
+          ? data.avatar.trim()
+          : String(avatar || employee?.avatar || '').trim();
       const nextEmployee = {
         ...employee,
         ...data,
+        avatar: nextAvatar,
         empName: data.empName || profileName,
         designation: data.designation ?? profileDesignation,
         department: data.department ?? profileDepartment,
@@ -359,11 +391,12 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
       };
 
       setEmployee(nextEmployee);
+      setAvatar(nextAvatar);
       resetFormFromEmployee(nextEmployee);
-      persistSessionEmployeeAvatar(nextEmployee.avatar, nextEmployee);
+      persistSessionEmployeeAvatar(nextAvatar, nextEmployee);
       syncCurrentUser({
         name: nextEmployee.empName,
-        avatar: nextEmployee.avatar || '',
+        avatar: nextAvatar,
         email: nextEmployee.email || state.currentUser.email,
       });
       setInfoMessage('Profile updated successfully.');
@@ -470,7 +503,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
                   employmentCards={employmentCards}
                   attendanceStats={attendanceStats}
                   leaveHistory={leaveHistory}
-                  onAvatarSelect={setPendingAvatarFile}
+                  onAvatarSelect={(file) => handleAvatarPickerOpen(file)}
                   onUpdateProfile={() => setEditModalOpen(true)}
                 />
               </div>
@@ -517,7 +550,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
           setEditModalOpen(false);
         }}
         onSave={handleProfileSave}
-        onAvatarSelect={setPendingAvatarFile}
+        onAvatarSelect={(file) => handleAvatarPickerOpen(file, { returnToEditModal: true })}
         onProfileNameChange={(value) => {
           setProfileName(value);
           setHasChanges(true);
@@ -557,12 +590,14 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
       <AvatarCropModal
         open={!!pendingAvatarFile}
         file={pendingAvatarFile}
-        onClose={() => setPendingAvatarFile(null)}
+        onClose={handleAvatarCropClose}
         onConfirm={handleAvatarFileChange}
       />
     </div>
   );
 };
+
+const PROFILE_EDIT_AVATAR_INPUT_ID = 'profile-edit-avatar-input';
 
 interface ProfileOverviewSectionProps {
   employee: any;
@@ -784,6 +819,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
               className="h-20 w-20 rounded-full object-cover shadow-lg ring-4 ring-white"
             />
             <label
+              htmlFor={PROFILE_EDIT_AVATAR_INPUT_ID}
               className={`absolute -bottom-1 -right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-red-500 text-white shadow-lg ring-4 ring-white transition hover:bg-red-600 ${
                 uploadingAvatar ? 'cursor-not-allowed opacity-60' : ''
               }`}
@@ -791,6 +827,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
             >
               <Camera size={14} />
               <input
+                id={PROFILE_EDIT_AVATAR_INPUT_ID}
                 type="file"
                 accept="image/*"
                 className="hidden"
@@ -806,7 +843,14 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
           <div>
             <h4 className="text-lg font-semibold text-slate-900">Profile Photo</h4>
             <p className="text-sm text-slate-500">Upload a clear profile image for your account.</p>
-            <p className="mt-2 text-sm font-semibold text-red-500">{uploadingAvatar ? 'Uploading...' : 'Change Photo'}</p>
+            <label
+              htmlFor={PROFILE_EDIT_AVATAR_INPUT_ID}
+              className={`mt-2 inline-block text-sm font-semibold ${
+                uploadingAvatar ? 'cursor-not-allowed text-red-300' : 'cursor-pointer text-red-500'
+              }`}
+            >
+              {uploadingAvatar ? 'Uploading...' : 'Change Photo'}
+            </label>
           </div>
         </div>
 
