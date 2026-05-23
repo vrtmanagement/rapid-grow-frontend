@@ -47,6 +47,49 @@ export function persistSessionEmployeeAvatar(avatar?: string | null, employeeUpd
   } catch {
     // Ignore storage failures; server state remains the source of truth.
   }
+
+  try {
+    const rawAppState = localStorage.getItem('rapidgrow-os-v1');
+    if (!rawAppState) return;
+
+    const parsedAppState = JSON.parse(rawAppState);
+    const nextEmpId = String(employeeUpdates.empId || '').trim();
+    const nextUserId = String(employeeUpdates._id || employeeUpdates.id || '').trim();
+    const nextName = String(employeeUpdates.empName || employeeUpdates.name || '').trim();
+    const nextEmail = String(employeeUpdates.email || '').trim();
+
+    if (parsedAppState?.currentUser) {
+      parsedAppState.currentUser = {
+        ...parsedAppState.currentUser,
+        ...(nextName ? { name: nextName } : {}),
+        ...(nextEmail ? { email: nextEmail } : {}),
+        avatar: nextAvatar,
+      };
+    }
+
+    if (Array.isArray(parsedAppState?.team)) {
+      parsedAppState.team = parsedAppState.team.map((member: any) => {
+        const memberId = String(member?.id || '').trim();
+        const matchesMember =
+          (nextUserId && memberId === nextUserId) ||
+          (nextEmpId && memberId === nextEmpId) ||
+          (parsedAppState?.currentUser?.id && memberId === String(parsedAppState.currentUser.id));
+
+        if (!matchesMember) return member;
+
+        return {
+          ...member,
+          ...(nextName ? { name: nextName } : {}),
+          ...(nextEmail ? { email: nextEmail } : {}),
+          avatar: nextAvatar,
+        };
+      });
+    }
+
+    localStorage.setItem('rapidgrow-os-v1', JSON.stringify(parsedAppState));
+  } catch {
+    // Ignore local app-state persistence failures.
+  }
 }
 
 export function notifyProfileAvatarUpdated(payload: {
