@@ -1,31 +1,45 @@
-import { API_BASE } from '../config/api';
+import { API_BASE, getStoredAuthSession } from '../config/api';
 
 export type ChatRoleGroup = 'admin' | 'team_lead' | 'employees';
 
 function getAuthToken(): string | null {
-  try {
-    const raw = localStorage.getItem('rapidgrow-admin');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.token || null;
-  } catch {
-    return null;
-  }
+  const session = getStoredAuthSession();
+  return typeof session?.token === 'string' ? session.token : null;
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
 }
 
 function authHeadersJson(): Record<string, string> {
-  const token = getAuthToken();
   return {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...authHeaders(),
   };
 }
 
 function authHeadersMultipart(): Record<string, string> {
-  const token = getAuthToken();
-  return {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
+  return authHeaders();
+}
+
+function getDownloadFilename(contentDisposition: string | null, fallback: string) {
+  if (!contentDisposition) return fallback;
+
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+
+  const basicMatch = contentDisposition.match(/filename="([^"]+)"|filename=([^;]+)/i);
+  const rawName = basicMatch?.[1] || basicMatch?.[2];
+  return rawName ? rawName.trim() : fallback;
 }
 
 export async function apiListUsers() {
@@ -66,6 +80,27 @@ export async function apiUploadFile(file: File) {
     type: 'image' | 'file';
     urlPath: string;
   }>;
+}
+
+export async function apiDownloadCommunicationFile(fileId: string, fallbackFileName = 'attachment') {
+  const trimmedFileId = String(fileId || '').trim();
+  if (!trimmedFileId) throw new Error('Attachment file id is missing');
+
+  const res = await fetch(`${API_BASE}/communication/files/${encodeURIComponent(trimmedFileId)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Download failed');
+
+  const blob = await res.blob();
+  const objectUrl = window.URL.createObjectURL(blob);
+  const downloadName = getDownloadFilename(res.headers.get('content-disposition'), fallbackFileName);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = downloadName || fallbackFileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(objectUrl);
 }
 
 export async function apiCreateTeam(name: string, memberIds: string[], avatar?: string | null) {

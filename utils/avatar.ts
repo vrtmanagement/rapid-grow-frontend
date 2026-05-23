@@ -41,7 +41,7 @@ export function persistSessionEmployeeAvatar(avatar?: string | null, employeeUpd
     parsed.employee = {
       ...(parsed.employee || {}),
       ...employeeUpdates,
-      ...(nextAvatar ? { avatar: nextAvatar } : {}),
+      avatar: nextAvatar,
     };
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(parsed));
   } catch {

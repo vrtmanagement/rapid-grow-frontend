@@ -248,7 +248,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
                 <Route path="/content/day/:dayKey/type/:typeKey/item/:itemKey" element={<ContentView />} />
               )}
               {hasPower('CONTENT_VIEW') && <Route path="/content/new" element={<ContentCreateView />} />}
-              {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView />} />}
+              {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView mode="employee" />} />}
               {hasPower('CRM_VIEW') && <Route path="/crm" element={<CRMPage />} />}
               {hasPower('CRM_VIEW') && <Route path="/crm/lead/:leadId" element={<CRMLeadDetailPage />} />}
               <Route path="*" element={<AccessDenied />} />
