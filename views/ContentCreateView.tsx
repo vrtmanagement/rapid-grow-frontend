@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Bold, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Copy, FileText, Globe, Hash, Italic, Link2, Linkedin, Mail, Sparkles, Underline, X } from 'lucide-react';
 import { apiCreateContent, apiDeleteContentDraft, apiGetContent, apiGetContentDraft, apiUpdateContent, apiUploadContentFile, apiUpsertContentDraft, ContentAsset, ContentDraftMode, ContentType } from '../services/contentApi';
 import Toast from '../components/ui/Toast';
+import { normalizeLooseListMarkup, prepareClipboardPasteForDescription } from '../utils/clipboardPaste';
 
 const LINK_STORAGE_KEY = 'rapidgrow-content-links-v1';
 const TAG_STORAGE_KEY = 'rapidgrow-content-tags-v1';
@@ -201,66 +202,6 @@ function normalizeAllowedInlineHtml(value: string) {
 
 function descriptionToEditorHtml(value: string) {
   return normalizeAllowedInlineHtml(escapeRichTextHtml(value).replace(/\r\n?/g, '\n')).replace(/\n/g, '<br>');
-}
-
-function normalizeLooseListMarkup(value: string) {
-  const lines = String(value || '').replace(/\r/g, '').split('\n');
-  const output: string[] = [];
-  let index = 0;
-
-  const closeList = (type: 'ol' | 'ul', items: string[]) => {
-    if (items.length) output.push(`<${type}>${items.map((item) => `<li>${item.trim()}</li>`).join('')}</${type}>`);
-  };
-
-  while (index < lines.length) {
-    const line = lines[index];
-    const trimmed = line.trim();
-    const numberMarker = trimmed.match(/^(\d+)[.)]?$/);
-    const numberInline = trimmed.match(/^(\d+)[.)]\s+(.+)$/);
-    const bulletMarker = /^[•·*-]$/.test(trimmed);
-    const bulletInline = trimmed.match(/^[•·*-]\s+(.+)$/);
-
-    if (numberMarker || numberInline || bulletMarker || bulletInline) {
-      const type: 'ol' | 'ul' = numberMarker || numberInline ? 'ol' : 'ul';
-      const items: string[] = [];
-
-      while (index < lines.length) {
-        const current = lines[index].trim();
-        const currentNumberMarker = current.match(/^(\d+)[.)]?$/);
-        const currentNumberInline = current.match(/^(\d+)[.)]\s+(.+)$/);
-        const currentBulletMarker = /^[•·*-]$/.test(current);
-        const currentBulletInline = current.match(/^[•·*-]\s+(.+)$/);
-        const isSameType =
-          type === 'ol'
-            ? Boolean(currentNumberMarker || currentNumberInline)
-            : Boolean(currentBulletMarker || currentBulletInline);
-
-        if (!isSameType) break;
-
-        if (currentNumberInline || currentBulletInline) {
-          items.push((currentNumberInline?.[2] || currentBulletInline?.[1] || '').trim());
-          index += 1;
-          continue;
-        }
-
-        let nextIndex = index + 1;
-        while (nextIndex < lines.length && !lines[nextIndex].trim()) nextIndex += 1;
-        const nextText = lines[nextIndex]?.trim() || '';
-        if (!nextText) break;
-
-        items.push(nextText);
-        index = nextIndex + 1;
-      }
-
-      closeList(type, items);
-      continue;
-    }
-
-    output.push(line);
-    index += 1;
-  }
-
-  return output.join('\n');
 }
 
 function flattenListItemBlocks(value: string) {
@@ -1243,18 +1184,14 @@ const ContentCreateView: React.FC = () => {
                 }}
                 onPaste={(event) => {
                   event.preventDefault();
-                  const html = event.clipboardData.getData('text/html').trim();
-                  if (html) {
-                    const sanitizedDescription = editorHtmlToDescription(html);
-                    const sanitizedHtml = descriptionToEditorHtml(sanitizedDescription);
-                    document.execCommand('insertHTML', false, sanitizedHtml);
-                    handleDescriptionInput();
-                    return;
-                  }
+                  const sanitizedDescription = prepareClipboardPasteForDescription(
+                    event.clipboardData,
+                    editorHtmlToDescription,
+                  );
+                  if (!sanitizedDescription) return;
 
-                  const text = event.clipboardData.getData('text/plain');
-                  const sanitizedText = descriptionToEditorHtml(normalizeLooseListMarkup(text));
-                  document.execCommand('insertHTML', false, sanitizedText);
+                  const sanitizedHtml = descriptionToEditorHtml(sanitizedDescription);
+                  document.execCommand('insertHTML', false, sanitizedHtml);
                   handleDescriptionInput();
                 }}
                 className="min-h-[70vh] whitespace-pre-wrap break-words px-3.5 py-3 leading-7 text-[15px] text-slate-700 outline-none [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:text-lg [&_h3]:font-semibold [&_h4]:font-semibold [&_li>div]:inline [&_li>p]:inline [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:space-y-0.5 [&_ol]:pl-6 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:space-y-0.5 [&_ul]:pl-6"
