@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell,
   BriefcaseBusiness,
@@ -119,6 +119,29 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
   const [leaveHistory, setLeaveHistory] = useState<LeaveRequest[]>([]);
   const [reportsToName, setReportsToName] = useState('-');
   const [projectsInvolvedCount, setProjectsInvolvedCount] = useState<number | null>(null);
+  const optimisticAvatarRef = useRef<{ url: string; expiresAt: number } | null>(null);
+
+  const resolvePreferredAvatar = useCallback((incomingAvatar?: string | null, fallbackAvatar?: string | null) => {
+    const nextAvatar = String(incomingAvatar || '').trim();
+    const fallback = String(fallbackAvatar || '').trim();
+    const optimisticAvatar = optimisticAvatarRef.current;
+
+    if (!optimisticAvatar?.url) {
+      return nextAvatar || fallback;
+    }
+
+    if (nextAvatar === optimisticAvatar.url) {
+      optimisticAvatarRef.current = null;
+      return nextAvatar;
+    }
+
+    if (Date.now() < optimisticAvatar.expiresAt) {
+      return optimisticAvatar.url;
+    }
+
+    optimisticAvatarRef.current = null;
+    return nextAvatar || fallback;
+  }, []);
 
   const syncCurrentUser = useCallback((updates: Partial<TeamMember>) => {
     updateState((prev) => {
@@ -190,15 +213,20 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
 
         if (employeeRes.status === 'fulfilled' && employeeRes.value.ok) {
           const nextEmployee = await employeeRes.value.json();
-          setEmployee((prev: any) => ({ ...(prev || {}), ...nextEmployee }));
-          setAvatar((prev) => prev || nextEmployee?.avatar || '');
+          const nextAvatar = resolvePreferredAvatar(
+            nextEmployee?.avatar,
+            avatar || employee?.avatar || state.currentUser.avatar,
+          );
+          const mergedEmployee = { ...(employee || {}), ...nextEmployee, avatar: nextAvatar };
+          setEmployee((prev: any) => ({ ...(prev || {}), ...mergedEmployee }));
+          setAvatar(nextAvatar);
           if (!editModalOpen) {
-            resetFormFromEmployee(nextEmployee);
+            resetFormFromEmployee(mergedEmployee);
           }
           syncCurrentUser({
-            name: nextEmployee?.empName || state.currentUser.name,
-            email: nextEmployee?.email || state.currentUser.email,
-            avatar: nextEmployee?.avatar || state.currentUser.avatar,
+            name: mergedEmployee?.empName || state.currentUser.name,
+            email: mergedEmployee?.email || state.currentUser.email,
+            avatar: nextAvatar || state.currentUser.avatar,
           });
         }
 
@@ -221,7 +249,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
     return () => {
       active = false;
     };
-  }, [editModalOpen, employee?._id, employee?.empId, resetFormFromEmployee, state.currentUser.avatar, state.currentUser.email, state.currentUser.name, syncCurrentUser]);
+  }, [avatar, editModalOpen, employee?._id, employee?.empId, employee?.avatar, resetFormFromEmployee, resolvePreferredAvatar, state.currentUser.avatar, state.currentUser.email, state.currentUser.name, syncCurrentUser]);
 
   useEffect(() => {
     if (!employee?.empId) return undefined;
@@ -312,6 +340,9 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
         typeof data.avatar === 'string' && data.avatar.trim()
           ? data.avatar.trim()
           : String(avatar || employee?.avatar || '').trim();
+      optimisticAvatarRef.current = nextAvatar
+        ? { url: nextAvatar, expiresAt: Date.now() + 15000 }
+        : null;
       const nextEmployee = { ...employee, ...data, avatar: nextAvatar };
       setEmployee(nextEmployee);
       setAvatar(nextAvatar);
@@ -800,7 +831,14 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 px-4 py-8 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 px-4 py-8 backdrop-blur-sm"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div className="relative max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[24px] border border-slate-200 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.18)]">
         <button
           type="button"
