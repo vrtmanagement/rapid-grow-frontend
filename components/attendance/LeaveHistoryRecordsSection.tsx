@@ -189,7 +189,12 @@ const LeaveHistoryRecordsSection: React.FC<LeaveHistoryRecordsSectionProps> = ({
               leave={leave}
               showEmployee={isApproverPortal}
               employeeLabel={getEmployeeRecordLabel(leave)}
-              totalDays={calculateLeaveDays(leave.startDate.slice(0, 10), leave.endDate.slice(0, 10), true).total}
+              totalDays={calculateLeaveDays(
+                leave.startDate.slice(0, 10),
+                leave.endDate.slice(0, 10),
+                true,
+                { type: leave.type, dayPortion: leave.dayPortion }
+              ).total}
               canManagePending={viewerRole !== 'admin'}
               decisionLabel={getDecisionLabel(leave)}
               onViewDetails={onViewDetails}

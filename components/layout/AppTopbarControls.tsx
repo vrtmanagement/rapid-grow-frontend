@@ -180,6 +180,7 @@ interface NotificationBellMenuProps {
   setUserMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   openNotification: (notification: AppShellNotification) => Promise<void>;
   markNotificationRead: (notificationId: string) => Promise<void>;
+  clearNotificationsFromPopup: () => void;
 }
 
 export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
@@ -191,6 +192,7 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
   setUserMenuOpen,
   openNotification,
   markNotificationRead,
+  clearNotificationsFromPopup,
 }) => (
   <div className="relative">
     <IconTooltipButton
@@ -222,13 +224,24 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
                   {unreadNotificationCount > 0 ? `${unreadNotificationCount} unread` : 'All caught up'}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setNotificationMenuOpen(false)}
-                className="text-xs font-semibold text-slate-500 hover:text-slate-900"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-3">
+                {notifications.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={clearNotificationsFromPopup}
+                    className="text-xs font-semibold text-slate-500 hover:text-slate-900"
+                  >
+                    Clear
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setNotificationMenuOpen(false)}
+                  className="text-xs font-semibold text-slate-500 hover:text-slate-900"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
 

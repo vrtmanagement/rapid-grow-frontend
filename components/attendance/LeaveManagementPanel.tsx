@@ -118,8 +118,8 @@ const LeaveManagementPanel: React.FC<Props> = ({
     return myLeaves;
   }, [approverLeaves, myLeaves, viewerRole]);
   const { total: calculatedDays, invalid: hasInvalidRange } = useMemo(
-    () => calculateLeaveDays(leaveStart, leaveEnd, true),
-    [leaveEnd, leaveStart],
+    () => calculateLeaveDays(leaveStart, leaveEnd, true, { type: leaveType }),
+    [leaveEnd, leaveStart, leaveType],
   );
 
   const filteredSuggestions = useMemo(() => {

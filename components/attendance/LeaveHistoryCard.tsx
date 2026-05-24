@@ -1,6 +1,6 @@
 import React from 'react';
 import { CalendarRange, Eye, PencilLine, Trash2 } from 'lucide-react';
-import { LeaveRequest } from './attendanceUtils';
+import { LeaveRequest, formatLeaveDayCount } from './attendanceUtils';
 
 interface Props {
   leave: LeaveRequest;
@@ -40,6 +40,7 @@ const typeToneClasses: Record<string, string> = {
   SICK: 'bg-red-50 text-red-700',
   VACATION: 'bg-sky-50 text-sky-700',
   EMERGENCY: 'bg-violet-50 text-violet-700',
+  HALF_DAY: 'bg-indigo-50 text-indigo-700',
 };
 
 const LeaveHistoryCard: React.FC<Props> = ({
@@ -83,7 +84,7 @@ const LeaveHistoryCard: React.FC<Props> = ({
               </div>
               <span className="inline-flex items-center gap-1 rounded-full bg-brand-red/8 px-3 py-1 text-[11px] font-semibold text-brand-red">
                 <CalendarRange size={13} />
-                {totalDays} {totalDays === 1 ? 'day' : 'days'}
+                {formatLeaveDayCount(totalDays)}
               </span>
             </div>
 

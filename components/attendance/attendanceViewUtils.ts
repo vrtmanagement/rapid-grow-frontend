@@ -19,6 +19,18 @@ export interface LeaveActorProfile {
   department?: string;
 }
 
+interface ParsedAttendanceCoordinates {
+  latitude: number;
+  longitude: number;
+  accuracyMeters?: number | null;
+}
+
+const locationLabelCache = new Map<string, string>();
+
+function normalizeLocationText(value: string) {
+  return value.replace(/\s+/g, ' ').replace(/Â/g, '').trim();
+}
+
 export function readStoredLeaveNotificationState(storageKey: string): Record<string, boolean> {
   if (typeof window === 'undefined') return {};
 
@@ -44,6 +56,113 @@ export function getLocalDateKey(value: string | Date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+export function parseAttendanceCoordinates(value?: string | null): ParsedAttendanceCoordinates | null {
+  const raw = normalizeLocationText(String(value || ''));
+  if (!raw) return null;
+
+  const latMatch = raw.match(/Lat:\s*(-?\d+(?:\.\d+)?)/i);
+  const lngMatch = raw.match(/Lng:\s*(-?\d+(?:\.\d+)?)/i);
+  if (!latMatch || !lngMatch) return null;
+
+  const latitude = Number(latMatch[1]);
+  const longitude = Number(lngMatch[1]);
+  const accuracyMatch = raw.match(/[±\+\-]?\s*(\d+(?:\.\d+)?)\s*m/i);
+  const accuracyMeters = accuracyMatch ? Number(accuracyMatch[1]) : null;
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+
+  return {
+    latitude,
+    longitude,
+    accuracyMeters: Number.isFinite(accuracyMeters) ? accuracyMeters : null,
+  };
+}
+
+function buildReadableLocationLabel(payload: any, fallback: string) {
+  const address = payload?.address || {};
+  const featureCandidates = [
+    payload?.name,
+    payload?.display_name?.split(',')?.[0],
+    address?.amenity,
+    address?.building,
+    address?.house_name,
+    address?.road,
+    address?.neighbourhood,
+    address?.suburb,
+  ];
+  const localityCandidates = [
+    address?.city,
+    address?.town,
+    address?.village,
+    address?.hamlet,
+    address?.municipality,
+    address?.county,
+    address?.state_district,
+  ];
+  const regionCandidates = [address?.state, address?.country];
+
+  const parts = [...featureCandidates, ...localityCandidates, ...regionCandidates]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .filter((part, index, items) => items.findIndex((item) => item.toLowerCase() === part.toLowerCase()) === index)
+    .slice(0, 4);
+
+  return parts.length ? parts.join(', ') : fallback;
+}
+
+async function reverseGeocodeAttendanceCoordinates(coords: ParsedAttendanceCoordinates, fallback: string) {
+  const cacheKey = `${coords.latitude.toFixed(5)},${coords.longitude.toFixed(5)}`;
+  if (locationLabelCache.has(cacheKey)) {
+    return locationLabelCache.get(cacheKey) || fallback;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      format: 'jsonv2',
+      lat: String(coords.latitude),
+      lon: String(coords.longitude),
+      zoom: '18',
+      addressdetails: '1',
+    });
+    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`, {
+      headers: {
+        'Accept-Language': 'en',
+      },
+    });
+
+    if (!response.ok) {
+      return fallback;
+    }
+
+    const payload = await response.json();
+    const resolved = buildReadableLocationLabel(payload, fallback);
+    locationLabelCache.set(cacheKey, resolved);
+    return resolved;
+  } catch {
+    return fallback;
+  }
+}
+
+export async function resolveAttendanceLocationLabel(value?: string | null): Promise<string> {
+  const raw = normalizeLocationText(String(value || ''));
+  if (!raw) return 'Not set';
+
+  if (locationLabelCache.has(raw)) {
+    return locationLabelCache.get(raw) || raw;
+  }
+
+  const coordinates = parseAttendanceCoordinates(raw);
+  if (!coordinates) {
+    locationLabelCache.set(raw, raw);
+    return raw;
+  }
+
+  const fallback = `${coordinates.latitude.toFixed(4)}, ${coordinates.longitude.toFixed(4)}`;
+  const resolved = await reverseGeocodeAttendanceCoordinates(coordinates, fallback);
+  locationLabelCache.set(raw, resolved);
+  return resolved;
 }
 
 export interface AttendanceBackendContext {
@@ -88,12 +207,14 @@ export function parseAttendanceBackendContext(): AttendanceBackendContext {
 
 export async function getBrowserGeolocationDescription(): Promise<string | null> {
   if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return null;
+
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
-        const desc = `Lat:${latitude.toFixed(6)}, Lng:${longitude.toFixed(6)}, ±${Math.round(accuracy || 0)}m`;
-        resolve(desc);
+        const coordinateLabel = `Lat:${latitude.toFixed(6)}, Lng:${longitude.toFixed(6)}, ±${Math.round(accuracy || 0)}m`;
+        const readableLocation = await resolveAttendanceLocationLabel(coordinateLabel);
+        resolve(readableLocation || coordinateLabel);
       },
       () => resolve(null),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },

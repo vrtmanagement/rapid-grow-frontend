@@ -85,9 +85,31 @@ function shouldAutoClearNotification(notification?: Partial<AppShellNotification
   return String(notification?.type || '').trim().toLowerCase() === 'leave_request_review';
 }
 
+function isLeaveNotification(notification?: Partial<AppShellNotification> | null): boolean {
+  const type = String(notification?.type || '').trim().toLowerCase();
+  return type === 'leave_request_submitted' || type === 'leave_request_review' || type === 'leave_request_status';
+}
+
 const REMINDER_TOAST_TIME_ZONE = 'Asia/Kolkata';
 const DAILY_REVIEW_REMINDER_TYPE = 'daily_review_reminder';
 const DISMISSED_DAILY_REVIEW_REMINDER_STORAGE_KEY = 'rapidgrow-dismissed-daily-review-reminder-date-keys';
+const CLEARED_APP_NOTIFICATIONS_STORAGE_KEY_PREFIX = 'rapidgrow-cleared-app-notifications';
+
+function readClearedAppNotificationState(storageKey: string): Record<string, boolean> {
+  if (!storageKey || typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return Object.entries(parsed).reduce<Record<string, boolean>>((acc, [key, value]) => {
+      if (value) acc[key] = true;
+      return acc;
+    }, {});
+  } catch {
+    return {};
+  }
+}
 
 function getDatePartMap(date: Date, timeZone: string) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -217,6 +239,7 @@ const App: React.FC = () => {
   const [taskCount, setTaskCount] = useState(0);
   const [notifications, setNotifications] = useState<AppShellNotification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [clearedNotificationIds, setClearedNotificationIds] = useState<Record<string, boolean>>({});
   const [globalLeaveToast, setGlobalLeaveToast] = useState<GlobalLeaveToast | null>(null);
   const [globalTaskToast, setGlobalTaskToast] = useState<GlobalTaskToast | null>(null);
   const [globalReminderToast, setGlobalReminderToast] = useState<GlobalReminderToast | null>(null);
@@ -230,6 +253,11 @@ const App: React.FC = () => {
   const shownTaskToastKeysRef = useRef<Record<string, true>>({});
   const shownReminderToastKeysRef = useRef<Record<string, true>>({});
   const lastCommunicationUnreadRef = useRef<number | null>(null);
+  const notificationClearStorageKey = useMemo(() => {
+    const session = getStoredAuthSession();
+    const scopedUserId = String(session?.employee?.empId || session?.employee?._id || 'anonymous').trim() || 'anonymous';
+    return `${CLEARED_APP_NOTIFICATIONS_STORAGE_KEY_PREFIX}:${scopedUserId}`;
+  }, [isAuthenticated]);
 
   const dismissGlobalReminderToast = useCallback((toast: GlobalReminderToast | null) => {
     if (toast?.notificationId) {
@@ -331,6 +359,22 @@ const App: React.FC = () => {
       window.removeEventListener('storage', handleStorage);
     };
   }, []);
+
+  useEffect(() => {
+    setClearedNotificationIds(readClearedAppNotificationState(notificationClearStorageKey));
+  }, [notificationClearStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(
+        notificationClearStorageKey,
+        JSON.stringify(clearedNotificationIds),
+      );
+    } catch {
+      // Ignore storage failures so notifications keep working normally.
+    }
+  }, [clearedNotificationIds, notificationClearStorageKey]);
 
   useEffect(() => {
     const syncStoredSession = () => {
@@ -741,8 +785,7 @@ const App: React.FC = () => {
       return [designation, department].filter(Boolean).join(' | ');
     };
 
-    const canShowLeaveToasts =
-      notificationPreferences.leaveUpdates && notificationPreferences.toastPreviews;
+    const canShowLeaveToasts = true;
 
     const showGlobalLeaveToast = (toast: GlobalLeaveToast) => {
       if (!canShowLeaveToasts) return;
@@ -810,7 +853,7 @@ const App: React.FC = () => {
       socket.off('leave:created', onLeaveCreated);
       socket.off('leave:updated', onLeaveUpdated);
     };
-  }, [isAuthenticated, notificationPreferences.leaveUpdates, notificationPreferences.toastPreviews]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -1029,6 +1072,27 @@ const App: React.FC = () => {
     const onNotificationCreated = (payload: any) => {
       if (!payload || String(payload.empId || '').trim() !== backendEmpId) return;
       if (!isNotificationEnabledForType(notificationPreferences, payload?.type)) return;
+
+      if (isLeaveNotification(payload)) {
+        const leaveStatus = String(payload?.metadata?.status || '').trim().toUpperCase();
+        const toastKey = `leave-notification:${String(payload?._id || '')}:${String(payload?.updatedAt || payload?.createdAt || '')}`;
+
+        if (!shownLeaveToastKeysRef.current[toastKey]) {
+          shownLeaveToastKeysRef.current[toastKey] = true;
+          setGlobalLeaveToast({
+            key: toastKey,
+            title: String(payload?.title || 'Leave update'),
+            message: String(payload?.message || 'A leave update is available.'),
+            tone:
+              leaveStatus === 'APPROVED'
+                ? 'success'
+                : leaveStatus === 'REJECTED'
+                  ? 'warning'
+                  : 'info',
+          });
+        }
+      }
+
       setNotifications((prev) => {
         const next = [payload as AppShellNotification, ...prev.filter((item) => item._id !== payload._id)];
         return next.sort(
@@ -1059,31 +1123,88 @@ const App: React.FC = () => {
       });
     };
 
+    const onNotificationDeleted = (payload: any) => {
+      const notificationId = String(payload?.notificationId || '').trim();
+      if (!notificationId) return;
+
+      setNotifications((prev) => prev.filter((notification) => notification._id !== notificationId));
+      setClearedNotificationIds((prev) => {
+        if (!prev[notificationId]) return prev;
+        const next = { ...prev };
+        delete next[notificationId];
+        return next;
+      });
+    };
+
     loadNotifications();
     const notificationsPoller = window.setInterval(() => {
       loadNotifications();
     }, 30000);
     socket.on('notification:created', onNotificationCreated);
     socket.on('notification:read', onNotificationRead);
+    socket.on('notification:deleted', onNotificationDeleted);
 
     return () => {
       active = false;
       window.clearInterval(notificationsPoller);
       socket.off('notification:created', onNotificationCreated);
       socket.off('notification:read', onNotificationRead);
+      socket.off('notification:deleted', onNotificationDeleted);
     };
   }, [isAuthenticated, notificationPreferences]);
 
   const visibleNotifications = useMemo(
-    () => filterNotificationsByPreferences(notifications, notificationPreferences),
-    [notificationPreferences, notifications],
+    () =>
+      filterNotificationsByPreferences(notifications, notificationPreferences).filter(
+        (notification) => !clearedNotificationIds[notification._id],
+      ),
+    [clearedNotificationIds, notificationPreferences, notifications],
   );
+
+  useEffect(() => {
+    const unreadLeaveNotification = visibleNotifications.find(
+      (notification) => isLeaveNotification(notification) && !notification.isRead,
+    );
+    if (!unreadLeaveNotification) return;
+
+    const leaveStatus = String(unreadLeaveNotification?.metadata?.status || '').trim().toUpperCase();
+    const toastKey = `leave-notification:${unreadLeaveNotification._id}:${String(
+      unreadLeaveNotification.updatedAt || unreadLeaveNotification.createdAt || '',
+    )}`;
+
+    if (shownLeaveToastKeysRef.current[toastKey]) return;
+
+    shownLeaveToastKeysRef.current[toastKey] = true;
+    setGlobalLeaveToast({
+      key: toastKey,
+      title: String(unreadLeaveNotification.title || 'Leave update'),
+      message: String(unreadLeaveNotification.message || 'A leave update is available.'),
+      tone:
+        leaveStatus === 'APPROVED'
+          ? 'success'
+          : leaveStatus === 'REJECTED'
+            ? 'warning'
+            : 'info',
+    });
+  }, [visibleNotifications]);
+
+  const clearNotificationsFromPopup = useCallback(() => {
+    if (!visibleNotifications.length) return;
+    setClearedNotificationIds((prev) => {
+      const next = { ...prev };
+      visibleNotifications.forEach((notification) => {
+        next[notification._id] = true;
+      });
+      return next;
+    });
+  }, [visibleNotifications]);
 
   useEffect(() => {
     if (!notificationPreferences.toastPreviews) return;
 
     const unreadNotification = visibleNotifications.find((notification) => {
       if (notification.isRead) return false;
+      if (isLeaveNotification(notification)) return false;
       if (isDailyReviewReminderNotification(notification)) {
         if (isDailyReviewReminderToastDismissed(notification)) return false;
       }
@@ -1105,6 +1226,14 @@ const App: React.FC = () => {
     shownReminderToastKeysRef.current[toastKey] = true;
     setGlobalReminderToast(reminderToast);
   }, [dailyReviewReminderSettings, notificationPreferences.toastPreviews, visibleNotifications]);
+
+  useEffect(() => {
+    if (!globalReminderToast?.notificationId) return;
+    const matchedNotification = notifications.find((notification) => notification._id === globalReminderToast.notificationId);
+    if (isLeaveNotification(matchedNotification)) {
+      setGlobalReminderToast(null);
+    }
+  }, [globalReminderToast?.notificationId, notifications]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -1143,15 +1272,11 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!notificationPreferences.toastPreviews) {
-      setGlobalLeaveToast(null);
       setGlobalTaskToast(null);
       setGlobalReminderToast(null);
       return;
     }
 
-    if (!notificationPreferences.leaveUpdates) {
-      setGlobalLeaveToast(null);
-    }
     if (!notificationPreferences.aiTaskAlerts) {
       setGlobalTaskToast(null);
     }
@@ -1162,7 +1287,6 @@ const App: React.FC = () => {
     globalReminderToast?.route,
     notificationPreferences.aiTaskAlerts,
     notificationPreferences.communicationMessages,
-    notificationPreferences.leaveUpdates,
     notificationPreferences.toastPreviews,
   ]);
 
@@ -1182,6 +1306,7 @@ const App: React.FC = () => {
         notifications={visibleNotifications}
         notificationToastTopClass={notificationToastTopClass}
         openNotification={openNotification}
+        setGlobalLeaveToast={setGlobalLeaveToast}
         setGlobalTaskToast={setGlobalTaskToast}
         setGlobalReminderToast={setGlobalReminderToast}
         dismissGlobalReminderToast={dismissGlobalReminderToast}
@@ -1255,6 +1380,7 @@ const App: React.FC = () => {
             notifications={visibleNotifications}
             openNotification={openNotification}
             markNotificationRead={markNotificationRead}
+            clearNotificationsFromPopup={clearNotificationsFromPopup}
             handleLogout={handleLogout}
           />
         </CommunicationProvider>
@@ -1291,6 +1417,7 @@ const App: React.FC = () => {
           notifications={visibleNotifications}
           openNotification={openNotification}
           markNotificationRead={markNotificationRead}
+          clearNotificationsFromPopup={clearNotificationsFromPopup}
           handleLogout={handleLogout}
         />
       </CommunicationProvider>

@@ -1,15 +1,49 @@
 import React from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
-import { AttendanceSummaryResponse, getHoursColor } from './attendanceUtils';
+import { AttendanceSummaryResponse, Range, getHoursColor } from './attendanceUtils';
 import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
 
 interface Props {
   summary: AttendanceSummaryResponse | null;
   loading: boolean;
   selectedMonth?: string;
+  range?: Range;
+  variant?: 'employee' | 'manager';
+  todayMinutes?: number;
 }
 
-const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMonth }) => {
+const AttendancePresenceChart: React.FC<Props> = ({
+  summary,
+  loading,
+  selectedMonth,
+  range = 'month',
+  variant = 'manager',
+  todayMinutes = 0,
+}) => {
+  const isEmployeeVariant = variant === 'employee';
+  const breakBarColor = '#fbbf24';
+  const getDatePartsInAttendanceTimezone = (value: Date | string) => {
+    const parsed = value instanceof Date ? value : new Date(value);
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      timeZone: 'Asia/Kolkata',
+    });
+    const parts = formatter.formatToParts(parsed);
+
+    return {
+      year: Number(parts.find((part) => part.type === 'year')?.value || 0),
+      month: Number(parts.find((part) => part.type === 'month')?.value || 0),
+      day: Number(parts.find((part) => part.type === 'day')?.value || 0),
+    };
+  };
+
+  const getDateKeyInAttendanceTimezone = (value: Date | string) => {
+    const { year, month, day } = getDatePartsInAttendanceTimezone(value);
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  };
+
   const getMonthValueFromDate = (value?: string) => {
     if (!value) return '';
     const parsed = new Date(value);
@@ -27,7 +61,7 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMo
     return year && month ? `${year}-${month}` : '';
   };
 
-  const getMonthWorkingDates = () => {
+  const getMonthElapsedDates = () => {
     const monthSource =
       selectedMonth ||
       (summary?.days?.length ? String(summary.days[0]?.date || '').slice(0, 7) : '') ||
@@ -39,17 +73,37 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMo
     const monthIndex = Number(monthText) - 1;
     if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || monthIndex < 0) return [];
 
-    const now = new Date();
+    const now = getDatePartsInAttendanceTimezone(new Date());
     const isCurrentMonth =
-      now.getFullYear() === year && now.getMonth() === monthIndex;
-    const lastDay = isCurrentMonth ? now.getDate() : new Date(year, monthIndex + 1, 0).getDate();
+      now.year === year && now.month === monthIndex + 1;
+    const lastDay = isCurrentMonth ? now.day : new Date(year, monthIndex + 1, 0).getDate();
     const dates: string[] = [];
 
     for (let day = 1; day <= lastDay; day += 1) {
       const current = new Date(year, monthIndex, day);
-      if (current.getDay() !== 0) {
-        dates.push(`${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
-      }
+      dates.push(`${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
+    }
+
+    return dates;
+  };
+
+  const getDatesBetween = (startValue?: string, endValue?: string) => {
+    if (!startValue || !endValue) return [];
+
+    const startKey = getDateKeyInAttendanceTimezone(startValue);
+    const endKey = getDateKeyInAttendanceTimezone(endValue);
+    if (!startKey || !endKey) return [];
+
+    const start = new Date(`${startKey}T00:00:00`);
+    const end = new Date(`${endKey}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return [];
+
+    const dates: string[] = [];
+    const cursor = new Date(start);
+
+    while (cursor <= end) {
+      dates.push(getDateKeyInAttendanceTimezone(cursor));
+      cursor.setDate(cursor.getDate() + 1);
     }
 
     return dates;
@@ -69,14 +123,41 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMo
 
   const formatFullDate = (isoDate: string) => {
     const parsed = new Date(`${isoDate}T00:00:00`);
-    return parsed.toLocaleDateString('en-US', {
-      day: '2-digit',
-      month: 'short',
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+      day: 'numeric',
+      month: 'long',
       year: 'numeric',
       timeZone: 'Asia/Kolkata',
     });
+    const parts = formatter.formatToParts(parsed);
+    const day = parts.find((part) => part.type === 'day')?.value || '';
+    const month = parts.find((part) => part.type === 'month')?.value || '';
+    const year = parts.find((part) => part.type === 'year')?.value || '';
+
+    return `${day} ${month}, ${year}`;
   };
   const getShownMonthLabel = () => {
+    if (range === 'day' && summary?.start) {
+      return new Date(summary.start).toLocaleDateString('en-US', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'Asia/Kolkata',
+      });
+    }
+    if (range === 'week' && summary?.start && summary?.end) {
+      const startDate = new Date(summary.start);
+      const endDate = new Date(summary.end);
+      return `${startDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        timeZone: 'Asia/Kolkata',
+      })} - ${endDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        timeZone: 'Asia/Kolkata',
+      })}`;
+    }
     if (selectedMonth) {
       const selectedDate = new Date(`${selectedMonth}-01T00:00:00`);
       return selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
@@ -89,56 +170,223 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMo
     return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
   };
 
+  const getShownMonthValue = () => (
+    selectedMonth ||
+    (summary?.days?.length ? String(summary.days[0]?.date || '').slice(0, 7) : '') ||
+    getMonthValueFromDate(summary?.start)
+  );
+
   const recordedDays = new Map(
     (summary?.days ?? []).map((day) => [day.date, day]),
   );
 
-  const workingDates = getMonthWorkingDates();
-  const datesToShow = workingDates.length > 0 ? workingDates : (summary?.days ?? []).map((day) => day.date);
+  const todayDateKey = getDateKeyInAttendanceTimezone(new Date());
+  const elapsedDates = range === 'month' ? getMonthElapsedDates() : getDatesBetween(summary?.start, summary?.end);
+  const shownMonthValue = getShownMonthValue();
+  const datesToShowBase = elapsedDates.length > 0 ? elapsedDates : (summary?.days ?? []).map((day) => day.date);
+  const shouldForceTodayIntoChart =
+    !!shownMonthValue &&
+    todayDateKey.startsWith(`${shownMonthValue}-`) &&
+    (todayMinutes > 0 || recordedDays.has(todayDateKey));
+  const datesToShow = shouldForceTodayIntoChart
+    ? Array.from(new Set([...datesToShowBase, todayDateKey])).sort()
+    : datesToShowBase;
 
   const chartData =
     datesToShow.map((dateKey) => {
+      const dayLabel = String(new Date(`${dateKey}T00:00:00`).getDate());
       const d = recordedDays.get(dateKey);
+      const liveMinutes = dateKey === todayDateKey ? Math.max(d?.minutes || 0, todayMinutes) : d?.minutes || 0;
+      const isSunday = new Date(`${dateKey}T00:00:00`).getDay() === 0;
+
       if (!d) {
+        if (dateKey === todayDateKey && liveMinutes > 0) {
+          const liveHours = liveMinutes / 60;
+          return {
+            date: formatFullDate(dateKey),
+            dayLabel,
+            hours: parseFloat(liveHours.toFixed(2)),
+            actualHours: parseFloat(liveHours.toFixed(2)),
+            color: getHoursColor(liveHours),
+            loginTime: 'N/A',
+            logoutTime: 'Active now',
+            statusLabel: 'Status',
+            attendanceState: 'Present',
+          };
+        }
+
         return {
           date: formatFullDate(dateKey),
+          dayLabel,
           hours: 9,
-          color: '#94a3b8',
-          loginTime: 'Absent',
-          logoutTime: 'Absent',
-          statusLabel: 'Attendance',
-          attendanceState: 'Absent',
+          actualHours: 0,
+          color: isSunday ? '#cbd5e1' : '#94a3b8',
+          loginTime: isSunday ? 'Off day' : 'Absent',
+          logoutTime: isSunday ? 'Off day' : 'Absent',
+          statusLabel: 'Status',
+          attendanceState: isSunday ? 'Off day' : 'Absent',
         };
       }
 
-      const hours = d.minutes / 60;
+      const hours = liveMinutes / 60;
       const sortedSessions = [...(d.sessions || [])].sort((a, b) => (
         new Date(a.loginTime).getTime() - new Date(b.loginTime).getTime()
       ));
       const firstSession = sortedSessions[0];
       const lastSession = sortedSessions[sortedSessions.length - 1];
       const isOpenSession = !!lastSession && !lastSession.logoutTime;
+      const isBreakSession = isOpenSession && !!lastSession?.isOnBreak;
       return {
         date: formatFullDate(d.date),
+        dayLabel,
         hours: parseFloat(hours.toFixed(2)),
-        color: getHoursColor(hours),
+        actualHours: parseFloat(hours.toFixed(2)),
+        color: isBreakSession ? breakBarColor : getHoursColor(hours),
         loginTime: formatTime(firstSession?.loginTime),
-        logoutTime: isOpenSession
-          ? 'Active now'
+        logoutTime: isBreakSession
+          ? 'On break'
+          : isOpenSession
+            ? 'Active now'
           : formatTime(lastSession?.effectiveLogoutTime || lastSession?.logoutTime),
         statusLabel: isOpenSession ? 'Status' : 'Logout time',
-        attendanceState: 'Present',
+        attendanceState: isBreakSession ? 'On break' : 'Present',
       };
     }) ?? [];
 
+  const recordedEntries = chartData.filter((entry) => (entry.actualHours ?? 0) > 0);
+  const fullDays = recordedEntries.filter((entry) => (entry.actualHours ?? 0) >= 8).length;
+  const shortDays = recordedEntries.filter((entry) => (entry.actualHours ?? 0) > 0 && (entry.actualHours ?? 0) < 8).length;
+  const absentDays = chartData.filter((entry) => entry.attendanceState === 'Absent').length;
+  const totalHours = recordedEntries.reduce((total, entry) => total + (entry.actualHours ?? 0), 0);
+  const averageHours = recordedEntries.length ? totalHours / recordedEntries.length : 0;
+
+  if (isEmployeeVariant) {
+    return (
+      <div className="rounded-[34px] border border-slate-200 bg-white px-7 pt-7 pb-4">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <h3 className="text-[1.15rem] font-semibold leading-none text-slate-950">Presence graph</h3>
+            <p className="mt-3 text-sm text-slate-700">{getShownMonthLabel()}</p>
+          </div>
+
+          <div className="flex flex-col gap-4 xl:items-end">
+            <div className="flex flex-wrap items-center gap-2 text-[12px] text-slate-500">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> &ge; 8h
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-orange-500" /> 7.5-8h
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-red-500" /> &lt; 7.5h
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-5">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Avg / day</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">{averageHours.toFixed(1)}h</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Full days</p>
+                <p className="mt-1 text-lg font-semibold text-emerald-600">{fullDays}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Short days</p>
+                <p className="mt-1 text-lg font-semibold text-rose-500">{shortDays}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 h-[300px] w-full">
+          {loading ? (
+            <div className="h-full animate-pulse">
+              <div className="flex h-full items-end gap-4 px-4">
+                {Array.from({ length: 10 }).map((_, index) => (
+                  <div key={`attendance-bar-skeleton-${index}`} className="flex flex-1 flex-col justify-end gap-3">
+                    <SkeletonBlock className={`w-full rounded-t-2xl ${index % 3 === 0 ? 'h-40' : index % 3 === 1 ? 'h-28' : 'h-20'}`} />
+                    <Skeleton className="h-3 w-8 mx-auto" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : chartData.length === 0 ? (
+            <div className="flex h-full items-center justify-center rounded-[28px] border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
+              No attendance records in this range.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 10, right: 6, bottom: 10, left: -18 }}>
+                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#dbe4f0" />
+                <XAxis
+                  dataKey="dayLabel"
+                  tick={{ fontSize: 10, fill: '#94a3b8' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={34}
+                />
+                <Tooltip
+                  cursor={{ fill: '#f8fafc' }}
+                  formatter={(value: number) => [`${Number(value).toFixed(2)}h`, 'Hours']}
+                  labelFormatter={(label) => `${label}`}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const entry = payload[0]?.payload;
+                    return (
+                      <div className="min-w-[190px] rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_18px_40px_rgba(15,23,42,0.16)]">
+                        <p className="text-sm font-semibold text-slate-900">{entry?.date || label}</p>
+                        <div className="mt-2 space-y-1.5 text-xs text-slate-600">
+                          <div className="flex items-center justify-between gap-4">
+                            <span>Attendance</span>
+                            <span className="font-semibold text-slate-900">{entry?.attendanceState || 'Present'}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-4">
+                            <span>Hours</span>
+                            <span className="font-semibold text-slate-900">{entry?.actualHours?.toFixed?.(2) ?? entry?.hours?.toFixed?.(2) ?? '0.00'}h</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-4">
+                            <span>Login time</span>
+                            <span className="font-semibold text-slate-900">{entry?.loginTime || 'N/A'}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-4">
+                            <span>{entry?.statusLabel || 'Logout time'}</span>
+                            <span className="font-semibold text-slate-900">{entry?.logoutTime || 'N/A'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }}
+                  contentStyle={{
+                    borderRadius: '14px',
+                    border: 'none',
+                    boxShadow: '0 20px 40px rgba(15,23,42,0.15)',
+                    fontSize: 12,
+                  }}
+                />
+                <Bar dataKey="hours" radius={[10, 10, 0, 0]} barSize={range === 'day' ? 48 : 24} minPointSize={8}>
+                  {chartData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-white rounded-[2rem] border border-slate-200 p-7 shadow-xl">
+    <div className="bg-white rounded-[2rem] border border-slate-200 p-7">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-lg font-semibold text-slate-900">Presence graph</h3>
-          <p className="text-xs text-slate-500 mt-1">
-            Daily logged-in hours with smart color coding.
-          </p>
           <p className="text-xs text-slate-600 mt-1">
             {getShownMonthLabel()}
           </p>
@@ -195,7 +443,7 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMo
                   const entry = payload[0]?.payload;
                   return (
                     <div className="min-w-[180px] rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_18px_40px_rgba(15,23,42,0.16)]">
-                      <p className="text-sm font-semibold text-slate-900">{label}</p>
+                      <p className="text-sm font-semibold text-slate-900">{entry?.date || label}</p>
                       <div className="mt-2 space-y-1.5 text-xs text-slate-600">
                         <div className="flex items-center justify-between gap-4">
                           <span>Attendance</span>
@@ -203,7 +451,7 @@ const AttendancePresenceChart: React.FC<Props> = ({ summary, loading, selectedMo
                         </div>
                         <div className="flex items-center justify-between gap-4">
                           <span>Hours</span>
-                          <span className="font-semibold text-slate-900">{entry?.hours?.toFixed?.(2) ?? '0.00'}h</span>
+                          <span className="font-semibold text-slate-900">{entry?.actualHours?.toFixed?.(2) ?? entry?.hours?.toFixed?.(2) ?? '0.00'}h</span>
                         </div>
                         <div className="flex items-center justify-between gap-4">
                           <span>Login time</span>
