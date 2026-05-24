@@ -33,6 +33,12 @@ export const LEAVE_TYPE_OPTIONS = [
     description: 'Urgent personal or family situations that need attention.',
     tone: 'border-amber-200 bg-amber-50 text-amber-700',
   },
+  {
+    value: 'HALF_DAY',
+    label: 'Half day',
+    description: 'A quick request for one half of a working day.',
+    tone: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+  },
 ] as const;
 
 export type ActivePopup = 'start' | 'end' | 'reason' | 'type' | null;
@@ -43,12 +49,23 @@ export function normalizeDate(value?: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-export function calculateLeaveDays(start?: string, end?: string, excludeWeekends = true) {
+export function calculateLeaveDays(
+  start?: string,
+  end?: string,
+  excludeWeekends = true,
+  options?: { type?: string; dayPortion?: string }
+) {
   const startDate = normalizeDate(start);
   const endDate = normalizeDate(end);
 
   if (!startDate || !endDate) return { total: 0, invalid: false };
   if (endDate < startDate) return { total: 0, invalid: true };
+  if (String(options?.type || '').toUpperCase() === 'HALF_DAY') {
+    return {
+      total: start === end ? 0.5 : 0,
+      invalid: start !== end,
+    };
+  }
 
   const cursor = new Date(startDate);
   let total = 0;

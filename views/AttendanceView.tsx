@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { API_BASE, getAuthHeaders } from '../config/api';
-import { ChevronDown } from 'lucide-react';
 import AttendanceHeader from '../components/attendance/AttendanceHeader';
 import LeaveManagementPanel from '../components/attendance/LeaveManagementPanel';
-import AttendanceHistoryModal from '../components/attendance/AttendanceHistoryModal';
+import AttendanceHistoryPage from '../components/attendance/AttendanceHistoryPage';
 import TeamAttendanceSection from '../components/attendance/TeamAttendanceSection';
 import {
   AttendanceEmployeeOption,
@@ -27,6 +26,7 @@ import {
   Range,
   getHoursColor,
   countLeaveDaysInRange,
+  getSessionWorkingMinutes,
 } from '../components/attendance/attendanceUtils';
 
 interface Props {
@@ -36,15 +36,26 @@ interface Props {
 const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const { hasPermission } = usePermissions();
   const location = useLocation();
+  const navigate = useNavigate();
   const [activeView, setActiveView] = useState<'attendance' | 'leave'>(() => {
     const params = new URLSearchParams(location.search || '');
     return params.get('view') === 'leave' ? 'leave' : 'attendance';
   });
-  const [range, setRange] = useState<Range>(() => (mode === 'employee' ? 'month' : 'day'));
-  const [selectedMonth, setSelectedMonth] = useState<string>('');
+  const [range, setRange] = useState<Range>(() => {
+    const params = new URLSearchParams(location.search || '');
+    const routeRange = params.get('range');
+    return routeRange === 'day' || routeRange === 'week' || routeRange === 'month'
+      ? routeRange
+      : mode === 'employee'
+        ? 'month'
+        : 'day';
+  });
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const params = new URLSearchParams(location.search || '');
+    return params.get('month') || '';
+  });
   const [summary, setSummary] = useState<AttendanceSummaryResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
   const [locationInput, setLocationInput] = useState('');
   const [activeSession, setActiveSession] = useState<AttendanceSession | null>(null);
   const [leaveStart, setLeaveStart] = useState('');
@@ -57,7 +68,9 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const [leaveLoading, setLeaveLoading] = useState(false);
   const [leaveInitialLoaded, setLeaveInitialLoaded] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
+  const [breakLoading, setBreakLoading] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [halfDayRequestLoading, setHalfDayRequestLoading] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [employeeOptions, setEmployeeOptions] = useState<AttendanceEmployeeOption[]>([]);
   const [employeeSummary, setEmployeeSummary] = useState<AttendanceSummaryResponse | null>(null);
@@ -68,11 +81,13 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const [teamAttendanceSummaryLoading, setTeamAttendanceSummaryLoading] = useState(false);
   const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [liveNow, setLiveNow] = useState(() => Date.now());
   const employeePickerRef = useRef<HTMLDivElement | null>(null);
   const monthPickerRef = useRef<HTMLDivElement | null>(null);
   const leaveInitialLoadedRef = useRef(false);
 
   const isEmployeePortal = mode === 'employee';
+  const isHistoryRoute = location.pathname === '/attendance/history';
 
   const { backendEmpId, isBackendAdminRole, isBackendApproverRole, leaveViewerRole } = useMemo(
     () => parseAttendanceBackendContext(),
@@ -92,7 +107,62 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   useEffect(() => {
     const params = new URLSearchParams(location.search || '');
     setActiveView(params.get('view') === 'leave' ? 'leave' : 'attendance');
+
+    const routeRange = params.get('range');
+    if (routeRange === 'day' || routeRange === 'week' || routeRange === 'month') {
+      setRange(routeRange);
+    }
+    if (params.has('month')) {
+      setSelectedMonth(params.get('month') || '');
+    }
   }, [location.search]);
+
+  const buildAttendanceRoute = useCallback((pathname: '/attendance' | '/attendance/history') => {
+    const params = new URLSearchParams();
+    if (pathname === '/attendance' && activeView === 'leave') {
+      params.set('view', 'leave');
+    }
+    params.set('range', range);
+    if (selectedMonth) {
+      params.set('month', selectedMonth);
+    }
+
+    const search = params.toString();
+    return search ? `${pathname}?${search}` : pathname;
+  }, [activeView, range, selectedMonth]);
+
+  const handleHistoryOpen = useCallback(() => {
+    navigate(buildAttendanceRoute('/attendance/history'));
+  }, [buildAttendanceRoute, navigate]);
+
+  const handleHistoryClose = useCallback(() => {
+    navigate(buildAttendanceRoute('/attendance'));
+  }, [buildAttendanceRoute, navigate]);
+
+  const handleActiveViewChange = useCallback((nextView: 'attendance' | 'leave') => {
+    setActiveView(nextView);
+    const params = new URLSearchParams();
+    if (nextView === 'leave') {
+      params.set('view', 'leave');
+    }
+    params.set('range', range);
+    if (selectedMonth) {
+      params.set('month', selectedMonth);
+    }
+
+    const search = params.toString();
+    navigate(search ? `/attendance?${search}` : '/attendance');
+  }, [navigate, range, selectedMonth]);
+
+  useEffect(() => {
+    if (!isHistoryRoute) return;
+
+    const nextRoute = buildAttendanceRoute('/attendance/history');
+    const currentRoute = `${location.pathname}${location.search || ''}`;
+    if (currentRoute !== nextRoute) {
+      navigate(nextRoute, { replace: true });
+    }
+  }, [buildAttendanceRoute, isHistoryRoute, location.pathname, location.search, navigate]);
 
   const employeeProfileByEmpId = useMemo(() => {
     const map = new Map<string, AttendanceEmployeeOption>();
@@ -551,6 +621,56 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     }
   };
 
+  const handleStartBreak = async () => {
+    setBreakLoading(true);
+    setSessionError(null);
+    try {
+      const res = await fetch(`${API_BASE}/attendance/break/start`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSessionError(data.message || 'Failed to start break');
+        return;
+      }
+
+      const session = await res.json();
+      setActiveSession(session);
+      void loadSummary(range, selectedMonth);
+    } catch (error) {
+      console.error('Failed to start break', error);
+      setSessionError('Failed to start break');
+    } finally {
+      setBreakLoading(false);
+    }
+  };
+
+  const handleResumeBreak = async () => {
+    setBreakLoading(true);
+    setSessionError(null);
+    try {
+      const res = await fetch(`${API_BASE}/attendance/break/resume`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSessionError(data.message || 'Failed to resume work');
+        return;
+      }
+
+      const session = await res.json();
+      setActiveSession(session);
+      void loadSummary(range, selectedMonth);
+    } catch (error) {
+      console.error('Failed to resume break', error);
+      setSessionError('Failed to resume work');
+    } finally {
+      setBreakLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!activeSession?.loginTime) return;
 
@@ -593,6 +713,19 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     };
   }, [activeSession?.loginTime, range]);
 
+  useEffect(() => {
+    if (!activeSession?.loginTime) return undefined;
+
+    setLiveNow(Date.now());
+    const timer = window.setInterval(() => {
+      setLiveNow(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [activeSession?.loginTime]);
+
   const handleApplyLeave = async () => {
     if (!leaveStart || !leaveEnd) return false;
     try {
@@ -618,6 +751,62 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       console.error('Failed to apply for leave', e);
     }
     return false;
+  };
+
+  const handleQuickHalfDayRequest = async (
+    dayPortion: 'FIRST_HALF' | 'SECOND_HALF',
+    reason: string,
+  ) => {
+    setHalfDayRequestLoading(true);
+    try {
+      const todayDate = getLocalDateKey(new Date());
+      const response = await fetch(`${API_BASE}/leaves`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          startDate: todayDate,
+          endDate: todayDate,
+          reason,
+          type: 'HALF_DAY',
+          dayPortion,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        return {
+          ok: false,
+          message: data.message || 'Failed to submit half-day request',
+        };
+      }
+
+      await loadLeaves({ silent: true });
+      return {
+        ok: true,
+        message: 'Half-day request submitted successfully',
+      };
+    } catch (error) {
+      console.error('Failed to submit half-day request', error);
+      return {
+        ok: false,
+        message: 'Failed to submit half-day request',
+      };
+    } finally {
+      setHalfDayRequestLoading(false);
+    }
+  };
+
+  const handleRevertQuickHalfDayRequest = async (leave: LeaveRequest) => {
+    setHalfDayRequestLoading(true);
+    try {
+      const success = await handleDeleteLeave(leave);
+      return {
+        ok: success,
+        message: success ? 'Half-day request reverted successfully' : 'Failed to revert half-day request',
+      };
+    } finally {
+      setHalfDayRequestLoading(false);
+    }
   };
 
   const handleDeleteLeave = async (leave: LeaveRequest) => {
@@ -655,18 +844,54 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   };
 
   const todayInfo = useMemo(() => {
-    if (!summary) return { minutes: 0, color: getHoursColor(0) };
-    const todayKey = new Date().toISOString().slice(0, 10);
+    const todayKey = getLocalDateKey(new Date(liveNow));
+    const openSessionIsToday =
+      !!activeSession?.loginTime && getLocalDateKey(activeSession.loginTime) === todayKey;
+
+    if (!summary) {
+      const liveOnlyMinutes = openSessionIsToday && activeSession?.loginTime
+        ? getSessionWorkingMinutes(activeSession, new Date(liveNow))
+        : 0;
+      return { minutes: liveOnlyMinutes, color: getHoursColor(liveOnlyMinutes / 60) };
+    }
+
     const day = summary.days.find((d) => d.date === todayKey);
-    if (!day) return { minutes: 0, color: getHoursColor(0) };
-    const hours = day.minutes / 60;
-    return { minutes: day.minutes, color: getHoursColor(hours) };
-  }, [summary]);
+    if (!day && !openSessionIsToday) return { minutes: 0, color: getHoursColor(0) };
+
+    const summaryMinutes = day?.minutes || 0;
+    if (!openSessionIsToday || !activeSession?.loginTime) {
+      return { minutes: summaryMinutes, color: getHoursColor(summaryMinutes / 60) };
+    }
+
+    const summaryOpenMinutes = day?.sessions.find((session) => session._id === activeSession._id)?.durationMinutes || 0;
+    const elapsedMinutes = getSessionWorkingMinutes(activeSession, new Date(liveNow));
+    const completedMinutes = Math.max(0, summaryMinutes - summaryOpenMinutes);
+    const liveMinutes = Math.max(summaryMinutes, completedMinutes + elapsedMinutes);
+
+    return { minutes: liveMinutes, color: getHoursColor(liveMinutes / 60) };
+  }, [activeSession?._id, activeSession?.loginTime, liveNow, summary]);
 
   const leaveDaysInRange = useMemo(
     () => countLeaveDaysInRange(myLeaves, summary?.start, summary?.end),
     [myLeaves, summary?.start, summary?.end],
   );
+  const todaysHalfDayRequest = useMemo(() => {
+    const todayKey = getLocalDateKey(new Date(liveNow));
+    return myLeaves.find((leave) => (
+      String(leave.type || '').toUpperCase() === 'HALF_DAY'
+      && leave.status !== 'REJECTED'
+      && getLocalDateKey(leave.startDate) === todayKey
+    )) || null;
+  }, [liveNow, myLeaves]);
+  const todayHalfDayActivityRequest = useMemo(() => {
+    const todayKey = getLocalDateKey(new Date(liveNow));
+    return myLeaves
+      .filter((leave) => (
+        String(leave.type || '').toUpperCase() === 'HALF_DAY'
+        && getLocalDateKey(leave.startDate) === todayKey
+      ))
+      .sort((a, b) => new Date((b.decidedAt || b.createdAt)).getTime() - new Date((a.decidedAt || a.createdAt)).getTime())[0] || null;
+  }, [liveNow, myLeaves]);
   const leaveNotifications = useMemo<LeaveNotificationItem[]>(() => {
     const items: LeaveNotificationItem[] = [];
 
@@ -783,7 +1008,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   }, []);
   const selectedEmployeeTodayInfo = useMemo(() => {
     if (!employeeSummary) return { minutes: 0, color: getHoursColor(0) };
-    const todayKey = new Date().toISOString().slice(0, 10);
+    const todayKey = getLocalDateKey(new Date());
     const day = employeeSummary.days.find((entry) => entry.date === todayKey);
     if (!day) return { minutes: 0, color: getHoursColor(0) };
     return { minutes: day.minutes, color: getHoursColor(day.minutes / 60) };
@@ -827,7 +1052,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     employeeMonthOptions.find((month) => month.value === selectedEmployeeMonth)?.label || 'Select month';
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-700">
+    <div className={`${isEmployeePortal ? 'max-w-[1760px]' : 'max-w-6xl'} mx-auto space-y-10 animate-in fade-in duration-700`}>
       <AttendanceHeader
         range={range}
         onRangeChange={(r) => setRange(r)}
@@ -836,8 +1061,8 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
           setSelectedMonth(month);
           setRange('month');
         }}
-        activeView={activeView}
-        onActiveViewChange={setActiveView}
+        activeView={isHistoryRoute ? 'attendance' : activeView}
+        onActiveViewChange={handleActiveViewChange}
         subtitle={isEmployeePortal ? 'Your Presence Radar' : 'Team Attendance Console'}
         leaveNotifications={leaveNotifications}
         unreadNotificationCount={unreadLeaveNotificationCount}
@@ -847,7 +1072,16 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         loading={attendancePageLoading}
       />
 
-      {activeView === 'attendance' ? (
+      {isHistoryRoute ? (
+        <AttendanceHistoryPage
+          summary={summary}
+          range={range}
+          selectedMonth={selectedMonth}
+          loading={attendancePageLoading}
+          portalMode={mode}
+          onBack={handleHistoryClose}
+        />
+      ) : activeView === 'attendance' ? (
         <AttendanceOverviewGrid
           summary={summary}
           range={range}
@@ -860,13 +1094,23 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
           locationInput={locationInput}
           onLocationChange={setLocationInput}
           onLogin={handleLogin}
+          onStartBreak={handleStartBreak}
+          onResumeBreak={handleResumeBreak}
           onLogout={handleLogout}
           loginLoading={loginLoading}
+          breakLoading={breakLoading}
           logoutLoading={logoutLoading}
+          onQuickHalfDayRequest={handleQuickHalfDayRequest}
+          onRevertHalfDayRequest={handleRevertQuickHalfDayRequest}
+          halfDayRequestLoading={halfDayRequestLoading}
+          todaysHalfDayRequest={todaysHalfDayRequest}
+          todayHalfDayActivityRequest={todayHalfDayActivityRequest}
           sessionError={sessionError}
           canReviewTeamAttendance={canReviewTeamAttendance}
           teamAttendanceSummaryLoading={teamAttendanceSummaryLoading}
           teamAttendanceSummary={teamAttendanceSummary}
+          portalMode={mode}
+          onOpenHistory={handleHistoryOpen}
         />
       ) : (
         <div className="space-y-6">
@@ -897,15 +1141,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         </div>
       )}
 
-      {activeView === 'attendance' && (
-        <AttendanceHistoryModal
-          open={historyOpen}
-          onClose={() => setHistoryOpen(false)}
-          summary={summary}
-        />
-      )}
-
-      {activeView === 'attendance' ? (
+      {!isHistoryRoute && activeView === 'attendance' ? (
         <TeamAttendanceSection
           canReviewTeamAttendance={canReviewTeamAttendance}
           employeePickerOpen={employeePickerOpen}

@@ -54,6 +54,7 @@ export interface AppEmployeePortalLayoutProps {
   notifications: AppShellNotification[];
   openNotification: (notification: AppShellNotification) => Promise<void>;
   markNotificationRead: (notificationId: string) => Promise<void | null>;
+  clearNotificationsFromPopup: () => void;
   handleLogout: () => void;
 }
 
@@ -76,6 +77,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
   notifications,
   openNotification,
   markNotificationRead,
+  clearNotificationsFromPopup,
   handleLogout,
 }) => {
   const location = useLocation();
@@ -185,6 +187,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
                   setUserMenuOpen={setUserMenuOpen}
                   openNotification={openNotification}
                   markNotificationRead={markNotificationRead}
+                  clearNotificationsFromPopup={clearNotificationsFromPopup}
                 />
                 <UserAccountMenu
                   userMenuOpen={userMenuOpen}
@@ -206,6 +209,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
               )}
               {hasPower('SPACES_VIEW') && <Route path="/spaces/task/:taskId" element={<SpacesTaskDetailView mode="employee" />} />}
               {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance" element={<AttendanceView mode="employee" />} />}
+              {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance/history" element={<AttendanceView mode="employee" />} />}
               {hasPower('PROFILE_VIEW') && (
                 <Route path="/profile" element={<EmployeeProfileView state={state} updateState={updateState} />} />
               )}

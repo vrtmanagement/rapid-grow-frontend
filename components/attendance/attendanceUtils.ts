@@ -1,12 +1,22 @@
 export type Range = 'day' | 'week' | 'month';
 
+export interface AttendanceBreak {
+  startTime: string;
+  endTime?: string | null;
+}
+
 export interface AttendanceSession {
   _id: string;
   loginTime: string;
   logoutTime?: string | null;
   effectiveLogoutTime?: string;
   location?: string;
+  breaks?: AttendanceBreak[];
+  breakMinutes?: number;
   durationMinutes?: number;
+  workingDurationMinutes?: number;
+  isOnBreak?: boolean;
+  currentBreakStartedAt?: string | null;
 }
 
 export interface AttendanceDay {
@@ -33,6 +43,7 @@ export interface LeaveRequest {
   endDate: string;
   reason: string;
   type: string;
+  dayPortion?: 'FULL_DAY' | 'FIRST_HALF' | 'SECOND_HALF';
   status: LeaveStatus;
   approverRole: string;
   createdAt: string;
@@ -55,6 +66,39 @@ export function formatMinutes(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return `${h}h ${m.toString().padStart(2, '0')}m`;
+}
+
+export function formatLeaveDayCount(total: number): string {
+  return Number.isInteger(total) ? `${total} ${total === 1 ? 'day' : 'days'}` : `${total.toFixed(1)} day`;
+}
+
+export function getSessionBreakMinutes(session?: AttendanceSession | null, referenceTime: Date = new Date()): number {
+  if (!session?.breaks?.length) return 0;
+
+  const sessionEnd = session.logoutTime ? new Date(session.logoutTime) : referenceTime;
+  if (Number.isNaN(sessionEnd.getTime())) return 0;
+
+  return session.breaks.reduce((total, pause) => {
+    const start = pause?.startTime ? new Date(pause.startTime) : null;
+    if (!start || Number.isNaN(start.getTime())) return total;
+
+    const rawEnd = pause?.endTime ? new Date(pause.endTime) : sessionEnd;
+    const effectiveEnd = rawEnd.getTime() > sessionEnd.getTime() ? sessionEnd : rawEnd;
+    if (Number.isNaN(effectiveEnd.getTime()) || effectiveEnd.getTime() <= start.getTime()) return total;
+
+    return total + Math.max(0, Math.floor((effectiveEnd.getTime() - start.getTime()) / 60000));
+  }, 0);
+}
+
+export function getSessionWorkingMinutes(session?: AttendanceSession | null, referenceTime: Date = new Date()): number {
+  if (!session?.loginTime) return 0;
+
+  const start = new Date(session.loginTime);
+  const end = session.logoutTime ? new Date(session.logoutTime) : referenceTime;
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end.getTime() <= start.getTime()) return 0;
+
+  const totalMinutes = Math.floor((end.getTime() - start.getTime()) / 60000);
+  return Math.max(0, totalMinutes - getSessionBreakMinutes(session, referenceTime));
 }
 
 export function getHoursColor(hours: number): string {
@@ -93,7 +137,7 @@ export function countLeaveDaysInRange(leaves: LeaveRequest[], rangeStart?: strin
       if (overlapEnd >= overlapStart) {
         const diffMs = overlapEnd.getTime() - overlapStart.getTime();
         const days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
-        total += days;
+        total += days * (String(l.type || '').toUpperCase() === 'HALF_DAY' ? 0.5 : 1);
       }
     });
 

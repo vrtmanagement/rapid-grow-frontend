@@ -83,6 +83,7 @@ export interface AppManagerPortalLayoutProps {
   notifications: AppShellNotification[];
   openNotification: (notification: AppShellNotification) => Promise<void>;
   markNotificationRead: (notificationId: string) => Promise<void | null>;
+  clearNotificationsFromPopup: () => void;
   handleLogout: () => void;
 }
 
@@ -107,6 +108,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
   notifications,
   openNotification,
   markNotificationRead,
+  clearNotificationsFromPopup,
   handleLogout,
 }) => {
   const { t } = useI18n();
@@ -274,6 +276,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                   setUserMenuOpen={setUserMenuOpen}
                   openNotification={openNotification}
                   markNotificationRead={markNotificationRead}
+                  clearNotificationsFromPopup={clearNotificationsFromPopup}
                 />
                 <UserAccountMenu
                   userMenuOpen={userMenuOpen}
@@ -318,6 +321,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {hasPower('SPACES_VIEW') && <Route path="/ai-agent" element={<AiAgentView />} />}
               {hasPower('SPACES_VIEW') && <Route path="/spaces/task/:taskId" element={<SpacesTaskDetailView mode="manager" />} />}
               {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance" element={<AttendanceView mode="manager" />} />}
+              {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance/history" element={<AttendanceView mode="manager" />} />}
               {hasPower('EMPLOYEE_CREATE') && (
                 <Route
                   path="/employees/add"

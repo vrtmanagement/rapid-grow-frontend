@@ -34,6 +34,7 @@ interface GlobalAppToastsProps {
   notifications: AppNotification[];
   notificationToastTopClass: string;
   openNotification: (notification: AppNotification) => Promise<void>;
+  setGlobalLeaveToast: (value: GlobalLeaveToast | null) => void;
   setGlobalTaskToast: (value: GlobalTaskToast | null) => void;
   setGlobalReminderToast: (value: GlobalReminderToast | null) => void;
   dismissGlobalReminderToast: (value: GlobalReminderToast | null) => void;
@@ -46,22 +47,23 @@ const GlobalAppToasts: React.FC<GlobalAppToastsProps> = ({
   notifications,
   notificationToastTopClass,
   openNotification,
+  setGlobalLeaveToast,
   setGlobalTaskToast,
   setGlobalReminderToast,
   dismissGlobalReminderToast,
 }) => (
   <>
     {globalLeaveToast ? (
-      <div className="fixed right-6 top-6 z-[100] animate-in slide-in-from-top-2 fade-in duration-300">
-        <div
-          className={`max-w-sm rounded-[24px] border bg-white px-5 py-4 shadow-[0_22px_50px_rgba(15,23,42,0.16)] ${
-            globalLeaveToast.tone === 'success'
-              ? 'border-emerald-200'
-              : globalLeaveToast.tone === 'warning'
-                ? 'border-rose-200'
-                : 'border-sky-200'
-          }`}
-        >
+      <div
+        className={`fixed right-6 top-6 z-[100] max-w-sm rounded-[24px] border bg-white px-5 py-4 text-left shadow-[0_22px_50px_rgba(15,23,42,0.16)] animate-in slide-in-from-top-2 fade-in duration-300 ${
+          globalLeaveToast.tone === 'success'
+            ? 'border-emerald-200'
+            : globalLeaveToast.tone === 'warning'
+              ? 'border-rose-200'
+              : 'border-sky-200'
+        }`}
+      >
+        <div className="flex items-start justify-between gap-3">
           <p
             className={`text-xs font-semibold uppercase tracking-[0.14em] ${
               globalLeaveToast.tone === 'success'
@@ -73,9 +75,17 @@ const GlobalAppToasts: React.FC<GlobalAppToastsProps> = ({
           >
             Live update
           </p>
-          <p className="mt-2 text-base font-semibold text-slate-950">{globalLeaveToast.title}</p>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{globalLeaveToast.message}</p>
+          <button
+            type="button"
+            aria-label="Close leave update"
+            onClick={() => setGlobalLeaveToast(null)}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+          >
+            <X size={15} strokeWidth={2.25} />
+          </button>
         </div>
+        <p className="mt-2 text-base font-semibold text-slate-950">{globalLeaveToast.title}</p>
+        <p className="mt-1 text-sm leading-6 text-slate-600">{globalLeaveToast.message}</p>
       </div>
     ) : null}
 

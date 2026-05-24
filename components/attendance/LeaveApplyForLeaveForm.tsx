@@ -2,6 +2,7 @@ import React, { RefObject } from 'react';
 import { CalendarDays, ChevronDown, Sparkles, Wand2 } from 'lucide-react';
 import DatePickerPopup from './DatePickerPopup';
 import { LEAVE_TYPE_OPTIONS, formatDisplayDate, ActivePopup } from './leaveManagementPanelUtils';
+import { formatLeaveDayCount } from './attendanceUtils';
 
 type LeaveTypeValue = (typeof LEAVE_TYPE_OPTIONS)[number]['value'];
 
@@ -64,7 +65,7 @@ const LeaveApplyForLeaveForm: React.FC<LeaveApplyForLeaveFormProps> = ({
         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Duration</p>
           <p className="mt-1 text-lg font-semibold text-slate-900">
-            {hasInvalidRange ? 'Invalid range' : `${calculatedDays} ${calculatedDays === 1 ? 'day' : 'days'}`}
+            {hasInvalidRange ? 'Invalid range' : formatLeaveDayCount(calculatedDays)}
           </p>
         </div>
       </div>
@@ -135,7 +136,7 @@ const LeaveApplyForLeaveForm: React.FC<LeaveApplyForLeaveFormProps> = ({
 
       <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
         <p className="text-sm font-semibold text-slate-900">
-          Total Days: <span className="text-brand-red">{calculatedDays}</span>
+          Total Days: <span className="text-brand-red">{formatLeaveDayCount(calculatedDays)}</span>
         </p>
         <p className="text-xs text-slate-500">Only Sundays are excluded from the leave duration.</p>
         {hasInvalidRange ? (

@@ -1,6 +1,6 @@
 import React from 'react';
 import { CalendarDays } from 'lucide-react';
-import { LeaveRequest } from './attendanceUtils';
+import { LeaveRequest, formatLeaveDayCount } from './attendanceUtils';
 
 interface PendingApprovalsPanelProps {
   pendingLeaves: LeaveRequest[];
@@ -31,7 +31,12 @@ const PendingApprovalsPanel: React.FC<PendingApprovalsPanelProps> = ({
       <p className="mt-1 text-sm text-slate-500">Take quick action on pending leave requests that need your decision.</p>
       <div className={gridClassName}>
         {pendingLeaves.map((leave) => {
-          const totalDays = calculateLeaveDays(leave.startDate.slice(0, 10), leave.endDate.slice(0, 10), false).total;
+          const totalDays = calculateLeaveDays(
+            leave.startDate.slice(0, 10),
+            leave.endDate.slice(0, 10),
+            false,
+            { type: leave.type, dayPortion: leave.dayPortion }
+          ).total;
           return (
             <div key={leave._id} className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4">
               <div className="flex items-center justify-between gap-3">
@@ -57,7 +62,7 @@ const PendingApprovalsPanel: React.FC<PendingApprovalsPanelProps> = ({
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-brand-red/5 px-3 py-1.5 text-sm font-semibold text-brand-red">
                   <CalendarDays size={14} />
-                  {totalDays} {totalDays === 1 ? 'day' : 'days'}
+                  {formatLeaveDayCount(totalDays)}
                 </div>
               </div>
               <div className="mt-3 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm">
