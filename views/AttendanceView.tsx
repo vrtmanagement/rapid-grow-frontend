@@ -621,22 +621,77 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     }
   };
 
+  const postAttendanceActionWithFallback = async (
+    endpoints: string[],
+    defaultErrorMessage: string,
+  ) => {
+    let lastMessage = defaultErrorMessage;
+
+    for (let index = 0; index < endpoints.length; index += 1) {
+      const endpoint = endpoints[index];
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+        });
+
+        if (res.ok) {
+          return {
+            ok: true as const,
+            session: await res.json(),
+            message: '',
+          };
+        }
+
+        const data = await res.json().catch(() => ({}));
+        const responseMessage = typeof data?.message === 'string' ? data.message : '';
+        lastMessage = responseMessage || defaultErrorMessage;
+
+        const routeMissing = res.status === 404 || /route not found/i.test(responseMessage);
+        if (!routeMissing || index === endpoints.length - 1) {
+          return {
+            ok: false as const,
+            session: null,
+            message: lastMessage,
+          };
+        }
+      } catch (error) {
+        if (index === endpoints.length - 1) {
+          console.error(defaultErrorMessage, error);
+          return {
+            ok: false as const,
+            session: null,
+            message: defaultErrorMessage,
+          };
+        }
+      }
+    }
+
+    return {
+      ok: false as const,
+      session: null,
+      message: lastMessage,
+    };
+  };
+
   const handleStartBreak = async () => {
     setBreakLoading(true);
     setSessionError(null);
     try {
-      const res = await fetch(`${API_BASE}/attendance/break/start`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setSessionError(data.message || 'Failed to start break');
+      const result = await postAttendanceActionWithFallback(
+        [
+          `${API_BASE}/attendance/break/start`,
+          `${API_BASE}/attendance/start-break`,
+        ],
+        'Failed to start break',
+      );
+      if (!result.ok || !result.session) {
+        setSessionError(result.message || 'Failed to start break');
         return;
       }
 
-      const session = await res.json();
-      setActiveSession(session);
+      setActiveSession(result.session);
       void loadSummary(range, selectedMonth);
     } catch (error) {
       console.error('Failed to start break', error);
@@ -650,18 +705,19 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     setBreakLoading(true);
     setSessionError(null);
     try {
-      const res = await fetch(`${API_BASE}/attendance/break/resume`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setSessionError(data.message || 'Failed to resume work');
+      const result = await postAttendanceActionWithFallback(
+        [
+          `${API_BASE}/attendance/break/resume`,
+          `${API_BASE}/attendance/resume-break`,
+        ],
+        'Failed to resume work',
+      );
+      if (!result.ok || !result.session) {
+        setSessionError(result.message || 'Failed to resume work');
         return;
       }
 
-      const session = await res.json();
-      setActiveSession(session);
+      setActiveSession(result.session);
       void loadSummary(range, selectedMonth);
     } catch (error) {
       console.error('Failed to resume break', error);
