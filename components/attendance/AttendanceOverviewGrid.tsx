@@ -81,6 +81,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
   onOpenHistory,
 }) => {
   const isEmployeePortal = portalMode === 'employee';
+  const isManagerPortal = portalMode === 'manager';
   const DURATION_PROGRESS_MAX_HOURS = 10;
   const breakStatusColors = React.useMemo(
     () => ({ bg: '#fef3c7', text: '#b45309', solid: '#fbbf24' }),
@@ -348,7 +349,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
   }, []);
 
   React.useEffect(() => {
-    if (!isEmployeePortal || displayRows.length === 0) return undefined;
+    if (displayRows.length === 0) return undefined;
 
     let cancelled = false;
     const run = async () => {
@@ -370,9 +371,9 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [displayRows, isEmployeePortal, resolveRowMeta]);
+  }, [displayRows, resolveRowMeta]);
 
-  if (isEmployeePortal) {
+  if (isEmployeePortal || isManagerPortal) {
     return (
       <div className="space-y-8">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
@@ -522,36 +523,33 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
             />
 
             {canReviewTeamAttendance ? (
-              <div className="rounded-[30px] border border-slate-200 bg-white p-6">
+              <div className="rounded-[30px] border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-navy p-6 text-white">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h4 className="text-lg font-semibold text-slate-900">Today attendance</h4>
-                    <p className="mt-1 text-sm text-slate-500">Live team count for the current day.</p>
-                  </div>
-                  <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
-                    Snapshot
+                    <h4 className="text-lg font-semibold text-white">Today attendance</h4>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">Shows how many team members logged in today.</p>
                   </div>
                 </div>
 
                 {teamAttendanceSummaryLoading ? (
                   <div className="mt-5 grid grid-cols-3 gap-3">
-                    <div className="rounded-2xl bg-slate-50 px-3 py-4 text-center text-sm text-slate-400">...</div>
-                    <div className="rounded-2xl bg-slate-50 px-3 py-4 text-center text-sm text-slate-400">...</div>
-                    <div className="rounded-2xl bg-slate-50 px-3 py-4 text-center text-sm text-slate-400">...</div>
+                    <div className="rounded-xl bg-white/5 px-3 py-4 text-center text-sm text-slate-400">...</div>
+                    <div className="rounded-xl bg-white/5 px-3 py-4 text-center text-sm text-slate-400">...</div>
+                    <div className="rounded-xl bg-white/5 px-3 py-4 text-center text-sm text-slate-400">...</div>
                   </div>
                 ) : (
                   <div className="mt-5 grid grid-cols-3 gap-3">
-                    <div className="rounded-2xl bg-emerald-50 px-3 py-4 text-center">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-600">Present</p>
-                      <p className="mt-2 text-2xl font-semibold text-slate-900">{teamAttendanceSummary?.present ?? 0}</p>
+                    <div className="rounded-xl bg-emerald-500/10 px-3 py-4 text-center">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">Present</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{teamAttendanceSummary?.present ?? 0}</p>
                     </div>
-                    <div className="rounded-2xl bg-rose-50 px-3 py-4 text-center">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-500">Absent</p>
-                      <p className="mt-2 text-2xl font-semibold text-slate-900">{teamAttendanceSummary?.absent ?? 0}</p>
+                    <div className="rounded-xl bg-rose-500/10 px-3 py-4 text-center">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200">Absent</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{teamAttendanceSummary?.absent ?? 0}</p>
                     </div>
-                    <div className="rounded-2xl bg-slate-50 px-3 py-4 text-center">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Total</p>
-                      <p className="mt-2 text-2xl font-semibold text-slate-900">{teamAttendanceSummary?.total ?? 0}</p>
+                    <div className="rounded-xl bg-white/5 px-3 py-4 text-center">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">Total</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{teamAttendanceSummary?.total ?? 0}</p>
                     </div>
                   </div>
                 )}
