@@ -136,6 +136,44 @@ const AttendancePresenceChart: React.FC<Props> = ({
 
     return `${day} ${month}, ${year}`;
   };
+  const showWeekdayOnAxis = range === 'day' || range === 'week' || range === 'month';
+  const formatChartDayLabel = (isoDate: string) => {
+    const parsed = new Date(`${isoDate}T00:00:00`);
+    if (showWeekdayOnAxis) {
+      const weekdayLabel = parsed.toLocaleDateString('en-US', {
+        weekday: range === 'month' ? 'narrow' : 'short',
+        timeZone: 'Asia/Kolkata',
+      });
+      const dayLabel = parsed.toLocaleDateString('en-US', {
+        day: 'numeric',
+        timeZone: 'Asia/Kolkata',
+      });
+      return `${weekdayLabel}|${dayLabel}`;
+    }
+
+    return String(parsed.getDate());
+  };
+  const renderEmployeeXAxisTick = React.useCallback(({ x, y, payload }: { x?: number; y?: number; payload?: { value?: string } }) => {
+    const rawValue = String(payload?.value || '');
+    const [weekdayLabel, dayLabel] = rawValue.split('|');
+
+    if (!rawValue.includes('|')) {
+      return (
+        <text x={x} y={y} dy={14} textAnchor="middle" fill="#94a3b8" fontSize={10}>
+          {rawValue}
+        </text>
+      );
+    }
+
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text textAnchor="middle" fill="#94a3b8" fontSize={range === 'month' ? 9 : 10}>
+          <tspan x="0" dy="9">{weekdayLabel}</tspan>
+          <tspan x="0" dy="12">{dayLabel}</tspan>
+        </text>
+      </g>
+    );
+  }, [range]);
   const getShownMonthLabel = () => {
     if (range === 'day' && summary?.start) {
       return new Date(summary.start).toLocaleDateString('en-US', {
@@ -194,7 +232,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
 
   const chartData =
     datesToShow.map((dateKey) => {
-      const dayLabel = String(new Date(`${dateKey}T00:00:00`).getDate());
+      const dayLabel = formatChartDayLabel(dateKey);
       const d = recordedDays.get(dateKey);
       const liveMinutes = dateKey === todayDateKey ? Math.max(d?.minutes || 0, todayMinutes) : d?.minutes || 0;
       const isSunday = new Date(`${dateKey}T00:00:00`).getDay() === 0;
@@ -270,18 +308,6 @@ const AttendancePresenceChart: React.FC<Props> = ({
           </div>
 
           <div className="flex flex-col gap-4 xl:items-end">
-            <div className="flex flex-wrap items-center gap-2 text-[12px] text-slate-500">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> &ge; 8h
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-orange-500" /> 7.5-8h
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-red-500" /> &lt; 7.5h
-              </span>
-            </div>
-
             <div className="flex flex-wrap items-center gap-5">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Avg / day</p>
@@ -321,9 +347,11 @@ const AttendancePresenceChart: React.FC<Props> = ({
                 <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#dbe4f0" />
                 <XAxis
                   dataKey="dayLabel"
-                  tick={{ fontSize: 10, fill: '#94a3b8' }}
+                  tick={renderEmployeeXAxisTick}
                   axisLine={false}
                   tickLine={false}
+                  height={showWeekdayOnAxis ? 34 : undefined}
+                  interval={0}
                 />
                 <YAxis
                   tick={{ fontSize: 11, fill: '#64748b' }}
@@ -377,6 +405,29 @@ const AttendancePresenceChart: React.FC<Props> = ({
               </BarChart>
             </ResponsiveContainer>
           )}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[12px] text-slate-500">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-slate-300" /> Off day
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-slate-400" /> Absent
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> &ge; 8h
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-orange-500" /> 7.5-8h
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-red-500" /> &lt; 7.5h
+            </span>
+          </div>
         </div>
       </div>
     );
