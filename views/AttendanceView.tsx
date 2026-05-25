@@ -88,6 +88,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
 
   const isEmployeePortal = mode === 'employee';
   const isHistoryRoute = location.pathname === '/attendance/history';
+  const isTeamAttendanceRoute = location.pathname === '/attendance/team';
 
   const { backendEmpId, isBackendAdminRole, isBackendApproverRole, leaveViewerRole } = useMemo(
     () => parseAttendanceBackendContext(),
@@ -117,7 +118,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     }
   }, [location.search]);
 
-  const buildAttendanceRoute = useCallback((pathname: '/attendance' | '/attendance/history') => {
+  const buildAttendanceRoute = useCallback((pathname: '/attendance' | '/attendance/history' | '/attendance/team') => {
     const params = new URLSearchParams();
     if (pathname === '/attendance' && activeView === 'leave') {
       params.set('view', 'leave');
@@ -139,6 +140,14 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     navigate(buildAttendanceRoute('/attendance'));
   }, [buildAttendanceRoute, navigate]);
 
+  const handleTeamAttendanceOpen = useCallback(() => {
+    navigate(buildAttendanceRoute('/attendance/team'));
+  }, [buildAttendanceRoute, navigate]);
+
+  const handleTeamAttendanceClose = useCallback(() => {
+    navigate(buildAttendanceRoute('/attendance'));
+  }, [buildAttendanceRoute, navigate]);
+
   const handleActiveViewChange = useCallback((nextView: 'attendance' | 'leave') => {
     setActiveView(nextView);
     const params = new URLSearchParams();
@@ -155,14 +164,16 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   }, [navigate, range, selectedMonth]);
 
   useEffect(() => {
-    if (!isHistoryRoute) return;
+    if (!isHistoryRoute && !isTeamAttendanceRoute) return;
 
-    const nextRoute = buildAttendanceRoute('/attendance/history');
+    const nextRoute = isHistoryRoute
+      ? buildAttendanceRoute('/attendance/history')
+      : buildAttendanceRoute('/attendance/team');
     const currentRoute = `${location.pathname}${location.search || ''}`;
     if (currentRoute !== nextRoute) {
       navigate(nextRoute, { replace: true });
     }
-  }, [buildAttendanceRoute, isHistoryRoute, location.pathname, location.search, navigate]);
+  }, [buildAttendanceRoute, isHistoryRoute, isTeamAttendanceRoute, location.pathname, location.search, navigate]);
 
   const employeeProfileByEmpId = useMemo(() => {
     const map = new Map<string, AttendanceEmployeeOption>();
@@ -344,8 +355,15 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     };
   }, [canReviewTeamAttendance]);
 
-  const loadSummary = async (selectedRange: Range, monthValue?: string) => {
-    setLoading(true);
+  const loadSummary = async (
+    selectedRange: Range,
+    monthValue?: string,
+    options?: { silent?: boolean },
+  ) => {
+    const silent = options?.silent === true;
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       const params = new URLSearchParams();
       params.set('range', selectedRange);
@@ -369,12 +387,21 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     } catch (e) {
       console.error('Failed to load attendance summary', e);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
-  const loadSelectedEmployeeAttendance = async (empId: string, monthValue: string) => {
-    setEmployeeAttendanceLoading(true);
+  const loadSelectedEmployeeAttendance = async (
+    empId: string,
+    monthValue: string,
+    options?: { silent?: boolean },
+  ) => {
+    const silent = options?.silent === true;
+    if (!silent) {
+      setEmployeeAttendanceLoading(true);
+    }
     try {
       const params = new URLSearchParams();
       params.set('range', 'month');
@@ -386,6 +413,9 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       );
 
       if (!res.ok) {
+        if (silent) {
+          return;
+        }
         setEmployeeSummary(null);
         return;
       }
@@ -400,20 +430,30 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       });
     } catch (error) {
       console.error('Failed to load selected employee attendance', error);
-      setEmployeeSummary(null);
+      if (!silent) {
+        setEmployeeSummary(null);
+      }
     } finally {
-      setEmployeeAttendanceLoading(false);
+      if (!silent) {
+        setEmployeeAttendanceLoading(false);
+      }
     }
   };
 
-  const loadTeamAttendanceSummary = async () => {
-    setTeamAttendanceSummaryLoading(true);
+  const loadTeamAttendanceSummary = async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
+    if (!silent) {
+      setTeamAttendanceSummaryLoading(true);
+    }
     try {
       const res = await fetch(`${API_BASE}/attendance/team-summary`, {
         headers: getAuthHeaders(),
       });
 
       if (!res.ok) {
+        if (silent) {
+          return;
+        }
         setTeamAttendanceSummary(null);
         return;
       }
@@ -423,12 +463,20 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         total: Number(data.total || 0),
         present: Number(data.present || 0),
         absent: Number(data.absent || 0),
+        clockedIn: Number(data.clockedIn || 0),
+        onBreak: Number(data.onBreak || 0),
+        members: Array.isArray(data.members) ? data.members : [],
+        activityLog: Array.isArray(data.activityLog) ? data.activityLog : [],
       });
     } catch (error) {
       console.error('Failed to load team attendance summary', error);
-      setTeamAttendanceSummary(null);
+      if (!silent) {
+        setTeamAttendanceSummary(null);
+      }
     } finally {
-      setTeamAttendanceSummaryLoading(false);
+      if (!silent) {
+        setTeamAttendanceSummaryLoading(false);
+      }
     }
   };
 
@@ -514,12 +562,20 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
 
   useEffect(() => {
     const socket = getSocket();
-    const handleAttendanceChanged = () => {
-      loadSummary(range, selectedMonth);
+    const handleAttendanceChanged = (payload?: { empId?: string }) => {
+      const changedEmpId = String(payload?.empId || '').trim();
+      const shouldRefreshOwnSummary = !changedEmpId || (!!backendEmpId && changedEmpId === backendEmpId);
+
+      if (shouldRefreshOwnSummary) {
+        loadSummary(range, selectedMonth, { silent: true });
+      }
+
       if (canReviewTeamAttendance) {
-        loadTeamAttendanceSummary();
-        if (selectedEmployeeEmpId && selectedEmployeeMonth) {
-          loadSelectedEmployeeAttendance(selectedEmployeeEmpId, selectedEmployeeMonth);
+        loadTeamAttendanceSummary({ silent: true });
+        const shouldRefreshSelectedEmployee =
+          !changedEmpId || changedEmpId === selectedEmployeeEmpId;
+        if (selectedEmployeeEmpId && selectedEmployeeMonth && shouldRefreshSelectedEmployee) {
+          loadSelectedEmployeeAttendance(selectedEmployeeEmpId, selectedEmployeeMonth, { silent: true });
         }
       }
     };
@@ -528,7 +584,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     return () => {
       socket.off('attendance:changed', handleAttendanceChanged);
     };
-  }, [canReviewTeamAttendance, range, selectedMonth, selectedEmployeeEmpId, selectedEmployeeMonth]);
+  }, [backendEmpId, canReviewTeamAttendance, range, selectedMonth, selectedEmployeeEmpId, selectedEmployeeMonth]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -1137,6 +1193,45 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
           portalMode={mode}
           onBack={handleHistoryClose}
         />
+      ) : isTeamAttendanceRoute ? (
+        <div className="space-y-5">
+          <section className="py-1">
+            <button
+              type="button"
+              onClick={handleTeamAttendanceClose}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+            >
+              Back to attendance
+            </button>
+          </section>
+
+          <TeamAttendanceSection
+            canReviewTeamAttendance={canReviewTeamAttendance}
+            employeePickerOpen={employeePickerOpen}
+            monthPickerOpen={monthPickerOpen}
+            employeePickerRef={employeePickerRef}
+            monthPickerRef={monthPickerRef}
+            setEmployeePickerOpen={setEmployeePickerOpen}
+            setMonthPickerOpen={setMonthPickerOpen}
+            employeeOptions={employeeOptions}
+            selectedEmployeeEmpId={selectedEmployeeEmpId}
+            selectedEmployeeMonth={selectedEmployeeMonth}
+            selectedEmployeeLabel={selectedEmployeeLabel}
+            selectedEmployeeMonthLabel={selectedEmployeeMonthLabel}
+            selectedEmployee={selectedEmployee}
+            employeeMonthOptions={employeeMonthOptions}
+            employeeSummary={employeeSummary}
+            employeeAttendanceLoading={employeeAttendanceLoading}
+            teamAttendanceSummaryLoading={teamAttendanceSummaryLoading}
+            teamAttendanceSummary={teamAttendanceSummary}
+            currentViewerEmpId={backendEmpId}
+            onRefreshTeamActivity={loadTeamAttendanceSummary}
+            selectedEmployeeTodayInfo={selectedEmployeeTodayInfo}
+            selectedEmployeeMonthlyAttendance={selectedEmployeeMonthlyAttendance}
+            setSelectedEmployeeEmpId={setSelectedEmployeeEmpId}
+            setSelectedEmployeeMonth={setSelectedEmployeeMonth}
+          />
+        </div>
       ) : activeView === 'attendance' ? (
         <AttendanceOverviewGrid
           summary={summary}
@@ -1165,8 +1260,11 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
           canReviewTeamAttendance={canReviewTeamAttendance}
           teamAttendanceSummaryLoading={teamAttendanceSummaryLoading}
           teamAttendanceSummary={teamAttendanceSummary}
+          currentViewerEmpId={backendEmpId}
+          onRefreshTeamActivity={loadTeamAttendanceSummary}
           portalMode={mode}
           onOpenHistory={handleHistoryOpen}
+          onOpenTeamAttendance={handleTeamAttendanceOpen}
         />
       ) : (
         <div className="space-y-6">
@@ -1197,30 +1295,6 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         </div>
       )}
 
-      {!isHistoryRoute && activeView === 'attendance' ? (
-        <TeamAttendanceSection
-          canReviewTeamAttendance={canReviewTeamAttendance}
-          employeePickerOpen={employeePickerOpen}
-          monthPickerOpen={monthPickerOpen}
-          employeePickerRef={employeePickerRef}
-          monthPickerRef={monthPickerRef}
-          setEmployeePickerOpen={setEmployeePickerOpen}
-          setMonthPickerOpen={setMonthPickerOpen}
-          employeeOptions={employeeOptions}
-          selectedEmployeeEmpId={selectedEmployeeEmpId}
-          selectedEmployeeMonth={selectedEmployeeMonth}
-          selectedEmployeeLabel={selectedEmployeeLabel}
-          selectedEmployeeMonthLabel={selectedEmployeeMonthLabel}
-          selectedEmployee={selectedEmployee}
-          employeeMonthOptions={employeeMonthOptions}
-          employeeSummary={employeeSummary}
-          employeeAttendanceLoading={employeeAttendanceLoading}
-          selectedEmployeeTodayInfo={selectedEmployeeTodayInfo}
-          selectedEmployeeMonthlyAttendance={selectedEmployeeMonthlyAttendance}
-          setSelectedEmployeeEmpId={setSelectedEmployeeEmpId}
-          setSelectedEmployeeMonth={setSelectedEmployeeMonth}
-        />
-      ) : null}
     </div>
   );
 };

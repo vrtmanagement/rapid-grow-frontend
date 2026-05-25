@@ -10,6 +10,48 @@ export interface TeamAttendanceSummary {
   total: number;
   present: number;
   absent: number;
+  clockedIn?: number;
+  onBreak?: number;
+  members?: TeamAttendanceMemberActivity[];
+  activityLog?: TeamAttendanceLogEntry[];
+}
+
+export type TeamAttendanceActivityType =
+  | 'checked_in'
+  | 'break_started'
+  | 'work_resumed'
+  | 'checked_out'
+  | 'absent';
+
+export interface TeamAttendanceMemberActivity {
+  empId: string;
+  empName: string;
+  role?: string;
+  designation?: string;
+  department?: string;
+  location?: string;
+  loginTime?: string | null;
+  logoutTime?: string | null;
+  breakStartedAt?: string | null;
+  lastActivityAt?: string | null;
+  lastActivityType?: TeamAttendanceActivityType;
+  workingMinutes?: number;
+  status: 'clocked_in' | 'on_break' | 'checked_out' | 'absent';
+}
+
+export interface TeamAttendanceLogEntry {
+  id: string;
+  empId: string;
+  empName: string;
+  role?: string;
+  designation?: string;
+  department?: string;
+  location?: string;
+  activityAt: string;
+  activityType: TeamAttendanceActivityType;
+  workingMinutes?: number;
+  breakDurationSeconds?: number;
+  status: 'clocked_in' | 'on_break' | 'checked_out' | 'absent';
 }
 
 export interface LeaveActorProfile {

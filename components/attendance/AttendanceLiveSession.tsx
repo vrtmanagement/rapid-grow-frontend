@@ -19,6 +19,7 @@ interface Props {
   todayMinutes?: number;
   variant?: 'employee' | 'manager';
   loading?: boolean;
+  hideLocationDetails?: boolean;
 }
 
 const STATUS_CARD_THEMES = {
@@ -56,6 +57,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
   errorMessage,
   variant = 'manager',
   loading = false,
+  hideLocationDetails = false,
 }) => {
   const isEmployeeVariant = variant === 'employee';
   const [now, setNow] = useState(() => Date.now());
@@ -270,10 +272,10 @@ const AttendanceLiveSession: React.FC<Props> = ({
                 attendanceActionDisabled
                   ? 'cursor-not-allowed bg-slate-200 text-slate-400'
                   : isOnBreak
-                    ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                    ? 'bg-indigo-500 text-white hover:bg-indigo-600'
                     : isEmployeeVariant
-                      ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                      : 'bg-slate-700/80 text-slate-100 hover:bg-slate-600'
+                      ? 'bg-amber-400 text-slate-950 hover:bg-amber-500'
+                      : 'bg-amber-400 text-slate-950 hover:bg-amber-500'
               } ${isEmployeeVariant ? 'text-[0.95rem]' : 'text-xs font-semibold'}`}
             >
               {breakLoading ? (
@@ -294,8 +296,8 @@ const AttendanceLiveSession: React.FC<Props> = ({
                 loginLoading
                   ? 'cursor-wait bg-slate-200 text-slate-400'
                   : isEmployeeVariant
-                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    : 'bg-slate-700/80 text-slate-100 hover:bg-slate-600'
+                    ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                    : 'bg-emerald-500 text-white hover:bg-emerald-600'
               } ${isEmployeeVariant ? 'text-[0.95rem]' : 'text-xs font-semibold'}`}
             >
               {loginLoading ? (
@@ -313,7 +315,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
             disabled={!activeSession || attendanceActionDisabled}
             className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 font-medium transition-colors ${
               activeSession && !attendanceActionDisabled
-                ? 'bg-[#e11d48] text-white hover:bg-[#f43f5e]'
+                ? 'bg-rose-600 text-white hover:bg-rose-700'
                 : isEmployeeVariant
                   ? 'cursor-not-allowed bg-slate-200 text-slate-400'
                   : 'cursor-not-allowed bg-slate-800 text-slate-500'
@@ -344,12 +346,14 @@ const AttendanceLiveSession: React.FC<Props> = ({
               <span>Today</span>
               <span className={`text-[0.95em] font-medium ${isEmployeeVariant ? 'text-slate-900' : 'text-white'}`}>{currentDateLabel}</span>
             </div>
-            <div className={`flex items-start justify-between gap-4 py-2 ${isEmployeeVariant ? '' : 'border-t border-white/10 pt-2'}`}>
-              <span>Location</span>
-              <span className={`max-w-[220px] text-right text-[0.95em] font-medium ${isEmployeeVariant ? 'text-slate-900' : 'text-white'}`}>
-                {resolvedLocationLabel}
-              </span>
-            </div>
+            {!hideLocationDetails ? (
+              <div className={`flex items-start justify-between gap-4 py-2 ${isEmployeeVariant ? '' : 'border-t border-white/10 pt-2'}`}>
+                <span>Location</span>
+                <span className={`max-w-[220px] text-right text-[0.95em] font-medium ${isEmployeeVariant ? 'text-slate-900' : 'text-white'}`}>
+                  {resolvedLocationLabel}
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

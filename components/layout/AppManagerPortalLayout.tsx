@@ -322,6 +322,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {hasPower('SPACES_VIEW') && <Route path="/spaces/task/:taskId" element={<SpacesTaskDetailView mode="manager" />} />}
               {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance" element={<AttendanceView mode="manager" />} />}
               {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance/history" element={<AttendanceView mode="manager" />} />}
+              {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance/team" element={<AttendanceView mode="manager" />} />}
               {hasPower('EMPLOYEE_CREATE') && (
                 <Route
                   path="/employees/add"
