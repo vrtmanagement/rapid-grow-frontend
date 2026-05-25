@@ -27,6 +27,7 @@ export function ChatComposer({
   onCancelEdit?: () => void;
   onSaveEdit?: (message: ChatMessage, content: string) => Promise<void>;
 }) {
+  const MAX_TEXTAREA_HEIGHT = 200;
   const [content, setContent] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
@@ -34,6 +35,21 @@ export function ChatComposer({
   const [uploadingFile, setUploadingFile] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const baseTextareaHeightRef = useRef(0);
+
+  const resizeComposerTextarea = (target: HTMLTextAreaElement) => {
+    if (!baseTextareaHeightRef.current) {
+      baseTextareaHeightRef.current = target.offsetHeight;
+    }
+    target.style.height = 'auto';
+    const nextHeight = Math.min(
+      Math.max(target.scrollHeight, baseTextareaHeightRef.current),
+      MAX_TEXTAREA_HEIGHT,
+    );
+    target.style.height = `${nextHeight}px`;
+    target.style.overflowY = target.scrollHeight > MAX_TEXTAREA_HEIGHT ? 'auto' : 'hidden';
+  };
 
   useEffect(() => {
     if (!editingMessage) return;
@@ -42,6 +58,11 @@ export function ChatComposer({
     setFilePreviewUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [editingMessage]);
+
+  useEffect(() => {
+    if (!textareaRef.current) return;
+    resizeComposerTextarea(textareaRef.current);
+  }, [content]);
 
   useEffect(() => {
     const imageFile = files.find((f) => f.type.startsWith("image/")) || null;
@@ -210,6 +231,7 @@ export function ChatComposer({
             </div>
           ) : null}
           <textarea
+            ref={textareaRef}
             value={content}
             onChange={(e) => {
               setContent(e.target.value);

@@ -2,6 +2,7 @@ export interface AttendanceEmployeeOption {
   empId: string;
   empName: string;
   role: string;
+  avatar?: string;
   designation?: string;
   department?: string;
 }
@@ -26,6 +27,7 @@ export type TeamAttendanceActivityType =
 export interface TeamAttendanceMemberActivity {
   empId: string;
   empName: string;
+  avatar?: string;
   role?: string;
   designation?: string;
   department?: string;
@@ -43,6 +45,7 @@ export interface TeamAttendanceLogEntry {
   id: string;
   empId: string;
   empName: string;
+  avatar?: string;
   role?: string;
   designation?: string;
   department?: string;

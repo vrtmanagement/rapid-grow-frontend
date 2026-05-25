@@ -331,6 +331,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
             empId: String(employee.empId || '').trim(),
             empName: String(employee.empName || employee.empId || '').trim(),
             role: String(employee.role || '').trim(),
+            avatar: String(employee.avatar || '').trim(),
             designation: String(employee.designation || '').trim(),
             department: String(employee.department || '').trim(),
           }))

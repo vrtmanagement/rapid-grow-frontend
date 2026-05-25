@@ -21,6 +21,7 @@ import {
   type TeamAttendanceSummary,
 } from './attendanceViewUtils';
 import { Check, Coffee, LogIn, LogOut, Play, RefreshCw, X } from 'lucide-react';
+import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT } from '../../utils/avatar';
 
 interface AttendanceOverviewGridProps {
   summary: AttendanceSummaryResponse | null;
@@ -102,6 +103,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
   const [teamActivityNow, setTeamActivityNow] = React.useState(() => Date.now());
   const teamActivityMembers = React.useMemo(() => teamAttendanceSummary?.members ?? [], [teamAttendanceSummary?.members]);
   const teamActivityEntries = React.useMemo(() => teamAttendanceSummary?.activityLog ?? [], [teamAttendanceSummary?.activityLog]);
+  const [teamAvatarByEmpId, setTeamAvatarByEmpId] = React.useState<Record<string, string>>({});
   const teamClockedInCount = React.useMemo(
     () => teamAttendanceSummary?.clockedIn ?? teamActivityMembers.filter((member) => member.status === 'clocked_in').length,
     [teamActivityMembers, teamAttendanceSummary?.clockedIn],
@@ -123,6 +125,49 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
     () => new Map(teamActivityMembers.map((member) => [member.empId, member])),
     [teamActivityMembers],
   );
+
+  React.useEffect(() => {
+    const nextAvatarByEmpId: Record<string, string> = {};
+    teamActivityMembers.forEach((member) => {
+      if (member.empId) {
+        nextAvatarByEmpId[member.empId] = String(member.avatar || '').trim();
+      }
+    });
+    teamActivityEntries.forEach((entry) => {
+      if (entry.empId) {
+        nextAvatarByEmpId[entry.empId] = String(entry.avatar || nextAvatarByEmpId[entry.empId] || '').trim();
+      }
+    });
+
+    setTeamAvatarByEmpId((prev) => {
+      let changed = false;
+      const merged = { ...prev };
+      Object.entries(nextAvatarByEmpId).forEach(([empId, avatar]) => {
+        if (merged[empId] !== avatar) {
+          merged[empId] = avatar;
+          changed = true;
+        }
+      });
+      return changed ? merged : prev;
+    });
+  }, [teamActivityEntries, teamActivityMembers]);
+
+  React.useEffect(() => {
+    const handleProfileAvatarUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ avatar?: string; empId?: string }>).detail || {};
+      const empId = String(detail.empId || '').trim();
+      if (!empId) return;
+      const nextAvatar = String(detail.avatar || '').trim();
+      setTeamAvatarByEmpId((prev) => (
+        prev[empId] === nextAvatar ? prev : { ...prev, [empId]: nextAvatar }
+      ));
+    };
+
+    window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated as EventListener);
+    return () => {
+      window.removeEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated as EventListener);
+    };
+  }, []);
   const recordsByDate = React.useMemo(
     () => new Map((summary?.days ?? []).map((day) => [day.date, day])),
     [summary?.days],
@@ -356,15 +401,6 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
       hour12: true,
       timeZone: 'Asia/Kolkata',
     });
-  }, []);
-
-  const getTeamMemberInitials = React.useCallback((name: string) => {
-    const tokens = String(name || '')
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2);
-    if (!tokens.length) return 'NA';
-    return tokens.map((token) => token[0]?.toUpperCase() || '').join('');
   }, []);
 
   const getTeamActivityStatusMeta = React.useCallback((activityType: TeamAttendanceActivityType, status: TeamAttendanceLogEntry['status']) => {
@@ -798,6 +834,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
                                 : null
                             : null;
                           const isActiveBreakRow = !!activeBreakDuration;
+                          const avatarSrc = getDisplayAvatarUrl(teamAvatarByEmpId[member.empId] || member.avatar, member.empName);
 
                           return (
                             <div
@@ -805,8 +842,8 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
                               className="flex items-start gap-3 px-4 py-3 transition-colors duration-200 hover:bg-slate-200/80"
                             >
                               <div className="relative shrink-0">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-[0.95rem] font-semibold text-white">
-                                  {getTeamMemberInitials(member.empName)}
+                                <div className="h-10 w-10 overflow-hidden rounded-2xl bg-slate-100">
+                                  <img src={avatarSrc} alt={member.empName} className="h-full w-full object-cover" />
                                 </div>
                                 <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${statusMeta.dotClass}`} />
                               </div>

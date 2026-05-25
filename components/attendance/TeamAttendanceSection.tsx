@@ -1,9 +1,10 @@
 import React from 'react';
-import { Coffee, LogIn, LogOut, MapPin, Play, RefreshCw } from 'lucide-react';
+import { ChevronDown, Coffee, LogIn, LogOut, MapPin, Play, RefreshCw } from 'lucide-react';
 import AttendanceSummaryCards from './AttendanceSummaryCards';
 import AttendancePresenceChart from './AttendancePresenceChart';
 import { AttendanceSummaryResponse } from './attendanceUtils';
 import { AttendanceEmployeeOption, TeamAttendanceActivityType, TeamAttendanceLogEntry, TeamAttendanceSummary } from './attendanceViewUtils';
+import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT } from '../../utils/avatar';
 
 interface TeamAttendanceSectionProps {
   canReviewTeamAttendance: boolean;
@@ -61,6 +62,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
   if (!canReviewTeamAttendance) return null;
 
   const [now, setNow] = React.useState(() => Date.now());
+  const [teamAvatarByEmpId, setTeamAvatarByEmpId] = React.useState<Record<string, string>>({});
   const teamMembers = React.useMemo(() => teamAttendanceSummary?.members ?? [], [teamAttendanceSummary?.members]);
   const teamActivityEntries = React.useMemo(() => teamAttendanceSummary?.activityLog ?? [], [teamAttendanceSummary?.activityLog]);
   const teamMemberByEmpId = React.useMemo(
@@ -79,6 +81,49 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
     () => Math.max(0, (teamAttendanceSummary?.total ?? teamMembers.length) - clockedInCount - onBreakCount),
     [clockedInCount, onBreakCount, teamAttendanceSummary?.total, teamMembers.length],
   );
+
+  React.useEffect(() => {
+    const nextAvatarByEmpId: Record<string, string> = {};
+    teamMembers.forEach((member) => {
+      if (member.empId) {
+        nextAvatarByEmpId[member.empId] = String(member.avatar || '').trim();
+      }
+    });
+    teamActivityEntries.forEach((entry) => {
+      if (entry.empId) {
+        nextAvatarByEmpId[entry.empId] = String(entry.avatar || nextAvatarByEmpId[entry.empId] || '').trim();
+      }
+    });
+
+    setTeamAvatarByEmpId((prev) => {
+      let changed = false;
+      const merged = { ...prev };
+      Object.entries(nextAvatarByEmpId).forEach(([empId, avatar]) => {
+        if (merged[empId] !== avatar) {
+          merged[empId] = avatar;
+          changed = true;
+        }
+      });
+      return changed ? merged : prev;
+    });
+  }, [teamActivityEntries, teamMembers]);
+
+  React.useEffect(() => {
+    const handleProfileAvatarUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ avatar?: string; empId?: string }>).detail || {};
+      const empId = String(detail.empId || '').trim();
+      if (!empId) return;
+      const nextAvatar = String(detail.avatar || '').trim();
+      setTeamAvatarByEmpId((prev) => (
+        prev[empId] === nextAvatar ? prev : { ...prev, [empId]: nextAvatar }
+      ));
+    };
+
+    window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated as EventListener);
+    return () => {
+      window.removeEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated as EventListener);
+    };
+  }, []);
 
   React.useEffect(() => {
     const hasLiveBreak = teamActivityEntries.some((entry) => {
@@ -196,6 +241,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
       : null;
     const profileText = entry.designation || entry.department || entry.empId;
     const locationText = entry.location || 'Location not set';
+    const avatarSrc = getDisplayAvatarUrl(teamAvatarByEmpId[entry.empId] || entry.avatar, entry.empName);
 
     return (
       <div
@@ -203,13 +249,8 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
         className="flex items-start gap-4 px-6 py-4 transition-colors duration-200 hover:bg-slate-200/80 md:px-8"
       >
         <div className="relative shrink-0">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-base font-semibold text-white">
-            {entry.empName
-              .split(' ')
-              .map((part) => part[0] || '')
-              .join('')
-              .slice(0, 2)
-              .toUpperCase()}
+          <div className="h-12 w-12 overflow-hidden rounded-2xl bg-slate-100">
+            <img src={avatarSrc} alt={entry.empName} className="h-full w-full object-cover" />
           </div>
           <span className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white ${activityMeta.dotClass}`} />
         </div>
@@ -259,7 +300,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
         </div>
       </div>
     );
-  }, [currentViewerEmpId, formatActivityTime, formatDuration, getActivityMeta, now, teamMemberByEmpId]);
+  }, [currentViewerEmpId, formatActivityTime, formatDuration, getActivityMeta, now, teamAvatarByEmpId, teamMemberByEmpId]);
 
   return (
     <section className="space-y-6">
