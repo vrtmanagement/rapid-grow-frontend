@@ -111,7 +111,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [rejectTaskModal, setRejectTaskModal] = useState<SpacesTask | null>(null);
   const [rejectFeedbackDraft, setRejectFeedbackDraft] = useState('');
   const [rejectingTask, setRejectingTask] = useState(false);
-  const [taskFilterMode, setTaskFilterMode] = useState<TaskFilterMode>('all');
+  const [taskFilterMode, setTaskFilterMode] = useState<TaskFilterMode>('me');
   const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | ''>('');
   const [taskSearch, setTaskSearch] = useState('');
   const [taskPage, setTaskPage] = useState(1);
@@ -1083,7 +1083,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         if (aDue !== bDue) return aDue - bDue;
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       })
-      .slice(0, 5);
+      .slice(0, 6);
   }, [visibleTasks, me.id, taskBelongsToMe]);
 
   const weeklyTaskGroups = useMemo<WeeklyTaskGroup[]>(

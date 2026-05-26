@@ -954,7 +954,15 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <span
+                className={`inline-flex rounded-full px-4 py-1.5 text-[12px] font-semibold uppercase tracking-[0.12em] ${
+                  reminderLoading
+                    ? 'border border-slate-200 bg-slate-50 text-slate-500'
+                    : reminderDraft.enabled
+                      ? 'border border-emerald-600 bg-emerald-600 text-white'
+                      : 'border border-slate-200 bg-slate-50 text-slate-500'
+                }`}
+              >
                 {reminderLoading ? 'LOADING' : reminderStatusChipLabel}
               </span>
               <span className="inline-flex rounded-full border border-slate-200 bg-white px-4 py-1.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-slate-500">

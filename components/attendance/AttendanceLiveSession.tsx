@@ -95,6 +95,14 @@ const AttendanceLiveSession: React.FC<Props> = ({
     };
   }, [activeSession?.location, locationInput]);
 
+  const formatStopwatchParts = (elapsedSeconds: number) => {
+    const hours = Math.floor(elapsedSeconds / 3600);
+    const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+    const seconds = elapsedSeconds % 60;
+
+    return `${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
+  };
+
   const isOnBreak = !!activeSession?.isOnBreak;
   const statusTone = isOnBreak ? 'break' : activeSession ? 'active' : 'idle';
   const statusTheme = STATUS_CARD_THEMES[statusTone];
@@ -159,11 +167,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
 
     const elapsedMs = Math.max(0, now - breakStartedAt.getTime());
     const elapsedSeconds = Math.floor(elapsedMs / 1000);
-    const hours = Math.floor(elapsedSeconds / 3600);
-    const minutes = Math.floor((elapsedSeconds % 3600) / 60);
-    const seconds = elapsedSeconds % 60;
-
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    return formatStopwatchParts(elapsedSeconds);
   }, [activeSession?.currentBreakStartedAt, isOnBreak, now]);
 
   const sessionStopwatchText = useMemo(() => {
@@ -174,11 +178,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
 
     const elapsedMs = Math.max(0, now - loginStartedAt.getTime());
     const elapsedSeconds = Math.floor(elapsedMs / 1000);
-    const hours = Math.floor(elapsedSeconds / 3600);
-    const minutes = Math.floor((elapsedSeconds % 3600) / 60);
-    const seconds = elapsedSeconds % 60;
-
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    return formatStopwatchParts(elapsedSeconds);
   }, [activeSession?.loginTime, now]);
 
   const attendanceActionDisabled = !!logoutLoading || !!loginLoading || !!breakLoading;
@@ -254,7 +254,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
         <div className="mt-3 flex justify-center">
           <div className={isEmployeeVariant ? 'rounded-[16px] border border-slate-200 bg-slate-50 px-4 py-2.5' : 'rounded-[16px] border border-white/10 bg-white/[0.04] px-4 py-3'}>
             <div className="flex items-center justify-center gap-2 text-center">
-              <span className={`font-mono text-[1.55rem] font-bold leading-none tabular-nums ${isEmployeeVariant ? 'text-slate-950' : 'text-white'}`}>
+              <span className={`font-mono text-[1.55rem] font-semibold leading-none tabular-nums ${isEmployeeVariant ? 'text-slate-950' : 'text-white'}`}>
                 {sessionStopwatchText || breakStopwatchText || currentTimeParts.timeText}
               </span>
               {!sessionStopwatchText && !breakStopwatchText ? (

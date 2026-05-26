@@ -649,7 +649,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1.7fr)]">
-          <div className="order-2 flex h-[38rem] min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-6">
+          <div className="order-2 flex h-[37rem] min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-6">
             {weeklyError ? (
               <div className="mb-2 shrink-0 self-start rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-medium text-red-700">{weeklyError}</div>
             ) : null}
@@ -906,40 +906,40 @@ const SpacesMainSections: React.FC<any> = (props) => {
             )}
           </div>
 
-          <div className="order-1 flex h-[38rem] min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="order-1 flex h-[37rem] min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-5">
             <div className="shrink-0 flex items-center justify-between gap-2">
               <div>
                 <h4 className="text-sm font-semibold text-slate-900">Top Priorities</h4>
                 <p className="mt-1 text-[12px] text-slate-500">Priority management for the most important active tasks.</p>
               </div>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+              <span className="inline-flex items-center whitespace-nowrap rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600">
                 {completedTopPriorities}/{topPriorityTasks.length} done
               </span>
             </div>
-            <div className="mt-4 min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-0.5">
+            <div className="mt-4 min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-0.5">
               {topPriorityTasks.length > 0 ? topPriorityTasks.map((task: any, index: number) => (
                 <label
                   key={task.taskId}
-                  className={`flex items-start gap-3 rounded-2xl px-4 py-3 transition-colors ${getTopPriorityCardClasses(task, index)}`}
+                  className={`flex items-start gap-2 rounded-2xl px-3 py-2 transition-colors ${getTopPriorityCardClasses(task, index)}`}
                 >
                   <input
                     type="checkbox"
                     checked={isCompletedPriorityStatus(task.status)}
                     onChange={(e) => patchTask(task.taskId, { status: e.target.checked ? 'done' : 'todo' })}
-                    className={`mt-0.5 h-4 w-4 ${isCompletedPriorityStatus(task.status) ? 'accent-emerald-600' : ''}`}
+                    className={`mt-0.5 h-3 w-3 ${isCompletedPriorityStatus(task.status) ? 'accent-emerald-600' : ''}`}
                   />
                   <div className="min-w-0 flex-1">
-                    <div className={`line-clamp-2 text-[13px] font-semibold leading-5 ${isCompletedPriorityStatus(task.status) ? 'text-emerald-700 line-through decoration-2' : 'text-slate-800'}`}>
+                    <div className={`line-clamp-2 text-[12px] font-semibold leading-[1.1rem] ${isCompletedPriorityStatus(task.status) ? 'text-emerald-700 line-through decoration-2' : 'text-slate-800'}`}>
                       {task.title || 'Untitled task'}
                     </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ${getTopPriorityPillClasses('priority', task.priority)}`}>
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${getTopPriorityPillClasses('priority', task.priority)}`}>
                         {String(task.priority || 'medium').trim().replace(/^./, (char: string) => char.toUpperCase())}
                       </span>
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ${getTopPriorityPillClasses('status', task.status)}`}>
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${getTopPriorityPillClasses('status', task.status)}`}>
                         {String(task.status || 'todo').trim().replace(/^./, (char: string) => char.toUpperCase())}
                       </span>
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ${getTopPriorityPillClasses('date', task.dueDate)}`}>
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${getTopPriorityPillClasses('date', task.dueDate)}`}>
                         {task.dueDate ? new Date(`${task.dueDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}
                       </span>
                     </div>

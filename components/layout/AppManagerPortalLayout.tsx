@@ -21,7 +21,6 @@ import {
   ScrollText,
   UserPlus2,
   Network,
-  KeyRound,
 } from 'lucide-react';
 import { PlanningState } from '../../types';
 import Vision from '../../views/Vision';
@@ -47,12 +46,10 @@ import CRMPage from '../../views/CRMPage';
 import CRMLeadDetailPage from '../../views/CRMLeadDetailPage';
 import AiAgentView from '../../views/AiAgentView';
 import TaskAnalyticsView from '../../views/TaskAnalyticsView';
-import SecuritySettingsView from '../../views/SecuritySettingsView';
 import StrengthsDashboardView from '../../views/StrengthsDashboardView';
 import AiUsageSettingsView from '../../views/AiUsageSettingsView';
 import OrgChartView from '../../views/OrgChartView';
 import SuperAdminView from '../../views/SuperAdminView';
-import DataPrivacyView from '../../views/DataPrivacyView';
 import BillingSettingsView from '../../views/BillingSettingsView';
 import AuditLogsView from '../../views/AuditLogsView';
 import PlanLimitsBanner from '../plan/PlanLimitsBanner';
@@ -120,6 +117,8 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
     hasPower('WEEKLY_VIEW') ||
     hasPower('DAILY_VIEW');
   const showVisionHeaderTabs = hasVisionAccess && isVisionRoute(location.pathname);
+  const browserHash = typeof window !== 'undefined' ? window.location.hash || '' : '';
+  const isAttendanceRoute = `${location.pathname}${location.hash || ''}${browserHash}`.includes('/attendance');
 
   return (
     <>
@@ -142,7 +141,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
             </div>
             <SidebarToggleButton isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
           </div>
-          <nav className="flex-1 min-h-0 py-3.5 space-y-1 overflow-y-auto overflow-x-hidden px-2.5">
+          <nav className="flex-1 min-h-0 space-y-1 overflow-y-auto overflow-x-hidden px-2.5 py-3.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0">
             {hasPower('DASHBOARD_VIEW') && (
               <SidebarLink
                 to="/"
@@ -244,19 +243,13 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
             {isAdmin && (
               <SidebarLink to="/ai/usage" icon={<Bot size={20} />} label="AI usage & settings" collapsed={!isSidebarOpen} />
             )}
-            {isAdmin && (
-              <SidebarLink to="/settings/security" icon={<KeyRound size={20} />} label="Security" collapsed={!isSidebarOpen} />
-            )}
-            {isAdmin && (
-              <SidebarLink to="/settings/privacy" icon={<Shield size={20} />} label={t('dataPrivacy')} collapsed={!isSidebarOpen} />
-            )}
           </nav>
         </aside>
 
         <main className="flex-1 flex flex-col h-screen overflow-hidden">
           <header
             className={`app-topbar relative z-40 shrink-0 border-b border-slate-200 bg-white/90 px-4 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95 sm:px-8 ${
-              showVisionHeaderTabs ? 'min-h-[92px] py-4' : 'h-20 flex items-center justify-end'
+              showVisionHeaderTabs ? 'min-h-[80px] py-3' : 'h-16 flex items-center justify-end'
             }`}
           >
             <div className={`flex w-full items-center gap-3 sm:gap-6 ${showVisionHeaderTabs ? 'justify-between' : 'justify-end'}`}>
@@ -294,10 +287,12 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
             className={`app-content no-scrollbar flex-1 bg-white dark:bg-slate-950/40 ${
               showVisionHeaderTabs
                 ? 'overflow-y-auto px-4 pb-8 pt-2 sm:px-8 lg:px-12 lg:pb-12'
-                : 'overflow-y-auto p-4 sm:p-8 lg:p-16'
+                : isAttendanceRoute
+                  ? 'overflow-y-auto px-4 pb-4 pt-0 sm:px-8 sm:pb-8 sm:pt-0 lg:px-16 lg:pb-16 lg:pt-0'
+                  : 'overflow-y-auto p-4 sm:p-8 lg:p-16'
             }`}
           >
-            {isAdmin && (
+            {isAdmin && !isAttendanceRoute && (
               <div className="mb-4 max-w-5xl">
                 <PlanLimitsBanner />
               </div>
@@ -309,7 +304,9 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {hasPower('DASHBOARD_VIEW') && (
                 <Route path="/analytics/tasks" element={<TaskAnalyticsView />} />
               )}
-              <Route path="/settings/security" element={<SecuritySettingsView />} />
+              {hasPower('PROFILE_VIEW') && (
+                <Route path="/settings/security" element={<Navigate to="/profile?tab=security" replace />} />
+              )}
               <Route path="/strengths" element={<StrengthsDashboardView />} />
               <Route path="/strengths/gaps" element={<StrengthsDashboardView />} />
               <Route path="/ai/usage" element={<AiUsageSettingsView />} />
@@ -389,7 +386,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {isSuperAdmin && <Route path="/super-admin" element={<SuperAdminView />} />}
               {isAdmin && <Route path="/settings/billing" element={<BillingSettingsView />} />}
               {isAdmin && <Route path="/settings/audit-logs" element={<AuditLogsView />} />}
-              {isAdmin && <Route path="/settings/privacy" element={<DataPrivacyView />} />}
+              {isAdmin && hasPower('PROFILE_VIEW') && <Route path="/settings/privacy" element={<Navigate to="/profile?tab=privacy" replace />} />}
               <Route path="*" element={<AccessDenied />} />
             </Routes>
           </div>

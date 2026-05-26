@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Bell,
   BriefcaseBusiness,
@@ -21,13 +22,20 @@ import NotificationPreferencesPanel from '../components/settings/NotificationPre
 import ThemeLanguagePanel from '../components/settings/ThemeLanguagePanel';
 import { getDisplayAvatarUrl, notifyProfileAvatarUpdated, persistSessionEmployeeAvatar } from '../utils/avatar';
 import type { AttendanceSummaryResponse, LeaveRequest } from '../components/attendance/attendanceUtils';
+import DataPrivacyView from './DataPrivacyView';
 
 interface Props {
   state: PlanningState;
   updateState: (updater: (prev: PlanningState) => PlanningState) => void;
 }
 
-type SettingsTab = 'profile' | 'notifications' | 'security' | 'appearance';
+type SettingsTab = 'profile' | 'notifications' | 'security' | 'appearance' | 'privacy';
+
+const SETTINGS_TABS: SettingsTab[] = ['profile', 'notifications', 'security', 'appearance', 'privacy'];
+
+const isSettingsTab = (value: string | null): value is SettingsTab => (
+  !!value && SETTINGS_TABS.includes(value as SettingsTab)
+);
 
 const formatDateLabel = (value?: string | null) => {
   if (!value) return '-';
@@ -99,6 +107,8 @@ const buildAttendanceStats = (summary?: AttendanceSummaryResponse | null, employ
 };
 
 const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [employee, setEmployee] = useState<any>(null);
   const [profileName, setProfileName] = useState('');
   const [profileDesignation, setProfileDesignation] = useState('');
@@ -120,6 +130,36 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
   const [reportsToName, setReportsToName] = useState('-');
   const [projectsInvolvedCount, setProjectsInvolvedCount] = useState<number | null>(null);
   const optimisticAvatarRef = useRef<{ url: string; expiresAt: number } | null>(null);
+  const canAccessPrivacyTab = ['ADMIN', 'SUPER_ADMIN'].includes(String(employee?.role || '').toUpperCase());
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || '');
+    const requestedTab = params.get('tab');
+    const nextTab = isSettingsTab(requestedTab) ? requestedTab : 'profile';
+    const resolvedTab = nextTab === 'privacy' && !canAccessPrivacyTab ? 'profile' : nextTab;
+
+    setActiveSettingsTab((currentTab) => (currentTab === resolvedTab ? currentTab : resolvedTab));
+  }, [canAccessPrivacyTab, location.search]);
+
+  const handleSettingsTabChange = useCallback((nextTab: SettingsTab) => {
+    setActiveSettingsTab(nextTab);
+
+    const params = new URLSearchParams(location.search || '');
+    if (nextTab === 'profile') {
+      params.delete('tab');
+    } else {
+      params.set('tab', nextTab);
+    }
+
+    const nextSearch = params.toString();
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : '',
+      },
+      { replace: true },
+    );
+  }, [location.pathname, location.search, navigate]);
 
   const resolvePreferredAvatar = useCallback((incomingAvatar?: string | null, fallbackAvatar?: string | null) => {
     const nextAvatar = String(incomingAvatar || '').trim();
@@ -446,6 +486,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
     { key: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell },
     { key: 'security' as SettingsTab, label: 'Security', icon: Shield },
     { key: 'appearance' as SettingsTab, label: 'Appearance', icon: Globe },
+    ...(canAccessPrivacyTab ? [{ key: 'privacy' as SettingsTab, label: 'Data & privacy', icon: Shield }] : []),
   ];
 
   const employmentCards = [
@@ -467,6 +508,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
     notifications: 'Notifications',
     security: 'Security',
     appearance: 'Appearance',
+    privacy: 'Data & privacy',
   }[activeSettingsTab];
 
   const activeSettingsSubtitle = {
@@ -474,6 +516,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
     notifications: '',
     security: '',
     appearance: '',
+    privacy: '',
   }[activeSettingsTab];
 
   const settingsSectionClassName =
@@ -482,7 +525,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
       : '-mt-2 rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6';
 
   const settingsHeaderClassName =
-    activeSettingsTab === 'notifications' || activeSettingsTab === 'profile' || activeSettingsTab === 'security' || activeSettingsTab === 'appearance'
+    activeSettingsTab === 'notifications' || activeSettingsTab === 'profile' || activeSettingsTab === 'security' || activeSettingsTab === 'appearance' || activeSettingsTab === 'privacy'
       ? 'pb-0'
       : 'border-b border-slate-100 pb-6';
 
@@ -499,7 +542,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setActiveSettingsTab(key)}
+                    onClick={() => handleSettingsTabChange(key)}
                     className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition ${
                       activeSettingsTab === key
                         ? 'bg-red-50 text-red-600'
@@ -516,7 +559,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
 
           <section className={settingsSectionClassName}>
             <div className={settingsHeaderClassName}>
-              {activeSettingsTab !== 'profile' && activeSettingsTab !== 'security' && activeSettingsTab !== 'appearance' ? (
+              {activeSettingsTab !== 'profile' && activeSettingsTab !== 'security' && activeSettingsTab !== 'appearance' && activeSettingsTab !== 'privacy' ? (
                 <h3 className="text-2xl font-bold text-slate-900">{activeSettingsTitle}</h3>
               ) : null}
               {activeSettingsSubtitle ? (
@@ -555,6 +598,12 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
             {activeSettingsTab === 'appearance' ? (
               <div className="mt-3">
                 <ThemeLanguagePanel />
+              </div>
+            ) : null}
+
+            {activeSettingsTab === 'privacy' && canAccessPrivacyTab ? (
+              <div className="mt-3">
+                <DataPrivacyView />
               </div>
             ) : null}
 
