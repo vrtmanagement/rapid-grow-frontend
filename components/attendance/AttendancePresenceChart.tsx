@@ -297,6 +297,12 @@ const AttendancePresenceChart: React.FC<Props> = ({
   const absentDays = chartData.filter((entry) => entry.attendanceState === 'Absent').length;
   const totalHours = recordedEntries.reduce((total, entry) => total + (entry.actualHours ?? 0), 0);
   const averageHours = recordedEntries.length ? totalHours / recordedEntries.length : 0;
+  const chartHoursCeiling = React.useMemo(() => {
+    const maxActualHours = chartData.reduce((max, entry) => (
+      Math.max(max, Number(entry.actualHours || 0), Number(entry.hours || 0))
+    ), 0);
+    return Math.max(9, Math.ceil(maxActualHours));
+  }, [chartData]);
 
   if (isEmployeeVariant) {
     return (
@@ -358,6 +364,8 @@ const AttendancePresenceChart: React.FC<Props> = ({
                   axisLine={false}
                   tickLine={false}
                   width={34}
+                  domain={[0, chartHoursCeiling]}
+                  tickCount={6}
                 />
                 <Tooltip
                   cursor={{ fill: '#f8fafc' }}
@@ -484,6 +492,8 @@ const AttendancePresenceChart: React.FC<Props> = ({
                 tick={{ fontSize: 10, fill: '#64748b' }}
                 axisLine={false}
                 tickLine={false}
+                domain={[0, chartHoursCeiling]}
+                tickCount={6}
               />
               <Tooltip
                 cursor={{ fill: '#f8fafc' }}

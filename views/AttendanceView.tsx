@@ -13,6 +13,7 @@ import {
   getDefaultMonthValue,
   getLocalDateKey,
   parseAttendanceBackendContext,
+  projectTeamAttendanceSummary,
   getBrowserGeolocationDescription,
 } from '../components/attendance/attendanceViewUtils';
 import AttendanceOverviewGrid from '../components/attendance/AttendanceOverviewGrid';
@@ -26,6 +27,7 @@ import {
   Range,
   getHoursColor,
   countLeaveDaysInRange,
+  projectAttendanceSummary,
   getSessionWorkingMinutes,
 } from '../components/attendance/attendanceUtils';
 
@@ -78,6 +80,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const [selectedEmployeeMonth, setSelectedEmployeeMonth] = useState('');
   const [employeeAttendanceLoading, setEmployeeAttendanceLoading] = useState(false);
   const [teamAttendanceSummary, setTeamAttendanceSummary] = useState<TeamAttendanceSummary | null>(null);
+  const [teamAttendanceSummarySnapshotAt, setTeamAttendanceSummarySnapshotAt] = useState<number | null>(null);
   const [teamAttendanceSummaryLoading, setTeamAttendanceSummaryLoading] = useState(false);
   const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
@@ -456,6 +459,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
           return;
         }
         setTeamAttendanceSummary(null);
+        setTeamAttendanceSummarySnapshotAt(null);
         return;
       }
 
@@ -469,11 +473,13 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         members: Array.isArray(data.members) ? data.members : [],
         activityLog: Array.isArray(data.activityLog) ? data.activityLog : [],
       });
+      setTeamAttendanceSummarySnapshotAt(Date.now());
     } catch (error) {
       console.error('Failed to load team attendance summary', error);
       if (!silent) {
         setTeamAttendanceSummary(null);
       }
+      setTeamAttendanceSummarySnapshotAt(null);
     } finally {
       if (!silent) {
         setTeamAttendanceSummaryLoading(false);
@@ -551,6 +557,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   useEffect(() => {
     if (!canReviewTeamAttendance) {
       setTeamAttendanceSummary(null);
+      setTeamAttendanceSummarySnapshotAt(null);
       return;
     }
 
@@ -827,7 +834,12 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   }, [activeSession?.loginTime, range]);
 
   useEffect(() => {
-    if (!activeSession?.loginTime) return undefined;
+    const hasOwnOpenSession = !!activeSession?.loginTime || !!summary?.days.some((day) => day.sessions.some((session) => !session.logoutTime));
+    const hasSelectedEmployeeOpenSession = !!employeeSummary?.days.some((day) => day.sessions.some((session) => !session.logoutTime));
+    const hasLiveTeamActivity = !!teamAttendanceSummary?.members?.some(
+      (member) => member.status === 'clocked_in' || member.status === 'on_break',
+    );
+    if (!hasOwnOpenSession && !hasSelectedEmployeeOpenSession && !hasLiveTeamActivity) return undefined;
 
     setLiveNow(Date.now());
     const timer = window.setInterval(() => {
@@ -837,7 +849,20 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     return () => {
       window.clearInterval(timer);
     };
-  }, [activeSession?.loginTime]);
+  }, [activeSession?.loginTime, employeeSummary, summary, teamAttendanceSummary]);
+
+  const liveSummary = useMemo(
+    () => projectAttendanceSummary(summary, new Date(liveNow)),
+    [liveNow, summary],
+  );
+  const liveEmployeeSummary = useMemo(
+    () => projectAttendanceSummary(employeeSummary, new Date(liveNow)),
+    [employeeSummary, liveNow],
+  );
+  const liveTeamAttendanceSummary = useMemo(
+    () => projectTeamAttendanceSummary(teamAttendanceSummary, new Date(liveNow), teamAttendanceSummarySnapshotAt),
+    [liveNow, teamAttendanceSummary, teamAttendanceSummarySnapshotAt],
+  );
 
   const handleApplyLeave = async () => {
     if (!leaveStart || !leaveEnd) return false;
@@ -961,18 +986,18 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     const openSessionIsToday =
       !!activeSession?.loginTime && getLocalDateKey(activeSession.loginTime) === todayKey;
 
-    if (!summary) {
+    if (!liveSummary) {
       const liveOnlyMinutes = openSessionIsToday && activeSession?.loginTime
         ? getSessionWorkingMinutes(activeSession, new Date(liveNow))
         : 0;
       return { minutes: liveOnlyMinutes, color: getHoursColor(liveOnlyMinutes / 60) };
     }
 
-    const day = summary.days.find((d) => d.date === todayKey);
+    const day = liveSummary.days.find((d) => d.date === todayKey);
     if (!day && !openSessionIsToday) return { minutes: 0, color: getHoursColor(0) };
 
     const summaryMinutes = day?.minutes || 0;
-    if (!openSessionIsToday || !activeSession?.loginTime) {
+    if (!openSessionIsToday || !activeSession?.loginTime || !summary) {
       return { minutes: summaryMinutes, color: getHoursColor(summaryMinutes / 60) };
     }
 
@@ -982,11 +1007,11 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     const liveMinutes = Math.max(summaryMinutes, completedMinutes + elapsedMinutes);
 
     return { minutes: liveMinutes, color: getHoursColor(liveMinutes / 60) };
-  }, [activeSession?._id, activeSession?.loginTime, liveNow, summary]);
+  }, [activeSession?._id, activeSession?.loginTime, liveNow, liveSummary, summary]);
 
   const leaveDaysInRange = useMemo(
-    () => countLeaveDaysInRange(myLeaves, summary?.start, summary?.end),
-    [myLeaves, summary?.start, summary?.end],
+    () => countLeaveDaysInRange(myLeaves, liveSummary?.start, liveSummary?.end),
+    [liveSummary?.end, liveSummary?.start, myLeaves],
   );
   const todaysHalfDayRequest = useMemo(() => {
     const todayKey = getLocalDateKey(new Date(liveNow));
@@ -1120,12 +1145,12 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     });
   }, []);
   const selectedEmployeeTodayInfo = useMemo(() => {
-    if (!employeeSummary) return { minutes: 0, color: getHoursColor(0) };
-    const todayKey = getLocalDateKey(new Date());
-    const day = employeeSummary.days.find((entry) => entry.date === todayKey);
+    if (!liveEmployeeSummary) return { minutes: 0, color: getHoursColor(0) };
+    const todayKey = getLocalDateKey(new Date(liveNow));
+    const day = liveEmployeeSummary.days.find((entry) => entry.date === todayKey);
     if (!day) return { minutes: 0, color: getHoursColor(0) };
     return { minutes: day.minutes, color: getHoursColor(day.minutes / 60) };
-  }, [employeeSummary]);
+  }, [liveEmployeeSummary, liveNow]);
   const selectedEmployeeMonthlyAttendance = useMemo(() => {
     if (!selectedEmployeeMonth) {
       return { present: 0, absent: 0, total: 0 };
@@ -1151,13 +1176,13 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       }
     }
 
-    const presentDays = employeeSummary?.days.length ?? 0;
+    const presentDays = liveEmployeeSummary?.days.length ?? 0;
     return {
       present: presentDays,
       absent: Math.max(0, totalWorkingDays - presentDays),
       total: totalWorkingDays,
     };
-  }, [employeeSummary?.days.length, selectedEmployeeMonth]);
+  }, [liveEmployeeSummary?.days.length, selectedEmployeeMonth]);
   const selectedEmployeeLabel = selectedEmployee
     ? `${selectedEmployee.empName} (${selectedEmployee.empId})`
     : 'Select employee';
@@ -1187,7 +1212,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
 
       {isHistoryRoute ? (
         <AttendanceHistoryPage
-          summary={summary}
+          summary={liveSummary}
           range={range}
           selectedMonth={selectedMonth}
           loading={attendancePageLoading}
@@ -1221,10 +1246,10 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
             selectedEmployeeMonthLabel={selectedEmployeeMonthLabel}
             selectedEmployee={selectedEmployee}
             employeeMonthOptions={employeeMonthOptions}
-            employeeSummary={employeeSummary}
+            employeeSummary={liveEmployeeSummary}
             employeeAttendanceLoading={employeeAttendanceLoading}
             teamAttendanceSummaryLoading={teamAttendanceSummaryLoading}
-            teamAttendanceSummary={teamAttendanceSummary}
+            teamAttendanceSummary={liveTeamAttendanceSummary}
             currentViewerEmpId={backendEmpId}
             onRefreshTeamActivity={loadTeamAttendanceSummary}
             selectedEmployeeTodayInfo={selectedEmployeeTodayInfo}
@@ -1235,7 +1260,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         </div>
       ) : activeView === 'attendance' ? (
         <AttendanceOverviewGrid
-          summary={summary}
+          summary={liveSummary}
           range={range}
           todayMinutes={todayInfo.minutes}
           todayColor={todayInfo.color}
@@ -1260,7 +1285,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
           sessionError={sessionError}
           canReviewTeamAttendance={canReviewTeamAttendance}
           teamAttendanceSummaryLoading={teamAttendanceSummaryLoading}
-          teamAttendanceSummary={teamAttendanceSummary}
+          teamAttendanceSummary={liveTeamAttendanceSummary}
           currentViewerEmpId={backendEmpId}
           onRefreshTeamActivity={loadTeamAttendanceSummary}
           portalMode={mode}

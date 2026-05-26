@@ -57,6 +57,58 @@ export interface TeamAttendanceLogEntry {
   status: 'clocked_in' | 'on_break' | 'checked_out' | 'absent';
 }
 
+export function projectTeamAttendanceSummary(
+  summary?: TeamAttendanceSummary | null,
+  referenceTime: Date = new Date(),
+  snapshotTime?: number | null,
+): TeamAttendanceSummary | null {
+  if (!summary || !snapshotTime) return summary || null;
+
+  const elapsedMinutes = Math.max(0, Math.floor((referenceTime.getTime() - snapshotTime) / 60000));
+  if (elapsedMinutes <= 0) return summary;
+
+  let changed = false;
+  const members = (summary.members ?? []).map((member) => {
+    if (member.status !== 'clocked_in') {
+      return member;
+    }
+
+    changed = true;
+    return {
+      ...member,
+      workingMinutes: Math.max(0, member.workingMinutes || 0) + elapsedMinutes,
+    };
+  });
+
+  if (!changed) {
+    return summary;
+  }
+
+  const memberByEmpId = new Map(members.map((member) => [member.empId, member]));
+  const activityLog = (summary.activityLog ?? []).map((entry) => {
+    const member = memberByEmpId.get(entry.empId);
+    const isLatestLiveEntry =
+      entry.status === 'clocked_in' &&
+      member?.status === 'clocked_in' &&
+      member?.lastActivityAt === entry.activityAt;
+
+    if (!isLatestLiveEntry) {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      workingMinutes: member?.workingMinutes,
+    };
+  });
+
+  return {
+    ...summary,
+    members,
+    activityLog,
+  };
+}
+
 export interface LeaveActorProfile {
   empName: string;
   empId: string;
