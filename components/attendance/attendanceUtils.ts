@@ -101,6 +101,70 @@ export function getSessionWorkingMinutes(session?: AttendanceSession | null, ref
   return Math.max(0, totalMinutes - getSessionBreakMinutes(session, referenceTime));
 }
 
+export function projectAttendanceSummary(
+  summary?: AttendanceSummaryResponse | null,
+  referenceTime: Date = new Date(),
+): AttendanceSummaryResponse | null {
+  if (!summary?.days?.length) return summary || null;
+
+  let openDayIndex = -1;
+  let openSessionIndex = -1;
+
+  for (let dayIndex = 0; dayIndex < summary.days.length; dayIndex += 1) {
+    const sessionIndex = summary.days[dayIndex]?.sessions?.findIndex((session) => !session.logoutTime) ?? -1;
+    if (sessionIndex >= 0) {
+      openDayIndex = dayIndex;
+      openSessionIndex = sessionIndex;
+      break;
+    }
+  }
+
+  if (openDayIndex < 0 || openSessionIndex < 0) {
+    return summary;
+  }
+
+  const sourceDay = summary.days[openDayIndex];
+  const sourceSession = sourceDay.sessions[openSessionIndex];
+  const storedWorkingMinutes = Math.max(
+    0,
+    sourceSession.workingDurationMinutes ?? sourceSession.durationMinutes ?? 0,
+  );
+  const projectedWorkingMinutes = getSessionWorkingMinutes(sourceSession, referenceTime);
+  const projectedBreakMinutes = getSessionBreakMinutes(sourceSession, referenceTime);
+  const currentBreakMinutes = Math.max(0, sourceSession.breakMinutes ?? 0);
+
+  if (
+    projectedWorkingMinutes === storedWorkingMinutes &&
+    projectedBreakMinutes === currentBreakMinutes
+  ) {
+    return summary;
+  }
+
+  const nextSession: AttendanceSession = {
+    ...sourceSession,
+    breakMinutes: projectedBreakMinutes,
+    durationMinutes: projectedWorkingMinutes,
+    workingDurationMinutes: projectedWorkingMinutes,
+  };
+  const nextSessions = [...sourceDay.sessions];
+  nextSessions[openSessionIndex] = nextSession;
+
+  const nextDayMinutes = Math.max(0, sourceDay.minutes - storedWorkingMinutes) + projectedWorkingMinutes;
+  const nextDay: AttendanceDay = {
+    ...sourceDay,
+    minutes: nextDayMinutes,
+    sessions: nextSessions,
+  };
+  const nextDays = [...summary.days];
+  nextDays[openDayIndex] = nextDay;
+
+  return {
+    ...summary,
+    totalMinutes: Math.max(0, summary.totalMinutes - storedWorkingMinutes) + projectedWorkingMinutes,
+    days: nextDays,
+  };
+}
+
 export function getHoursColor(hours: number): string {
   // ≥ 8h → green, 7.5–<8 → orange, <7.5 → red
   if (hours >= 8) return '#22c55e';

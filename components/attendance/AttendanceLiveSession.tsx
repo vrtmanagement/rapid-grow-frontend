@@ -166,6 +166,21 @@ const AttendanceLiveSession: React.FC<Props> = ({
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }, [activeSession?.currentBreakStartedAt, isOnBreak, now]);
 
+  const sessionStopwatchText = useMemo(() => {
+    if (!activeSession?.loginTime) return null;
+
+    const loginStartedAt = new Date(activeSession.loginTime);
+    if (Number.isNaN(loginStartedAt.getTime())) return null;
+
+    const elapsedMs = Math.max(0, now - loginStartedAt.getTime());
+    const elapsedSeconds = Math.floor(elapsedMs / 1000);
+    const hours = Math.floor(elapsedSeconds / 3600);
+    const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+    const seconds = elapsedSeconds % 60;
+
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }, [activeSession?.loginTime, now]);
+
   const attendanceActionDisabled = !!logoutLoading || !!loginLoading || !!breakLoading;
 
   if (loading) {
@@ -240,9 +255,9 @@ const AttendanceLiveSession: React.FC<Props> = ({
           <div className={isEmployeeVariant ? 'rounded-[16px] border border-slate-200 bg-slate-50 px-4 py-2.5' : 'rounded-[16px] border border-white/10 bg-white/[0.04] px-4 py-3'}>
             <div className="flex items-center justify-center gap-2 text-center">
               <span className={`font-mono text-[1.55rem] font-bold leading-none tabular-nums ${isEmployeeVariant ? 'text-slate-950' : 'text-white'}`}>
-                {breakStopwatchText || currentTimeParts.timeText}
+                {sessionStopwatchText || breakStopwatchText || currentTimeParts.timeText}
               </span>
-              {!breakStopwatchText ? (
+              {!sessionStopwatchText && !breakStopwatchText ? (
                 <span className={`font-mono text-[0.92rem] font-semibold leading-none tabular-nums ${isEmployeeVariant ? 'text-slate-700' : 'text-white'}`}>
                   {currentTimeParts.dayPeriod}
                 </span>
