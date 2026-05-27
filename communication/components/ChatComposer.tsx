@@ -2,6 +2,36 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FileUp, Image as ImageIcon, Loader2, Paperclip, Send, X } from 'lucide-react';
 import { ChatMessage } from '../types';
 
+function getFileExtension(fileName: string) {
+  const normalizedName = String(fileName || '').trim();
+  if (!normalizedName.includes('.')) return '';
+  return normalizedName.split('.').pop()?.toUpperCase().slice(0, 5) || '';
+}
+
+function isImageFile(file?: File | null) {
+  return !!file && String(file.type || '').startsWith('image/');
+}
+
+function isVideoFile(file?: File | null) {
+  return !!file && String(file.type || '').startsWith('video/');
+}
+
+function formatFileSize(size?: number) {
+  if (!size || Number.isNaN(size)) return '0 KB';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+  return `${(size / 1024 / 1024).toFixed(size >= 10 * 1024 * 1024 ? 0 : 2)} MB`;
+}
+
+function getFileLabel(file?: File | null) {
+  const mime = String(file?.type || '').trim();
+  if (mime.startsWith('image/')) return 'Image';
+  if (mime.startsWith('video/')) return 'Video';
+  if (mime.startsWith('audio/')) return 'Audio';
+  const extension = getFileExtension(file?.name || '');
+  return extension || 'File';
+}
+
 export function ChatComposer({
   conversationKey,
   onSendText,
@@ -28,9 +58,10 @@ export function ChatComposer({
   onSaveEdit?: (message: ChatMessage, content: string) => Promise<void>;
 }) {
   const MAX_TEXTAREA_HEIGHT = 200;
-  const [content, setContent] = useState("");
+  const [content, setContent] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [filePreviewKind, setFilePreviewKind] = useState<'image' | 'video' | null>(null);
   const [sending, setSending] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -56,6 +87,7 @@ export function ChatComposer({
     setContent(editingMessage.content || '');
     setFiles([]);
     setFilePreviewUrl(null);
+    setFilePreviewKind(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [editingMessage]);
 
@@ -65,14 +97,16 @@ export function ChatComposer({
   }, [content]);
 
   useEffect(() => {
-    const imageFile = files.find((f) => f.type.startsWith("image/")) || null;
-    if (!imageFile) {
+    const previewFile = files.find((file) => isImageFile(file) || isVideoFile(file)) || null;
+    if (!previewFile) {
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
       setFilePreviewUrl(null);
+      setFilePreviewKind(null);
       return;
     }
-    const url = URL.createObjectURL(imageFile);
+    const url = URL.createObjectURL(previewFile);
     setFilePreviewUrl(url);
+    setFilePreviewKind(isVideoFile(previewFile) ? 'video' : 'image');
     return () => URL.revokeObjectURL(url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files]);
@@ -89,7 +123,7 @@ export function ChatComposer({
       const trimmed = content.trim();
       if (editingMessage && onSaveEdit) {
         await onSaveEdit(editingMessage, trimmed);
-        setContent("");
+        setContent('');
         onCancelEdit?.();
         return;
       }
@@ -103,10 +137,11 @@ export function ChatComposer({
       } else {
         await onSendText(trimmed, replyToMessageId);
       }
-      setContent("");
+      setContent('');
       setFiles([]);
       setFilePreviewUrl(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      setFilePreviewKind(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       onCancelReply();
     } catch (e: any) {
       setSendError(e?.message || 'Failed to send');
@@ -123,21 +158,21 @@ export function ChatComposer({
           {files.map((file, index) => (
             <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="min-w-0 flex items-center gap-3">
-                <div className="shrink-0 w-10 h-10 rounded-xl bg-[#eef4ff] border border-[#d7e5fb] flex items-center justify-center">
-                  {file.type.startsWith("image/") ? <ImageIcon size={18} className="text-slate-700" /> : <FileUp size={18} className="text-slate-700" />}
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#d7e5fb] bg-[#eef4ff]">
+                  {isImageFile(file) ? <ImageIcon size={18} className="text-slate-700" /> : <FileUp size={18} className="text-slate-700" />}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-slate-900 truncate">{file.name}</div>
-                  <div className="text-xs text-slate-500">{file.type || 'file'} • {(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                  <div className="truncate text-sm font-semibold text-slate-900">{file.name}</div>
+                  <div className="text-xs text-slate-500">{`${getFileLabel(file)} | ${formatFileSize(file.size)}`}</div>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => {
                   setFiles((prev) => prev.filter((_, i) => i !== index));
-                  if (fileInputRef.current) fileInputRef.current.value = "";
+                  if (fileInputRef.current) fileInputRef.current.value = '';
                 }}
-                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 aria-label={`Remove ${file.name}`}
                 title="Remove file"
               >
@@ -149,11 +184,20 @@ export function ChatComposer({
       ) : null}
 
       {filePreviewUrl ? (
-        <div className="mb-3 relative inline-block">
-          <img src={filePreviewUrl} alt="Attachment preview" className="max-h-56 w-auto rounded-2xl border border-slate-200 bg-white shadow-sm" />
+        <div className="relative mb-3 inline-block">
+          {filePreviewKind === 'video' ? (
+            <video
+              src={filePreviewUrl}
+              controls
+              preload="metadata"
+              className="max-h-56 w-auto rounded-2xl border border-slate-200 bg-white shadow-sm"
+            />
+          ) : (
+            <img src={filePreviewUrl} alt="Attachment preview" className="max-h-56 w-auto rounded-2xl border border-slate-200 bg-white shadow-sm" />
+          )}
           {sending ? (
-            <div className="absolute inset-0 rounded-xl bg-black/20 flex items-center justify-center">
-              <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/95 border border-slate-200 shadow">
+            <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/20">
+              <div className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white/95 shadow">
                 <Loader2 size={18} className="animate-spin text-slate-700" />
               </div>
             </div>
@@ -173,7 +217,7 @@ export function ChatComposer({
       ) : null}
 
       <div className="flex items-end gap-3">
-        <div className="flex-1 relative">
+        <div className="relative flex-1">
           {editingMessage ? (
             <div className="mb-2 rounded-2xl border border-blue-100 bg-[#eef4ff] px-3 py-2">
               <div className="flex items-start justify-between gap-2">
@@ -246,12 +290,15 @@ export function ChatComposer({
             disabled={disabled || sending}
             rows={2}
             placeholder="Write a message..."
-            className="w-full resize-none rounded-2xl border border-slate-200 bg-[#f8fafc] px-4 py-3 pr-24 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 text-[14px] leading-relaxed"
+            className="w-full resize-none rounded-2xl border border-slate-200 bg-[#f8fafc] px-4 py-3 pr-24 text-[14px] leading-relaxed outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
           />
-          <div className="absolute right-2 bottom-2 flex items-center gap-2">
-            <label className={`cursor-pointer inline-flex items-center justify-center w-9 h-9 rounded-xl border ${
-            disabled || sending || editingMessage ? 'bg-slate-50 border-slate-200 opacity-50' : 'bg-white border-slate-200 hover:bg-slate-50'
-            }`} title="Attach image or file">
+          <div className="absolute bottom-2 right-2 flex items-center gap-2">
+            <label
+              className={`inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border ${
+                disabled || sending || editingMessage ? 'border-slate-200 bg-slate-50 opacity-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+              }`}
+              title="Attach image, video, audio, or file"
+            >
               <Paperclip size={16} className="text-slate-700" />
               <input
                 type="file"
@@ -259,7 +306,7 @@ export function ChatComposer({
                 className="hidden"
                 disabled={disabled || sending || !!editingMessage}
                 multiple
-                accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.rtf,.html,.htm,.css,.js,.json,.xml,.zip,.rar,.7z,.svg,.odt,.odp,.ods"
                 onChange={(e) => {
                   const selected = Array.from(e.target.files || []);
                   setFiles((prev) => [...prev, ...selected]);
@@ -267,18 +314,18 @@ export function ChatComposer({
                 }}
               />
             </label>
-          <button
-            type="button"
-            onClick={() => void handleSend()}
-            disabled={!canSend}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-colors ${
-              canSend ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-300'
-            }`}
-            aria-label="Send message"
-            title="Send (Enter)"
-          >
-            {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-          </button>
+            <button
+              type="button"
+              onClick={() => void handleSend()}
+              disabled={!canSend}
+              className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-colors ${
+                canSend ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-300'
+              }`}
+              aria-label="Send message"
+              title="Send (Enter)"
+            >
+              {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            </button>
           </div>
         </div>
       </div>

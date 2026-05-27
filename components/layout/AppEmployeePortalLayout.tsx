@@ -88,6 +88,8 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
     hasPower('WEEKLY_VIEW') ||
     hasPower('DAILY_VIEW');
   const showVisionHeaderTabs = hasVisionAccess && isVisionRoute(location.pathname);
+  const browserHash = typeof window !== 'undefined' ? window.location.hash || '' : '';
+  const isAttendanceRoute = `${location.pathname}${location.hash || ''}${browserHash}`.includes('/attendance');
 
   return (
     <>
@@ -109,7 +111,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
             </div>
             <SidebarToggleButton isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
           </div>
-          <nav className="flex-1 min-h-0 py-3.5 space-y-1 overflow-y-auto overflow-x-hidden px-2.5">
+          <nav className="flex-1 min-h-0 space-y-1 overflow-y-auto overflow-x-hidden px-2.5 py-3.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0">
             {hasPower('DASHBOARD_VIEW') && (
               <SidebarLink
                 to="/"
@@ -167,7 +169,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
         <main className="flex-1 flex flex-col h-screen overflow-hidden">
           <header
             className={`app-topbar relative z-40 shrink-0 border-b border-slate-200 bg-white/90 px-4 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95 sm:px-8 ${
-              showVisionHeaderTabs ? 'min-h-[92px] py-4' : 'h-20 flex items-center justify-end'
+              showVisionHeaderTabs ? 'min-h-[80px] py-3' : 'h-16 flex items-center justify-end'
             }`}
           >
             <div className={`flex w-full items-center gap-3 sm:gap-6 ${showVisionHeaderTabs ? 'justify-between' : 'justify-end'}`}>
@@ -201,7 +203,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
               </div>
             </div>
           </header>
-          <div className={`app-content flex-1 overflow-y-auto bg-white dark:bg-slate-950/40 ${showVisionHeaderTabs ? 'px-4 pb-8 pt-2 sm:px-8 lg:px-12 lg:pb-12' : 'p-4 sm:p-8 lg:p-16'}`}>
+          <div className={`app-content flex-1 overflow-y-auto bg-white dark:bg-slate-950/40 ${showVisionHeaderTabs ? 'px-4 pb-8 pt-2 sm:px-8 lg:px-12 lg:pb-12' : isAttendanceRoute ? 'px-4 pb-4 pt-0 sm:px-8 sm:pb-8 sm:pt-0 lg:px-16 lg:pb-16 lg:pt-0' : 'p-4 sm:p-8 lg:p-16'}`}>
             <Routes>
               {hasPower('DASHBOARD_VIEW') && <Route path="/" element={<EmployeeDashboardView />} />}
               {hasPower('SPACES_VIEW') && (

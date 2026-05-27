@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { BarChart3, Calendar, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import AttendanceHeader from '../components/attendance/AttendanceHeader';
 import LeaveManagementPanel from '../components/attendance/LeaveManagementPanel';
@@ -84,9 +85,11 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const [teamAttendanceSummaryLoading, setTeamAttendanceSummaryLoading] = useState(false);
   const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [headerMonthPickerOpen, setHeaderMonthPickerOpen] = useState(false);
   const [liveNow, setLiveNow] = useState(() => Date.now());
   const employeePickerRef = useRef<HTMLDivElement | null>(null);
   const monthPickerRef = useRef<HTMLDivElement | null>(null);
+  const headerMonthPickerRef = useRef<HTMLDivElement | null>(null);
   const leaveInitialLoadedRef = useRef(false);
 
   const isEmployeePortal = mode === 'employee';
@@ -107,6 +110,38 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   );
   const canReviewTeamAttendance =
     isBackendAdminRole || hasPermission('EMPLOYEE_ATTENDANCE_VIEW');
+  const headerCurrentDate = useMemo(() => new Date(), []);
+  const parsedHeaderSelectedMonth = useMemo(() => {
+    if (!selectedMonth) return null;
+    const parsed = new Date(`${selectedMonth}-01T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }, [selectedMonth]);
+  const [headerVisibleYear, setHeaderVisibleYear] = useState(
+    parsedHeaderSelectedMonth?.getFullYear() ?? headerCurrentDate.getFullYear(),
+  );
+  const headerMonthItems = useMemo(
+    () => [
+      { label: 'Jan', value: '01' },
+      { label: 'Feb', value: '02' },
+      { label: 'Mar', value: '03' },
+      { label: 'Apr', value: '04' },
+      { label: 'May', value: '05' },
+      { label: 'Jun', value: '06' },
+      { label: 'Jul', value: '07' },
+      { label: 'Aug', value: '08' },
+      { label: 'Sep', value: '09' },
+      { label: 'Oct', value: '10' },
+      { label: 'Nov', value: '11' },
+      { label: 'Dec', value: '12' },
+    ],
+    [],
+  );
+  const headerSelectedMonthLabel = parsedHeaderSelectedMonth
+    ? parsedHeaderSelectedMonth.toLocaleDateString('en-US', {
+        month: 'short',
+        year: 'numeric',
+      })
+    : 'Select Month';
 
   useEffect(() => {
     const params = new URLSearchParams(location.search || '');
@@ -121,6 +156,12 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     }
   }, [location.search]);
 
+  useEffect(() => {
+    if (headerMonthPickerOpen) {
+      setHeaderVisibleYear(parsedHeaderSelectedMonth?.getFullYear() ?? headerCurrentDate.getFullYear());
+    }
+  }, [headerCurrentDate, headerMonthPickerOpen, parsedHeaderSelectedMonth]);
+
   const buildAttendanceRoute = useCallback((pathname: '/attendance' | '/attendance/history' | '/attendance/team') => {
     const params = new URLSearchParams();
     if (pathname === '/attendance' && activeView === 'leave') {
@@ -134,6 +175,12 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     const search = params.toString();
     return search ? `${pathname}?${search}` : pathname;
   }, [activeView, range, selectedMonth]);
+
+  const handleHeaderMonthSelect = useCallback((monthValue: string) => {
+    setSelectedMonth(`${headerVisibleYear}-${monthValue}`);
+    setRange('month');
+    setHeaderMonthPickerOpen(false);
+  }, [headerVisibleYear]);
 
   const handleHistoryOpen = useCallback(() => {
     navigate(buildAttendanceRoute('/attendance/history'));
@@ -296,12 +343,16 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       if (!monthPickerRef.current?.contains(target)) {
         setMonthPickerOpen(false);
       }
+      if (!headerMonthPickerRef.current?.contains(target)) {
+        setHeaderMonthPickerOpen(false);
+      }
     };
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setEmployeePickerOpen(false);
         setMonthPickerOpen(false);
+        setHeaderMonthPickerOpen(false);
       }
     };
 
@@ -1188,25 +1239,219 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     : 'Select employee';
   const selectedEmployeeMonthLabel =
     employeeMonthOptions.find((month) => month.value === selectedEmployeeMonth)?.label || 'Select month';
+  const attendanceContentWidthClassName = isEmployeePortal ? 'max-w-[1760px]' : 'max-w-6xl';
+  const showAttendanceSubnavControls = (isHistoryRoute ? 'attendance' : activeView) === 'attendance';
 
   return (
-    <div className={`${isEmployeePortal ? 'max-w-[1760px]' : 'max-w-6xl'} mx-auto space-y-10 animate-in fade-in duration-700`}>
+    <div className="w-full space-y-10 animate-in fade-in duration-700">
+      <div className="sticky top-[-1px] z-30 -mx-4 mb-6 border-b border-slate-200 bg-slate-100/95 px-3 backdrop-blur-xl sm:-mx-8 sm:px-5 lg:-mx-16 lg:px-8">
+        <div className="flex w-full flex-col gap-2 py-1.5 lg:grid lg:min-h-[52px] lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-4">
+          <div className="flex min-w-0 items-center gap-2 lg:justify-self-start">
+            <span className="h-1.5 w-8 rounded-full bg-brand-red" />
+            <span className="truncate text-sm font-medium text-slate-600 sm:text-[15px]">
+              {isEmployeePortal ? 'Your Presence Radar' : 'Team Attendance Console'}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-center gap-5 overflow-x-auto lg:justify-self-center">
+            <button
+              type="button"
+              onClick={() => handleActiveViewChange('attendance')}
+              className={`border-b-2 px-1 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors sm:text-[12px] ${
+                (isHistoryRoute ? 'attendance' : activeView) === 'attendance'
+                  ? 'border-brand-red text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              Attendance
+            </button>
+            <button
+              type="button"
+              onClick={() => handleActiveViewChange('leave')}
+              className={`border-b-2 px-1 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors sm:text-[12px] ${
+                (isHistoryRoute ? 'attendance' : activeView) === 'leave'
+                  ? 'border-brand-red text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              Leave
+            </button>
+          </div>
+
+          <div className="flex min-h-[38px] flex-wrap items-center justify-start gap-2 lg:justify-end lg:justify-self-end">
+            <div
+              aria-hidden={!showAttendanceSubnavControls}
+              className={`flex flex-wrap items-center gap-2 ${
+                showAttendanceSubnavControls ? '' : 'invisible pointer-events-none'
+              }`}
+            >
+                <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setRange('day')}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] md:text-[13px] ${
+                      range === 'day' ? 'bg-brand-red text-white shadow-md' : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Clock size={13} /> Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRange('week')}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] md:text-[13px] ${
+                      range === 'week' ? 'bg-brand-red text-white shadow-md' : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Calendar size={13} /> Week
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRange('month')}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] md:text-[13px] ${
+                      range === 'month' ? 'bg-brand-red text-white shadow-md' : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <BarChart3 size={13} /> Month
+                  </button>
+                </div>
+
+                <div className="relative" ref={headerMonthPickerRef}>
+                  <button
+                    type="button"
+                    onClick={() => setHeaderMonthPickerOpen((prev) => !prev)}
+                    aria-expanded={headerMonthPickerOpen}
+                    aria-haspopup="dialog"
+                    className={`group flex items-center gap-2 rounded-xl border px-3 py-1.5 text-[11px] md:text-[13px] shadow-sm transition-all ${
+                      headerMonthPickerOpen || selectedMonth
+                        ? 'border-brand-red/20 bg-gradient-to-br from-white via-rose-50 to-slate-50 text-slate-900 shadow-[0_16px_40px_rgba(230,28,33,0.12)]'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+                      headerMonthPickerOpen || selectedMonth
+                        ? 'bg-brand-red text-white shadow-md shadow-brand-red/25'
+                        : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200'
+                    }`}>
+                      <Calendar size={13} />
+                    </span>
+                    <span className="flex flex-col items-start leading-tight">
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                        Timeline
+                      </span>
+                      <span className="font-semibold text-slate-800">{headerSelectedMonthLabel}</span>
+                    </span>
+                  </button>
+
+                  {headerMonthPickerOpen && (
+                    <div
+                      role="dialog"
+                      aria-label="Select attendance month"
+                      className="absolute right-0 top-[calc(100%+12px)] z-30 w-[320px] overflow-hidden rounded-[28px] border border-white/70 bg-white/95 shadow-[0_28px_80px_rgba(15,23,42,0.2)] ring-1 ring-slate-200/70 backdrop-blur-xl"
+                    >
+                      <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-navy px-5 py-4 text-white">
+                        <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-brand-red/30 blur-2xl" />
+                        <div className="absolute -left-6 bottom-0 h-16 w-16 rounded-full bg-white/10 blur-xl" />
+                        <div className="relative flex items-start justify-between gap-4">
+                          <div>
+                            <h3 className="text-lg font-semibold">{headerVisibleYear}</h3>
+                            <p className="text-xs text-white/70">
+                              Pick a month to review attendance insights.
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setHeaderVisibleYear((year) => year - 1)}
+                              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white/90 transition hover:bg-white/15"
+                              aria-label="Previous year"
+                            >
+                              <ChevronLeft size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setHeaderVisibleYear((year) => year + 1)}
+                              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white/90 transition hover:bg-white/15"
+                              aria-label="Next year"
+                            >
+                              <ChevronRight size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-[radial-gradient(circle_at_top_right,_rgba(230,28,33,0.08),_transparent_40%)] px-4 py-4">
+                        <div className="grid grid-cols-4 gap-2">
+                          {headerMonthItems.map((month) => {
+                            const monthKey = `${headerVisibleYear}-${month.value}`;
+                            const isSelected = selectedMonth === monthKey;
+                            const isCurrentMonth =
+                              headerCurrentDate.getFullYear() === headerVisibleYear &&
+                              headerCurrentDate.getMonth() + 1 === Number(month.value);
+
+                            return (
+                              <button
+                                key={month.value}
+                                type="button"
+                                onClick={() => handleHeaderMonthSelect(month.value)}
+                                className={`relative overflow-hidden rounded-2xl border px-3 py-2 text-center transition-all ${
+                                  isSelected
+                                    ? 'border-brand-red bg-gradient-to-br from-brand-red to-red-500 text-white shadow-[0_14px_34px_rgba(230,28,33,0.28)]'
+                                    : isCurrentMonth
+                                      ? 'border-brand-red/25 bg-rose-50 text-slate-900 shadow-sm hover:border-brand-red/35 hover:bg-rose-100'
+                                      : 'border-slate-200 bg-white/90 text-slate-700 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50'
+                                }`}
+                              >
+                                <span className="block text-sm font-semibold">{month.label}</span>
+                                <span className={`mt-1 block text-[10px] ${
+                                  isSelected ? 'text-white/75' : 'text-slate-400'
+                                }`}>
+                                  {isCurrentMonth ? '' : ''}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedMonth('');
+                              setHeaderMonthPickerOpen(false);
+                            }}
+                            className="text-sm font-medium text-slate-500 transition hover:text-slate-800"
+                          >
+                            Clear
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const thisMonth = `${headerCurrentDate.getFullYear()}-${String(
+                                headerCurrentDate.getMonth() + 1,
+                              ).padStart(2, '0')}`;
+                              setSelectedMonth(thisMonth);
+                              setRange('month');
+                              setHeaderMonthPickerOpen(false);
+                            }}
+                            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                          >
+                            <Calendar size={14} />
+                            This month
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className={`${attendanceContentWidthClassName} mx-auto space-y-10`}>
       <AttendanceHeader
-        range={range}
-        onRangeChange={(r) => setRange(r)}
-        selectedMonth={selectedMonth}
-        onSelectMonth={(month) => {
-          setSelectedMonth(month);
-          setRange('month');
-        }}
         activeView={isHistoryRoute ? 'attendance' : activeView}
-        onActiveViewChange={handleActiveViewChange}
         subtitle={isEmployeePortal ? 'Your Presence Radar' : 'Team Attendance Console'}
-        leaveNotifications={leaveNotifications}
-        unreadNotificationCount={unreadLeaveNotificationCount}
-        onOpenNotifications={handleOpenLeaveNotifications}
-        onNotificationClick={handleNotificationClick}
-        onClearNotifications={handleClearLeaveNotifications}
         loading={attendancePageLoading}
       />
 
@@ -1320,7 +1565,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
           />
         </div>
       )}
-
+      </div>
     </div>
   );
 };
