@@ -341,6 +341,18 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
                           }`}>
                             Session {sessionIndex + 1}
                           </p>
+                          {session.isLateLogin ? (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-100">
+                                Late Login
+                              </span>
+                              {session.lateLoginApproval?.approvedAt ? (
+                                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                                  Approved Late Login
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : null}
                           {breaks.length ? (
                             <div className="mt-2 space-y-1">
                               {breaks.map((pause, pauseIndex) => {

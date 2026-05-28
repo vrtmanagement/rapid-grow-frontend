@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Coffee, LogIn, LogOut, Play } from 'lucide-react';
-import { AttendanceSession } from './attendanceUtils';
+import { AttendanceSession, LateLoginPolicy } from './attendanceUtils';
 import { resolveAttendanceLocationLabel } from './attendanceViewUtils';
 import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
 
@@ -20,6 +20,7 @@ interface Props {
   variant?: 'employee' | 'manager';
   loading?: boolean;
   hideLocationDetails?: boolean;
+  lateLoginPolicy?: LateLoginPolicy | null;
 }
 
 const STATUS_CARD_THEMES = {
@@ -58,6 +59,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
   variant = 'manager',
   loading = false,
   hideLocationDetails = false,
+  lateLoginPolicy = null,
 }) => {
   const isEmployeeVariant = variant === 'employee';
   const [now, setNow] = useState(() => Date.now());
@@ -182,6 +184,14 @@ const AttendanceLiveSession: React.FC<Props> = ({
   }, [activeSession?.loginTime, now]);
 
   const attendanceActionDisabled = !!logoutLoading || !!loginLoading || !!breakLoading;
+  const showLateLoginWarning =
+    !activeSession &&
+    !!lateLoginPolicy?.restrictionApplies &&
+    !!lateLoginPolicy?.restrictionActive &&
+    !lateLoginPolicy?.hasApproval;
+  const showApprovedLateLogin =
+    (!!activeSession?.isLateLogin || (!activeSession && !!lateLoginPolicy?.hasApproval)) &&
+    !!lateLoginPolicy?.restrictionApplies;
 
   if (loading) {
     return (
@@ -244,6 +254,15 @@ const AttendanceLiveSession: React.FC<Props> = ({
               Live session
             </p>
             <h3 className={titleClassName}>Attendance control</h3>
+            {showLateLoginWarning ? (
+              <div className="mt-2 inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200">
+                Late Login
+              </div>
+            ) : showApprovedLateLogin ? (
+              <div className="mt-2 inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                Approved Late Login
+              </div>
+            ) : null}
           </div>
           <div className={statusBadgeClassName}>
             <span className={`h-2.5 w-2.5 rounded-full ${statusTheme.dot}`} />
@@ -349,6 +368,16 @@ const AttendanceLiveSession: React.FC<Props> = ({
           <p className={`mt-4 rounded-2xl border px-4 py-3 ${isEmployeeVariant ? 'border-rose-200 bg-rose-50 text-sm text-rose-600' : 'border-rose-400/20 bg-rose-400/10 text-[11px] text-rose-200'}`}>
             {errorMessage}
           </p>
+        ) : null}
+        {showLateLoginWarning ? (
+          <div className={`mt-4 rounded-2xl border px-4 py-3 ${isEmployeeVariant ? 'border-amber-200 bg-amber-50 text-sm text-amber-700' : 'border-amber-400/20 bg-amber-400/10 text-[11px] text-amber-100'}`}>
+            Login window closed at {lateLoginPolicy?.cutoffTimeLabel}. Please contact your TL or Admin for approval.
+          </div>
+        ) : null}
+        {!showLateLoginWarning && !activeSession && lateLoginPolicy?.hasApproval ? (
+          <div className={`mt-4 rounded-2xl border px-4 py-3 ${isEmployeeVariant ? 'border-emerald-200 bg-emerald-50 text-sm text-emerald-700' : 'border-emerald-400/20 bg-emerald-400/10 text-[11px] text-emerald-100'}`}>
+            Late login is approved for today{lateLoginPolicy.approval?.approvedByName ? ` by ${lateLoginPolicy.approval.approvedByName}` : ''}.
+          </div>
         ) : null}
 
         <div className={`mt-4 rounded-[22px] border ${isEmployeeVariant ? 'border-slate-200 bg-slate-50 px-2.5 py-2 text-[0.84rem] text-slate-600' : 'border-white/10 bg-white/5 px-4 py-3 text-[11px] text-slate-300'}`}>

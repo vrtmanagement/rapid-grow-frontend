@@ -6,6 +6,8 @@ import AttendanceHeader from '../components/attendance/AttendanceHeader';
 import LeaveManagementPanel from '../components/attendance/LeaveManagementPanel';
 import AttendanceHistoryPage from '../components/attendance/AttendanceHistoryPage';
 import TeamAttendanceSection from '../components/attendance/TeamAttendanceSection';
+import LateAttendanceSection from '../components/attendance/LateAttendanceSection';
+import EmployeeLateAttendanceSection from '../components/attendance/EmployeeLateAttendanceSection';
 import {
   AttendanceEmployeeOption,
   TeamAttendanceSummary,
@@ -23,6 +25,7 @@ import { getSocket } from '../realtime/socket';
 import { usePermissions } from '../context/usePermissions';
 import {
   AttendanceSession,
+  LateLoginSettings,
   AttendanceSummaryResponse,
   LeaveNotificationItem,
   LeaveRequest,
@@ -41,9 +44,10 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const { hasPermission } = usePermissions();
   const location = useLocation();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<'attendance' | 'leave'>(() => {
+  const [activeView, setActiveView] = useState<'attendance' | 'leave' | 'late'>(() => {
     const params = new URLSearchParams(location.search || '');
-    return params.get('view') === 'leave' ? 'leave' : 'attendance';
+    const routeView = params.get('view');
+    return routeView === 'leave' || routeView === 'late' ? routeView : 'attendance';
   });
   const [range, setRange] = useState<Range>(() => {
     const params = new URLSearchParams(location.search || '');
@@ -84,6 +88,15 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const [teamAttendanceSummary, setTeamAttendanceSummary] = useState<TeamAttendanceSummary | null>(null);
   const [teamAttendanceSummarySnapshotAt, setTeamAttendanceSummarySnapshotAt] = useState<number | null>(null);
   const [teamAttendanceSummaryLoading, setTeamAttendanceSummaryLoading] = useState(false);
+  const [lateLoginApprovalLoading, setLateLoginApprovalLoading] = useState(false);
+  const [lateLoginRejectLoading, setLateLoginRejectLoading] = useState(false);
+  const [lateLoginRequestLoading, setLateLoginRequestLoading] = useState(false);
+  const [lateLoginSettings, setLateLoginSettings] = useState<LateLoginSettings | null>(null);
+  const [lateLoginSettingsLoading, setLateLoginSettingsLoading] = useState(false);
+  const [lateLoginSettingsSaving, setLateLoginSettingsSaving] = useState(false);
+  const [lateLoginSettingsModalOpen, setLateLoginSettingsModalOpen] = useState(false);
+  const [lateLoginCutoffDraft, setLateLoginCutoffDraft] = useState('');
+  const [lateLoginSettingsMessage, setLateLoginSettingsMessage] = useState<string | null>(null);
   const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [headerMonthPickerOpen, setHeaderMonthPickerOpen] = useState(false);
@@ -111,6 +124,8 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   );
   const canReviewTeamAttendance =
     isBackendAdminRole || hasPermission('EMPLOYEE_ATTENDANCE_VIEW');
+  const canManageLateLogins =
+    isBackendAdminRole || hasPermission('ATTENDANCE_LATE_LOGIN_OVERRIDE');
   const headerCurrentDate = useMemo(() => new Date(), []);
   const parsedHeaderSelectedMonth = useMemo(() => {
     if (!selectedMonth) return null;
@@ -146,7 +161,8 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search || '');
-    setActiveView(params.get('view') === 'leave' ? 'leave' : 'attendance');
+    const routeView = params.get('view');
+    setActiveView(routeView === 'leave' || routeView === 'late' ? routeView : 'attendance');
 
     const routeRange = params.get('range');
     if (routeRange === 'day' || routeRange === 'week' || routeRange === 'month') {
@@ -165,8 +181,8 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
 
   const buildAttendanceRoute = useCallback((pathname: '/attendance' | '/attendance/history' | '/attendance/team') => {
     const params = new URLSearchParams();
-    if (pathname === '/attendance' && activeView === 'leave') {
-      params.set('view', 'leave');
+    if (pathname === '/attendance' && activeView !== 'attendance') {
+      params.set('view', activeView);
     }
     params.set('range', range);
     if (selectedMonth) {
@@ -199,11 +215,11 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     navigate(buildAttendanceRoute('/attendance'));
   }, [buildAttendanceRoute, navigate]);
 
-  const handleActiveViewChange = useCallback((nextView: 'attendance' | 'leave') => {
+  const handleActiveViewChange = useCallback((nextView: 'attendance' | 'leave' | 'late') => {
     setActiveView(nextView);
     const params = new URLSearchParams();
-    if (nextView === 'leave') {
-      params.set('view', 'leave');
+    if (nextView !== 'attendance') {
+      params.set('view', nextView);
     }
     params.set('range', range);
     if (selectedMonth) {
@@ -435,6 +451,8 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
           ...data,
           start: data.start,
           end: data.end,
+          lateLoginPolicy: data.lateLoginPolicy || null,
+          lateLoginRecords: Array.isArray(data.lateLoginRecords) ? data.lateLoginRecords : [],
         });
         const allSessions = (data.days || []).flatMap((d: any) => d.sessions || []);
         const open = allSessions.find((s: AttendanceSession) => !s.logoutTime);
@@ -483,6 +501,8 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         end: data.end,
         totalMinutes: data.totalMinutes,
         days: Array.isArray(data.days) ? data.days : [],
+        lateLoginPolicy: data.lateLoginPolicy || null,
+        lateLoginRecords: Array.isArray(data.lateLoginRecords) ? data.lateLoginRecords : [],
       });
     } catch (error) {
       console.error('Failed to load selected employee attendance', error);
@@ -524,6 +544,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         onBreak: Number(data.onBreak || 0),
         members: Array.isArray(data.members) ? data.members : [],
         activityLog: Array.isArray(data.activityLog) ? data.activityLog : [],
+        lateLoginRecords: Array.isArray(data.lateLoginRecords) ? data.lateLoginRecords : [],
       });
       setTeamAttendanceSummarySnapshotAt(Date.now());
     } catch (error) {
@@ -538,6 +559,44 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       }
     }
   };
+
+  const loadLateLoginSettings = useCallback(async (options?: { silent?: boolean }) => {
+    if (!isBackendAdminRole) {
+      setLateLoginSettings(null);
+      return;
+    }
+
+    const silent = options?.silent === true;
+    if (!silent) {
+      setLateLoginSettingsLoading(true);
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/attendance/late-login/settings`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (!res.ok) {
+        if (!silent) {
+          setLateLoginSettings(null);
+        }
+        return;
+      }
+
+      const data = await res.json();
+      setLateLoginSettings(data || null);
+      setLateLoginCutoffDraft(String(data?.time || ''));
+    } catch (error) {
+      console.error('Failed to load late login settings', error);
+      if (!silent) {
+        setLateLoginSettings(null);
+      }
+    } finally {
+      if (!silent) {
+        setLateLoginSettingsLoading(false);
+      }
+    }
+  }, [isBackendAdminRole]);
 
   const loadLeaves = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true;
@@ -592,6 +651,18 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   useEffect(() => {
     loadLeaves();
   }, [loadLeaves]);
+
+  useEffect(() => {
+    if (activeView !== 'late' || !isBackendAdminRole) {
+      if (activeView !== 'late') {
+        setLateLoginSettingsModalOpen(false);
+        setLateLoginSettingsMessage(null);
+      }
+      return;
+    }
+
+    void loadLateLoginSettings();
+  }, [activeView, isBackendAdminRole, loadLateLoginSettings]);
 
   useEffect(() => {
     if (!canReviewTeamAttendance || !selectedEmployeeEmpId || !selectedEmployeeMonth) {
@@ -669,6 +740,18 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     };
   }, [loadLeaves]);
 
+  useEffect(() => {
+    if (!summary?.lateLoginPolicy?.hasApproval) return;
+
+    setSessionError((currentError) => {
+      if (!currentError) return null;
+      if (/late login|login time exceeded|contact your tl|contact your admin/i.test(currentError)) {
+        return null;
+      }
+      return currentError;
+    });
+  }, [summary?.lateLoginPolicy?.hasApproval]);
+
   const handleLogin = async () => {
     setLoginLoading(true);
     setSessionError(null);
@@ -692,6 +775,9 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setSessionError(data.message || 'Failed to start attendance session');
+        if (data?.lateLoginPolicy) {
+          setSummary((prev) => (prev ? { ...prev, lateLoginPolicy: data.lateLoginPolicy } : prev));
+        }
         return;
       }
       const session = await res.json();
@@ -840,6 +926,160 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       setSessionError('Failed to resume work');
     } finally {
       setBreakLoading(false);
+    }
+  };
+
+  const handleApproveLateLogin = async (empId: string, reason: string) => {
+    setLateLoginApprovalLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/attendance/late-login/approve`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          empId,
+          reason,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return {
+          ok: false,
+          message: data.message || 'Failed to approve late login',
+        };
+      }
+
+      await Promise.all([
+        loadTeamAttendanceSummary({ silent: true }),
+        selectedEmployeeEmpId && selectedEmployeeMonth
+          ? loadSelectedEmployeeAttendance(selectedEmployeeEmpId, selectedEmployeeMonth, { silent: true })
+          : Promise.resolve(),
+      ]);
+
+      return {
+        ok: true,
+        message: data.message || 'Late login access approved for today',
+      };
+    } catch (error) {
+      console.error('Failed to approve late login', error);
+      return {
+        ok: false,
+        message: 'Failed to approve late login',
+      };
+    } finally {
+      setLateLoginApprovalLoading(false);
+    }
+  };
+
+  const handleRejectLateLogin = async (empId: string, reason: string) => {
+    setLateLoginRejectLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/attendance/late-login/reject`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          empId,
+          reason,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return {
+          ok: false,
+          message: data.message || 'Failed to reject late login',
+        };
+      }
+
+      await Promise.all([
+        loadTeamAttendanceSummary({ silent: true }),
+        loadSummary(range, selectedMonth, { silent: true }),
+        selectedEmployeeEmpId && selectedEmployeeMonth
+          ? loadSelectedEmployeeAttendance(selectedEmployeeEmpId, selectedEmployeeMonth, { silent: true })
+          : Promise.resolve(),
+      ]);
+
+      return {
+        ok: true,
+        message: data.message || 'Late login request rejected',
+      };
+    } catch (error) {
+      console.error('Failed to reject late login', error);
+      return {
+        ok: false,
+        message: 'Failed to reject late login',
+      };
+    } finally {
+      setLateLoginRejectLoading(false);
+    }
+  };
+
+  const handleRequestLateLogin = async (reason: string) => {
+    setLateLoginRequestLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/attendance/late-login/request`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ reason }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return {
+          ok: false,
+          message: data.message || 'Failed to request late login approval',
+        };
+      }
+
+      await loadSummary(range, selectedMonth, { silent: true });
+
+      return {
+        ok: true,
+        message: data.message || 'Late login approval request sent',
+      };
+    } catch (error) {
+      console.error('Failed to request late login approval', error);
+      return {
+        ok: false,
+        message: 'Failed to request late login approval',
+      };
+    } finally {
+      setLateLoginRequestLoading(false);
+    }
+  };
+
+  const handleUpdateLateLoginCutoff = async () => {
+    setLateLoginSettingsSaving(true);
+    setLateLoginSettingsMessage(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/attendance/late-login/settings`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ time: lateLoginCutoffDraft }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLateLoginSettingsMessage(data.message || 'Failed to update late login cutoff');
+        return;
+      }
+
+      setLateLoginSettings(data || null);
+      setLateLoginCutoffDraft(String(data?.time || lateLoginCutoffDraft));
+      setLateLoginSettingsMessage(`Late login cutoff updated to ${data?.cutoffTimeLabel || 'the selected time'}.`);
+      setLateLoginSettingsModalOpen(false);
+
+      await Promise.all([
+        loadLateLoginSettings({ silent: true }),
+        loadSummary(range, selectedMonth, { silent: true }),
+        canReviewTeamAttendance ? loadTeamAttendanceSummary({ silent: true }) : Promise.resolve(),
+      ]);
+    } catch (error) {
+      console.error('Failed to update late login cutoff', error);
+      setLateLoginSettingsMessage('Failed to update late login cutoff');
+    } finally {
+      setLateLoginSettingsSaving(false);
     }
   };
 
@@ -1242,6 +1482,32 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     employeeMonthOptions.find((month) => month.value === selectedEmployeeMonth)?.label || 'Select month';
   const attendanceContentWidthClassName = isEmployeePortal ? 'max-w-[1760px]' : 'max-w-6xl';
   const showAttendanceSubnavControls = (isHistoryRoute ? 'attendance' : activeView) === 'attendance';
+  const currentLateLoginCutoffLabel =
+    lateLoginSettings?.cutoffTimeLabel
+    || summary?.lateLoginPolicy?.cutoffTimeLabel
+    || '1:05 PM';
+  const lateHeaderActions =
+    activeView === 'late' && isBackendAdminRole ? (
+      <div className="flex flex-col items-start gap-2 md:items-end">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+          Late cutoff
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setLateLoginCutoffDraft(lateLoginSettings?.time || summary?.lateLoginPolicy?.cutoffTimeValue || '13:05');
+            setLateLoginSettingsMessage(null);
+            setLateLoginSettingsModalOpen(true);
+          }}
+          disabled={lateLoginSettingsLoading}
+          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.05)] transition-colors hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Clock size={16} />
+          <span>{currentLateLoginCutoffLabel}</span>
+          <span className="text-slate-400">Edit</span>
+        </button>
+      </div>
+    ) : null;
 
   return (
     <div className="w-full space-y-10 animate-in fade-in duration-700">
@@ -1266,6 +1532,17 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
               }`}
             >
               Attendance
+            </button>
+            <button
+              type="button"
+              onClick={() => handleActiveViewChange('late')}
+              className={`border-b-2 px-1 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors sm:text-[12px] ${
+                activeView === 'late'
+                  ? 'border-brand-red text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              Late
             </button>
             <button
               type="button"
@@ -1454,6 +1731,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         activeView={isHistoryRoute ? 'attendance' : activeView}
         subtitle={isEmployeePortal ? 'Your Presence Radar' : 'Team Attendance Console'}
         loading={attendancePageLoading}
+        actions={lateHeaderActions}
       />
 
       {isHistoryRoute ? (
@@ -1479,6 +1757,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
 
           <TeamAttendanceSection
             canReviewTeamAttendance={canReviewTeamAttendance}
+            canManageLateLogins={canManageLateLogins}
             employeePickerOpen={employeePickerOpen}
             monthPickerOpen={monthPickerOpen}
             employeePickerRef={employeePickerRef}
@@ -1502,6 +1781,8 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
             selectedEmployeeMonthlyAttendance={selectedEmployeeMonthlyAttendance}
             setSelectedEmployeeEmpId={setSelectedEmployeeEmpId}
             setSelectedEmployeeMonth={setSelectedEmployeeMonth}
+            onApproveLateLogin={handleApproveLateLogin}
+            lateLoginApprovalLoading={lateLoginApprovalLoading}
           />
         </div>
       ) : activeView === 'attendance' ? (
@@ -1537,7 +1818,36 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
           portalMode={mode}
           onOpenHistory={handleHistoryOpen}
           onOpenTeamAttendance={handleTeamAttendanceOpen}
+          lateLoginPolicy={summary?.lateLoginPolicy || null}
         />
+      ) : activeView === 'late' ? (
+        canReviewTeamAttendance ? (
+          <LateAttendanceSection
+            canManageLateLogins={canManageLateLogins}
+            employeePickerOpen={employeePickerOpen}
+            employeePickerRef={employeePickerRef}
+            setEmployeePickerOpen={setEmployeePickerOpen}
+            employeeOptions={employeeOptions}
+            selectedEmployeeEmpId={selectedEmployeeEmpId}
+            selectedEmployeeLabel={selectedEmployeeLabel}
+            selectedEmployee={selectedEmployee}
+            teamAttendanceSummaryLoading={teamAttendanceSummaryLoading}
+            teamAttendanceSummary={liveTeamAttendanceSummary}
+            setSelectedEmployeeEmpId={setSelectedEmployeeEmpId}
+            onRefreshLateActivity={loadTeamAttendanceSummary}
+            onApproveLateLogin={handleApproveLateLogin}
+            onRejectLateLogin={handleRejectLateLogin}
+            lateLoginApprovalLoading={lateLoginApprovalLoading}
+            lateLoginRejectLoading={lateLoginRejectLoading}
+          />
+        ) : (
+          <EmployeeLateAttendanceSection
+            lateLoginPolicy={summary?.lateLoginPolicy || null}
+            lateLoginRecords={summary?.lateLoginRecords || []}
+            requestLoading={lateLoginRequestLoading}
+            onRequestLateLogin={handleRequestLateLogin}
+          />
+        )
       ) : (
         <div className="space-y-6">
           <LeaveManagementPanel
@@ -1566,6 +1876,85 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
           />
         </div>
       )}
+
+      {lateLoginSettingsModalOpen && isBackendAdminRole ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/45 px-4">
+          <div className="w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.28)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  Late login cutoff
+                </p>
+                <h4 className="mt-2 text-xl font-semibold text-slate-950">
+                  Update login restriction time
+                </h4>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Only admins can change the daily cutoff time for late-login approval.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setLateLoginSettingsModalOpen(false);
+                  setLateLoginSettingsMessage(null);
+                }}
+                className="rounded-full border border-slate-200 px-3 py-1 text-sm font-medium text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-900"
+              >
+                Close
+              </button>
+            </div>
+
+            <label className="mt-5 block">
+              <span className="mb-2 block text-[13px] font-semibold text-slate-700">
+                Cutoff time
+              </span>
+              <input
+                type="time"
+                value={lateLoginCutoffDraft}
+                onChange={(event) => setLateLoginCutoffDraft(event.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
+              />
+            </label>
+
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              Current cutoff: {currentLateLoginCutoffLabel}
+            </div>
+
+            {lateLoginSettingsMessage ? (
+              <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                {lateLoginSettingsMessage}
+              </p>
+            ) : null}
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setLateLoginSettingsModalOpen(false);
+                  setLateLoginSettingsMessage(null);
+                }}
+                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleUpdateLateLoginCutoff();
+                }}
+                disabled={lateLoginSettingsSaving || !lateLoginCutoffDraft}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                  lateLoginSettingsSaving || !lateLoginCutoffDraft
+                    ? 'cursor-not-allowed bg-slate-200 text-slate-400'
+                    : 'bg-slate-900 text-white hover:bg-slate-800'
+                }`}
+              >
+                {lateLoginSettingsSaving ? 'Saving...' : 'Update cutoff time'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       </div>
     </div>
   );
