@@ -5,9 +5,44 @@ export interface AttendanceBreak {
   endTime?: string | null;
 }
 
+export interface LateLoginApprovalInfo {
+  overrideId: string;
+  approvedAt?: string | null;
+  reason?: string;
+  approvedByEmpId?: string;
+  approvedByName?: string;
+  approvedByRole?: string;
+  consumedAt?: string | null;
+}
+
+export interface LateLoginPolicy {
+  timeZone: string;
+  cutoffTimeLabel: string;
+  cutoffTimeValue?: string;
+  restrictionApplies: boolean;
+  restrictionActive: boolean;
+  hasApproval: boolean;
+  latestOutcome?: 'APPROVED' | 'REQUESTED' | 'REJECTED' | null;
+  latestRejectedAt?: string | null;
+  approval?: LateLoginApprovalInfo | null;
+}
+
+export interface LateLoginSettings {
+  key: string;
+  hour: number;
+  minute: number;
+  time: string;
+  timezone: string;
+  cutoffTimeLabel: string;
+  updatedAt?: string | null;
+  updatedByEmpId?: string;
+}
+
 export interface AttendanceSession {
   _id: string;
   loginTime: string;
+  isLateLogin?: boolean;
+  lateLoginApproval?: LateLoginApprovalInfo | null;
   logoutTime?: string | null;
   effectiveLogoutTime?: string;
   location?: string;
@@ -31,6 +66,23 @@ export interface AttendanceSummaryResponse {
   end: string;
   totalMinutes: number;
   days: AttendanceDay[];
+  lateLoginPolicy?: LateLoginPolicy | null;
+  lateLoginRecords?: Array<{
+    id: string;
+    empId: string;
+    empName: string;
+    role?: string;
+    designation?: string;
+    department?: string;
+    status: 'APPROVED' | 'REQUESTED' | 'REJECTED';
+    attemptedAt: string;
+    loginTime?: string | null;
+    approvedByEmpId?: string;
+    approvedByName?: string;
+    approvedByRole?: string;
+    approvalReason?: string;
+    approvalTimestamp?: string | null;
+  }>;
 }
 
 export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED';

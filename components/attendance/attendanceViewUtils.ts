@@ -1,3 +1,5 @@
+import type { LateLoginApprovalInfo } from './attendanceUtils';
+
 export interface AttendanceEmployeeOption {
   empId: string;
   empName: string;
@@ -15,6 +17,7 @@ export interface TeamAttendanceSummary {
   onBreak?: number;
   members?: TeamAttendanceMemberActivity[];
   activityLog?: TeamAttendanceLogEntry[];
+  lateLoginRecords?: TeamLateLoginRecord[];
 }
 
 export type TeamAttendanceActivityType =
@@ -39,6 +42,14 @@ export interface TeamAttendanceMemberActivity {
   lastActivityType?: TeamAttendanceActivityType;
   workingMinutes?: number;
   status: 'clocked_in' | 'on_break' | 'checked_out' | 'absent';
+  lateLogin?: {
+    isLateLogin: boolean;
+    loginTime?: string | null;
+    hasApproval: boolean;
+    latestOutcome?: 'APPROVED' | 'REQUESTED' | 'REJECTED' | null;
+    latestRejectedAt?: string | null;
+    approval?: LateLoginApprovalInfo | null;
+  };
 }
 
 export interface TeamAttendanceLogEntry {
@@ -55,6 +66,25 @@ export interface TeamAttendanceLogEntry {
   workingMinutes?: number;
   breakDurationSeconds?: number;
   status: 'clocked_in' | 'on_break' | 'checked_out' | 'absent';
+  isLateLogin?: boolean;
+  lateLoginApproval?: LateLoginApprovalInfo | null;
+}
+
+export interface TeamLateLoginRecord {
+  id: string;
+  empId: string;
+  empName: string;
+  role?: string;
+  designation?: string;
+  department?: string;
+  status: 'APPROVED' | 'REQUESTED' | 'REJECTED';
+  attemptedAt: string;
+  loginTime?: string | null;
+  approvedByEmpId?: string;
+  approvedByName?: string;
+  approvedByRole?: string;
+  approvalReason?: string;
+  approvalTimestamp?: string | null;
 }
 
 export function projectTeamAttendanceSummary(

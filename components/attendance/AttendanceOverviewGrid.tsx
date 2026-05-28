@@ -3,6 +3,7 @@ import {
   AttendanceDay,
   AttendanceSession,
   AttendanceSummaryResponse,
+  LateLoginPolicy,
   LeaveRequest,
   Range,
   formatMinutes,
@@ -58,6 +59,7 @@ interface AttendanceOverviewGridProps {
   portalMode: 'employee' | 'manager';
   onOpenHistory: () => void;
   onOpenTeamAttendance: () => void;
+  lateLoginPolicy: LateLoginPolicy | null;
 }
 
 const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
@@ -92,6 +94,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
   portalMode,
   onOpenHistory,
   onOpenTeamAttendance,
+  lateLoginPolicy,
 }) => {
   const isEmployeePortal = portalMode === 'employee';
   const isManagerPortal = portalMode === 'manager';
@@ -696,6 +699,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
               variant="employee"
               loading={attendancePageLoading}
               hideLocationDetails={!isEmployeePortal}
+              lateLoginPolicy={lateLoginPolicy}
             />
 
             {isEmployeePortal ? (
@@ -1107,6 +1111,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
           errorMessage={sessionError}
           todayMinutes={todayMinutes}
           loading={attendancePageLoading}
+          lateLoginPolicy={lateLoginPolicy}
         />
         {canReviewTeamAttendance && (
           <div className="rounded-[30px] border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-navy p-6 text-white">
