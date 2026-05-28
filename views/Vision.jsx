@@ -18,6 +18,8 @@ import {
   Target,
   Trash2,
 } from 'lucide-react';
+import PageSectionSubnav from '../components/layout/PageSectionSubnav';
+import VisionHeaderTabs from '../components/planning/VisionHeaderTabs';
 import { removeGoal, saveGoal } from '../services/goalApi';
 import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
 import { PageHeaderSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
@@ -26,7 +28,6 @@ import { CREATE_INPUT_CLASS, ThemedDatePicker, ThemedSelect } from '../component
 import {
   buildVisionStageHref,
   resolveVisionStageFromPath,
-  VISION_STAGE_CONFIG,
 } from '../components/planning/visionNavigation';
 
 const VISION_PROGRESS_SHIMMER_STYLE = `
@@ -932,15 +933,8 @@ const Vision = ({ state, updateState, loading = false }) => {
     return () => window.cancelAnimationFrame(frame);
   }, [progressDataReady, spacesTasks]);
 
-  const stageMeta = VISION_STAGE_CONFIG.find((item) => item.key === stage) || VISION_STAGE_CONFIG[0];
   const isDailyStage = stage === 'day' && !!selectedWeek;
   const heroBadgeLabel = 'Vision Management';
-  const heroTitle = isDailyStage
-    ? selectedWeek.text || `Weekly plan for ${selectedMonthDisplayLabel}`
-    : stageMeta.label;
-  const heroDescription = isDailyStage
-    ? selectedWeek.details || 'This daily board shows the entire week clearly so the team can execute without confusion.'
-    : '';
   const heroStatLabel =
     stage === 'quarter'
       ? 'Active quarters'
@@ -961,24 +955,6 @@ const Vision = ({ state, updateState, loading = false }) => {
           : stage === 'day'
             ? selectedWeek?.days?.length || 0
             : visions.length;
-  const heroStatBadge =
-    stage === 'quarter'
-      ? 'Quarter map'
-      : stage === 'month'
-        ? 'Monthly plan'
-        : stage === 'week'
-          ? 'Weekly flow'
-          : stage === 'day'
-            ? 'Daily execution'
-            : 'Strategic focus';
-
-  const selection = {
-    yearId: selectedYear?.id || '',
-    quarterId: selectedQuarter?.id || '',
-    monthId: selectedMonth?.id || '',
-    weekId: selectedWeek?.id || '',
-  };
-
   const goalContextMaps = useMemo(() => {
     const weekContextById = new Map();
     const dayContextById = new Map();
@@ -1902,13 +1878,12 @@ const Vision = ({ state, updateState, loading = false }) => {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 pb-16">
-      <style>{VISION_PROGRESS_SHIMMER_STYLE}</style>
-      <section className="rounded-[1.6rem] border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50 p-3 shadow-[0_16px_36px_rgba(15,23,42,0.07)] sm:p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <>
+      <PageSectionSubnav
+        leading={
           <div className="flex min-w-0 items-center gap-3">
             <div
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-[0_8px_16px_rgba(239,68,68,0.10)] ring-1 ${
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[1.1rem] shadow-[0_8px_16px_rgba(239,68,68,0.10)] ring-1 ${
                 isDailyStage
                   ? 'bg-slate-900 text-brand-red ring-slate-900/10'
                   : 'bg-gradient-to-br from-red-50 via-white to-red-100 text-brand-red ring-red-100'
@@ -1916,58 +1891,49 @@ const Vision = ({ state, updateState, loading = false }) => {
             >
               {isDailyStage ? <Sun size={16} /> : <Sparkles size={16} />}
             </div>
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-brand-red">
-                {heroBadgeLabel}
-              </div>
-              <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
-                {heroTitle}
-              </h1>
-              {heroDescription ? <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{heroDescription}</p> : null}
+            <div className="inline-flex items-center rounded-full border border-red-100 bg-red-50 px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-brand-red">
+              {heroBadgeLabel}
             </div>
           </div>
-
-          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+        }
+        center={<VisionHeaderTabs />}
+        trailing={
+          <>
             {stage === 'year' && isAdmin ? (
               <SmallActionButton variant="primary" onClick={() => setShowVisionComposer((prev) => !prev)} disabled={state.yearlyGoals.length >= 5}>
                 <Plus size={14} />
                 Add Vision
               </SmallActionButton>
             ) : null}
-            <div className="min-w-[170px] rounded-[1.2rem] border border-slate-200 bg-white px-3.5 py-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+            <div className="relative min-w-[118px] overflow-hidden rounded-[0.9rem] border border-slate-200/90 bg-white px-3 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.05)]">
+              <div className="absolute bottom-2 left-0 top-2 w-[2px] rounded-full bg-gradient-to-b from-brand-red via-rose-300 to-transparent" />
               {isDailyStage ? (
-                <>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Week completion</div>
-                      <div className="mt-1 text-2xl font-semibold leading-none text-slate-900">{weekProgress.percent}%</div>
-                    </div>
-                    <div className="rounded-2xl bg-slate-50 px-3 py-2.5 text-center shadow-sm">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Days</div>
-                      <div className="mt-1 text-lg font-semibold text-slate-900">{selectedWeek.days.length}</div>
-                    </div>
+                <div className="flex items-center justify-between gap-3 pl-2">
+                  <div>
+                    <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">Week completion</div>
+                    <div className="mt-0.5 text-lg font-semibold leading-none text-slate-900">{weekProgress.percent}%</div>
                   </div>
-                  <div className="mt-3">
-                    <ProgressBar progress={weekProgress.percent} tone="emerald" loading={progressLoading} />
+                  <div className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                    {selectedWeek.days.length} days
                   </div>
-                </>
+                </div>
               ) : (
-                <>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">{heroStatLabel}</div>
-                  <div className="mt-1 flex items-end justify-between gap-3">
-                    <div className="text-2xl font-semibold leading-none text-slate-900">{heroStatValue}</div>
-                    <div className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-brand-red">
-                      {heroStatBadge}
-                    </div>
-                  </div>
-                </>
+                <div className="flex items-baseline gap-2 pl-2 whitespace-nowrap">
+                  <div className="text-[9px] font-semibold uppercase tracking-[0.22em] text-slate-400">{heroStatLabel}</div>
+                  <div className="text-lg font-semibold leading-none text-slate-900">{heroStatValue}</div>
+                </div>
               )}
             </div>
-          </div>
-        </div>
-
+          </>
+        }
+        outerClassName="mb-4"
+        innerClassName="gap-2 py-1 lg:min-h-[44px]"
+        centerClassName="lg:px-2"
+      />
+      <div className="mx-auto max-w-7xl space-y-6 pb-16">
+        <style>{VISION_PROGRESS_SHIMMER_STYLE}</style>
         {showVisionComposer && isAdmin ? (
-          <div className="mt-6 rounded-[1.75rem] border border-slate-200 bg-slate-50/70 p-5">
+          <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50/70 p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
               <div className="flex-1">
                 <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">New yearly vision</label>
@@ -2003,7 +1969,6 @@ const Vision = ({ state, updateState, loading = false }) => {
             </div>
           </div>
         ) : null}
-      </section>
 
       {stage === 'year' ? (
         visions.length ? (
@@ -2716,7 +2681,8 @@ const Vision = ({ state, updateState, loading = false }) => {
           </div>
         )
       ) : null}
-    </div>
+      </div>
+    </>
   );
 };
 

@@ -18,6 +18,7 @@ import {
   getBrowserGeolocationDescription,
 } from '../components/attendance/attendanceViewUtils';
 import AttendanceOverviewGrid from '../components/attendance/AttendanceOverviewGrid';
+import PageSectionSubnav from '../components/layout/PageSectionSubnav';
 import { getSocket } from '../realtime/socket';
 import { usePermissions } from '../context/usePermissions';
 import {
@@ -1244,16 +1245,17 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
 
   return (
     <div className="w-full space-y-10 animate-in fade-in duration-700">
-      <div className="sticky top-[-1px] z-30 -mx-4 mb-6 border-b border-slate-200 bg-slate-100/95 px-3 backdrop-blur-xl sm:-mx-8 sm:px-5 lg:-mx-16 lg:px-8">
-        <div className="flex w-full flex-col gap-2 py-1.5 lg:grid lg:min-h-[52px] lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-4">
-          <div className="flex min-w-0 items-center gap-2 lg:justify-self-start">
+      <PageSectionSubnav
+        leading={
+          <>
             <span className="h-1.5 w-8 rounded-full bg-brand-red" />
             <span className="truncate text-sm font-medium text-slate-600 sm:text-[15px]">
               {isEmployeePortal ? 'Your Presence Radar' : 'Team Attendance Console'}
             </span>
-          </div>
-
-          <div className="flex items-center justify-center gap-5 overflow-x-auto lg:justify-self-center">
+          </>
+        }
+        center={
+          <>
             <button
               type="button"
               onClick={() => handleActiveViewChange('attendance')}
@@ -1276,15 +1278,15 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
             >
               Leave
             </button>
-          </div>
-
-          <div className="flex min-h-[38px] flex-wrap items-center justify-start gap-2 lg:justify-end lg:justify-self-end">
-            <div
-              aria-hidden={!showAttendanceSubnavControls}
-              className={`flex flex-wrap items-center gap-2 ${
-                showAttendanceSubnavControls ? '' : 'invisible pointer-events-none'
-              }`}
-            >
+          </>
+        }
+        trailing={
+          <div
+            aria-hidden={!showAttendanceSubnavControls}
+            className={`flex flex-wrap items-center gap-2 ${
+              showAttendanceSubnavControls ? '' : 'invisible pointer-events-none'
+            }`}
+          >
                 <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
                   <button
                     type="button"
@@ -1443,10 +1445,9 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
                     </div>
                   )}
                 </div>
-            </div>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       <div className={`${attendanceContentWidthClassName} mx-auto space-y-10`}>
       <AttendanceHeader

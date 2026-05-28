@@ -6,14 +6,14 @@ import SpacesTaskCreateModal from './SpacesTaskCreateModal';
 import SpacesTaskTableSection from './SpacesTaskTableSection';
 import SpacesTaskModals from './SpacesTaskModals';
 
-const CREATE_TASK_COLLAPSED_WIDTH = 46;
-const CREATE_TASK_EXPANDED_WIDTH = 148;
+const CREATE_TASK_COLLAPSED_WIDTH = 44;
+const CREATE_TASK_EXPANDED_WIDTH = 142;
 
 function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-const PremiumCreateTaskButton: React.FC<{ onClick: () => void }> = ({ onClick }) => {
+export const PremiumCreateTaskButton: React.FC<{ onClick: () => void }> = ({ onClick }) => {
   const prefersReducedMotion = useReducedMotion();
   const shellControls = useAnimationControls();
   const buttonControls = useAnimationControls();
@@ -274,7 +274,7 @@ const PremiumCreateTaskButton: React.FC<{ onClick: () => void }> = ({ onClick })
           onTap={handlePressEnd}
           animate={buttonControls}
           initial={false}
-          className="group relative inline-flex h-11 items-center justify-center overflow-hidden rounded-full border border-transparent px-3 py-2 text-[14px] font-semibold"
+          className="group relative inline-flex h-10 items-center justify-center overflow-hidden rounded-full border border-transparent px-2.5 py-1.5 text-[13px] font-semibold"
           style={{
             width: prefersReducedMotion ? CREATE_TASK_EXPANDED_WIDTH : CREATE_TASK_COLLAPSED_WIDTH,
             x: 0,
@@ -313,7 +313,7 @@ const PremiumCreateTaskButton: React.FC<{ onClick: () => void }> = ({ onClick })
               {(isExpanded || prefersReducedMotion) ? (
                 <motion.span
                   key="create-task-label"
-                  className="overflow-hidden whitespace-nowrap pl-2"
+                  className="overflow-hidden whitespace-nowrap pl-1.5"
                   initial={{ width: 0, opacity: 0, x: 8 }}
                   animate={{
                     width: 'auto',
@@ -640,14 +640,6 @@ const SpacesMainSections: React.FC<any> = (props) => {
           isWeeklyPlannerCanvasOpen ? 'pointer-events-none blur-[6px] opacity-60' : 'blur-0 opacity-100'
         }`}
       >
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-2 w-10 rounded-full bg-brand-red" />
-            <span className="text-[20px] font-medium text-slate-900">Task Hub</span>
-          </div>
-          <PremiumCreateTaskButton onClick={() => openTaskCreateModal()} />
-        </div>
-
         <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1.7fr)]">
           <div className="order-2 flex h-[37rem] min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-6">
             {weeklyError ? (

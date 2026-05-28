@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BarChart3, CheckCircle2, Clock3, ListChecks } from 'lucide-react';
-import { Link, Route, Routes, useParams } from 'react-router-dom';
+import { ArrowLeft, BarChart3, CheckCircle2, ChevronDown, Clock3, Filter, ListChecks, Plus, Search } from 'lucide-react';
+import { Link, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { PlanningState, ProjectTeamMember, WorkspaceProject, WorkspaceTask } from '../types';
 import ProjectCharterFormModal from '../components/project-charter/ProjectCharterFormModal';
 import ProjectDetails, { ProjectTaskDraft } from '../components/project-charter/ProjectDetails';
 import ProjectList from '../components/project-charter/ProjectList';
+import PageSectionSubnav from '../components/layout/PageSectionSubnav';
 import { TaskAnalyticsPanel } from './TaskAnalyticsView';
 import {
   appendActivity,
@@ -331,6 +332,7 @@ function GeneralMetric({ icon, label, value }: { icon: React.ReactNode; label: s
 }
 
 const WorkspacesView: React.FC<Props> = ({ state, updateState, loading = false }) => {
+  const location = useLocation();
   const [projectLoading, setProjectLoading] = useState(loading);
   const [employees, setEmployees] = useState<ProjectTeamMember[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -347,6 +349,7 @@ const WorkspacesView: React.FC<Props> = ({ state, updateState, loading = false }
   const canManageProject = state.currentUser.role === 'Admin' || state.currentUser.role === 'Leader';
   const canDeleteProject = state.currentUser.role === 'Admin';
   const canCreateTask = true;
+  const isProjectListRoute = location.pathname.startsWith('/workspaces');
   const viewerIdentifiers = useMemo(() => getSessionViewerIdentifiers(state.currentUser.id), [state.currentUser.id]);
 
   const directoryMap = useMemo(() => {
@@ -720,6 +723,82 @@ const WorkspacesView: React.FC<Props> = ({ state, updateState, loading = false }
 
   return (
     <>
+      <PageSectionSubnav
+        innerClassName="gap-1.5 py-1 lg:min-h-[46px] lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:gap-3"
+        leadingClassName="whitespace-nowrap"
+        centerClassName="w-full lg:px-3"
+        trailingClassName="lg:min-h-0"
+        leading={
+          isProjectListRoute ? (
+            <>
+              <div className="h-1.5 w-8 rounded-full bg-brand-red" />
+              <span className="whitespace-nowrap text-[13px] font-medium uppercase tracking-[0.16em] text-brand-red">
+                Project Charter Module
+              </span>
+            </>
+          ) : undefined
+        }
+        center={
+          isProjectListRoute ? (
+            <div className="relative w-full">
+              <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search by project name, manager, or description"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-4 text-[13px] text-slate-900 outline-none transition-all focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
+              />
+            </div>
+          ) : undefined
+        }
+        trailing={
+          isProjectListRoute ? (
+            <div className="flex flex-nowrap items-center justify-end gap-2 whitespace-nowrap">
+              <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-500 shadow-sm">
+                <Filter size={14} />
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="bg-transparent font-medium text-slate-700 outline-none"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="Planning">Planning</option>
+                  <option value="Active">Active</option>
+                  <option value="Completed">Completed</option>
+                </select>
+                <ChevronDown size={14} className="text-slate-400" />
+              </div>
+
+              <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-500 shadow-sm">
+                <Filter size={14} />
+                <select
+                  value={priorityFilter}
+                  onChange={(event) => setPriorityFilter(event.target.value)}
+                  className="bg-transparent font-medium text-slate-700 outline-none"
+                >
+                  <option value="all">All priorities</option>
+                  <option value="Critical">Critical</option>
+                  <option value="High">High</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Low">Low</option>
+                </select>
+                <ChevronDown size={14} className="text-slate-400" />
+              </div>
+
+              {canManageProject ? (
+                <button
+                  type="button"
+                  onClick={openCreateModal}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-slate-800"
+                >
+                  <Plus size={15} />
+                  Create Project
+                </button>
+              ) : null}
+            </div>
+          ) : undefined
+        }
+      />
       <ProjectCharterFormModal
         key={`charter-form-${formMode}-${selectedProject?.id || 'new'}`}
         isOpen={isFormOpen}

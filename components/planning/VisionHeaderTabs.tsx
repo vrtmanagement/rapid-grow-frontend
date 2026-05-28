@@ -39,7 +39,7 @@ const VisionHeaderTabs: React.FC = () => {
 
   return (
     <div className="min-w-0 max-w-full overflow-x-auto no-scrollbar">
-      <div className="inline-flex min-w-max items-center gap-1.5 rounded-[1.15rem] border border-slate-200 bg-white/95 px-2.5 py-1.5 shadow-[0_10px_28px_rgba(15,23,42,0.07)] backdrop-blur-xl">
+      <div className="inline-flex min-w-max items-center gap-1 rounded-[1rem] border border-slate-200 bg-white/95 px-2 py-1 shadow-[0_8px_22px_rgba(15,23,42,0.06)] backdrop-blur-xl">
         {visibleStages.map((item) => {
           const Icon = iconForStage(item.key);
           const active = item.key === stage;
@@ -48,13 +48,13 @@ const VisionHeaderTabs: React.FC = () => {
             <NavLink
               key={item.key}
               to={buildVisionStageHref(item.key, selection)}
-              className={`inline-flex items-center gap-2 rounded-[0.95rem] px-3 py-2 text-[13px] font-semibold tracking-[-0.01em] transition ${
+              className={`inline-flex items-center gap-1.5 rounded-[0.85rem] px-2.5 py-1.5 text-[12px] font-semibold tracking-[-0.01em] transition ${
                 active
                   ? 'bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.16)]'
                   : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
-              <Icon size={15} className={active ? 'text-brand-red' : 'text-slate-400'} />
+              <Icon size={14} className={active ? 'text-brand-red' : 'text-slate-400'} />
               <span className="whitespace-nowrap">{item.short}</span>
             </NavLink>
           );

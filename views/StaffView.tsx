@@ -15,6 +15,7 @@ import { PlanningState } from '../types';
 import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } from '../utils/avatar';
 import AddEmployeeView from './AddEmployeeView';
 import InviteEmployeeView from './InviteEmployeeView';
+import PageSectionSubnav from '../components/layout/PageSectionSubnav';
 
 type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | string;
 
@@ -552,21 +553,23 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   const reminderDraftScheduleLabel = formatReminderTimeLabel(reminderDraft.time);
 
   return (
-    <div className="-m-16 min-h-full space-y-5 p-8 animate-in fade-in duration-700">
-      {toast && <Toast type={toast.type} message={toast.message} />}
-
-      <div className="rounded-xl border border-slate-200 bg-white px-6 py-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h2 className="text-[30px] font-semibold leading-tight tracking-[-0.03em] text-slate-900">
+    <div className="w-full space-y-10 animate-in fade-in duration-700">
+      <PageSectionSubnav
+        outerClassName="px-0 sm:px-0 lg:px-0"
+        innerClassName="px-6 sm:px-8 lg:px-10"
+        leading={
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="h-1.5 w-8 shrink-0 rounded-full bg-brand-red" />
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-red">
+              Staff
+            </span>
+            <div className="truncate text-[18px] font-semibold tracking-[-0.02em] text-slate-900">
               Employee Directory
-            </h2>
-            <p className="mt-2 text-[14px] text-slate-500">
-              View all Admins, Team Leads, and Employees in one clean directory.
-            </p>
+            </div>
           </div>
-
-          <div className="flex flex-wrap items-center justify-end gap-3">
+        }
+        trailing={
+          <>
             {canInviteEmployee ? (
               <button
                 type="button"
@@ -574,10 +577,10 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
                   setShowInviteEmployeeForm((prev) => !prev);
                   setShowAddEmployeeForm(false);
                 }}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-[6px] border px-5 py-2.5 text-[12px] font-semibold transition ${
+                className={`inline-flex shrink-0 items-center gap-2 rounded-[8px] border px-4 py-2 text-[12px] font-semibold shadow-sm transition-all ${
                   showInviteEmployeeForm
                     ? 'border-brand-red bg-brand-red text-white'
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-brand-red/40 hover:bg-brand-red/[0.04] hover:text-brand-red'
+                    : 'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-brand-red/35 hover:bg-red-50/80 hover:text-brand-red hover:shadow-md'
                 }`}
               >
                 <Mail size={14} />
@@ -592,19 +595,20 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
                   setShowAddEmployeeForm((prev) => !prev);
                   setShowInviteEmployeeForm(false);
                 }}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-[6px] border px-5 py-2.5 text-[12px] font-semibold transition ${
+                className={`inline-flex shrink-0 items-center gap-2 rounded-[8px] border px-4 py-2 text-[12px] font-semibold shadow-sm transition-all ${
                   showAddEmployeeForm
                     ? 'border-brand-red bg-brand-red text-white'
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-brand-red/40 hover:bg-brand-red/[0.04] hover:text-brand-red'
+                    : 'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-brand-red/35 hover:bg-red-50/80 hover:text-brand-red hover:shadow-md'
                 }`}
               >
                 <Plus size={14} />
                 {showAddEmployeeForm ? 'Hide Form' : 'Add Employee'}
               </button>
             ) : null}
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
+      {toast && <Toast type={toast.type} message={toast.message} />}
 
       {canCreateEmployee && showAddEmployeeForm && state ? (
         <div className="relative rounded-xl border border-slate-200 bg-white px-6 py-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
@@ -649,9 +653,9 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
 
       <div
         ref={staffTableCardRef}
-        className="relative overflow-visible rounded-xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]"
+        className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]"
       >
-        <div className="border-b border-slate-100 px-6 py-4">
+        <div className="border-b border-slate-100 px-8 py-4">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="text-[14px] font-medium text-slate-700">
               All Employees ({loading ? rows.length : filteredRows.length})
@@ -783,7 +787,7 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-hidden">
           <table className="w-full border-collapse text-left">
             <thead className="bg-white">
               <tr className="border-b border-slate-100 text-[12px] font-medium text-slate-900">
