@@ -171,7 +171,7 @@ export function ChatMessages({
                 <React.Fragment key={m.id}>
                   {showDateDivider ? (
                     <div className="sticky top-2 z-10 my-5 flex justify-center">
-                      <span className="communication-date-divider rounded-full border border-slate-200 bg-white/95 px-3 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">
+                      <span className="communication-date-divider inline-flex min-w-[8rem] items-center justify-center rounded-full border border-slate-200 bg-white/95 px-3 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">
                         {formatDateDivider(m.createdAt)}
                       </span>
                     </div>

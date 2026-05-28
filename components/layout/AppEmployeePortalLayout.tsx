@@ -22,8 +22,6 @@ import AttendanceView from '../../views/AttendanceView';
 import StaffView from '../../views/StaffView';
 import CommunicationView from '../../communication/views/CommunicationView';
 import { GlobalCommunicationNotifications } from '../../communication/components/GlobalCommunicationNotifications';
-import VisionHeaderTabs from '../../components/planning/VisionHeaderTabs';
-import { isVisionRoute } from '../../components/planning/visionNavigation';
 import ContentView from '../../views/ContentView';
 import ContentCreateView from '../../views/ContentCreateView';
 import SpacesTaskDetailView from '../../views/SpacesTaskDetailView';
@@ -87,9 +85,18 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
     hasPower('MONTHLY_VIEW') ||
     hasPower('WEEKLY_VIEW') ||
     hasPower('DAILY_VIEW');
-  const showVisionHeaderTabs = hasVisionAccess && isVisionRoute(location.pathname);
   const browserHash = typeof window !== 'undefined' ? window.location.hash || '' : '';
-  const isAttendanceRoute = `${location.pathname}${location.hash || ''}${browserHash}`.includes('/attendance');
+  const routePathSource = browserHash.startsWith('#') ? browserHash.slice(1) : location.pathname;
+  const routePath = (routePathSource || location.pathname || '/').split('?')[0] || '/';
+  const isAttendanceRoute = routePath.startsWith('/attendance');
+  const isCommunicationRoute = routePath === '/communication';
+  const isFlushSharedSubnavRoute =
+    routePath === '/' ||
+    isCommunicationRoute ||
+    routePath === '/staff' ||
+    routePath.startsWith('/spaces') ||
+    routePath.startsWith('/workspaces') ||
+    ['/yearly', '/quarterly', '/monthly', '/weekly', '/daily'].includes(routePath);
 
   return (
     <>
@@ -167,17 +174,8 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
           </nav>
         </aside>
         <main className="flex-1 flex flex-col h-screen overflow-hidden">
-          <header
-            className={`app-topbar relative z-40 shrink-0 border-b border-slate-200 bg-white/90 px-4 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95 sm:px-8 ${
-              showVisionHeaderTabs ? 'min-h-[80px] py-3' : 'h-16 flex items-center justify-end'
-            }`}
-          >
-            <div className={`flex w-full items-center gap-3 sm:gap-6 ${showVisionHeaderTabs ? 'justify-between' : 'justify-end'}`}>
-              {showVisionHeaderTabs ? (
-                <div className="min-w-0 flex-1">
-                  <VisionHeaderTabs />
-                </div>
-              ) : null}
+          <header className="app-topbar relative z-40 flex h-16 shrink-0 items-center justify-end border-b border-slate-200 bg-white/90 px-4 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95 sm:px-8">
+            <div className="flex w-full items-center justify-end gap-3 sm:gap-6">
               <div className="flex items-center gap-3 shrink-0">
                 <ThemeToggleButton />
                 <NotificationBellMenu
@@ -203,7 +201,13 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
               </div>
             </div>
           </header>
-          <div className={`app-content flex-1 overflow-y-auto bg-white dark:bg-slate-950/40 ${showVisionHeaderTabs ? 'px-4 pb-8 pt-2 sm:px-8 lg:px-12 lg:pb-12' : isAttendanceRoute ? 'px-4 pb-4 pt-0 sm:px-8 sm:pb-8 sm:pt-0 lg:px-16 lg:pb-16 lg:pt-0' : 'p-4 sm:p-8 lg:p-16'}`}>
+          <div className={`app-content flex-1 bg-white dark:bg-slate-950/40 ${
+            isCommunicationRoute
+              ? 'overflow-hidden p-0'
+              : isAttendanceRoute || isFlushSharedSubnavRoute
+                ? 'overflow-y-auto px-4 pb-4 pt-0 sm:px-8 sm:pb-8 sm:pt-0 lg:px-16 lg:pb-16 lg:pt-0'
+                : 'overflow-y-auto p-4 sm:p-8 lg:p-16'
+          }`}>
             <Routes>
               {hasPower('DASHBOARD_VIEW') && <Route path="/" element={<EmployeeDashboardView />} />}
               {hasPower('SPACES_VIEW') && (

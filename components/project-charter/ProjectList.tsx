@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { BarChart3, Filter, FolderKanban, Plus, Search } from 'lucide-react';
+import { BarChart3, FolderKanban, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { WorkspaceProject } from '../../types';
 import ProjectCard from './ProjectCard';
@@ -55,66 +55,6 @@ const ProjectList: React.FC<ProjectListProps> = ({
 
   return (
     <div className="space-y-8">
-      <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="relative xl:max-w-md xl:flex-1">
-            <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              value={searchTerm}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search by project name, manager, or description"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition-all focus:border-brand-red focus:bg-white focus:ring-2 focus:ring-brand-red/10"
-            />
-          </div>
-
-          <div className="flex flex-col gap-3 md:flex-row">
-            <div className="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-              <Filter size={16} />
-              <select
-                value={statusFilter}
-                onChange={(event) => onStatusFilterChange(event.target.value)}
-                className="bg-transparent font-medium text-slate-700 outline-none"
-              >
-                <option value="all">All statuses</option>
-                <option value="Planning">Planning</option>
-                <option value="Active">Active</option>
-                <option value="Completed">Completed</option>
-              </select>
-            </div>
-
-            <div className="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-              <Filter size={16} />
-              <select
-                value={priorityFilter}
-                onChange={(event) => onPriorityFilterChange(event.target.value)}
-                className="bg-transparent font-medium text-slate-700 outline-none"
-              >
-                <option value="all">All priorities</option>
-                <option value="Critical">Critical</option>
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-brand-red">Project Charter Module</p>
-
-          {canCreate ? (
-            <button
-              type="button"
-              onClick={onCreate}
-              className="inline-flex items-center justify-center gap-3 rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800"
-            >
-              <Plus size={18} />
-              Create Project
-            </button>
-          ) : null}
-        </div>
-      </section>
-
       {isListLoading ? (
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, index) => (

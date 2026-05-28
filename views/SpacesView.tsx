@@ -5,8 +5,9 @@ import { QUARTER_LABELS } from '../appSeedConstants';
 import { Goal, PlanningState, WorkspaceTask } from '../types';
 import { saveGoal } from '../services/goalApi';
 import { getSocket } from '../realtime/socket';
+import PageSectionSubnav from '../components/layout/PageSectionSubnav';
 import { parseDateValue } from '../components/spaces/SpacesFormControls';
-import SpacesMainSections from '../components/spaces/SpacesMainSections';
+import SpacesMainSections, { PremiumCreateTaskButton } from '../components/spaces/SpacesMainSections';
 import {
   BackendRole,
   EmployeeOption,
@@ -2126,7 +2127,18 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   };
 
   return (
-    <div ref={taskHubRootRef} className="-m-16 min-h-full space-y-6 px-6 pb-8 pt-4 animate-in fade-in duration-700">
+    <div ref={taskHubRootRef} className="-mx-16 -mb-16 mt-0 min-h-full overflow-x-hidden space-y-6 px-6 pb-8 pt-0 animate-in fade-in duration-700">
+      <PageSectionSubnav
+        outerClassName="px-6 sm:px-10 lg:px-14"
+        innerClassName="gap-2 py-1.5 lg:min-h-[50px] lg:gap-3.5"
+        leading={
+          <>
+            <div className="h-1.5 w-8 rounded-full bg-brand-red" />
+            <span className="text-[14px] font-medium text-slate-900">Task Hub</span>
+          </>
+        }
+        trailing={<PremiumCreateTaskButton onClick={() => openTaskCreateModal()} />}
+      />
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-[15px]">
           {error}

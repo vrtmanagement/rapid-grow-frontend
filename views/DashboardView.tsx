@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { AdminCardGridSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 import ExecutionMatrix from '../components/dashboard/ExecutionMatrix';
+import PageSectionSubnav from '../components/layout/PageSectionSubnav';
 import { usePermissions } from '../context/usePermissions';
 
 interface Props {
@@ -173,43 +174,47 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-700">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-        <div>
-            <div className="flex items-center gap-2 mb-3">
-            <div className="h-1.5 w-8 bg-brand-red rounded-full"></div>
-            <span className="text-[15px] text-slate-500">Executive Performance Hub</span>
+    <>
+      <PageSectionSubnav
+        innerClassName="gap-1.5 py-1 lg:min-h-[46px] lg:gap-3"
+        leading={
+          <>
+            <div className="h-1.5 w-8 rounded-full bg-brand-red" />
+            <span className="text-[14px] font-medium text-slate-600">Executive Performance Hub</span>
+          </>
+        }
+        trailing={
+          <div className="flex flex-wrap items-center justify-end gap-2.5">
+            <Link
+              to="/employees/add"
+              className="flex items-center gap-2.5 rounded-xl bg-brand-red px-5 py-2 text-[13px] font-bold text-white shadow-lg transition-all hover:bg-brand-navy"
+            >
+              <UserPlus size={16} /> {isSuperAdmin ? 'Add Branch' : 'Add Emp'}
+            </Link>
+            {!isSuperAdmin && (
+              <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
+                <button
+                  onClick={() => setViewScope('individual')}
+                  className={`flex items-center gap-2.5 rounded-lg px-5 py-2 text-[13px] transition-all ${
+                    viewScope === 'individual' ? 'bg-brand-red text-white shadow-lg' : 'text-slate-800 hover:text-brand-red'
+                  }`}
+                >
+                  <User size={15} /> Individual
+                </button>
+                <button
+                  onClick={() => setViewScope('team')}
+                  className={`flex items-center gap-2.5 rounded-lg px-5 py-2 text-[13px] transition-all ${
+                    viewScope === 'team' ? 'bg-brand-red text-white shadow-lg' : 'text-slate-800 hover:text-brand-red'
+                  }`}
+                >
+                  <Users size={15} /> Team Dynamics
+                </button>
+              </div>
+            )}
           </div>
-          <h2 className="text-4xl text-slate-900 leading-none">{isSuperAdmin ? 'Dashboard' : state.uiConfig.dashboardTitle}</h2>
-          <p className="text-slate-500 text-lg mt-3">{state.uiConfig.dashboardSub}</p>
-        </div>
-        
-        <div className="flex items-center gap-4">
-           <Link
-             to="/employees/add"
-             className="flex items-center gap-3 px-8 py-3 rounded-xl bg-brand-red text-white text-[15px] font-bold shadow-lg hover:bg-brand-navy transition-all"
-           >
-             <UserPlus size={18} /> {isSuperAdmin ? 'Add Branch' : 'Add Emp'}
-           </Link>
-           {!isSuperAdmin && (
-           <div className="flex items-center gap-2 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xl">
-           <button 
-            onClick={() => setViewScope('individual')}
-            className={`flex items-center gap-3 px-8 py-3 rounded-xl text-[15px] transition-all ${viewScope === 'individual' ? 'bg-brand-red text-white shadow-lg' : 'text-slate-800 hover:text-brand-red'}`}
-           >
-             <User size={16} /> Individual
-           </button>
-           <button 
-            onClick={() => setViewScope('team')}
-            className={`flex items-center gap-3 px-8 py-3 rounded-xl text-[15px] transition-all ${viewScope === 'team' ? 'bg-brand-red text-white shadow-lg' : 'text-slate-800 hover:text-brand-red'}`}
-           >
-             <Users size={16} /> Team Dynamics
-           </button>
-           </div>
-           )}
-        </div>
-      </div>
-
+        }
+      />
+      <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-700">
       {isSuperAdmin && (
         <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-200">
           <div className="flex items-center gap-3 mb-6">
@@ -366,7 +371,8 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
           </div>
         </>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 
