@@ -2129,7 +2129,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   return (
     <div ref={taskHubRootRef} className="-mx-16 -mb-16 mt-0 min-h-full overflow-x-hidden space-y-6 px-6 pb-8 pt-0 animate-in fade-in duration-700">
       <PageSectionSubnav
-        outerClassName="px-5 sm:px-8 lg:px-12"
+        outerClassName="px-6 sm:px-10 lg:px-14"
         innerClassName="gap-2 py-1.5 lg:min-h-[50px] lg:gap-3.5"
         leading={
           <>

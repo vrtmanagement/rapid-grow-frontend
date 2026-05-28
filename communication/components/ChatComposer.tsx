@@ -114,9 +114,22 @@ export function ChatComposer({
   const canSend = useMemo(() => {
     return (content.trim().length > 0 || files.length > 0) && !disabled && !sending;
   }, [content, files, disabled, sending]);
+  const trimmedEditingContent = content.trim();
+  const originalEditingContent = String(editingMessage?.content || '').trim();
+  const canSaveEdit = !!editingMessage && trimmedEditingContent.length > 0 && trimmedEditingContent !== originalEditingContent && !disabled && !sending;
+  const canSubmitComposer = editingMessage ? canSaveEdit : canSend;
+  const showClearButton = content.length > 0;
+
+  const handleClearContent = () => {
+    setContent('');
+    setSendError(null);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  };
 
   const handleSend = async () => {
-    if (!canSend) return;
+    if (!canSubmitComposer) return;
     try {
       setSending(true);
       setSendError(null);
@@ -220,19 +233,19 @@ export function ChatComposer({
         <div className="relative flex-1">
           {editingMessage ? (
             <div className="mb-2 rounded-2xl border border-blue-100 bg-[#eef4ff] px-3 py-2">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 flex-1">
                   <div className="text-[11px] font-semibold text-slate-700">
                     Editing message
                   </div>
-                  <div className="mt-0.5 truncate text-xs text-slate-600">
+                  <div className="mt-0.5 max-h-12 overflow-hidden whitespace-pre-wrap break-words text-xs leading-5 text-slate-600">
                     {editingMessage.attachment?.fileName || editingMessage.content || 'Message'}
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={onCancelEdit}
-                  className="rounded-md px-2 py-1 text-xs text-slate-600 hover:bg-white/70"
+                  className="self-end rounded-md px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-white/70 sm:self-start"
                 >
                   Cancel
                 </button>
@@ -274,59 +287,106 @@ export function ChatComposer({
               </div>
             </div>
           ) : null}
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => {
-              setContent(e.target.value);
-              notifyTyping();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                void handleSend();
-              }
-            }}
-            disabled={disabled || sending}
-            rows={2}
-            placeholder="Write a message..."
-            className="w-full resize-none rounded-2xl border border-slate-200 bg-[#f8fafc] px-4 py-3 pr-24 text-[14px] leading-relaxed outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
-          />
-          <div className="absolute bottom-2 right-2 flex items-center gap-2">
-            <label
-              className={`inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border ${
-                disabled || sending || editingMessage ? 'border-slate-200 bg-slate-50 opacity-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+          <div className="relative">
+            <textarea
+              ref={textareaRef}
+              value={content}
+              onChange={(e) => {
+                setContent(e.target.value);
+                notifyTyping();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void handleSend();
+                }
+              }}
+              disabled={disabled || sending}
+              rows={2}
+              placeholder="Write a message..."
+              className={`w-full resize-none rounded-2xl border border-slate-200 bg-[#f8fafc] px-4 py-3 text-[14px] leading-relaxed outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 ${
+                editingMessage ? 'pr-12' : 'pr-24'
               }`}
-              title="Attach image, video, audio, or file"
-            >
-              <Paperclip size={16} className="text-slate-700" />
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                disabled={disabled || sending || !!editingMessage}
-                multiple
-                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.rtf,.html,.htm,.css,.js,.json,.xml,.zip,.rar,.7z,.svg,.odt,.odp,.ods"
-                onChange={(e) => {
-                  const selected = Array.from(e.target.files || []);
-                  setFiles((prev) => [...prev, ...selected]);
-                  notifyTyping();
-                }}
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => void handleSend()}
-              disabled={!canSend}
-              className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-colors ${
-                canSend ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-300'
-              }`}
-              aria-label="Send message"
-              title="Send (Enter)"
-            >
-              {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            </button>
+            />
+            {showClearButton ? (
+              <div className="group absolute right-3 top-3">
+                <button
+                  type="button"
+                  onClick={handleClearContent}
+                  disabled={disabled || sending}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Clear message"
+                >
+                  <X size={14} />
+                </button>
+                <div className="pointer-events-none absolute right-0 top-[-2.4rem] rounded-lg bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition group-hover:opacity-100">
+                  Clear message
+                </div>
+              </div>
+            ) : null}
+            {!editingMessage ? (
+              <div className="absolute bottom-2 right-2 flex items-center gap-2">
+                <label
+                  className={`inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border ${
+                    disabled || sending || editingMessage ? 'border-slate-200 bg-slate-50 opacity-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                  title="Attach image, video, audio, or file"
+                >
+                  <Paperclip size={16} className="text-slate-700" />
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    disabled={disabled || sending || !!editingMessage}
+                    multiple
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.rtf,.html,.htm,.css,.js,.json,.xml,.zip,.rar,.7z,.svg,.odt,.odp,.ods"
+                    onChange={(e) => {
+                      const selected = Array.from(e.target.files || []);
+                      setFiles((prev) => [...prev, ...selected]);
+                      notifyTyping();
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void handleSend()}
+                  disabled={!canSubmitComposer}
+                  className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-colors ${
+                    canSubmitComposer ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-300'
+                  }`}
+                  aria-label="Send message"
+                  title="Send (Enter)"
+                >
+                  {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                </button>
+              </div>
+            ) : null}
           </div>
+          {editingMessage ? (
+            <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <button
+                type="button"
+                onClick={onCancelEdit}
+                disabled={sending}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSend()}
+                disabled={!canSubmitComposer}
+                className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                  canSubmitComposer
+                    ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800'
+                    : 'border-slate-200 bg-white text-slate-300'
+                }`}
+              >
+                {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                Save changes
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

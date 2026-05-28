@@ -33,6 +33,10 @@ function formatDueDateLabel(value?: string) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+const ROW_MENU_OFFSET = 8;
+const ROW_MENU_FALLBACK_HEIGHT = 192;
+const ROW_MENU_VIEWPORT_PADDING = 12;
+
 const SpacesTaskTableSection: React.FC<any> = (props) => {
   const {
     columns,
@@ -88,9 +92,40 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
     getAuthHeaders,
   } = props;
   const [activeRowMenuId, setActiveRowMenuId] = React.useState<string | null>(null);
+  const [activeRowMenuPlacement, setActiveRowMenuPlacement] = React.useState<'top' | 'bottom'>('bottom');
+  const tableCardRef = React.useRef<HTMLDivElement | null>(null);
   const activeRowMenuRef = React.useRef<HTMLDivElement | null>(null);
   const activeRowMenuButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const hasSelectedTasks = selectedTaskIds.length > 0;
+
+  const resolveRowMenuPlacement = (triggerEl: HTMLButtonElement | null, menuHeight = ROW_MENU_FALLBACK_HEIGHT) => {
+    if (!triggerEl) return 'bottom' as const;
+
+    const triggerRect = triggerEl.getBoundingClientRect();
+    const cardRect = tableCardRef.current?.getBoundingClientRect();
+    const lowerBoundary = Math.min(window.innerHeight - ROW_MENU_VIEWPORT_PADDING, cardRect?.bottom ?? window.innerHeight);
+    const upperBoundary = Math.max(ROW_MENU_VIEWPORT_PADDING, cardRect?.top ?? 0);
+    const spaceBelow = lowerBoundary - triggerRect.bottom;
+    const spaceAbove = triggerRect.top - upperBoundary;
+
+    if (spaceBelow >= menuHeight + ROW_MENU_OFFSET) return 'bottom' as const;
+    if (spaceAbove >= menuHeight + ROW_MENU_OFFSET) return 'top' as const;
+    return spaceAbove > spaceBelow ? 'top' as const : 'bottom' as const;
+  };
+
+  const handleRowMenuToggle = (taskId: string, event: React.MouseEvent<HTMLButtonElement>) => {
+    setActiveRowMenuId((prev) => {
+      if (prev === taskId) {
+        setActiveRowMenuPlacement('bottom');
+        activeRowMenuButtonRef.current = null;
+        return null;
+      }
+
+      activeRowMenuButtonRef.current = event.currentTarget;
+      setActiveRowMenuPlacement(resolveRowMenuPlacement(event.currentTarget));
+      return taskId;
+    });
+  };
 
   React.useEffect(() => {
     if (!activeRowMenuId) return undefined;
@@ -101,14 +136,38 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
         return;
       }
       setActiveRowMenuId(null);
+      setActiveRowMenuPlacement('bottom');
+      activeRowMenuButtonRef.current = null;
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeRowMenuId]);
 
+  React.useLayoutEffect(() => {
+    if (!activeRowMenuId || !activeRowMenuButtonRef.current) return undefined;
+
+    const updatePlacement = () => {
+      setActiveRowMenuPlacement(
+        resolveRowMenuPlacement(
+          activeRowMenuButtonRef.current,
+          activeRowMenuRef.current?.offsetHeight || ROW_MENU_FALLBACK_HEIGHT,
+        ),
+      );
+    };
+
+    updatePlacement();
+    window.addEventListener('resize', updatePlacement);
+    window.addEventListener('scroll', updatePlacement, true);
+
+    return () => {
+      window.removeEventListener('resize', updatePlacement);
+      window.removeEventListener('scroll', updatePlacement, true);
+    };
+  }, [activeRowMenuId]);
+
   return (
-    <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
+    <div ref={tableCardRef} className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
       <div className="overflow-x-visible overflow-y-visible border-b border-slate-100 [transform:rotateX(180deg)]">
         <table className="w-full table-fixed border-collapse text-left [transform:rotateX(180deg)]">
           <thead className="border-b border-slate-200 bg-slate-50">
@@ -293,18 +352,25 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                             <button
                               ref={activeRowMenuId === t.taskId ? activeRowMenuButtonRef : undefined}
                               type="button"
-                              onClick={() => setActiveRowMenuId((prev) => (prev === t.taskId ? null : t.taskId))}
+                              onClick={(event) => handleRowMenuToggle(t.taskId, event)}
                               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
                               title="Task actions"
                             >
                               <MoreVertical size={16} />
                             </button>
                             {activeRowMenuId === t.taskId ? (
-                              <div ref={activeRowMenuRef} className="absolute right-0 top-full z-20 mt-2 w-40 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2">
+                              <div
+                                ref={activeRowMenuRef}
+                                className={`absolute right-0 z-20 w-40 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2 shadow-lg ${
+                                  activeRowMenuPlacement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'
+                                }`}
+                              >
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setActiveRowMenuId(null);
+                                    setActiveRowMenuPlacement('bottom');
+                                    activeRowMenuButtonRef.current = null;
                                     navigate(`/spaces/task/${t.taskId}`);
                                   }}
                                   className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium text-slate-700 transition hover:bg-slate-50"
@@ -318,6 +384,8 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                                     onClick={() => {
                                       if (!canEditTask(t) || isLockedDoneRow) return;
                                       setActiveRowMenuId(null);
+                                      setActiveRowMenuPlacement('bottom');
+                                      activeRowMenuButtonRef.current = null;
                                       setEditingTask(t);
                                       setEditingTaskMode('edit');
                                       setEditingTaskDraft({
@@ -344,6 +412,8 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                                     type="button"
                                     onClick={() => {
                                       setActiveRowMenuId(null);
+                                      setActiveRowMenuPlacement('bottom');
+                                      activeRowMenuButtonRef.current = null;
                                       toggleTaskSelection?.(t);
                                     }}
                                     className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium transition ${
@@ -362,6 +432,8 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                                     onClick={() => {
                                       if (isLockedDoneRow) return;
                                       setActiveRowMenuId(null);
+                                      setActiveRowMenuPlacement('bottom');
+                                      activeRowMenuButtonRef.current = null;
                                       setDeleteTaskModal(t);
                                     }}
                                     disabled={isLockedDoneRow}

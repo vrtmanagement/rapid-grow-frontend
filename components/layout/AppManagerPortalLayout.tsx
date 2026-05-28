@@ -118,14 +118,17 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
   const routePathSource = browserHash.startsWith('#') ? browserHash.slice(1) : location.pathname;
   const routePath = (routePathSource || location.pathname || '/').split('?')[0] || '/';
   const isAttendanceRoute = routePath.startsWith('/attendance');
+  const isCommunicationRoute = routePath === '/communication';
   const isSharedSubnavRoute =
     routePath === '/' ||
+    isCommunicationRoute ||
     routePath === '/staff' ||
     routePath.startsWith('/spaces') ||
     routePath.startsWith('/workspaces') ||
     ['/yearly', '/quarterly', '/monthly', '/weekly', '/daily'].includes(routePath);
   const isFlushSharedSubnavRoute =
     routePath === '/' ||
+    isCommunicationRoute ||
     routePath === '/staff' ||
     routePath.startsWith('/spaces') ||
     routePath.startsWith('/workspaces') ||
@@ -287,7 +290,9 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
           </header>
           <div
             className={`app-content no-scrollbar flex-1 bg-white dark:bg-slate-950/40 ${
-              isAttendanceRoute || isFlushSharedSubnavRoute
+              isCommunicationRoute
+                ? 'overflow-hidden p-0'
+                : isAttendanceRoute || isFlushSharedSubnavRoute
                 ? 'overflow-y-auto px-4 pb-4 pt-0 sm:px-8 sm:pb-8 sm:pt-0 lg:px-16 lg:pb-16 lg:pt-0'
                 : 'overflow-y-auto p-4 sm:p-8 lg:p-16'
             }`}

@@ -89,8 +89,10 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
   const routePathSource = browserHash.startsWith('#') ? browserHash.slice(1) : location.pathname;
   const routePath = (routePathSource || location.pathname || '/').split('?')[0] || '/';
   const isAttendanceRoute = routePath.startsWith('/attendance');
+  const isCommunicationRoute = routePath === '/communication';
   const isFlushSharedSubnavRoute =
     routePath === '/' ||
+    isCommunicationRoute ||
     routePath === '/staff' ||
     routePath.startsWith('/spaces') ||
     routePath.startsWith('/workspaces') ||
@@ -199,7 +201,13 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
               </div>
             </div>
           </header>
-          <div className={`app-content flex-1 overflow-y-auto bg-white dark:bg-slate-950/40 ${isAttendanceRoute || isFlushSharedSubnavRoute ? 'px-4 pb-4 pt-0 sm:px-8 sm:pb-8 sm:pt-0 lg:px-16 lg:pb-16 lg:pt-0' : 'p-4 sm:p-8 lg:p-16'}`}>
+          <div className={`app-content flex-1 bg-white dark:bg-slate-950/40 ${
+            isCommunicationRoute
+              ? 'overflow-hidden p-0'
+              : isAttendanceRoute || isFlushSharedSubnavRoute
+                ? 'overflow-y-auto px-4 pb-4 pt-0 sm:px-8 sm:pb-8 sm:pt-0 lg:px-16 lg:pb-16 lg:pt-0'
+                : 'overflow-y-auto p-4 sm:p-8 lg:p-16'
+          }`}>
             <Routes>
               {hasPower('DASHBOARD_VIEW') && <Route path="/" element={<EmployeeDashboardView />} />}
               {hasPower('SPACES_VIEW') && (
