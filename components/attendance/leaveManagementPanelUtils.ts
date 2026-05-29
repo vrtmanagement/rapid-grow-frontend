@@ -10,32 +10,38 @@ export const REASON_SUGGESTIONS = [
 
 export const LEAVE_TYPE_OPTIONS = [
   {
-    value: 'GENERAL',
-    label: 'General',
+    value: 'CASUAL',
+    label: 'Casual Leave',
     description: 'Personal work, appointments, or planned time away.',
     tone: 'border-slate-200 bg-slate-50 text-slate-700',
   },
   {
     value: 'SICK',
-    label: 'Sick',
+    label: 'Sick Leave',
     description: 'Health recovery, rest, or medical observation.',
     tone: 'border-rose-200 bg-rose-50 text-rose-700',
   },
   {
-    value: 'VACATION',
-    label: 'Vacation',
-    description: 'Planned holiday or recharge time booked in advance.',
-    tone: 'border-sky-200 bg-sky-50 text-sky-700',
+    value: 'PAID',
+    label: 'Paid Leave',
+    description: 'Planned paid time off within approved balance limits.',
+    tone: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   },
   {
-    value: 'EMERGENCY',
-    label: 'Emergency',
-    description: 'Urgent personal or family situations that need attention.',
+    value: 'UNPAID',
+    label: 'Unpaid Leave (LOP)',
+    description: 'Unpaid time off or loss of pay when paid balance is unavailable.',
     tone: 'border-amber-200 bg-amber-50 text-amber-700',
   },
   {
+    value: 'EMERGENCY',
+    label: 'Emergency Leave',
+    description: 'Urgent personal or family situations that need attention.',
+    tone: 'border-orange-200 bg-orange-50 text-orange-700',
+  },
+  {
     value: 'HALF_DAY',
-    label: 'Half day',
+    label: 'Half-Day Leave',
     description: 'A quick request for one half of a working day.',
     tone: 'border-indigo-200 bg-indigo-50 text-indigo-700',
   },
@@ -163,22 +169,47 @@ export function formatDecisionRole(role?: string | null) {
   return '';
 }
 
+export function getLeaveTypeLabel(type?: string | null) {
+  const normalized = String(type || '').trim().toUpperCase();
+  const option = LEAVE_TYPE_OPTIONS.find((entry) => entry.value === normalized);
+  if (option) return option.label;
+  if (normalized === 'GENERAL') return 'Casual Leave';
+  if (normalized === 'VACATION') return 'Paid Leave';
+  return normalized ? normalized.replace(/_/g, ' ') : 'Leave';
+}
+
+export function getLeaveTypeTone(type?: string | null) {
+  const normalized = String(type || '').trim().toUpperCase();
+  const toneMap: Record<string, string> = {
+    CASUAL: 'bg-slate-100 text-slate-700',
+    GENERAL: 'bg-slate-100 text-slate-700',
+    SICK: 'bg-rose-50 text-rose-700',
+    PAID: 'bg-emerald-50 text-emerald-700',
+    VACATION: 'bg-emerald-50 text-emerald-700',
+    UNPAID: 'bg-amber-50 text-amber-700',
+    LOP: 'bg-amber-50 text-amber-700',
+    EMERGENCY: 'bg-orange-50 text-orange-700',
+    HALF_DAY: 'bg-indigo-50 text-indigo-700',
+  };
+  return toneMap[normalized] || toneMap.CASUAL;
+}
+
 export const leaveDetailStatusThemes: Record<
   LeaveRequest['status'],
   { shell: string; panel: string; badge: string }
 > = {
   APPROVED: {
-    shell: 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/70 via-white to-white',
+    shell: 'border-emerald-200/80 bg-white',
     panel: 'border-emerald-100/80 bg-white',
     badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100',
   },
   PENDING: {
-    shell: 'border-amber-200/80 bg-gradient-to-br from-amber-50/75 via-white to-white',
+    shell: 'border-amber-200/80 bg-white',
     panel: 'border-amber-100/80 bg-white',
     badge: 'bg-amber-50 text-amber-700 ring-1 ring-amber-100',
   },
   REJECTED: {
-    shell: 'border-rose-200/80 bg-gradient-to-br from-rose-50/75 via-white to-white',
+    shell: 'border-rose-200/80 bg-white',
     panel: 'border-rose-100/80 bg-white',
     badge: 'bg-rose-50 text-rose-700 ring-1 ring-rose-100',
   },

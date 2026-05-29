@@ -194,7 +194,7 @@ const EmployeeLateAttendanceSection: React.FC<EmployeeLateAttendanceSectionProps
                 No late login records are available for today.
               </div>
             ) : (
-              <div className="max-h-[28.5rem] divide-y divide-slate-100 overflow-y-auto">
+              <div className="max-h-[19.5rem] divide-y divide-slate-100 overflow-y-auto">
                 {lateLoginRecords.map((record) => {
                   const badgeClassName = record.status === 'APPROVED'
                     ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100'
@@ -215,21 +215,20 @@ const EmployeeLateAttendanceSection: React.FC<EmployeeLateAttendanceSectionProps
                                 : 'Late Login'}
                           </span>
                         </div>
-                        {record.approvalReason ? (
-                          <p className="mt-2 text-[12px] leading-5 text-slate-500">{record.approvalReason}</p>
-                        ) : null}
+                        {/* approvalReason intentionally omitted from personal audit list */}
                       </div>
 
-                      <div className="space-y-2 text-[12px] text-slate-500">
-                        <div>
-                          <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">Login time</p>
-                          <p className="mt-1 text-[13px] font-medium text-slate-800">{formatDateTime(record.loginTime || null)}</p>
-                        </div>
-                        <div>
-                          <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">Recorded at</p>
-                          <p className="mt-1 text-[13px] font-medium text-slate-800">
-                            {formatDateTime(record.approvalTimestamp || record.attemptedAt)}
-                          </p>
+                      <div className="text-[12px] text-slate-500">
+                        <div className="flex flex-wrap items-start gap-8">
+                          <div>
+                            <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">Login time</p>
+                            <p className="mt-1 text-[13px] font-medium text-slate-800">{formatDateTime(record.loginTime || null)}</p>
+                          </div>
+
+                          <div>
+                            <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">Recorded at</p>
+                            <p className="mt-1 text-[13px] font-medium text-slate-800">{formatDateTime(record.approvalTimestamp || record.attemptedAt)}</p>
+                          </div>
                         </div>
                       </div>
 

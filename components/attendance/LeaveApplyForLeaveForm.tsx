@@ -1,4 +1,4 @@
-import React, { RefObject } from 'react';
+import React, { RefObject, useEffect, useRef, useState } from 'react';
 import { CalendarDays, ChevronDown, Sparkles, Wand2 } from 'lucide-react';
 import DatePickerPopup from './DatePickerPopup';
 import { LEAVE_TYPE_OPTIONS, formatDisplayDate, ActivePopup } from './leaveManagementPanelUtils';
@@ -23,7 +23,6 @@ interface LeaveApplyForLeaveFormProps {
   typeFieldRef: RefObject<HTMLDivElement | null>;
   hasInvalidRange: boolean;
   calculatedDays: number;
-  filteredSuggestions: string[];
   selectedLeaveTypeOption: (typeof LEAVE_TYPE_OPTIONS)[number];
   onSubmitLeave: () => void;
 }
@@ -45,10 +44,66 @@ const LeaveApplyForLeaveForm: React.FC<LeaveApplyForLeaveFormProps> = ({
   typeFieldRef,
   hasInvalidRange,
   calculatedDays,
-  filteredSuggestions,
   selectedLeaveTypeOption,
   onSubmitLeave,
 }) => {
+  const [typePopupPlacement, setTypePopupPlacement] = useState<'top' | 'bottom'>('bottom');
+  const reasonTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (activePopup !== 'type') return undefined;
+
+    const updateTypePopupPlacement = () => {
+      const field = typeFieldRef.current;
+      if (!field) {
+        setTypePopupPlacement('bottom');
+        return;
+      }
+
+      const rect = field.getBoundingClientRect();
+      const estimatedPopupHeight = 320;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+
+      if (spaceBelow < estimatedPopupHeight && spaceAbove > spaceBelow) {
+        setTypePopupPlacement('top');
+        return;
+      }
+
+      setTypePopupPlacement('bottom');
+    };
+
+    updateTypePopupPlacement();
+    window.addEventListener('resize', updateTypePopupPlacement);
+    window.addEventListener('scroll', updateTypePopupPlacement, true);
+
+    return () => {
+      window.removeEventListener('resize', updateTypePopupPlacement);
+      window.removeEventListener('scroll', updateTypePopupPlacement, true);
+    };
+  }, [activePopup, typeFieldRef]);
+
+  useEffect(() => {
+    const textarea = reasonTextareaRef.current;
+    if (!textarea) return;
+
+    const computedStyle = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(computedStyle.lineHeight) || 24;
+    const minRows = 2;
+    const maxRows = 4;
+    const verticalPadding =
+      (Number.parseFloat(computedStyle.paddingTop) || 0) + (Number.parseFloat(computedStyle.paddingBottom) || 0);
+    const borderHeight =
+      (Number.parseFloat(computedStyle.borderTopWidth) || 0) + (Number.parseFloat(computedStyle.borderBottomWidth) || 0);
+    const minHeight = lineHeight * minRows + verticalPadding + borderHeight;
+    const maxHeight = lineHeight * maxRows + verticalPadding + borderHeight;
+
+    textarea.style.height = 'auto';
+    const nextHeight = Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  }, [leaveReason]);
+
   return (
     <section className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)]">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -58,9 +113,7 @@ const LeaveApplyForLeaveForm: React.FC<LeaveApplyForLeaveFormProps> = ({
             Leave request
           </div>
           <h3 className="mt-3 text-xl font-semibold text-slate-900">Apply for leave</h3>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-            Submit leave in a structured way with smart suggestions, auto day calculation, and a backend-ready workflow.
-          </p>
+        
         </div>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Duration</p>
@@ -146,72 +199,19 @@ const LeaveApplyForLeaveForm: React.FC<LeaveApplyForLeaveFormProps> = ({
 
       <div className="relative mt-4" ref={reasonFieldRef}>
         <span className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-400">Reason</span>
-        <button
-          type="button"
-          onClick={() => setActivePopup((prev) => (prev === 'reason' ? null : 'reason'))}
-          className={`w-full rounded-[24px] border px-4 py-3 text-left outline-none transition ${
-            activePopup === 'reason'
-              ? 'border-brand-red/35 bg-white ring-4 ring-brand-red/10'
-              : 'border-slate-200 bg-slate-50/70 hover:border-slate-300 hover:bg-white'
-          }`}
-        >
+        <div className="rounded-[24px] border border-slate-200 bg-white p-4 transition focus-within:border-brand-red/35 focus-within:ring-4 focus-within:ring-brand-red/10">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className={`text-sm ${leaveReason ? 'font-medium text-slate-800' : 'text-slate-400'}`}>
-                {leaveReason || 'Add the reason for your leave request'}
-              </p>
-              <p className="mt-2 text-xs text-slate-400">Open a focused writing panel with smart suggestions</p>
-            </div>
-            <Wand2 size={18} className={activePopup === 'reason' ? 'text-brand-red' : 'text-slate-400'} />
-          </div>
-        </button>
-
-        {activePopup === 'reason' ? (
-          <div className="absolute left-0 right-0 top-[calc(100%+12px)] z-30 rounded-[26px] border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.14)] animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Reason details</p>
-                <h4 className="mt-1 text-sm font-semibold text-slate-900">Write a clear approver note</h4>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActivePopup(null)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-              >
-                Close
-              </button>
-            </div>
-
             <textarea
+              ref={reasonTextareaRef}
               value={leaveReason}
               onChange={(e) => onChangeReason(e.target.value)}
-              rows={5}
-              autoFocus
-              className="mt-4 w-full rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-brand-red/35 focus:bg-white focus:ring-4 focus:ring-brand-red/10"
-              placeholder="Add the reason for your leave request"
+              rows={2}
+              className="min-h-[56px] max-h-[112px] w-full resize-none overflow-y-hidden bg-transparent text-sm leading-7 text-slate-700 outline-none placeholder:text-slate-400"
+              placeholder="Type your leave reason here."
             />
-
-            <div className="mt-4">
-              <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                <Wand2 size={13} />
-                Smart suggestions
-              </div>
-              <div className="grid gap-2">
-                {filteredSuggestions.slice(0, 4).map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    onClick={() => onChangeReason(suggestion)}
-                    className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-3 text-left text-sm text-slate-600 transition hover:border-brand-red/20 hover:bg-white hover:text-slate-900"
-                  >
-                    <span>{suggestion}</span>
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Use</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <Wand2 size={18} className="mt-1 shrink-0 text-slate-300" />
           </div>
-        ) : null}
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
@@ -228,18 +228,19 @@ const LeaveApplyForLeaveForm: React.FC<LeaveApplyForLeaveFormProps> = ({
           >
             <div>
               <p className="text-sm font-semibold text-slate-900">{selectedLeaveTypeOption.label}</p>
-              <p className="mt-1 text-xs text-slate-400">{selectedLeaveTypeOption.description}</p>
             </div>
             <ChevronDown size={18} className={activePopup === 'type' ? 'text-brand-red' : 'text-slate-400'} />
           </button>
 
           {activePopup === 'type' ? (
-            <div className="absolute left-0 right-0 top-[calc(100%+12px)] z-30 rounded-[26px] border border-slate-200 bg-white p-3 shadow-[0_24px_70px_rgba(15,23,42,0.14)] animate-in fade-in zoom-in-95 duration-200">
+            <div className={`absolute left-0 right-0 z-30 rounded-[26px] border border-slate-200 bg-white p-3 shadow-[0_24px_70px_rgba(15,23,42,0.14)] animate-in fade-in zoom-in-95 duration-200 ${
+              typePopupPlacement === 'top' ? 'bottom-[calc(100%+12px)]' : 'top-[calc(100%+12px)]'
+            }`}>
               <div className="mb-2 px-2">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Leave type</p>
                 <h4 className="mt-1 text-sm font-semibold text-slate-900">Choose the best category</h4>
               </div>
-              <div className="grid gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {LEAVE_TYPE_OPTIONS.map((option) => (
                   <button
                     key={option.value}
@@ -248,14 +249,13 @@ const LeaveApplyForLeaveForm: React.FC<LeaveApplyForLeaveFormProps> = ({
                       onChangeType(option.value);
                       setActivePopup(null);
                     }}
-                    className={`rounded-2xl border px-4 py-3 text-left transition ${
+                    className={`rounded-2xl border bg-white px-4 py-3 text-left transition ${
                       leaveType === option.value
-                        ? 'border-brand-red/25 bg-brand-red/5 shadow-sm'
-                        : `${option.tone} hover:shadow-sm`
+                        ? 'border-brand-red/35 shadow-[0_10px_22px_rgba(239,68,68,0.08)]'
+                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                     }`}
                   >
                     <p className="text-sm font-semibold text-slate-900">{option.label}</p>
-                    <p className="mt-1 text-xs text-slate-500">{option.description}</p>
                   </button>
                 ))}
               </div>

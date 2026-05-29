@@ -1,12 +1,18 @@
 import React from 'react';
 import { CalendarDays } from 'lucide-react';
 import { LeaveRequest, formatLeaveDayCount } from './attendanceUtils';
+import { getLeaveTypeLabel } from './leaveManagementPanelUtils';
 
 interface PendingApprovalsPanelProps {
   pendingLeaves: LeaveRequest[];
   onLeaveAction: (id: string, action: 'APPROVE' | 'REJECT') => void;
   formatApprovalDate: (value: string) => string;
-  calculateLeaveDays: (start?: string, end?: string, excludeWeekends?: boolean) => { total: number; invalid: boolean };
+  calculateLeaveDays: (
+    start?: string,
+    end?: string,
+    excludeWeekends?: boolean,
+    options?: { type?: string; dayPortion?: string },
+  ) => { total: number; invalid: boolean };
   sectionClassName?: string;
   gridClassName?: string;
   showEmployeeLabelHeading?: boolean;
@@ -68,7 +74,7 @@ const PendingApprovalsPanel: React.FC<PendingApprovalsPanelProps> = ({
               <div className="mt-3 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Reason</p>
                 <p className={`mt-2 font-medium leading-7 tracking-[-0.01em] text-slate-800 ${compactTitleLine ? 'text-sm' : 'text-[15px]'}`}>
-                  {leave.reason || leave.type}
+                  {leave.reason || getLeaveTypeLabel(leave.type)}
                 </p>
               </div>
               <div className="mt-4 flex gap-3">

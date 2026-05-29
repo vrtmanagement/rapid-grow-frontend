@@ -1,6 +1,6 @@
 import React from 'react';
-import { Activity, Clock, History } from 'lucide-react';
-import { AttendanceSummaryResponse, Range, formatMinutes } from './attendanceUtils';
+import { Activity, Clock, History, NotebookPen } from 'lucide-react';
+import { AttendanceSummaryResponse, LeaveBalanceOverviewResponse, Range, formatMinutes } from './attendanceUtils';
 import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
   onOpenHistory?: () => void;
   variant?: 'employee' | 'manager';
   loading?: boolean;
+  leaveBalanceOverview?: LeaveBalanceOverviewResponse | null;
 }
 
 const AttendanceSummaryCards: React.FC<Props> = ({
@@ -25,6 +26,7 @@ const AttendanceSummaryCards: React.FC<Props> = ({
   onOpenHistory,
   variant = 'manager',
   loading = false,
+  leaveBalanceOverview = null,
 }) => {
   const totalHours = summary ? parseFloat((summary.totalMinutes / 60).toFixed(2)) : 0;
   const totalDays = summary?.days.length ?? 0;
@@ -39,7 +41,7 @@ const AttendanceSummaryCards: React.FC<Props> = ({
     return (
       <>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, index) => (
+          {Array.from({ length: 4 }).map((_, index) => (
             <div
               key={`attendance-card-${index}`}
               className={`flex items-center gap-4 border border-slate-200 bg-white p-5 animate-pulse ${
@@ -74,6 +76,10 @@ const AttendanceSummaryCards: React.FC<Props> = ({
   }
 
   if (isEmployeeVariant) {
+    const leaveBalanceCard = leaveBalanceOverview?.dashboardCard;
+    const leaveBalanceBadges = leaveBalanceCard?.badges || [];
+    const leaveAvailable = leaveBalanceCard?.totalAvailable || 0;
+
     const cards = [
       {
         key: 'hours',
@@ -100,18 +106,18 @@ const AttendanceSummaryCards: React.FC<Props> = ({
 
     return (
       <>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-4">
           {cards.map((card) => {
             const content = (
               <>
-                <div className={`flex h-12 w-12 items-center justify-center rounded-[18px] ${card.iconClassName}`}>
+                <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${card.iconClassName}`}>
                   {card.icon}
                 </div>
                 <div className="min-w-0">
-                  <p className="mb-1 text-[0.95rem] text-slate-500">{card.label}</p>
+                  <p className="mb-1 text-[0.8rem] text-slate-500">{card.label}</p>
                   <p
                     className={`font-semibold leading-none text-slate-950 ${
-                      card.key === 'today' ? 'text-[1.35rem]' : 'text-[1.55rem]'
+                      card.key === 'today' ? 'text-[1.08rem]' : 'text-[1.2rem]'
                     }`}
                     style={card.key === 'today' ? { color: todayColor || '#0f172a' } : undefined}
                   >
@@ -134,7 +140,7 @@ const AttendanceSummaryCards: React.FC<Props> = ({
                       onOpenHistory();
                     }
                   }}
-                  className="flex cursor-pointer items-center gap-3 rounded-[28px] border border-slate-200 bg-white px-5 py-4 focus:outline-none focus:ring-2 focus:ring-brand-red/20"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-[22px] border border-slate-200 bg-white px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-red/20"
                 >
                   {content}
                 </div>
@@ -144,12 +150,45 @@ const AttendanceSummaryCards: React.FC<Props> = ({
             return (
               <div
                 key={card.key}
-                className="flex items-center gap-3 rounded-[28px] border border-slate-200 bg-white px-5 py-4"
+                className="flex items-center gap-2.5 rounded-[22px] border border-slate-200 bg-white px-3.5 py-2.5"
               >
                 {content}
               </div>
             );
           })}
+
+          <div className="rounded-[22px] border border-slate-200 bg-white px-3.5 py-2.5 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                <NotebookPen size={16} />
+              </div>
+              <div>
+                <p className="text-[0.8rem] text-slate-500">Leave balance</p>
+                <p className="mt-1 text-[1.2rem] font-semibold leading-none text-slate-950">
+                  {leaveAvailable.toFixed(leaveAvailable % 1 === 0 ? 0 : 1)} days
+                </p>
+              </div>
+            </div>
+
+            {leaveBalanceBadges.length ? (
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                {leaveBalanceBadges.slice(0, 2).map((badge) => (
+                  <span
+                    key={badge}
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                      badge === 'LOP Applied'
+                        ? 'bg-amber-50 text-amber-700'
+                        : badge === 'No Paid Leaves Left'
+                          ? 'bg-rose-50 text-rose-700'
+                          : 'bg-sky-50 text-sky-700'
+                    }`}
+                  >
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
 
       </>
@@ -158,25 +197,25 @@ const AttendanceSummaryCards: React.FC<Props> = ({
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 flex items-center gap-4">
-          <div className="w-11 h-11 rounded-2xl bg-brand-red/10 flex items-center justify-center">
-            <Activity className="text-brand-red" size={20} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="flex items-center gap-3 rounded-[22px] border border-slate-200 bg-white px-4 py-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-red/10">
+            <Activity className="text-brand-red" size={18} />
           </div>
           <div>
-            <p className="text-xs text-slate-500 mb-1">{totalHoursLabel}</p>
-            <p className="text-2xl font-semibold text-slate-900">
+            <p className="mb-1 text-[0.8rem] text-slate-500">{totalHoursLabel}</p>
+            <p className="text-[1.2rem] font-semibold leading-none text-slate-900">
               {totalHours.toFixed(2)}h
             </p>
           </div>
         </div>
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 flex items-center gap-4">
-          <div className="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center">
-            <Clock className="text-emerald-600" size={20} />
+        <div className="flex items-center gap-3 rounded-[22px] border border-slate-200 bg-white px-4 py-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
+            <Clock className="text-emerald-600" size={18} />
           </div>
           <div>
-            <p className="text-xs text-slate-500 mb-1">Today status</p>
-            <p className="text-sm font-semibold" style={{ color: todayColor || '#64748b' }}>
+            <p className="mb-1 text-[0.8rem] text-slate-500">Today status</p>
+            <p className="text-[1.05rem] font-semibold leading-none" style={{ color: todayColor || '#64748b' }}>
               {formatMinutes(todayMinutes)}
             </p>
           </div>
@@ -184,21 +223,36 @@ const AttendanceSummaryCards: React.FC<Props> = ({
         <button
           type="button"
           onClick={onOpenHistory}
-          className="bg-white rounded-3xl border border-slate-200 p-5 flex items-center gap-4 text-left transition-colors hover:border-slate-300 disabled:hover:border-slate-200"
+          className="flex items-center gap-3 rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-left transition-colors hover:border-slate-300 disabled:hover:border-slate-200"
           disabled={!onOpenHistory}
         >
-          <div className="w-11 h-11 rounded-2xl bg-slate-900 flex items-center justify-center">
-            <History className="text-white" size={20} />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900">
+            <History className="text-white" size={18} />
           </div>
           <div className="flex-1 flex items-center justify-between gap-2">
             <div>
-              <p className="text-xs text-slate-500 mb-1">Attendance history</p>
-              <p className="text-sm font-semibold text-slate-900">
+              <p className="mb-1 text-[0.8rem] text-slate-500">Attendance history</p>
+              <p className="text-[1.05rem] font-semibold leading-none text-slate-900">
                 {(summary?.days.length || 0).toString().padStart(2, '0')} days
               </p>
             </div>
           </div>
         </button>
+        <div className="rounded-[22px] border border-slate-200 bg-white px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100">
+              <NotebookPen className="text-slate-500" size={18} />
+            </div>
+            <div>
+              <p className="mb-1 text-[0.8rem] text-slate-500">Leave balance</p>
+              <p className="text-[1.2rem] font-semibold leading-none text-slate-900">
+                {(leaveBalanceOverview?.dashboardCard?.totalAvailable || 0).toFixed(
+                  (leaveBalanceOverview?.dashboardCard?.totalAvailable || 0) % 1 === 0 ? 0 : 1,
+                )}d
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
@@ -214,4 +268,3 @@ const AttendanceSummaryCards: React.FC<Props> = ({
 };
 
 export default AttendanceSummaryCards;
-

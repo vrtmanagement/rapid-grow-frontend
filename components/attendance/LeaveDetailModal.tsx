@@ -1,5 +1,6 @@
 import React from 'react';
 import { LeaveRequest } from './attendanceUtils';
+import { getLeaveTypeLabel } from './leaveManagementPanelUtils';
 
 interface LeaveDetailModalProps {
   selectedDetailLeave: LeaveRequest | null;
@@ -28,7 +29,7 @@ const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Leave details</p>
-            <h3 className="mt-2 text-[1.9rem] font-semibold tracking-[-0.03em] text-slate-950">{selectedDetailLeave.type}</h3>
+            <h3 className="mt-2 text-[1.9rem] font-semibold tracking-[-0.03em] text-slate-950">{getLeaveTypeLabel(selectedDetailLeave.type)}</h3>
           </div>
           <button
             type="button"

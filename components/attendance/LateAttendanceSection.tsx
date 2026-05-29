@@ -133,11 +133,14 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
       : 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200';
 
     return (
-      <div key={record.id} className="grid gap-4 px-6 py-4 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,0.9fr)] md:px-8">
+      <div
+        key={record.id}
+        className="grid gap-2.5 px-6 py-3.5 md:grid-cols-[minmax(0,1.28fr)_minmax(128px,0.62fr)_minmax(138px,0.66fr)_minmax(176px,0.56fr)] md:px-8 md:gap-3"
+      >
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-[15px] font-semibold text-slate-900">{record.empName}</p>
-            <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${badgeClassName}`}>
+            <p className="truncate text-[14px] font-semibold text-slate-900">{record.empName}</p>
+            <span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${badgeClassName}`}>
               {record.status === 'APPROVED'
                 ? 'Approved Late Login'
                 : record.status === 'REQUESTED'
@@ -145,31 +148,28 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                   : 'Late Login'}
             </span>
           </div>
-          <p className="mt-1 text-[12px] text-slate-500">
+          <p className="mt-1 text-[11px] leading-5 text-slate-500">
             {[record.empId, record.designation || record.role, record.department].filter(Boolean).join(' • ')}
           </p>
-          {record.approvalReason ? (
-            <p className="mt-2 text-[12px] leading-5 text-slate-500">{record.approvalReason}</p>
-          ) : null}
+          {/* approvalReason intentionally omitted from audit list to keep entries concise */}
         </div>
 
-        <div className="space-y-2 text-[12px] text-slate-500">
-          <div>
-            <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">Login time</p>
-            <p className="mt-1 text-[13px] font-medium text-slate-800">{formatLateLoginDateTime(record.loginTime || null)}</p>
-          </div>
-          <div>
-            <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">
-              {record.status === 'APPROVED' ? 'Approved at' : 'Attempted at'}
-            </p>
-            <p className="mt-1 text-[13px] font-medium text-slate-800">
-              {formatLateLoginDateTime(record.approvalTimestamp || record.attemptedAt)}
-            </p>
-          </div>
+        <div className="min-w-0 space-y-0.5 text-[11px] text-slate-500">
+          <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">Login time</p>
+          <p className="text-[12px] font-medium text-slate-800">{formatLateLoginDateTime(record.loginTime || null)}</p>
         </div>
 
-        <div className="space-y-2 md:text-right">
-          <span className={`inline-flex rounded-full px-3 py-1 text-[10px] font-semibold ${secondaryBadgeClassName}`}>
+        <div className="min-w-0 space-y-0.5 text-[11px] text-slate-500">
+          <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">
+            {record.status === 'APPROVED' ? 'Approved at' : 'Attempted at'}
+          </p>
+          <p className="text-[12px] font-medium text-slate-800">
+            {formatLateLoginDateTime(record.approvalTimestamp || record.attemptedAt)}
+          </p>
+        </div>
+
+        <div className="min-w-0 space-y-1.5 md:justify-self-end md:text-right">
+          <span className={`inline-flex rounded-full px-3 py-1 text-[9px] font-semibold md:self-end ${secondaryBadgeClassName}`}>
             {record.status === 'APPROVED'
               ? (record.loginTime ? 'Login completed' : 'Approval active')
               : record.status === 'REQUESTED'
@@ -177,13 +177,13 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
               : 'Access blocked'}
           </span>
           {record.status === 'APPROVED' ? (
-            <p className="text-[12px] text-slate-500">
+            <p className="text-[11px] leading-5 text-slate-500">
               {record.approvedByName
                 ? `${record.approvedByName}${record.approvedByRole ? ` • ${record.approvedByRole}` : ''}`
                 : 'Approved by manager'}
             </p>
           ) : (
-            <p className="text-[12px] text-slate-500">
+            <p className="text-[11px] leading-5 text-slate-500">
               {record.status === 'REQUESTED' ? 'Employee requested manager approval' : 'Requires TL/Admin approval'}
             </p>
           )}
@@ -241,17 +241,14 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-        <div className="space-y-6 lg:col-span-4">
-          <div className="rounded-[30px] border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-navy p-6 text-white shadow-[0_18px_44px_rgba(15,23,42,0.18)]">
+      <div className="grid grid-cols-1 items-stretch gap-8 lg:grid-cols-12">
+        <div className="space-y-6 lg:col-span-4 lg:h-full">
+          <div className="h-full rounded-[30px] border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-navy p-6 text-white shadow-[0_18px_44px_rgba(15,23,42,0.18)]">
             <div className="mb-3 flex items-center gap-2">
               <div className="h-1.5 w-8 rounded-full bg-brand-red" />
               <span className="text-[15px] text-slate-300">Late Login Desk</span>
             </div>
             <h3 className="text-2xl font-semibold text-white">Approval control</h3>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              Approve one-day late login access for a selected employee and keep the record audit-ready.
-            </p>
 
             <label className="mt-6 block">
               <span className="mb-2 block text-[13px] font-semibold text-slate-200">Select employee</span>
@@ -406,8 +403,8 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
           </div>
         </div>
 
-        <div className="lg:col-span-8">
-          <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
+        <div className="lg:col-span-8 lg:h-full">
+          <div className="flex h-full flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
             <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 md:flex-row md:items-center md:justify-between md:px-8">
               <div>
                 <div className="mb-3 flex items-center gap-2">
@@ -415,9 +412,6 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                   <span className="text-[15px] text-slate-500">Late login audit</span>
                 </div>
                 <h3 className="text-2xl font-semibold text-slate-950">Today late login records</h3>
-                <p className="mt-2 text-[15px] text-slate-500">
-                  View approved and rejected late login activity for the current day in one place.
-                </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -441,23 +435,16 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                     </button>
                   ))}
                 </div>
-
-                <button
-                  type="button"
-                  onClick={onRefreshLateActivity}
-                  disabled={teamAttendanceSummaryLoading}
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <RefreshCw size={14} className={teamAttendanceSummaryLoading ? 'animate-spin' : ''} />
-                  Refresh
-                </button>
               </div>
             </div>
 
             {teamAttendanceSummaryLoading ? (
-              <div className="max-h-[28.5rem] divide-y divide-slate-100 overflow-y-auto px-6 py-3 md:px-8">
+              <div className="max-h-[19.5rem] flex-1 divide-y divide-slate-100 overflow-y-auto px-6 py-3 md:px-8">
                 {Array.from({ length: 6 }).map((_, index) => (
-                  <div key={`late-history-skeleton-${index}`} className="grid gap-4 py-4 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
+                  <div
+                    key={`late-history-skeleton-${index}`}
+                    className="grid gap-4 py-4 md:grid-cols-[minmax(0,1.25fr)_minmax(160px,0.72fr)_minmax(170px,0.8fr)_minmax(210px,0.95fr)]"
+                  >
                     <div>
                       <div className="h-4 w-48 rounded bg-slate-100" />
                       <div className="mt-3 h-3 w-32 rounded bg-slate-100" />
@@ -467,8 +454,12 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                       <div className="mt-3 h-4 w-28 rounded bg-slate-100" />
                     </div>
                     <div>
-                      <div className="ml-auto h-6 w-28 rounded-full bg-slate-100" />
-                      <div className="ml-auto mt-3 h-3 w-24 rounded bg-slate-100" />
+                      <div className="h-3 w-24 rounded bg-slate-100" />
+                      <div className="mt-3 h-4 w-28 rounded bg-slate-100" />
+                    </div>
+                    <div>
+                      <div className="h-6 w-28 rounded-full bg-slate-100" />
+                      <div className="mt-3 h-3 w-24 rounded bg-slate-100" />
                     </div>
                   </div>
                 ))}
@@ -478,7 +469,7 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                 No late login records match the current filter.
               </div>
             ) : (
-              <div className="max-h-[28.5rem] divide-y divide-slate-100 overflow-y-auto">
+              <div className="max-h-[19.5rem] flex-1 divide-y divide-slate-100 overflow-y-auto">
                 {filteredLateLoginRecords.map((record) => renderLateLoginRow(record))}
               </div>
             )}

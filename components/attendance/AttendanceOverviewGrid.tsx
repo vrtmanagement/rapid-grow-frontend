@@ -3,6 +3,7 @@ import {
   AttendanceDay,
   AttendanceSession,
   AttendanceSummaryResponse,
+  LeaveBalanceOverviewResponse,
   LateLoginPolicy,
   LeaveRequest,
   Range,
@@ -60,6 +61,7 @@ interface AttendanceOverviewGridProps {
   onOpenHistory: () => void;
   onOpenTeamAttendance: () => void;
   lateLoginPolicy: LateLoginPolicy | null;
+  leaveBalanceOverview?: LeaveBalanceOverviewResponse | null;
 }
 
 const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
@@ -95,6 +97,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
   onOpenHistory,
   onOpenTeamAttendance,
   lateLoginPolicy,
+  leaveBalanceOverview = null,
 }) => {
   const isEmployeePortal = portalMode === 'employee';
   const isManagerPortal = portalMode === 'manager';
@@ -573,6 +576,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
               onOpenHistory={onOpenHistory}
               variant="employee"
               loading={attendancePageLoading}
+              leaveBalanceOverview={leaveBalanceOverview}
             />
             <AttendancePresenceChart
               summary={summary}
@@ -1086,6 +1090,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
           leaveDaysInRange={leaveDaysInRange}
           onOpenHistory={onOpenHistory}
           loading={attendancePageLoading}
+          leaveBalanceOverview={leaveBalanceOverview}
         />
         <AttendancePresenceChart
           summary={summary}

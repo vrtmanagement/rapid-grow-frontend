@@ -7,6 +7,7 @@ export interface AttendanceEmployeeOption {
   avatar?: string;
   designation?: string;
   department?: string;
+  teamId?: string;
 }
 
 export interface TeamAttendanceSummary {

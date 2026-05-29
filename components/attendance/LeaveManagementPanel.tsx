@@ -1,14 +1,31 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Info } from 'lucide-react';
 import { API_BASE, getAuthHeaders } from '../../config/api';
-import { LeaveRequest } from './attendanceUtils';
+import { getSocket } from '../../realtime/socket';
+import {
+  LeaveAdminActivityItem,
+  LeaveBalanceOverviewResponse,
+  LeavePolicyConfig,
+  LeaveRequest,
+} from './attendanceUtils';
 import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
+import { usePermissions } from '../../context/usePermissions';
 import LeaveCalendarView from './LeaveCalendarView';
 import PendingApprovalsPanel from './PendingApprovalsPanel';
 import LeaveDetailModal from './LeaveDetailModal';
 import LeaveApplyForLeaveForm from './LeaveApplyForLeaveForm';
 import LeaveAdminLeaveOperationsSection from './LeaveAdminLeaveOperationsSection';
 import LeaveHistoryRecordsSection from './LeaveHistoryRecordsSection';
+import LeaveBalanceOverviewSection from './LeaveBalanceOverviewSection';
+import LeaveAdminPolicySection from './LeaveAdminPolicySection';
+import {
+  createLeaveAdjustment as createLeaveAdjustmentApi,
+  downloadLeaveReport,
+  fetchLeaveActivity,
+  fetchLeaveBalanceOverview,
+  fetchLeavePolicies,
+  saveLeavePolicy,
+} from './leaveBalanceApi';
 import {
   REASON_SUGGESTIONS,
   LEAVE_TYPE_OPTIONS,
@@ -26,6 +43,9 @@ import {
   normalizeDate,
 } from './leaveManagementPanelUtils';
 import type { FilterDropdownOption } from './FilterDropdown';
+import type { AttendanceEmployeeOption } from './attendanceViewUtils';
+
+type LeavePanelSection = 'workspace' | 'insights' | 'policy';
 
 interface Props {
   leaveStart: string;
@@ -49,6 +69,10 @@ interface Props {
   viewerRole: 'employee' | 'team_lead' | 'admin';
   currentEmployeeId?: string;
   employeeDirectory?: string[];
+  employeeOptions?: AttendanceEmployeeOption[];
+  currentOverview?: LeaveBalanceOverviewResponse | null;
+  currentOverviewLoading?: boolean;
+  activeSection?: LeavePanelSection;
   loading?: boolean;
 }
 
@@ -74,8 +98,13 @@ const LeaveManagementPanel: React.FC<Props> = ({
   viewerRole,
   currentEmployeeId,
   employeeDirectory = [],
+  employeeOptions = [],
+  currentOverview = null,
+  currentOverviewLoading = false,
+  activeSection = 'workspace',
   loading = false,
 }) => {
+  const { hasPermission } = usePermissions();
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
   const [historyEmployeeFilter, setHistoryEmployeeFilter] = useState('');
   const [historyMonthFilter, setHistoryMonthFilter] = useState('');
@@ -99,6 +128,24 @@ const LeaveManagementPanel: React.FC<Props> = ({
   const historyMonthPickerRef = useRef<HTMLDivElement | null>(null);
   const adminEmployeePickerRef = useRef<HTMLDivElement | null>(null);
   const adminMonthPickerRef = useRef<HTMLDivElement | null>(null);
+  const currentMonthValue = useMemo(() => getMonthInputValue(new Date()), []);
+  const [overviewPeriod, setOverviewPeriod] = useState<'month' | 'year'>('month');
+  const [overviewMonth, setOverviewMonth] = useState(currentMonthValue);
+  const [overviewYear, setOverviewYear] = useState(new Date().getFullYear());
+  const [overviewEmployeeEmpId, setOverviewEmployeeEmpId] = useState(currentEmployeeId || '');
+  const [overviewData, setOverviewData] = useState<LeaveBalanceOverviewResponse | null>(currentOverview);
+  const [overviewLoading, setOverviewLoading] = useState(currentOverviewLoading);
+  const [policyItems, setPolicyItems] = useState<LeavePolicyConfig[]>([]);
+  const [activityItems, setActivityItems] = useState<LeaveAdminActivityItem[]>([]);
+  const [policySaving, setPolicySaving] = useState(false);
+  const [adjustmentSaving, setAdjustmentSaving] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const latestOverviewRequestRef = useRef(0);
+  const overviewCacheRef = useRef(new Map<string, LeaveBalanceOverviewResponse>());
+  const canManagePolicy = hasPermission('LEAVE_POLICY_MANAGE');
+  const showWorkspaceSection = activeSection === 'workspace';
+  const showInsightsSection = activeSection === 'insights';
+  const showPolicySection = activeSection === 'policy' && isApproverPortal;
 
   const baseLeaves = useMemo(() => {
     if (viewerRole === 'admin') {
@@ -354,6 +401,101 @@ const LeaveManagementPanel: React.FC<Props> = ({
   }, [baseLeaves]);
 
   useEffect(() => {
+    if (viewerRole === 'employee') {
+      setOverviewEmployeeEmpId(currentEmployeeId || '');
+      return;
+    }
+
+    setOverviewEmployeeEmpId((current) => {
+      if (current && employeeOptions.some((employee) => employee.empId === current)) {
+        return current;
+      }
+      return employeeOptions[0]?.empId || currentEmployeeId || '';
+    });
+  }, [currentEmployeeId, employeeOptions, viewerRole]);
+
+  useEffect(() => {
+    if (!currentOverview) return;
+    if (viewerRole === 'employee' || (currentEmployeeId && overviewEmployeeEmpId === currentEmployeeId)) {
+      setOverviewData(currentOverview);
+    }
+  }, [currentEmployeeId, currentOverview, overviewEmployeeEmpId, viewerRole]);
+
+  useEffect(() => {
+    setOverviewLoading(currentOverviewLoading);
+  }, [currentOverviewLoading]);
+
+  const loadOverview = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
+    const requestId = latestOverviewRequestRef.current + 1;
+    latestOverviewRequestRef.current = requestId;
+
+    const targetEmployeeEmpId =
+      viewerRole === 'employee'
+        ? currentEmployeeId
+        : overviewEmployeeEmpId || currentEmployeeId || employeeOptions[0]?.empId;
+    const overviewCacheKey = [
+      targetEmployeeEmpId || '',
+      overviewPeriod,
+      overviewMonth.slice(5, 7),
+      overviewYear,
+    ].join(':');
+    const cachedOverview = overviewCacheRef.current.get(overviewCacheKey);
+
+    if (!silent) {
+      if (cachedOverview) {
+        setOverviewData(cachedOverview);
+        setOverviewLoading(false);
+      } else {
+        setOverviewLoading(true);
+      }
+    }
+
+    try {
+      const data = await fetchLeaveBalanceOverview({
+        employeeEmpId: targetEmployeeEmpId,
+        period: overviewPeriod,
+        month: overviewMonth.slice(5, 7),
+        year: overviewYear,
+      });
+      overviewCacheRef.current.set(overviewCacheKey, data);
+      if (latestOverviewRequestRef.current === requestId) {
+        setOverviewData(data);
+      }
+    } catch (error) {
+      console.error('Failed to load leave overview section', error);
+      if (!silent && latestOverviewRequestRef.current === requestId) {
+        setOverviewData(null);
+      }
+    } finally {
+      if (latestOverviewRequestRef.current === requestId) {
+        setOverviewLoading(false);
+      }
+    }
+  }, [currentEmployeeId, employeeOptions, overviewEmployeeEmpId, overviewMonth, overviewPeriod, overviewYear, viewerRole]);
+
+  const loadAdminMeta = useCallback(async () => {
+    if (!isApproverPortal) {
+      setPolicyItems([]);
+      setActivityItems([]);
+      return;
+    }
+
+    try {
+      const [policies, activity] = await Promise.all([
+        fetchLeavePolicies(),
+        fetchLeaveActivity(8),
+      ]);
+      setPolicyItems(policies);
+      setActivityItems(activity);
+    } catch (error) {
+      console.error('Failed to load leave admin metadata', error);
+      setPolicyItems([]);
+      setActivityItems([]);
+    }
+  }, [isApproverPortal]);
+
+  useEffect(() => {
     if (viewerRole === 'employee' && historyEmployeeFilter) {
       setHistoryEmployeeFilter('');
       setHistoryEmployeePickerOpen(false);
@@ -365,6 +507,41 @@ const LeaveManagementPanel: React.FC<Props> = ({
     const timer = window.setTimeout(() => setToast(null), 2600);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    void loadOverview();
+  }, [loadOverview]);
+
+  useEffect(() => {
+    void loadAdminMeta();
+  }, [loadAdminMeta]);
+
+  useEffect(() => {
+    if (!baseLeaves.length && !currentOverview && viewerRole !== 'employee') return;
+    void loadOverview({ silent: true });
+  }, [approverLeaves, baseLeaves.length, currentOverview, loadOverview, myLeaves, pendingLeaves, viewerRole]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const handleLeaveLiveRefresh = () => {
+      void loadOverview({ silent: true });
+      if (isApproverPortal) {
+        void loadAdminMeta();
+      }
+    };
+
+    socket.on('leave:created', handleLeaveLiveRefresh);
+    socket.on('leave:updated', handleLeaveLiveRefresh);
+    socket.on('leave:balance_changed', handleLeaveLiveRefresh);
+    socket.on('leave:policy_changed', handleLeaveLiveRefresh);
+
+    return () => {
+      socket.off('leave:created', handleLeaveLiveRefresh);
+      socket.off('leave:updated', handleLeaveLiveRefresh);
+      socket.off('leave:balance_changed', handleLeaveLiveRefresh);
+      socket.off('leave:policy_changed', handleLeaveLiveRefresh);
+    };
+  }, [isApproverPortal, loadAdminMeta, loadOverview]);
 
   useEffect(() => {
     if (viewerRole !== 'admin' || employeeDirectory.length > 0) return undefined;
@@ -513,7 +690,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
     onChangeStart(leave.startDate.slice(0, 10));
     onChangeEnd(leave.endDate.slice(0, 10));
     onChangeReason(leave.reason || '');
-    onChangeType(leave.type || 'GENERAL');
+    onChangeType(leave.type || 'CASUAL');
     setActivePopup(null);
     setToast({ tone: 'info', message: 'Pending leave loaded into the form for quick editing.' });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -525,6 +702,67 @@ const LeaveManagementPanel: React.FC<Props> = ({
       tone: success ? 'success' : 'info',
       message: success ? 'Leave request deleted' : 'Unable to delete leave request',
     });
+  };
+
+  const handleSavePolicy = async (payload: Record<string, unknown>) => {
+    setPolicySaving(true);
+    try {
+      await saveLeavePolicy(payload);
+      await loadAdminMeta();
+      await loadOverview({ silent: true });
+      setToast({ tone: 'success', message: 'Leave policy saved successfully' });
+    } catch (error) {
+      console.error('Failed to save leave policy', error);
+      setToast({ tone: 'info', message: error instanceof Error ? error.message : 'Unable to save leave policy' });
+    } finally {
+      setPolicySaving(false);
+    }
+  };
+
+  const handleCreateAdjustment = async (payload: Record<string, unknown>) => {
+    setAdjustmentSaving(true);
+    try {
+      await createLeaveAdjustmentApi(payload);
+      await Promise.all([
+        loadOverview({ silent: true }),
+        loadAdminMeta(),
+      ]);
+      setToast({ tone: 'success', message: 'Leave balance adjusted successfully' });
+    } catch (error) {
+      console.error('Failed to adjust leave balance', error);
+      setToast({ tone: 'info', message: error instanceof Error ? error.message : 'Unable to adjust leave balance' });
+    } finally {
+      setAdjustmentSaving(false);
+    }
+  };
+
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      const report = await downloadLeaveReport({
+        employeeEmpId:
+          viewerRole === 'employee'
+            ? currentEmployeeId
+            : overviewEmployeeEmpId || currentEmployeeId || employeeOptions[0]?.empId,
+        period: overviewPeriod,
+        month: overviewMonth.slice(5, 7),
+        year: overviewYear,
+      });
+      const url = window.URL.createObjectURL(report.blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = report.filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+      setToast({ tone: 'success', message: 'Leave report exported' });
+    } catch (error) {
+      console.error('Failed to export leave report', error);
+      setToast({ tone: 'info', message: error instanceof Error ? error.message : 'Unable to export leave report' });
+    } finally {
+      setExportLoading(false);
+    }
   };
 
   return (
@@ -540,7 +778,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
         </div>
       ) : null}
 
-      {viewerRole === 'team_lead' ? (
+      {showWorkspaceSection && viewerRole === 'team_lead' ? (
         <PendingApprovalsPanel
           pendingLeaves={pendingLeaves}
           onLeaveAction={onLeaveAction}
@@ -551,133 +789,179 @@ const LeaveManagementPanel: React.FC<Props> = ({
         />
       ) : null}
 
-        <div
-          className={`grid gap-6 ${
-            viewerRole === 'admin'
-              ? pendingLeaves.length > 0
-                ? ''
-                : ''
-              : 'xl:grid-cols-[minmax(0,1.4fr)_380px]'
-          }`}
-        >
-          <div className={viewerRole === 'admin' && pendingLeaves.length > 0 ? 'order-2 space-y-6' : 'space-y-6'}>
-            {canApplyLeave ? (
-              loading ? (
-              <div className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)] animate-pulse">
-                <div className="space-y-4">
-                  <Skeleton className="h-4 w-32" />
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <SkeletonBlock className="h-12 w-full rounded-2xl" />
+      {showInsightsSection ? (
+        <LeaveBalanceOverviewSection
+          overview={overviewData}
+          loading={overviewLoading}
+          viewerRole={viewerRole}
+          employeeOptions={employeeOptions}
+          selectedEmployeeEmpId={overviewEmployeeEmpId}
+          selectedPeriod={overviewPeriod}
+          selectedMonth={overviewMonth.slice(5, 7)}
+          selectedYear={overviewYear}
+          exportLoading={exportLoading}
+          onEmployeeChange={setOverviewEmployeeEmpId}
+          onPeriodChange={setOverviewPeriod}
+          onMonthChange={(value) => setOverviewMonth(`${overviewYear}-${value}`)}
+          onYearChange={(value) => {
+            setOverviewYear(value);
+            setOverviewMonth(`${value}-${overviewMonth.slice(5, 7) || '01'}`);
+          }}
+          onExport={() => {
+            void handleExport();
+          }}
+          onRefresh={() => {
+            void loadOverview();
+          }}
+        />
+      ) : null}
+
+      {showWorkspaceSection ? (
+        <>
+          <div
+            className={`grid gap-6 ${
+              viewerRole === 'admin'
+                ? pendingLeaves.length > 0
+                  ? ''
+                  : ''
+                : 'xl:grid-cols-[minmax(0,1.4fr)_380px]'
+            }`}
+          >
+            <div className={viewerRole === 'admin' && pendingLeaves.length > 0 ? 'order-2 space-y-6' : 'space-y-6'}>
+              {canApplyLeave ? (
+                loading ? (
+                <div className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)] animate-pulse">
+                  <div className="space-y-4">
+                    <Skeleton className="h-4 w-32" />
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <SkeletonBlock className="h-12 w-full rounded-2xl" />
+                      <SkeletonBlock className="h-12 w-full rounded-2xl" />
+                    </div>
+                    <SkeletonBlock className="h-28 w-full rounded-2xl" />
                     <SkeletonBlock className="h-12 w-full rounded-2xl" />
                   </div>
-                  <SkeletonBlock className="h-28 w-full rounded-2xl" />
-                  <SkeletonBlock className="h-12 w-full rounded-2xl" />
                 </div>
-              </div>
+              ) : (
+                <LeaveApplyForLeaveForm
+                  leaveStart={leaveStart}
+                  leaveEnd={leaveEnd}
+                  leaveReason={leaveReason}
+                  leaveType={leaveType}
+                  onChangeStart={onChangeStart}
+                  onChangeEnd={onChangeEnd}
+                  onChangeReason={onChangeReason}
+                  onChangeType={onChangeType}
+                  activePopup={activePopup}
+                  setActivePopup={setActivePopup}
+                  startFieldRef={startFieldRef}
+                  endFieldRef={endFieldRef}
+                  reasonFieldRef={reasonFieldRef}
+                  typeFieldRef={typeFieldRef}
+                  hasInvalidRange={hasInvalidRange}
+                  calculatedDays={calculatedDays}
+                  selectedLeaveTypeOption={selectedLeaveTypeOption}
+                  onSubmitLeave={handleSubmitLeave}
+                />
+              )
             ) : (
-              <LeaveApplyForLeaveForm
-                leaveStart={leaveStart}
-                leaveEnd={leaveEnd}
-                leaveReason={leaveReason}
-                leaveType={leaveType}
-                onChangeStart={onChangeStart}
-                onChangeEnd={onChangeEnd}
-                onChangeReason={onChangeReason}
-                onChangeType={onChangeType}
-                activePopup={activePopup}
-                setActivePopup={setActivePopup}
-                startFieldRef={startFieldRef}
-                endFieldRef={endFieldRef}
-                reasonFieldRef={reasonFieldRef}
-                typeFieldRef={typeFieldRef}
-                hasInvalidRange={hasInvalidRange}
-                calculatedDays={calculatedDays}
-                filteredSuggestions={filteredSuggestions}
-                selectedLeaveTypeOption={selectedLeaveTypeOption}
-                onSubmitLeave={handleSubmitLeave}
+              <LeaveAdminLeaveOperationsSection
+                viewerRole={viewerRole}
+                adminEmployeeFilter={adminEmployeeFilter}
+                setAdminEmployeeFilter={setAdminEmployeeFilter}
+                adminMonthFilter={adminMonthFilter}
+                setAdminMonthFilter={setAdminMonthFilter}
+                adminEmployeePickerOpen={adminEmployeePickerOpen}
+                setAdminEmployeePickerOpen={setAdminEmployeePickerOpen}
+                adminMonthPickerOpen={adminMonthPickerOpen}
+                setAdminMonthPickerOpen={setAdminMonthPickerOpen}
+                adminEmployeePickerRef={adminEmployeePickerRef}
+                adminMonthPickerRef={adminMonthPickerRef}
+                adminEmployeeOptions={adminEmployeeOptions}
+                adminMonthOptions={adminMonthOptions}
+                leaveStats={leaveStats}
               />
-            )
-          ) : (
-            <LeaveAdminLeaveOperationsSection
-              viewerRole={viewerRole}
-              adminEmployeeFilter={adminEmployeeFilter}
-              setAdminEmployeeFilter={setAdminEmployeeFilter}
-              adminMonthFilter={adminMonthFilter}
-              setAdminMonthFilter={setAdminMonthFilter}
-              adminEmployeePickerOpen={adminEmployeePickerOpen}
-              setAdminEmployeePickerOpen={setAdminEmployeePickerOpen}
-              adminMonthPickerOpen={adminMonthPickerOpen}
-              setAdminMonthPickerOpen={setAdminMonthPickerOpen}
-              adminEmployeePickerRef={adminEmployeePickerRef}
-              adminMonthPickerRef={adminMonthPickerRef}
-              adminEmployeeOptions={adminEmployeeOptions}
-              adminMonthOptions={adminMonthOptions}
-              leaveStats={leaveStats}
-            />
-          )}
+            )}
+          </div>
+
+            {viewerRole === 'admin' ? (
+              <PendingApprovalsPanel
+                pendingLeaves={pendingLeaves}
+                onLeaveAction={onLeaveAction}
+                formatApprovalDate={formatApprovalDate}
+                calculateLeaveDays={calculateLeaveDays}
+                sectionClassName="order-1 w-full max-w-[720px] rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)]"
+                gridClassName="mt-5 grid gap-4"
+                showEmployeeLabelHeading={false}
+                compactTitleLine={true}
+              />
+            ) : null}
+
+          {viewerRole !== 'admin' ? (
+            <div className="space-y-6">
+              <LeaveCalendarView
+                leaves={calendarLeaves}
+                selectedStart={leaveStart}
+                selectedEnd={leaveEnd}
+                showEmployeeDetails={viewerRole !== 'employee'}
+                onVisibleMonthChange={viewerRole === 'employee' ? setHistoryMonthFilter : undefined}
+              />
+            </div>
+          ) : null}
         </div>
 
-          {viewerRole === 'admin' ? (
-            <PendingApprovalsPanel
-              pendingLeaves={pendingLeaves}
-              onLeaveAction={onLeaveAction}
-              formatApprovalDate={formatApprovalDate}
-              calculateLeaveDays={calculateLeaveDays}
-              sectionClassName="order-1 w-full max-w-[720px] rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)]"
-              gridClassName="mt-5 grid gap-4"
-              showEmployeeLabelHeading={false}
-              compactTitleLine={true}
-            />
-          ) : null}
+        <LeaveHistoryRecordsSection
+          showHistoryEmployeeFilter={showHistoryEmployeeFilter}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          historyStatusLabel={historyStatusLabel}
+          historyStatusOptions={historyStatusOptions}
+          historyStatusPickerOpen={historyStatusPickerOpen}
+          setHistoryStatusPickerOpen={setHistoryStatusPickerOpen}
+          setHistoryEmployeePickerOpen={setHistoryEmployeePickerOpen}
+          setHistoryMonthPickerOpen={setHistoryMonthPickerOpen}
+          historyStatusPickerRef={historyStatusPickerRef}
+          historyEmployeeFilter={historyEmployeeFilter}
+          setHistoryEmployeeFilter={setHistoryEmployeeFilter}
+          historyEmployeeLabel={historyEmployeeLabel}
+          historyEmployeeOptions={historyEmployeeOptions}
+          formatHistoryEmployeeOptionLabel={formatHistoryEmployeeOptionLabel}
+          historyEmployeePickerOpen={historyEmployeePickerOpen}
+          historyEmployeePickerRef={historyEmployeePickerRef}
+          historyMonthFilter={historyMonthFilter}
+          setHistoryMonthFilter={setHistoryMonthFilter}
+          historyMonthLabel={historyMonthLabel}
+          historyMonthOptions={historyMonthOptions}
+          historyMonthPickerOpen={historyMonthPickerOpen}
+          historyMonthPickerRef={historyMonthPickerRef}
+          leaveLoading={leaveLoading}
+          filteredLeaves={filteredLeaves}
+          isApproverPortal={isApproverPortal}
+          viewerRole={viewerRole}
+          getDecisionLabel={getDecisionLabel}
+          onViewDetails={setSelectedDetailLeave}
+          onEditLeave={handleEditLeave}
+          onDeleteLeave={handleDeleteLeave}
+        />
+      </>
+      ) : null}
 
-        {viewerRole !== 'admin' ? (
-          <div className="space-y-6">
-            <LeaveCalendarView
-              leaves={calendarLeaves}
-              selectedStart={leaveStart}
-              selectedEnd={leaveEnd}
-              showEmployeeDetails={viewerRole !== 'employee'}
-              onVisibleMonthChange={viewerRole === 'employee' ? setHistoryMonthFilter : undefined}
-            />
-          </div>
-        ) : null}
-      </div>
+      {showPolicySection ? (
+        <LeaveAdminPolicySection
+          viewerRole={viewerRole}
+          canManagePolicy={canManagePolicy}
+          policies={policyItems}
+          activity={activityItems}
+          employeeOptions={employeeOptions}
+          savingPolicy={policySaving}
+          savingAdjustment={adjustmentSaving}
+          exportLoading={exportLoading}
+          onSavePolicy={handleSavePolicy}
+          onCreateAdjustment={handleCreateAdjustment}
+          onExport={handleExport}
+        />
+      ) : null}
 
-      <LeaveHistoryRecordsSection
-        showHistoryEmployeeFilter={showHistoryEmployeeFilter}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        historyStatusLabel={historyStatusLabel}
-        historyStatusOptions={historyStatusOptions}
-        historyStatusPickerOpen={historyStatusPickerOpen}
-        setHistoryStatusPickerOpen={setHistoryStatusPickerOpen}
-        setHistoryEmployeePickerOpen={setHistoryEmployeePickerOpen}
-        setHistoryMonthPickerOpen={setHistoryMonthPickerOpen}
-        historyStatusPickerRef={historyStatusPickerRef}
-        historyEmployeeFilter={historyEmployeeFilter}
-        setHistoryEmployeeFilter={setHistoryEmployeeFilter}
-        historyEmployeeLabel={historyEmployeeLabel}
-        historyEmployeeOptions={historyEmployeeOptions}
-        formatHistoryEmployeeOptionLabel={formatHistoryEmployeeOptionLabel}
-        historyEmployeePickerOpen={historyEmployeePickerOpen}
-        historyEmployeePickerRef={historyEmployeePickerRef}
-        historyMonthFilter={historyMonthFilter}
-        setHistoryMonthFilter={setHistoryMonthFilter}
-        historyMonthLabel={historyMonthLabel}
-        historyMonthOptions={historyMonthOptions}
-        historyMonthPickerOpen={historyMonthPickerOpen}
-        historyMonthPickerRef={historyMonthPickerRef}
-        leaveLoading={leaveLoading}
-        filteredLeaves={filteredLeaves}
-        isApproverPortal={isApproverPortal}
-        viewerRole={viewerRole}
-        getDecisionLabel={getDecisionLabel}
-        onViewDetails={setSelectedDetailLeave}
-        onEditLeave={handleEditLeave}
-        onDeleteLeave={handleDeleteLeave}
-      />
-
-      {viewerRole === 'employee' ? (
+      {showWorkspaceSection && viewerRole === 'employee' ? (
         <PendingApprovalsPanel
           pendingLeaves={pendingLeaves}
           onLeaveAction={onLeaveAction}
