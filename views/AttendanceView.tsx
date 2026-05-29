@@ -8,6 +8,7 @@ import AttendanceHistoryPage from '../components/attendance/AttendanceHistoryPag
 import TeamAttendanceSection from '../components/attendance/TeamAttendanceSection';
 import LateAttendanceSection from '../components/attendance/LateAttendanceSection';
 import EmployeeLateAttendanceSection from '../components/attendance/EmployeeLateAttendanceSection';
+import { fetchLeaveBalanceOverview } from '../components/attendance/leaveBalanceApi';
 import {
   AttendanceEmployeeOption,
   TeamAttendanceSummary,
@@ -27,6 +28,7 @@ import {
   AttendanceSession,
   LateLoginSettings,
   AttendanceSummaryResponse,
+  LeaveBalanceOverviewResponse,
   LeaveNotificationItem,
   LeaveRequest,
   Range,
@@ -39,6 +41,8 @@ import {
 interface Props {
   mode?: 'manager' | 'employee';
 }
+
+type LeaveSection = 'workspace' | 'insights' | 'policy';
 
 const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const { hasPermission } = usePermissions();
@@ -62,6 +66,11 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     const params = new URLSearchParams(location.search || '');
     return params.get('month') || '';
   });
+  const [leaveSection, setLeaveSection] = useState<LeaveSection>(() => {
+    const params = new URLSearchParams(location.search || '');
+    const routeSection = params.get('leaveSection');
+    return routeSection === 'insights' || routeSection === 'policy' ? routeSection : 'workspace';
+  });
   const [summary, setSummary] = useState<AttendanceSummaryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [locationInput, setLocationInput] = useState('');
@@ -69,11 +78,13 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const [leaveStart, setLeaveStart] = useState('');
   const [leaveEnd, setLeaveEnd] = useState('');
   const [leaveReason, setLeaveReason] = useState('');
-  const [leaveType, setLeaveType] = useState('GENERAL');
+  const [leaveType, setLeaveType] = useState('CASUAL');
   const [myLeaves, setMyLeaves] = useState<LeaveRequest[]>([]);
   const [pendingLeaves, setPendingLeaves] = useState<LeaveRequest[]>([]);
   const [approverLeaves, setApproverLeaves] = useState<LeaveRequest[]>([]);
   const [leaveLoading, setLeaveLoading] = useState(false);
+  const [leaveBalanceOverview, setLeaveBalanceOverview] = useState<LeaveBalanceOverviewResponse | null>(null);
+  const [leaveBalanceLoading, setLeaveBalanceLoading] = useState(false);
   const [leaveInitialLoaded, setLeaveInitialLoaded] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [breakLoading, setBreakLoading] = useState(false);
@@ -171,6 +182,12 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     if (params.has('month')) {
       setSelectedMonth(params.get('month') || '');
     }
+    if (params.has('leaveSection')) {
+      const routeSection = params.get('leaveSection');
+      setLeaveSection(routeSection === 'insights' || routeSection === 'policy' ? routeSection : 'workspace');
+    } else {
+      setLeaveSection('workspace');
+    }
   }, [location.search]);
 
   useEffect(() => {
@@ -184,6 +201,9 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     if (pathname === '/attendance' && activeView !== 'attendance') {
       params.set('view', activeView);
     }
+    if (pathname === '/attendance' && activeView === 'leave' && leaveSection !== 'workspace') {
+      params.set('leaveSection', leaveSection);
+    }
     params.set('range', range);
     if (selectedMonth) {
       params.set('month', selectedMonth);
@@ -191,7 +211,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
 
     const search = params.toString();
     return search ? `${pathname}?${search}` : pathname;
-  }, [activeView, range, selectedMonth]);
+  }, [activeView, leaveSection, range, selectedMonth]);
 
   const handleHeaderMonthSelect = useCallback((monthValue: string) => {
     setSelectedMonth(`${headerVisibleYear}-${monthValue}`);
@@ -220,6 +240,25 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     const params = new URLSearchParams();
     if (nextView !== 'attendance') {
       params.set('view', nextView);
+    }
+    if (nextView === 'leave' && leaveSection !== 'workspace') {
+      params.set('leaveSection', leaveSection);
+    }
+    params.set('range', range);
+    if (selectedMonth) {
+      params.set('month', selectedMonth);
+    }
+
+    const search = params.toString();
+    navigate(search ? `/attendance?${search}` : '/attendance');
+  }, [leaveSection, navigate, range, selectedMonth]);
+
+  const handleLeaveSectionChange = useCallback((nextSection: LeaveSection) => {
+    setLeaveSection(nextSection);
+    const params = new URLSearchParams();
+    params.set('view', 'leave');
+    if (nextSection !== 'workspace') {
+      params.set('leaveSection', nextSection);
     }
     params.set('range', range);
     if (selectedMonth) {
@@ -405,6 +444,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
             avatar: String(employee.avatar || '').trim(),
             designation: String(employee.designation || '').trim(),
             department: String(employee.department || '').trim(),
+            teamId: String(employee.teamId || '').trim(),
           }))
           .filter((employee: AttendanceEmployeeOption) => employee.empId);
 
@@ -598,6 +638,30 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     }
   }, [isBackendAdminRole]);
 
+  const loadCurrentLeaveBalanceOverview = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
+    if (!silent) {
+      setLeaveBalanceLoading(true);
+    }
+
+    try {
+      const data = await fetchLeaveBalanceOverview({
+        period: 'year',
+        year: new Date().getFullYear(),
+      });
+      setLeaveBalanceOverview(data);
+    } catch (error) {
+      console.error('Failed to load current leave balance overview', error);
+      if (!silent) {
+        setLeaveBalanceOverview(null);
+      }
+    } finally {
+      if (!silent) {
+        setLeaveBalanceLoading(false);
+      }
+    }
+  }, []);
+
   const loadLeaves = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true;
     const shouldShowSkeleton = !silent && !leaveInitialLoadedRef.current;
@@ -651,6 +715,10 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   useEffect(() => {
     loadLeaves();
   }, [loadLeaves]);
+
+  useEffect(() => {
+    void loadCurrentLeaveBalanceOverview();
+  }, [loadCurrentLeaveBalanceOverview]);
 
   useEffect(() => {
     if (activeView !== 'late' || !isBackendAdminRole) {
@@ -721,24 +789,22 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     const socket = getSocket();
     const onLeaveChanged = () => {
       loadLeaves({ silent: true });
+      loadCurrentLeaveBalanceOverview({ silent: true });
+    };
+    const onLeaveMetaChanged = () => {
+      loadCurrentLeaveBalanceOverview({ silent: true });
     };
     socket.on('leave:created', onLeaveChanged);
     socket.on('leave:updated', onLeaveChanged);
+    socket.on('leave:balance_changed', onLeaveMetaChanged);
+    socket.on('leave:policy_changed', onLeaveMetaChanged);
     return () => {
       socket.off('leave:created', onLeaveChanged);
       socket.off('leave:updated', onLeaveChanged);
+      socket.off('leave:balance_changed', onLeaveMetaChanged);
+      socket.off('leave:policy_changed', onLeaveMetaChanged);
     };
-  }, [loadLeaves]);
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      loadLeaves({ silent: true });
-    }, 30000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [loadLeaves]);
+  }, [loadCurrentLeaveBalanceOverview, loadLeaves]);
 
   useEffect(() => {
     if (!summary?.lateLoginPolicy?.hasApproval) return;
@@ -1482,6 +1548,29 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     employeeMonthOptions.find((month) => month.value === selectedEmployeeMonth)?.label || 'Select month';
   const attendanceContentWidthClassName = isEmployeePortal ? 'max-w-[1760px]' : 'max-w-6xl';
   const showAttendanceSubnavControls = (isHistoryRoute ? 'attendance' : activeView) === 'attendance';
+  const showLeaveSubnavControls = activeView === 'leave' && !isHistoryRoute && !isTeamAttendanceRoute;
+  const availableLeaveSections = useMemo<Array<{ id: LeaveSection; label: string }>>(() => {
+    const sections: Array<{ id: LeaveSection; label: string }> = [
+      { id: 'workspace', label: 'Workspace' },
+      { id: 'insights', label: 'Leave Insights' },
+    ];
+    if (isBackendApproverRole) {
+      sections.push({ id: 'policy', label: 'Policy & Balance' });
+    }
+    return sections;
+  }, [isBackendApproverRole]);
+  const effectiveLeaveSection = useMemo<LeaveSection>(() => {
+    if (leaveSection === 'policy' && !isBackendApproverRole) {
+      return 'workspace';
+    }
+    return leaveSection;
+  }, [isBackendApproverRole, leaveSection]);
+  useEffect(() => {
+    if (activeView !== 'leave') return;
+    if (leaveSection !== effectiveLeaveSection) {
+      handleLeaveSectionChange(effectiveLeaveSection);
+    }
+  }, [activeView, effectiveLeaveSection, handleLeaveSectionChange, leaveSection]);
   const currentLateLoginCutoffLabel =
     lateLoginSettings?.cutoffTimeLabel
     || summary?.lateLoginPolicy?.cutoffTimeLabel
@@ -1558,12 +1647,13 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
           </>
         }
         trailing={
-          <div
-            aria-hidden={!showAttendanceSubnavControls}
-            className={`flex flex-wrap items-center gap-2 ${
-              showAttendanceSubnavControls ? '' : 'invisible pointer-events-none'
-            }`}
-          >
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              aria-hidden={!showAttendanceSubnavControls}
+              className={`flex flex-wrap items-center gap-2 ${
+                showAttendanceSubnavControls ? '' : 'invisible pointer-events-none hidden'
+              }`}
+            >
                 <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
                   <button
                     type="button"
@@ -1722,6 +1812,31 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
                     </div>
                   )}
                 </div>
+            </div>
+
+            <div
+              aria-hidden={!showLeaveSubnavControls}
+              className={`flex flex-wrap items-center gap-2 ${
+                showLeaveSubnavControls ? '' : 'invisible pointer-events-none hidden'
+              }`}
+            >
+              <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
+                {availableLeaveSections.map((section) => (
+                  <button
+                    key={section.id}
+                    type="button"
+                    onClick={() => handleLeaveSectionChange(section.id)}
+                    className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold md:px-4 md:text-[13px] ${
+                      effectiveLeaveSection === section.id
+                        ? 'bg-brand-red text-white shadow-md'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {section.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         }
       />
@@ -1819,6 +1934,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
           onOpenHistory={handleHistoryOpen}
           onOpenTeamAttendance={handleTeamAttendanceOpen}
           lateLoginPolicy={summary?.lateLoginPolicy || null}
+          leaveBalanceOverview={leaveBalanceOverview}
         />
       ) : activeView === 'late' ? (
         canReviewTeamAttendance ? (
@@ -1872,6 +1988,10 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
             viewerRole={leaveViewerRole}
             currentEmployeeId={backendEmpId}
             employeeDirectory={employeeOptions.map((employee) => `${employee.empName} (${employee.empId})`)}
+            employeeOptions={employeeOptions}
+            currentOverview={leaveBalanceOverview}
+            currentOverviewLoading={leaveBalanceLoading}
+            activeSection={effectiveLeaveSection}
             loading={leaveLoading && myLeaves.length === 0 && pendingLeaves.length === 0 && approverLeaves.length === 0}
           />
         </div>

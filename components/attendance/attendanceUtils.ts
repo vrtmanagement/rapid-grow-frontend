@@ -103,6 +103,115 @@ export interface LeaveRequest {
   decidedByRole?: string;
 }
 
+export interface LeaveBalanceTypeMetric {
+  type: string;
+  label: string;
+  paid: boolean;
+  color?: string;
+  allocated: number;
+  used: number;
+  remaining: number;
+  paidUsed: number;
+  unpaidUsed: number;
+  pending: number;
+}
+
+export interface LeavePolicyConfig {
+  id: string;
+  name: string;
+  scopeType: 'company' | 'role' | 'team';
+  role?: string;
+  teamId?: string;
+  active: boolean;
+  monthlyPaidLeaves: number;
+  maxCarryForward: number;
+  carryForwardEnabled: boolean;
+  carryForwardExpiryMonth: number;
+  halfDayDeduction: number;
+  autoLopWhenBalanceExhausted: boolean;
+  lowBalanceThreshold: number;
+  leaveTypes: Array<{
+    type: string;
+    label: string;
+    paid: boolean;
+    yearlyAllocation: number;
+    monthlyAllocation: number;
+    allowNegative?: boolean;
+    color?: string;
+  }>;
+  notes?: string;
+  updatedByEmpId?: string;
+  updatedByName?: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface LeaveAdminActivityItem {
+  id: string;
+  action: string;
+  actorEmpId: string;
+  actorName: string;
+  actorRole: string;
+  targetType: string;
+  targetEmpId?: string;
+  summary: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface LeaveBalanceOverviewResponse {
+  employee: {
+    empId: string;
+    empName: string;
+    role: string;
+    designation?: string;
+    department?: string;
+    teamId?: string;
+  };
+  period: {
+    mode: 'month' | 'year';
+    year: number;
+    month: number;
+    label: string;
+  };
+  policy: LeavePolicyConfig;
+  summary: {
+    totalLeaves: number;
+    usedLeaves: number;
+    remainingLeaves: number;
+    paidLeaves: number;
+    unpaidLeaves: number;
+    pendingLeaveRequests: number;
+    approvedLeaveRequests: number;
+    carryForward: number;
+    lopDays: number;
+    bonusLeaves: number;
+    deductedLeaves: number;
+    expiredCarryForward: number;
+    yearlyAllocated: number;
+    yearlyRemaining: number;
+  };
+  dashboardCard: {
+    totalAvailable: number;
+    usedLeaves: number;
+    remainingLeaves: number;
+    progressPercent: number;
+    badges: string[];
+  };
+  byType: LeaveBalanceTypeMetric[];
+  trend: Array<{
+    month: string;
+    allocated: number;
+    used: number;
+    pending: number;
+    approved: number;
+    lop: number;
+  }>;
+  badges: string[];
+  warningState: 'healthy' | 'warning' | 'critical';
+  progressPercent: number;
+}
+
 export interface LeaveNotificationItem {
   id: string;
   title: string;

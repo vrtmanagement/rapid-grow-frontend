@@ -58,40 +58,40 @@ const DatePickerPopup: React.FC<DatePickerPopupProps> = ({ value, onSelect, onCl
   const calendarDays = useMemo(() => getCalendarDays(visibleMonth), [visibleMonth]);
 
   return (
-    <div className="absolute left-0 top-[calc(100%+12px)] z-30 w-full min-w-[290px] rounded-[26px] border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.14)] animate-in fade-in zoom-in-95 duration-200">
+    <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full min-w-[192px] rounded-[16px] border border-slate-200 bg-white p-2 shadow-[0_16px_40px_rgba(15,23,42,0.14)] animate-in fade-in zoom-in-95 duration-200">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Choose date</p>
-          <h4 className="mt-1 text-sm font-semibold text-slate-900">{monthLabel}</h4>
+          <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-slate-400">Choose date</p>
+          <h4 className="mt-0.5 text-[0.78rem] font-semibold text-slate-900">{monthLabel}</h4>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setVisibleMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+            className="flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={12} />
           </button>
           <button
             type="button"
             onClick={() => setVisibleMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+            className="flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
           >
-            <ChevronRight size={16} />
+            <ChevronRight size={12} />
           </button>
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-7 gap-2">
+      <div className="mt-2.5 grid grid-cols-7 gap-1">
         {calendarWeekLabels.map((label) => (
-          <div key={label} className="text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+          <div key={label} className="text-center text-[7px] font-semibold uppercase tracking-[0.1em] text-slate-400">
             {label}
           </div>
         ))}
 
         {calendarDays.map((item) => {
           if (!item.date) {
-            return <div key={item.key} className="h-10 rounded-xl bg-transparent" />;
+            return <div key={item.key} className="h-7 rounded-lg bg-transparent" />;
           }
 
           const dayKey = toIsoDate(item.date);
@@ -106,7 +106,7 @@ const DatePickerPopup: React.FC<DatePickerPopupProps> = ({ value, onSelect, onCl
                 onSelect(dayKey);
                 onClose();
               }}
-              className={`relative h-10 rounded-xl border text-sm font-semibold transition ${
+              className={`relative h-7 rounded-lg border text-[0.78rem] font-semibold transition ${
                 isSelected
                   ? 'border-brand-red bg-brand-red text-white shadow-md'
                   : isToday
@@ -120,21 +120,21 @@ const DatePickerPopup: React.FC<DatePickerPopupProps> = ({ value, onSelect, onCl
         })}
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-3">
+      <div className="mt-2.5 flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={() => {
             onSelect(toIsoDate(today));
             onClose();
           }}
-          className="rounded-xl border border-brand-red/15 bg-brand-red/5 px-3 py-2 text-xs font-semibold text-brand-red transition hover:bg-brand-red/10"
+          className="rounded-lg border border-brand-red/15 bg-brand-red/5 px-2 py-1 text-[9px] font-semibold text-brand-red transition hover:bg-brand-red/10"
         >
           Today
         </button>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+          className="rounded-lg border border-slate-200 px-2 py-1 text-[9px] font-semibold text-slate-600 transition hover:bg-slate-50"
         >
           Close
         </button>

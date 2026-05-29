@@ -20,6 +20,7 @@ export type UserPower =
   | 'WORKSPACES_VIEW'
   | 'SPACES_VIEW'
   | 'ATTENDANCE_VIEW'
+  | 'LEAVE_POLICY_MANAGE'
   | 'YEARLY_VIEW'
   | 'QUARTERLY_VIEW'
   | 'MONTHLY_VIEW'

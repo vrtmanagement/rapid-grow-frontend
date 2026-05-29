@@ -44,16 +44,7 @@ const AttendanceHeader: React.FC<Props> = ({
     );
   }
 
-  return (
-    <div className="max-w-3xl">
-      <h2 className="text-3xl md:text-4xl text-slate-900 leading-none">
-        Manage Leave
-      </h2>
-      <p className="mt-3 text-[15px] text-slate-500 md:text-lg">
-        Plan leave, track approvals, and manage your records in one premium workspace.
-      </p>
-    </div>
-  );
+  return null;
 };
 
 export default AttendanceHeader;

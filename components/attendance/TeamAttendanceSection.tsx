@@ -364,7 +364,8 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
       : 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200';
 
     return (
-      <div key={record.id} className="grid gap-4 px-6 py-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.9fr)] md:px-8">
+      <div key={record.id} className="px-6 py-4 md:px-8">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_170px_170px_220px] lg:items-start lg:gap-6">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate text-[15px] font-semibold text-slate-900">{record.empName}</p>
@@ -380,20 +381,19 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
           ) : null}
         </div>
 
-        <div className="space-y-2 text-[12px] text-slate-500">
-          <div>
-            <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">Login time</p>
-            <p className="mt-1 text-[13px] font-medium text-slate-800">{formatLateLoginDateTime(record.loginTime || null)}</p>
-          </div>
-          <div>
-            <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">
-              {record.status === 'APPROVED' ? 'Approved at' : 'Attempted at'}
-            </p>
-            <p className="mt-1 text-[13px] font-medium text-slate-800">{formatLateLoginDateTime(record.approvalTimestamp || record.attemptedAt)}</p>
-          </div>
+        <div className="min-w-0 space-y-1 text-[12px] text-slate-500">
+          <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">Login time</p>
+          <p className="text-[13px] font-medium text-slate-800">{formatLateLoginDateTime(record.loginTime || null)}</p>
         </div>
 
-        <div className="space-y-2 md:text-right">
+        <div className="min-w-0 space-y-1 text-[12px] text-slate-500">
+          <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">
+            {record.status === 'APPROVED' ? 'Approved at' : 'Attempted at'}
+          </p>
+          <p className="text-[13px] font-medium text-slate-800">{formatLateLoginDateTime(record.approvalTimestamp || record.attemptedAt)}</p>
+        </div>
+
+        <div className="min-w-0 space-y-2">
           <span className={`inline-flex rounded-full px-3 py-1 text-[10px] font-semibold ${secondaryBadgeClassName}`}>
             {record.status === 'APPROVED'
               ? (record.loginTime ? 'Login completed' : 'Approval active')
@@ -410,6 +410,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
               Requires TL/Admin approval
             </p>
           )}
+        </div>
         </div>
       </div>
     );
@@ -479,52 +480,6 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
             <div className="divide-y divide-slate-100">
               {teamActivityEntries.map((entry) => renderActivityRow(entry))}
             </div>
-          </div>
-        )}
-      </div>
-
-      <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
-        <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 md:flex-row md:items-center md:justify-between md:px-8">
-          <div>
-            <div className="mb-3 flex items-center gap-2">
-              <div className="h-1.5 w-8 rounded-full bg-brand-red" />
-              <span className="text-[15px] text-slate-500">Late login monitor</span>
-            </div>
-            <h3 className="text-2xl font-semibold text-slate-950">Today late login records</h3>
-            <p className="mt-2 text-[15px] text-slate-500">
-              Review blocked attempts and approved late logins for the current attendance window.
-            </p>
-          </div>
-
-          <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 p-1">
-            {[
-              { value: 'ALL', label: 'All late logins' },
-              { value: 'APPROVED', label: 'Approved late logins' },
-              { value: 'REJECTED', label: 'Rejected late logins' },
-            ].map((filter) => (
-              <button
-                key={filter.value}
-                type="button"
-                onClick={() => setLateLoginFilter(filter.value as 'ALL' | 'APPROVED' | 'REJECTED')}
-                className={`rounded-full px-3 py-2 text-[11px] font-semibold transition-colors md:text-[12px] ${
-                  lateLoginFilter === filter.value
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {filteredLateLoginRecords.length === 0 ? (
-          <div className="px-6 py-12 text-center text-sm text-slate-400 md:px-8">
-            No late login records match the current filter.
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {filteredLateLoginRecords.map((record) => renderLateLoginRow(record))}
           </div>
         )}
       </div>
@@ -670,11 +625,13 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
               todayColor={selectedEmployeeTodayInfo.color}
               leaveDaysInRange={0}
               loading={employeeAttendanceLoading}
+              variant="employee"
             />
             <AttendancePresenceChart
               summary={employeeSummary}
               loading={employeeAttendanceLoading}
               selectedMonth={selectedEmployeeMonth}
+              variant="employee"
             />
           </div>
 
@@ -727,77 +684,6 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
                           <p className="mt-2 text-2xl font-semibold text-white">{selectedEmployeeMonthlyAttendance.total}</p>
                         </div>
                       </div>
-                    )}
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                    <h5 className="text-lg font-semibold text-white">Late login control</h5>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">
-                      Grant one-time late login access for the selected employee for today only.
-                    </p>
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      {selectedEmployeeLateLogin?.isLateLogin ? (
-                        <span className="rounded-full bg-amber-400/12 px-3 py-1 text-[11px] font-semibold text-amber-100">
-                          Late Login
-                        </span>
-                      ) : null}
-                      {selectedEmployeeLateLogin?.hasApproval ? (
-                        <span className="rounded-full bg-emerald-500/12 px-3 py-1 text-[11px] font-semibold text-emerald-100">
-                          Approved Late Login
-                        </span>
-                      ) : null}
-                      {!selectedEmployeeLateLogin?.hasApproval && selectedEmployeeLateLogin?.latestRejectedAt ? (
-                        <span className="rounded-full bg-rose-500/12 px-3 py-1 text-[11px] font-semibold text-rose-100">
-                          Rejected late login
-                        </span>
-                      ) : null}
-                      {!selectedEmployeeLateLogin?.hasApproval && !selectedEmployeeLateLogin?.latestRejectedAt ? (
-                        <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-slate-200">
-                          No override used
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="mt-4 space-y-3 text-sm text-slate-300">
-                      <p>
-                        Approval status: {selectedEmployeeLateLogin?.hasApproval ? 'Active for today' : 'Not approved'}
-                      </p>
-                      {selectedEmployeeLateLogin?.approval?.approvedAt ? (
-                        <p>
-                          Approved at: {formatLateLoginDateTime(selectedEmployeeLateLogin.approval.approvedAt)}
-                        </p>
-                      ) : null}
-                      {selectedEmployeeLateLogin?.latestRejectedAt ? (
-                        <p>
-                          Last rejected attempt: {formatLateLoginDateTime(selectedEmployeeLateLogin.latestRejectedAt)}
-                        </p>
-                      ) : null}
-                      {selectedEmployeeLateLogin?.approval?.reason ? (
-                        <p className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-slate-200">
-                          {selectedEmployeeLateLogin.approval.reason}
-                        </p>
-                      ) : null}
-                    </div>
-                    {lateLoginActionMessage ? (
-                      <p className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-slate-200">
-                        {lateLoginActionMessage}
-                      </p>
-                    ) : null}
-                    {canManageLateLogins ? (
-                      <button
-                        type="button"
-                        onClick={() => setLateLoginModalOpen(true)}
-                        disabled={lateLoginApprovalLoading || !!selectedEmployeeLateLogin?.hasApproval}
-                        className={`mt-4 inline-flex items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
-                          lateLoginApprovalLoading || selectedEmployeeLateLogin?.hasApproval
-                            ? 'cursor-not-allowed bg-white/10 text-slate-400'
-                            : 'bg-white text-slate-950 hover:bg-slate-100'
-                        }`}
-                      >
-                        {selectedEmployeeLateLogin?.hasApproval ? 'Late login already approved' : 'Allow Late Login'}
-                      </button>
-                    ) : (
-                      <p className="mt-4 text-sm text-slate-400">
-                        You do not have permission to approve late login access.
-                      </p>
                     )}
                   </div>
                 </div>

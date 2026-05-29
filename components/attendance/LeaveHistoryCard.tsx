@@ -1,6 +1,7 @@
 import React from 'react';
 import { CalendarRange, Eye, PencilLine, Trash2 } from 'lucide-react';
 import { LeaveRequest, formatLeaveDayCount } from './attendanceUtils';
+import { getLeaveTypeLabel, getLeaveTypeTone } from './leaveManagementPanelUtils';
 
 interface Props {
   leave: LeaveRequest;
@@ -22,25 +23,11 @@ const statusClasses: Record<LeaveRequest['status'], string> = {
 
 const cardStatusClasses: Record<LeaveRequest['status'], string> = {
   APPROVED:
-    'border-emerald-200/80 bg-gradient-to-br from-emerald-50/70 via-white to-white shadow-[0_16px_36px_rgba(16,185,129,0.10)]',
+    'border-emerald-200/80 bg-white',
   PENDING:
-    'border-amber-200/80 bg-gradient-to-br from-amber-50/80 via-white to-white shadow-[0_16px_36px_rgba(245,158,11,0.10)]',
+    'border-amber-200/80 bg-white',
   REJECTED:
-    'border-rose-200/80 bg-gradient-to-br from-rose-50/75 via-white to-white shadow-[0_16px_36px_rgba(244,63,94,0.10)]',
-};
-
-const reasonBoxStatusClasses: Record<LeaveRequest['status'], string> = {
-  APPROVED: 'border-emerald-100 bg-white/90',
-  PENDING: 'border-amber-100 bg-white/90',
-  REJECTED: 'border-rose-100 bg-white/90',
-};
-
-const typeToneClasses: Record<string, string> = {
-  GENERAL: 'bg-slate-100 text-slate-700',
-  SICK: 'bg-red-50 text-red-700',
-  VACATION: 'bg-sky-50 text-sky-700',
-  EMERGENCY: 'bg-violet-50 text-violet-700',
-  HALF_DAY: 'bg-indigo-50 text-indigo-700',
+    'border-rose-200/80 bg-white',
 };
 
 const LeaveHistoryCard: React.FC<Props> = ({
@@ -57,13 +44,13 @@ const LeaveHistoryCard: React.FC<Props> = ({
   const canShowPendingActions = leave.status === 'PENDING' && canManagePending;
 
   return (
-    <article className={`group h-full rounded-[28px] border p-5 transition-all duration-300 hover:-translate-y-0.5 ${cardStatusClasses[leave.status]}`}>
+    <article className={`group h-full rounded-[28px] border p-5 transition-all duration-300 ${cardStatusClasses[leave.status]}`}>
       <div className="flex h-full flex-col gap-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${typeToneClasses[leave.type] || typeToneClasses.GENERAL}`}>
-                {leave.type}
+              <span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${getLeaveTypeTone(leave.type)}`}>
+                {getLeaveTypeLabel(leave.type)}
               </span>
               <span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${statusClasses[leave.status]}`}>
                 {leave.status}
@@ -112,14 +99,7 @@ const LeaveHistoryCard: React.FC<Props> = ({
 
         <div className="flex flex-1 flex-col justify-between">
           <div>
-            <div className={`rounded-2xl border px-4 py-3 ${reasonBoxStatusClasses[leave.status]}`}>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Reason</p>
-              <p className="mt-2 text-[15px] font-medium leading-7 tracking-[-0.01em] text-slate-700">
-                {leave.reason || 'No reason added'}
-              </p>
-            </div>
-
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
+            <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
               <span className="inline-flex items-center rounded-full bg-white/75 px-2.5 py-1 font-medium text-slate-500 shadow-sm">
                 Applied {new Date(leave.createdAt).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
               </span>
