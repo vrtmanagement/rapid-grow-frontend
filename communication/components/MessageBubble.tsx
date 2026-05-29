@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, CheckCheck, CornerUpLeft, Download, Eye, FileText, Loader2, MoreVertical, PencilLine, Trash2 } from 'lucide-react';
+import { Check, CheckCheck, CornerUpLeft, Download, ExternalLink, Eye, FileText, Loader2, MoreVertical, PencilLine, Trash2, X } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
 import { MessageActionModal } from './MessageActionModal';
 import { apiDownloadCommunicationFile } from '../api';
@@ -202,6 +202,7 @@ export function MessageBubble({
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPlacement, setMenuPlacement] = useState<'top' | 'bottom' | 'inside'>('top');
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [actionLoading, setActionLoading] = useState<null | 'download'>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -212,12 +213,23 @@ export function MessageBubble({
   }, []);
 
   useEffect(() => {
+    if (!imagePreviewOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setImagePreviewOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [imagePreviewOpen]);
+
+  useEffect(() => {
     if (!menuOpen) return;
     const calculateMenuPlacement = () => {
       const bubble = bubbleRef.current;
       if (!bubble) return;
       const rect = bubble.getBoundingClientRect();
-      const menuHeight = 72;
+      const menuHeight = isImageAttachment && canOpenAttachment ? 116 : 72;
       const spacing = 6;
       const spaceAbove = rect.top;
       const spaceBelow = window.innerHeight - rect.bottom;
@@ -321,7 +333,10 @@ export function MessageBubble({
             />
           </button>
           <div className="relative min-w-0">
-            <div className="absolute right-2 top-2 z-30" ref={menuRef}>
+            <div
+              className={`absolute top-2 z-30 ${isOwn ? 'right-2' : 'left-full ml-2'}`}
+              ref={menuRef}
+            >
               <button
                 type="button"
                 className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-all ${
@@ -336,7 +351,9 @@ export function MessageBubble({
               </button>
               {menuOpen ? (
                 <div
-                  className={`absolute right-0 z-[90] w-[112px] rounded-xl border border-slate-200 bg-white py-1 shadow-xl transition-all duration-100 ${
+                  className={`absolute z-[90] w-[144px] rounded-xl border border-slate-200 bg-white py-1 shadow-xl transition-all duration-100 ${
+                    isOwn ? 'right-0' : 'left-0'
+                  } ${
                     menuPlacement === 'top'
                       ? 'bottom-full mb-1.5 origin-bottom-right'
                       : menuPlacement === 'bottom'
@@ -356,6 +373,19 @@ export function MessageBubble({
                     <CornerUpLeft size={13} />
                     Reply
                   </button>
+                  {isImageAttachment && canOpenAttachment ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        triggerOpen();
+                      }}
+                      className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <ExternalLink size={13} />
+                      Open in new tab
+                    </button>
+                  ) : null}
                   {isOwn ? (
                     <button
                       type="button"
@@ -448,26 +478,31 @@ export function MessageBubble({
                   {isImageAttachment ? (
                     <div className="w-full max-w-[300px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_26px_rgba(15,23,42,0.10)]">
                       <div className="group/image relative">
-                        <img
-                          src={directFileUrl}
-                          alt={attachmentName}
-                          className="h-44 w-full bg-slate-100 object-cover"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (canOpenAttachment) {
+                              setImagePreviewOpen(true);
+                            }
+                          }}
+                          className="block w-full cursor-zoom-in"
+                          aria-label={`Preview ${attachmentName}`}
+                          disabled={!canOpenAttachment}
+                        >
+                          <img
+                            src={directFileUrl}
+                            alt={attachmentName}
+                            className="h-44 w-full bg-slate-100 object-cover"
+                          />
+                        </button>
                         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent opacity-0 transition-opacity duration-200 group-hover/image:opacity-100" />
                         <div className="absolute right-3 top-3 flex items-center gap-2 opacity-0 transition-all duration-200 group-hover/image:opacity-100">
                           <button
                             type="button"
-                            onClick={triggerOpen}
-                            title={`Open ${attachmentName}`}
-                            aria-label={`Open ${attachmentName}`}
-                            disabled={!canOpenAttachment}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/60 bg-white/95 text-slate-700 shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <Eye size={15} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={triggerDownload}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void triggerDownload();
+                            }}
                             title={`Download ${attachmentName}`}
                             aria-label={`Download ${attachmentName}`}
                             disabled={!hasDownloadTarget || actionLoading === 'download'}
@@ -670,6 +705,35 @@ export function MessageBubble({
           </button>
         </div>
       </MessageActionModal>
+
+      {isImageAttachment && canOpenAttachment && imagePreviewOpen ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/97 p-4 backdrop-blur-2xl"
+          onClick={() => setImagePreviewOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Preview ${attachmentName}`}
+        >
+          <div
+            className="relative w-full max-w-6xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setImagePreviewOpen(false)}
+              className="absolute right-3 top-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/45 text-white transition hover:bg-black/65"
+              aria-label="Close image preview"
+            >
+              <X size={18} />
+            </button>
+            <img
+              src={directFileUrl}
+              alt={attachmentName}
+              className="mx-auto block max-h-[90vh] max-w-full object-contain"
+            />
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
