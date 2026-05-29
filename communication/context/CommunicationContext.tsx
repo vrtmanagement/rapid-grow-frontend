@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { apiCreateTeam, apiDeleteTeam, apiHistory, apiListConversations, apiListUsers, apiMarkAsRead, apiUpdateTeam, apiUploadFile, apiClearChat } from '../api';
+import { apiCreateTeam, apiDeleteTeam, apiForwardMessages, apiHistory, apiListConversations, apiListUsers, apiMarkAsRead, apiPinMessage, apiUpdateTeam, apiUploadFile, apiClearChat } from '../api';
 import { API_BASE, getAuthHeaders } from '../../config/api';
-import { ChatConversationSummary, ChatMessage, ChatUser, ChatAttachment, ChatReplyRef, ChatNotification } from '../types';
+import { ChatConversationSummary, ChatMessage, ChatPinnedMessage, ChatUser, ChatNotification } from '../types';
 import { getUnreadDirectMessageSourceCount } from '../unread';
 import { getSocket } from '../../realtime/socket';
 import { CommunicationContext, CommunicationContextValue } from './CommunicationContextCore';
@@ -17,9 +17,10 @@ import {
   getStoredAuth,
   resolveAvatarUrl,
   ensureSocketConnected,
-  messagePreviewFromPayload,
+  messagePreviewFromMessage,
   isDocumentVisible,
   mapApiHistoryMessage,
+  mapApiPinnedMessage,
   mapListUsersApiRowToChatUser,
   mapListConversationsApiRowToSummary,
 } from './communicationContextHelpers';
@@ -132,6 +133,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   const [usersLoading, setUsersLoading] = useState(false);
   const [conversationsLoading, setConversationsLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [pinnedMessage, setPinnedMessage] = useState<ChatPinnedMessage | null>(null);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [selectedConversationKey, setSelectedConversationKey] = useState<string | null>(null);
   const [typingUserIds, setTypingUserIds] = useState<Record<string, true>>({});
@@ -155,6 +157,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
 
   const typingStopTimer = useRef<number | null>(null);
   const lastMessageIdByConversationKeyRef = useRef<Record<string, string>>({});
+  const seenSocketMessageIdsRef = useRef<Record<string, true>>({});
   const notificationTimersRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
@@ -281,6 +284,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
         .map(mapApiHistoryMessage)
         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
       setMessages(mapped);
+      setPinnedMessage(mapApiPinnedMessage(data.pinnedMessage));
       if (mapped.length === 0) {
         setConversations((prev) =>
           prev.map((conversation) =>
@@ -293,6 +297,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     } catch (e: any) {
       setError(e?.message || 'Failed to load messages');
       setMessages([]);
+      setPinnedMessage(null);
     } finally {
       setMessagesLoading(false);
     }
@@ -437,62 +442,13 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       }
     };
 
-    const handleMessageCreated = (payload: any) => {
-      const conversationKey = String(payload?.conversationKey);
-      const msg = payload?.message;
-      if (!conversationKey || !msg) return;
+    const appendIncomingMessage = (mapped: ChatMessage, conversationKey: string) => {
+      const messageId = String(mapped.id || '');
+      if (!messageId || !conversationKey) return;
+      if (seenSocketMessageIdsRef.current[messageId]) return;
 
-      if (lastMessageIdByConversationKeyRef.current[conversationKey] === String(msg.id)) {
-        return;
-      }
-      lastMessageIdByConversationKeyRef.current[conversationKey] = String(msg.id);
-
-      const mapped: ChatMessage = {
-        id: String(msg.id),
-        conversationKey: String(msg.conversationKey),
-        type: msg.type as any,
-        senderId: String(msg.senderId),
-        content: String(msg.content || ''),
-        fileUrl: String(msg.fileUrl || msg.attachment?.url || ''),
-        deleted: !!msg.deleted,
-        editedAt: msg.editedAt ? String(msg.editedAt) : null,
-        attachment: msg.attachment
-          ? ({
-              fileId: String(msg.attachment.fileId || ''),
-              url: String(msg.attachment.url || ''),
-              fileName: String(msg.attachment.fileName || ''),
-              mimeType: String(msg.attachment.mimeType || ''),
-              size: Number(msg.attachment.size || 0),
-            } satisfies ChatAttachment)
-          : null,
-        createdAt: String(msg.createdAt),
-        tick: msg.tick
-          ? ({
-              state: msg.tick.state as any,
-              deliveredAt: msg.tick.deliveredAt ? String(msg.tick.deliveredAt) : undefined,
-              seenAt: msg.tick.seenAt ? String(msg.tick.seenAt) : undefined,
-            } as any)
-          : null,
-        replyTo: msg.replyTo
-          ? ({
-              id: String(msg.replyTo.id || ''),
-              senderId: String(msg.replyTo.senderId || ''),
-              type: msg.replyTo.type as any,
-              content: String(msg.replyTo.content || ''),
-              deleted: !!msg.replyTo.deleted,
-              fileUrl: String(msg.replyTo.fileUrl || msg.replyTo.attachment?.url || ''),
-              attachment: msg.replyTo.attachment
-                ? {
-                    fileId: String(msg.replyTo.attachment.fileId || ''),
-                    url: String(msg.replyTo.attachment.url || ''),
-                    fileName: String(msg.replyTo.attachment.fileName || ''),
-                    mimeType: String(msg.replyTo.attachment.mimeType || ''),
-                    size: Number(msg.replyTo.attachment.size || 0),
-                  }
-                : null,
-            } as ChatReplyRef)
-          : null,
-      };
+      seenSocketMessageIdsRef.current[messageId] = true;
+      lastMessageIdByConversationKeyRef.current[conversationKey] = messageId;
 
       const isIncoming = mapped.senderId !== currentUserRef.current?.id;
       const isCurrentConversationOpen = selectedConversationKeyRef.current === conversationKey;
@@ -515,7 +471,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
           id: `notif_${mapped.id}`,
           conversationKey,
           senderName,
-          messagePreview: messagePreviewFromPayload(mapped.type, mapped.content, mapped.attachment),
+          messagePreview: messagePreviewFromMessage(mapped),
           avatar,
           createdAt: Date.now(),
         };
@@ -548,12 +504,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
 
       // Update conversation ordering + preview
       setConversations((prev) => {
-        const preview =
-          mapped.type === 'text'
-            ? mapped.content.slice(0, 120)
-            : mapped.type === 'image'
-              ? 'Image'
-              : `Attachment: ${mapped.attachment?.fileName || 'file'}`;
+        const preview = messagePreviewFromMessage(mapped).slice(0, 120);
         const at = mapped.createdAt;
 
         const updated = prev.map((c) => {
@@ -579,6 +530,20 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
           return atB - atA;
         });
       });
+    };
+
+    const handleMessageCreated = (payload: any) => {
+      const conversationKey = String(payload?.conversationKey || payload?.message?.conversationKey || '');
+      const msg = payload?.message;
+      if (!conversationKey || !msg) return;
+      appendIncomingMessage(mapApiHistoryMessage(msg), conversationKey);
+    };
+
+    const handleMessagesForwarded = (payload: any) => {
+      const conversationKey = String(payload?.conversationKey || payload?.conversationId || '');
+      const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+      if (!conversationKey || messages.length === 0) return;
+      messages.forEach((message) => appendIncomingMessage(mapApiHistoryMessage(message), conversationKey));
     };
 
     const handleMessageDelivery = (payload: any) => {
@@ -623,50 +588,11 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       const msg = payload?.message;
       if (!conversationKey || !msg) return;
 
-      const updated: ChatMessage = {
-        id: String(msg.id),
-        conversationKey: String(msg.conversationKey),
-        type: msg.type as any,
-        senderId: String(msg.senderId),
-        content: String(msg.content || ''),
-        fileUrl: String(msg.fileUrl || msg.attachment?.url || ''),
-        deleted: !!msg.deleted,
-        editedAt: msg.editedAt ? String(msg.editedAt) : null,
-        attachment: msg.attachment
-          ? ({
-              fileId: String(msg.attachment.fileId || ''),
-              url: String(msg.attachment.url || ''),
-              fileName: String(msg.attachment.fileName || ''),
-              mimeType: String(msg.attachment.mimeType || ''),
-              size: Number(msg.attachment.size || 0),
-            } satisfies ChatAttachment)
-          : null,
-        createdAt: String(msg.createdAt),
-        tick: msg.tick || null,
-        replyTo: msg.replyTo
-          ? ({
-              id: String(msg.replyTo.id || ''),
-              senderId: String(msg.replyTo.senderId || ''),
-              type: msg.replyTo.type as any,
-              content: String(msg.replyTo.content || ''),
-              deleted: !!msg.replyTo.deleted,
-              fileUrl: String(msg.replyTo.fileUrl || msg.replyTo.attachment?.url || ''),
-              attachment: msg.replyTo.attachment
-                ? {
-                    fileId: String(msg.replyTo.attachment.fileId || ''),
-                    url: String(msg.replyTo.attachment.url || ''),
-                    fileName: String(msg.replyTo.attachment.fileName || ''),
-                    mimeType: String(msg.replyTo.attachment.mimeType || ''),
-                    size: Number(msg.replyTo.attachment.size || 0),
-                  }
-                : null,
-            } as ChatReplyRef)
-          : null,
-      };
+      const updated = mapApiHistoryMessage(msg);
 
       // Update sidebar preview ordering even when the chat isn't currently open.
       setConversations((prev) => {
-        const preview = updated.type === 'text' ? updated.content.slice(0, 120) : 'Message updated';
+        const preview = messagePreviewFromMessage(updated).slice(0, 120);
         const at = updated.createdAt;
         return prev
           .map((c) =>
@@ -697,10 +623,32 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       );
     };
 
+    const handleMessagePinned = (payload: any) => {
+      const conversationKey = String(payload?.conversationKey || '');
+      if (!conversationKey) return;
+      if (selectedConversationKeyRef.current !== conversationKey) return;
+
+      setPinnedMessage(
+        payload?.pinnedMessage
+          ? mapApiPinnedMessage({
+              message: payload.pinnedMessage,
+              pinnedBy: payload.pinnedBy,
+              pinnedAt: payload.pinnedAt,
+            })
+          : null
+      );
+    };
+
     const handleMessageDeleted = (payload: any) => {
       const conversationKey = String(payload?.conversationKey || '');
       const msg = payload?.message;
       if (!conversationKey || !msg) return;
+
+      if (selectedConversationKeyRef.current === conversationKey) {
+        setPinnedMessage((prev) =>
+          prev?.message.id === String(msg.id) ? null : prev
+        );
+      }
 
       setConversations((prev) =>
         prev.map((c) =>
@@ -710,38 +658,12 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
         )
       );
 
-      const updated: ChatMessage = {
-        id: String(msg.id),
+      const updated = mapApiHistoryMessage({
+        ...msg,
         conversationKey,
-        type: (msg.type as any) || 'text',
-        senderId: String(msg.senderId || ''),
-        content: String(msg.content || 'Message deleted'),
         fileUrl: '',
-        deleted: !!msg.deleted,
         attachment: null,
-        createdAt: String(msg.createdAt || new Date().toISOString()),
-        editedAt: msg.editedAt ? String(msg.editedAt) : null,
-        tick: null,
-        replyTo: msg.replyTo
-          ? ({
-              id: String(msg.replyTo.id || ''),
-              senderId: String(msg.replyTo.senderId || ''),
-              type: msg.replyTo.type as any,
-              content: String(msg.replyTo.content || ''),
-              deleted: !!msg.replyTo.deleted,
-              fileUrl: String(msg.replyTo.fileUrl || msg.replyTo.attachment?.url || ''),
-              attachment: msg.replyTo.attachment
-                ? {
-                    fileId: String(msg.replyTo.attachment.fileId || ''),
-                    url: String(msg.replyTo.attachment.url || ''),
-                    fileName: String(msg.replyTo.attachment.fileName || ''),
-                    mimeType: String(msg.replyTo.attachment.mimeType || ''),
-                    size: Number(msg.replyTo.attachment.size || 0),
-                  }
-                : null,
-            } as ChatReplyRef)
-          : null,
-      };
+      });
 
       setMessages((prev) =>
         selectedConversationKeyRef.current !== conversationKey
@@ -769,20 +691,24 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     socket.on('presence:update', handlePresence);
     socket.on('comm:typing', handleTyping);
     socket.on('comm:message:created', handleMessageCreated);
+    socket.on('messages_forwarded', handleMessagesForwarded);
     socket.on('comm:message:delivery', handleMessageDelivery);
     socket.on('comm:message:seen', handleMessageSeen);
     socket.on('comm:message:updated', handleMessageUpdated);
     socket.on('comm:message:deleted', handleMessageDeleted);
+    socket.on('comm:message:pinned', handleMessagePinned);
     socket.on('comm:unread:cleared', handleUnreadCleared);
 
     return () => {
       socket.off('presence:update', handlePresence);
       socket.off('comm:typing', handleTyping);
       socket.off('comm:message:created', handleMessageCreated);
+      socket.off('messages_forwarded', handleMessagesForwarded);
       socket.off('comm:message:delivery', handleMessageDelivery);
       socket.off('comm:message:seen', handleMessageSeen);
       socket.off('comm:message:updated', handleMessageUpdated);
       socket.off('comm:message:deleted', handleMessageDeleted);
+      socket.off('comm:message:pinned', handleMessagePinned);
       socket.off('comm:unread:cleared', handleUnreadCleared);
     };
   }, [
@@ -1161,11 +1087,38 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     [socket]
   );
 
+  const pinMessage = useCallback(
+    async (messageId: string, conversationKey: string) => {
+      if (!messageId || !conversationKey) return;
+      const result = await apiPinMessage(conversationKey, messageId);
+      if (selectedConversationKeyRef.current === conversationKey) {
+        setPinnedMessage(mapApiPinnedMessage(result.pinnedMessage));
+      }
+    },
+    []
+  );
+
+  const forwardMessages = useCallback(
+    async (messageIds: string[], recipientIds: string[], note?: string) => {
+      const sanitizedMessageIds = Array.from(new Set(messageIds.map((messageId) => String(messageId || '').trim()).filter(Boolean)));
+      const sanitizedRecipientIds = Array.from(new Set(recipientIds.map((recipientId) => String(recipientId || '').trim()).filter(Boolean)));
+      if (!sanitizedMessageIds.length || !sanitizedRecipientIds.length) return;
+      await apiForwardMessages({
+        messageIds: sanitizedMessageIds,
+        recipientIds: sanitizedRecipientIds,
+        note: note?.trim() || undefined,
+      });
+      await loadConversations();
+    },
+    [loadConversations]
+  );
+
   const clearChat = useCallback(
     async (conversationKey: string) => {
       if (!conversationKey) return;
       try {
         setMessages([]);
+        setPinnedMessage(null);
         await apiClearChat(conversationKey);
         await loadConversations();
         socket.emit(
@@ -1223,6 +1176,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     selectedConversation,
     messages,
     messagesLoading,
+    pinnedMessage,
     typingUserIds,
     selectChannel,
     startDmWithUser,
@@ -1232,9 +1186,11 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     deleteTeam,
     sendText,
     sendFile,
+    forwardMessages,
     notifyTyping,
     editMessage,
     deleteMessage,
+    pinMessage,
     clearChat,
     notifications,
     dismissNotification,

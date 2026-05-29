@@ -1,8 +1,10 @@
 import { resolveAvatarUrl as resolveSharedAvatarUrl } from '../../utils/avatar';
 import {
   ChatAttachment,
+  ChatForwardedMeta,
   ChatReplyRef,
   ChatMessage,
+  ChatPinnedMessage,
   ChatUser,
   ChatConversationSummary,
 } from '../types';
@@ -58,6 +60,11 @@ export function messagePreviewFromPayload(type: string, content: string, attachm
   return attachment?.fileName ? `Attachment: ${attachment.fileName}` : 'New attachment';
 }
 
+export function messagePreviewFromMessage(message: Pick<ChatMessage, 'type' | 'content' | 'attachment' | 'forwarded'>): string {
+  const base = messagePreviewFromPayload(message.type, message.content, message.attachment);
+  return message.forwarded ? `Forwarded: ${base}` : base;
+}
+
 export function isDocumentVisible(): boolean {
   return typeof document !== 'undefined' && document.visibilityState === 'visible';
 }
@@ -85,6 +92,18 @@ export function toChatReplyRef(reply: any): ChatReplyRef | null {
         fileUrl: String(reply.fileUrl || reply.attachment?.url || ''),
         attachment: toChatAttachment(reply.attachment),
       } satisfies ChatReplyRef)
+    : null;
+}
+
+export function toChatForwardedMeta(forwarded: any): ChatForwardedMeta | null {
+  return forwarded
+    ? ({
+        forwardedFromMessageId: forwarded.forwardedFromMessageId ? String(forwarded.forwardedFromMessageId) : null,
+        forwardedFromUserId: forwarded.forwardedFromUserId ? String(forwarded.forwardedFromUserId) : null,
+        forwardedFromSenderName: String(forwarded.forwardedFromSenderName || 'Unknown sender'),
+        originalCreatedAt: forwarded.originalCreatedAt ? String(forwarded.originalCreatedAt) : null,
+        forwardedAt: forwarded.forwardedAt ? String(forwarded.forwardedAt) : null,
+      } satisfies ChatForwardedMeta)
     : null;
 }
 
@@ -133,6 +152,15 @@ export function mapListConversationsApiRowToSummary(c: any): ChatConversationSum
   };
 }
 
+export function mapApiPinnedMessage(payload: any): ChatPinnedMessage | null {
+  if (!payload?.message) return null;
+  return {
+    message: mapApiHistoryMessage(payload.message),
+    pinnedBy: payload.pinnedBy ? String(payload.pinnedBy) : null,
+    pinnedAt: payload.pinnedAt ? String(payload.pinnedAt) : null,
+  };
+}
+
 export function mapApiHistoryMessage(m: any): ChatMessage {
   return {
     id: String(m.id),
@@ -153,5 +181,6 @@ export function mapApiHistoryMessage(m: any): ChatMessage {
         } satisfies ChatMessage['tick'])
       : null,
     replyTo: toChatReplyRef(m.replyTo),
+    forwarded: toChatForwardedMeta(m.forwarded),
   };
 }

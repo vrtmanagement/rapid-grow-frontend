@@ -8,6 +8,11 @@ import { ChatHeaderMenu } from '../components/ChatHeaderMenu';
 import { Mail } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
+import Toast from '../../components/ui/Toast';
+import { ForwardActionBar } from '../components/forward/ForwardActionBar';
+import { ForwardModal } from '../components/forward/ForwardModal';
+import { ForwardRecipientOption } from '../components/forward/types';
+import { PinnedMessageBar } from '../components/PinnedMessageBar';
 
 function CommunicationHeaderSkeleton() {
   return (
@@ -92,14 +97,118 @@ function CommunicationLayout() {
   const canCompose = !!currentUser && !!selectedConversationKey;
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const [forwardSelectionMode, setForwardSelectionMode] = useState(false);
+  const [forwardModalMessageIds, setForwardModalMessageIds] = useState<string[]>([]);
+  const [forwardModalOpen, setForwardModalOpen] = useState(false);
   const [previewEntity, setPreviewEntity] = useState<AvatarPreviewEntity | null>(null);
   const [isClearingChat, setIsClearingChat] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   useEffect(() => {
     setReplyToMessage(null);
     setEditingMessage(null);
+    setSelectedMessageIds([]);
+    setForwardSelectionMode(false);
+    setForwardModalMessageIds([]);
   }, [selectedConversationKey]);
 
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = window.setTimeout(() => setToast(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
   const resolveUserName = (userId: string) => usersById.get(userId)?.name || 'User';
+
+  const selectedMessages = useMemo(
+    () => messages.filter((message) => selectedMessageIds.includes(message.id)),
+    [messages, selectedMessageIds]
+  );
+
+  const forwardModalMessages = useMemo(
+    () => messages.filter((message) => forwardModalMessageIds.includes(message.id)),
+    [messages, forwardModalMessageIds]
+  );
+
+  const forwardRecipients = useMemo<ForwardRecipientOption[]>(() => {
+    const recentConversationOptions: ForwardRecipientOption[] = conversations.map((conversation) => {
+      if (conversation.type === 'dm' && conversation.otherUser) {
+        return {
+          id: `recent-${conversation.conversationKey}`,
+          recipientId: `conversation:${conversation.conversationKey}`,
+          title: conversation.otherUser.name,
+          subtitle: conversation.lastMessagePreview || conversation.otherUser.designation || 'Direct message',
+          avatar: conversation.otherUser.avatar || conversation.avatar,
+          kind: 'conversation',
+          section: 'recent',
+          department: conversation.otherUser.department,
+        };
+      }
+
+      return {
+        id: `recent-${conversation.conversationKey}`,
+        recipientId: `conversation:${conversation.conversationKey}`,
+        title: conversation.title,
+        subtitle: conversation.lastMessagePreview || 'Team channel',
+        avatar: conversation.avatar,
+        kind: 'conversation',
+        section: 'recent',
+      };
+    });
+
+    const channelOptions: ForwardRecipientOption[] = conversations
+      .filter((conversation) => conversation.type === 'channel')
+      .map((conversation) => ({
+        id: `channel-${conversation.conversationKey}`,
+        recipientId: `conversation:${conversation.conversationKey}`,
+        title: conversation.title,
+        subtitle: `${conversation.memberIds?.length || 0} members`,
+        avatar: conversation.avatar,
+        kind: 'conversation',
+        section: 'channels',
+      }));
+
+    const employeeOptions: ForwardRecipientOption[] = users
+      .filter((user) => user.id !== currentUser?.id)
+      .map((user) => ({
+        id: `user-${user.id}`,
+        recipientId: `user:${user.id}`,
+        title: user.name,
+        subtitle: [user.designation, user.department].filter(Boolean).join(' • ') || user.role,
+        avatar: user.avatar,
+        kind: 'user',
+        section: 'employees',
+        department: user.department,
+      }));
+
+    const uniqueByRecipientId = new Map<string, ForwardRecipientOption>();
+    [...recentConversationOptions, ...channelOptions, ...employeeOptions].forEach((option) => {
+      if (!uniqueByRecipientId.has(option.recipientId)) {
+        uniqueByRecipientId.set(option.recipientId, option);
+      }
+    });
+    return Array.from(uniqueByRecipientId.values());
+  }, [conversations, currentUser?.id, users]);
+
+  const canDeleteSelected = selectedMessages.some((message) => message.senderId === currentUser?.id);
+
+  const toggleSelectedMessage = (messageId: string) => {
+    setSelectedMessageIds((prev) =>
+      prev.includes(messageId) ? prev.filter((currentId) => currentId !== messageId) : [...prev, messageId]
+    );
+  };
+
+  const enterForwardSelection = (messageIds: string[]) => {
+    const nextIds = Array.from(new Set(messageIds));
+    setForwardSelectionMode(true);
+    setSelectedMessageIds(nextIds);
+  };
+
+  const openForwardForMessages = (messageIds: string[]) => {
+    const nextIds = Array.from(new Set(messageIds));
+    setForwardModalMessageIds(nextIds);
+    setForwardModalOpen(true);
+  };
 
   return (
     <div className="communication-workspace h-full min-h-0 w-full overflow-hidden bg-[#eef2f7]">
@@ -343,6 +452,20 @@ function CommunicationLayout() {
           </div>
           )}
 
+          {canCompose && ctx.pinnedMessage ? (
+            <div className="shrink-0 border-b border-slate-200 bg-white px-5 py-2">
+              <PinnedMessageBar
+                pinned={ctx.pinnedMessage}
+                resolveUserName={resolveUserName}
+                onJump={() => {
+                  document
+                    .getElementById(`message-${ctx.pinnedMessage!.message.id}`)
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+              />
+            </div>
+          ) : null}
+
           {/* Messages */}
           {!canCompose ? (
             <div className="communication-empty-shell flex-1 flex items-center justify-center bg-[#f6f8fb]">
@@ -352,21 +475,59 @@ function CommunicationLayout() {
               </div>
             </div>
           ) : (
-            <ChatMessages
-              currentUserId={currentUser.id}
-              messages={messages}
-              messagesLoading={messagesLoading}
-              typingUserNames={typingUserNames}
-              selectedConversationTitle={selectedConversation?.title || ''}
-              isGroupChat={selectedConversation?.type === 'channel'}
-              usersById={usersById}
-              onEditMessage={(message) => {
-                setReplyToMessage(null);
-                setEditingMessage(message);
-              }}
-              onDeleteMessage={(messageId, conversationKey) => ctx.deleteMessage(messageId, conversationKey)}
-              onReplyMessage={(message) => setReplyToMessage(message)}
-            />
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="px-4 pt-4">
+                <ForwardActionBar
+                  visible={forwardSelectionMode}
+                  selectedCount={selectedMessageIds.length}
+                  canDelete={canDeleteSelected}
+                  onForward={() => {
+                    if (!selectedMessageIds.length) return;
+                    openForwardForMessages(selectedMessageIds);
+                  }}
+                  onDelete={async () => {
+                    try {
+                      const ownMessages = selectedMessages.filter((message) => message.senderId === currentUser.id);
+                      for (const message of ownMessages) {
+                        await ctx.deleteMessage(message.id, message.conversationKey);
+                      }
+                      setSelectedMessageIds([]);
+                      setForwardSelectionMode(false);
+                      setToast({ type: 'success', message: ownMessages.length ? 'Selected messages deleted.' : 'Only your own messages can be deleted.' });
+                    } catch (error) {
+                      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to delete selected messages.' });
+                    }
+                  }}
+                  onClear={() => {
+                    setSelectedMessageIds([]);
+                    setForwardSelectionMode(false);
+                  }}
+                />
+              </div>
+
+              <ChatMessages
+                currentUserId={currentUser.id}
+                messages={messages}
+                messagesLoading={messagesLoading}
+                typingUserNames={typingUserNames}
+                selectedConversationTitle={selectedConversation?.title || ''}
+                isGroupChat={selectedConversation?.type === 'channel'}
+                usersById={usersById}
+                pinnedMessageId={ctx.pinnedMessage?.message.id ?? null}
+                selectedMessageIds={selectedMessageIds}
+                selectionVisible={forwardSelectionMode && !forwardModalOpen}
+                onToggleSelectMessage={toggleSelectedMessage}
+                onForwardMessage={(message) => openForwardForMessages([message.id])}
+                onSelectMessage={(message) => enterForwardSelection([message.id])}
+                onPinMessage={(message) => void ctx.pinMessage(message.id, message.conversationKey)}
+                onEditMessage={(message) => {
+                  setReplyToMessage(null);
+                  setEditingMessage(message);
+                }}
+                onDeleteMessage={(messageId, conversationKey) => ctx.deleteMessage(messageId, conversationKey)}
+                onReplyMessage={(message) => setReplyToMessage(message)}
+              />
+            </div>
           )}
 
           {/* Composer */}
@@ -395,6 +556,30 @@ function CommunicationLayout() {
         entity={previewEntity}
         onClose={() => setPreviewEntity(null)}
       />
+
+      <ForwardModal
+        open={forwardModalOpen}
+        messages={forwardModalMessages}
+        recipients={forwardRecipients}
+        onClose={() => {
+          setForwardModalOpen(false);
+          setForwardModalMessageIds([]);
+          setForwardSelectionMode(false);
+        }}
+        onSubmit={async (recipientIds, note) => {
+          await ctx.forwardMessages(
+            forwardModalMessages.map((message) => message.id),
+            recipientIds,
+            note
+          );
+          setSelectedMessageIds([]);
+          setForwardModalMessageIds([]);
+          setForwardSelectionMode(false);
+          setToast({ type: 'success', message: 'Messages forwarded successfully.' });
+        }}
+      />
+
+      {toast ? <Toast message={toast.message} type={toast.type} /> : null}
     </div>
   );
 }

@@ -111,6 +111,13 @@ export function ChatMessages({
   selectedConversationTitle,
   isGroupChat,
   usersById,
+  pinnedMessageId,
+  selectedMessageIds,
+  selectionVisible,
+  onToggleSelectMessage,
+  onForwardMessage,
+  onSelectMessage,
+  onPinMessage,
   onEditMessage,
   onDeleteMessage,
   onReplyMessage,
@@ -122,6 +129,13 @@ export function ChatMessages({
   selectedConversationTitle: string;
   isGroupChat: boolean;
   usersById: Map<string, ChatUser>;
+  pinnedMessageId: string | null;
+  selectedMessageIds: string[];
+  selectionVisible: boolean;
+  onToggleSelectMessage: (messageId: string) => void;
+  onForwardMessage: (message: ChatMessage) => void;
+  onSelectMessage: (message: ChatMessage) => void;
+  onPinMessage: (message: ChatMessage) => void;
   onEditMessage: (message: ChatMessage) => void;
   onDeleteMessage: (messageId: string, conversationKey: string) => void;
   onReplyMessage: (message: ChatMessage) => void;
@@ -135,7 +149,6 @@ export function ChatMessages({
   return (
     <div className="communication-messages flex-1 overflow-y-auto bg-[#f6f8fb] px-4 py-6">
       <div className="mx-auto w-full max-w-5xl">
-
         {messagesLoading ? (
           <ChatMessagesSkeleton />
         ) : messages.length === 0 ? (
@@ -170,23 +183,32 @@ export function ChatMessages({
               return (
                 <React.Fragment key={m.id}>
                   {showDateDivider ? (
-                    <div className="sticky top-2 z-10 my-5 flex justify-center">
+                    <div className="sticky top-2 z-[5] my-5 flex justify-center">
                       <span className="communication-date-divider inline-flex min-w-[8rem] items-center justify-center rounded-full border border-slate-200 bg-white/95 px-3 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">
                         {formatDateDivider(m.createdAt)}
                       </span>
                     </div>
                   ) : null}
+                  <div id={`message-${m.id}`} className="scroll-mt-24">
                   <MessageBubble
                     message={m}
                     isOwn={isOwn}
                     sender={sender}
                     showSenderName={isGroupChat}
+                    selected={selectedMessageIds.includes(m.id)}
+                    selectionVisible={selectionVisible}
+                    onToggleSelect={() => onToggleSelectMessage(m.id)}
                     groupPosition={groupPosition}
+                    onForward={() => onForwardMessage(m)}
+                    onSelect={() => onSelectMessage(m)}
+                    onPin={() => onPinMessage(m)}
+                    isPinned={pinnedMessageId === m.id}
                     onEdit={() => onEditMessage(m)}
                     onDelete={() => onDeleteMessage(m.id, m.conversationKey)}
                     onReply={() => onReplyMessage(m)}
                     resolveUserName={(userId) => usersById.get(userId)?.name || 'User'}
                   />
+                  </div>
                 </React.Fragment>
               );
             })}
