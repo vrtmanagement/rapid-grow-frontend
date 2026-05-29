@@ -60,6 +60,20 @@ export type ChatReplyRef = {
   attachment: ChatAttachment | null;
 };
 
+export type ChatForwardedMeta = {
+  forwardedFromMessageId: string | null;
+  forwardedFromUserId: string | null;
+  forwardedFromSenderName: string;
+  originalCreatedAt: string | null;
+  forwardedAt: string | null;
+};
+
+export type ChatPinnedMessage = {
+  message: ChatMessage;
+  pinnedBy: string | null;
+  pinnedAt: string | null;
+};
+
 export type ChatMessage = {
   id: string;
   conversationKey: string;
@@ -75,6 +89,7 @@ export type ChatMessage = {
 
   tick?: { state: ChatTickState; deliveredAt?: string; seenAt?: string } | null;
   replyTo?: ChatReplyRef | null;
+  forwarded?: ChatForwardedMeta | null;
 };
 
 export type ChatNotification = {

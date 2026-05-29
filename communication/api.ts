@@ -58,7 +58,25 @@ export async function apiHistory(conversationKey: string, limit = 50) {
   const qs = new URLSearchParams({ conversationKey, limit: String(limit) });
   const res = await fetch(`${API_BASE}/communication/history?${qs.toString()}`, { headers: authHeadersJson() });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load history');
-  return res.json() as Promise<{ conversationKey: string; messages: any[] }>;
+  return res.json() as Promise<{ conversationKey: string; pinnedMessage?: any; messages: any[] }>;
+}
+
+export async function apiPinMessage(conversationKey: string, messageId: string) {
+  const res = await fetch(`${API_BASE}/communication/messages/pin`, {
+    method: 'POST',
+    headers: authHeadersJson(),
+    body: JSON.stringify({ conversationKey, messageId }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to pin message');
+  }
+  return res.json() as Promise<{
+    ok: boolean;
+    conversationKey: string;
+    pinned: boolean;
+    pinnedMessage: any;
+  }>;
 }
 
 export async function apiUploadFile(file: File) {
@@ -167,5 +185,30 @@ export async function apiClearChat(conversationKey: string) {
     throw new Error(errorData.message || 'Failed to clear chat');
   }
   return res.json() as Promise<{ ok: boolean; clearedCount: number }>;
+}
+
+export async function apiForwardMessages(payload: {
+  messageIds: string[];
+  recipientIds: string[];
+  note?: string;
+}) {
+  const res = await fetch(`${API_BASE}/communication/messages/forward`, {
+    method: 'POST',
+    headers: authHeadersJson(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to forward messages');
+  }
+  return res.json() as Promise<{
+    ok: boolean;
+    forwardedCount: number;
+    recipientCount: number;
+    results: Array<{
+      conversationKey: string;
+      messages: any[];
+    }>;
+  }>;
 }
 

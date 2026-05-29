@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, CheckCheck, CornerUpLeft, Download, ExternalLink, Eye, FileText, Loader2, MoreVertical, PencilLine, Trash2, X } from 'lucide-react';
+import { Check, CheckCheck, CheckSquare, CornerUpLeft, Download, ExternalLink, Eye, FileText, Forward, Loader2, MoreVertical, PencilLine, Pin, PinOff, Trash2, X } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
 import { MessageActionModal } from './MessageActionModal';
 import { apiDownloadCommunicationFile } from '../api';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
+import { MessageSelectionCheckbox } from './forward/MessageSelectionCheckbox';
 
 function formatTime(iso: string) {
   const d = new Date(iso);
@@ -183,9 +184,16 @@ export function MessageBubble({
   isOwn,
   sender,
   showSenderName,
+  selected = false,
+  selectionVisible = false,
+  onToggleSelect,
   onEdit,
   onDelete,
   onReply,
+  onForward,
+  onSelect,
+  onPin,
+  isPinned = false,
   resolveUserName,
   groupPosition = 'single',
 }: {
@@ -193,14 +201,22 @@ export function MessageBubble({
   isOwn: boolean;
   sender: ChatUser | null;
   showSenderName?: boolean;
+  selected?: boolean;
+  selectionVisible?: boolean;
+  onToggleSelect?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
   onReply?: () => void;
+  onForward?: () => void;
+  onSelect?: () => void;
+  onPin?: () => void;
+  isPinned?: boolean;
   resolveUserName?: (userId: string) => string;
   groupPosition?: 'single' | 'first' | 'middle' | 'last';
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPlacement, setMenuPlacement] = useState<'top' | 'bottom' | 'inside'>('top');
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -224,40 +240,17 @@ export function MessageBubble({
   }, [imagePreviewOpen]);
 
   useEffect(() => {
-    if (!menuOpen) return;
-    const calculateMenuPlacement = () => {
-      const bubble = bubbleRef.current;
-      if (!bubble) return;
-      const rect = bubble.getBoundingClientRect();
-      const menuHeight = isImageAttachment && canOpenAttachment ? 116 : 72;
-      const spacing = 6;
-      const spaceAbove = rect.top;
-      const spaceBelow = window.innerHeight - rect.bottom;
-      if (spaceAbove >= menuHeight + spacing) {
-        setMenuPlacement('top');
-      } else if (spaceBelow >= menuHeight + spacing) {
-        setMenuPlacement('bottom');
-      } else {
-        setMenuPlacement('inside');
-      }
-    };
-    calculateMenuPlacement();
-
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    const handleViewportChange = () => calculateMenuPlacement();
-    document.addEventListener('mousedown', handleOutsideClick);
-    window.addEventListener('scroll', handleViewportChange, true);
-    window.addEventListener('resize', handleViewportChange);
+    if (!contextMenu) return;
+    const closeContextMenu = () => setContextMenu(null);
+    window.addEventListener('click', closeContextMenu);
+    window.addEventListener('scroll', closeContextMenu, true);
+    window.addEventListener('resize', closeContextMenu);
     return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-      window.removeEventListener('scroll', handleViewportChange, true);
-      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('click', closeContextMenu);
+      window.removeEventListener('scroll', closeContextMenu, true);
+      window.removeEventListener('resize', closeContextMenu);
     };
-  }, [menuOpen]);
+  }, [contextMenu]);
 
   const bubbleBase = message.deleted
     ? 'bg-slate-100 text-slate-500 border-slate-200 shadow-none'
@@ -283,6 +276,52 @@ export function MessageBubble({
   const attachmentSize = formatAttachmentSize(message.attachment?.size);
   const hasDownloadTarget = !!String(message.attachment?.fileId || '').trim() || directFileUrl !== '#';
   const canOpenAttachment = directFileUrl !== '#';
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const calculateMenuPlacement = () => {
+      const trigger = menuRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+
+      let itemCount = 4; // Reply, Select, Forward, Pin
+      if (isImageAttachment && canOpenAttachment) itemCount += 1;
+      if (isOwn) itemCount += 2; // Edit, Delete
+      const menuHeight = itemCount * 34 + 12;
+      const spacing = 8;
+      const spaceAbove = rect.top;
+      const spaceBelow = window.innerHeight - rect.bottom;
+
+      const fitsBelow = spaceBelow >= menuHeight + spacing;
+      const fitsAbove = spaceAbove >= menuHeight + spacing;
+
+      if (fitsBelow && (!fitsAbove || spaceBelow >= spaceAbove)) {
+        setMenuPlacement('bottom');
+      } else if (fitsAbove) {
+        setMenuPlacement('top');
+      } else if (fitsBelow) {
+        setMenuPlacement('bottom');
+      } else {
+        setMenuPlacement(spaceBelow >= spaceAbove ? 'bottom' : 'top');
+      }
+    };
+    calculateMenuPlacement();
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const handleViewportChange = () => calculateMenuPlacement();
+    document.addEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('scroll', handleViewportChange, true);
+    window.addEventListener('resize', handleViewportChange);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('scroll', handleViewportChange, true);
+      window.removeEventListener('resize', handleViewportChange);
+    };
+  }, [menuOpen, isOwn, isImageAttachment, canOpenAttachment]);
 
   const triggerDownload = async () => {
     if (!hasDownloadTarget) return;
@@ -317,7 +356,7 @@ export function MessageBubble({
       <div
         className={`group my-1.5 flex ${isOwn ? 'justify-end' : 'justify-start'} transition-all duration-200 ${
           mounted ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0'
-        }`}
+        } ${menuOpen ? 'relative z-[200]' : ''}`}
       >
         <div className={`flex max-w-[86%] gap-2 ${isOwn ? 'flex-row-reverse items-end' : 'flex-row items-start'}`}>
           <button
@@ -351,7 +390,7 @@ export function MessageBubble({
               </button>
               {menuOpen ? (
                 <div
-                  className={`absolute z-[90] w-[144px] rounded-xl border border-slate-200 bg-white py-1 shadow-xl transition-all duration-100 ${
+                  className={`absolute z-[210] w-[144px] rounded-xl border border-slate-200 bg-white py-1 shadow-xl transition-all duration-100 ${
                     isOwn ? 'right-0' : 'left-0'
                   } ${
                     menuPlacement === 'top'
@@ -372,6 +411,42 @@ export function MessageBubble({
                   >
                     <CornerUpLeft size={13} />
                     Reply
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onSelect?.();
+                    }}
+                    disabled={!!message.deleted}
+                    className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <CheckSquare size={13} />
+                    Select
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onForward?.();
+                    }}
+                    disabled={!!message.deleted}
+                    className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Forward size={13} />
+                    Forward
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onPin?.();
+                    }}
+                    disabled={!!message.deleted}
+                    className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isPinned ? <PinOff size={13} /> : <Pin size={13} />}
+                    {isPinned ? 'Unpin' : 'Pin'}
                   </button>
                   {isImageAttachment && canOpenAttachment ? (
                     <button
@@ -420,8 +495,31 @@ export function MessageBubble({
 
             <div
               ref={bubbleRef}
-              className={`communication-message-bubble relative max-w-full border px-3.5 py-2 transition-all duration-200 hover:-translate-y-0.5 ${bubbleBase} ${bubbleShapeClass} ${isOwn ? 'communication-message-bubble-own pr-12' : 'communication-message-bubble-peer'} ${message.deleted ? 'communication-message-bubble-deleted' : ''}`}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setContextMenu({ x: event.clientX, y: event.clientY });
+              }}
+              onClick={(event) => {
+                if (!selectionVisible || message.deleted) return;
+                const target = event.target as HTMLElement;
+                if (target.closest('a, button, input, textarea, video, [role="button"]')) return;
+                onToggleSelect?.();
+              }}
+              className={`communication-message-bubble relative max-w-full border px-3.5 py-2 transition-all duration-200 ${
+                selectionVisible && !message.deleted ? 'cursor-pointer' : 'hover:-translate-y-0.5'
+              } ${
+                selected ? 'ring-2 ring-[#c9daf8] ring-offset-2 ring-offset-[#f6f8fb]' : ''
+              } ${bubbleBase} ${bubbleShapeClass} ${isOwn ? 'communication-message-bubble-own pr-12' : 'communication-message-bubble-peer'} ${message.deleted ? 'communication-message-bubble-deleted' : ''}`}
             >
+              {selectionVisible ? (
+                <div className={`absolute ${isOwn ? '-left-11 top-3' : '-left-11 top-3'}`}>
+                  <MessageSelectionCheckbox
+                    checked={selected}
+                    visible={selectionVisible}
+                    onChange={() => onToggleSelect?.()}
+                  />
+                </div>
+              ) : null}
               {showTail ? (
                 <span
                   className={`communication-message-tail absolute h-3 w-3 border ${
@@ -431,6 +529,12 @@ export function MessageBubble({
                   }`}
                   aria-hidden
                 />
+              ) : null}
+              {message.forwarded ? (
+                <div className="mb-2 inline-flex w-fit items-center gap-1.5 rounded-lg border border-slate-200 bg-white/60 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  <Forward size={12} />
+                  Forwarded
+                </div>
               ) : null}
               {!message.deleted && message.replyTo ? (
                 <div className="communication-message-reply mb-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
@@ -732,6 +836,78 @@ export function MessageBubble({
               className="mx-auto block max-h-[90vh] max-w-full object-contain"
             />
           </div>
+        </div>
+      ) : null}
+
+      {contextMenu ? (
+        <div
+          className="fixed z-[100] min-w-[168px] overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 shadow-[0_24px_50px_rgba(15,23,42,0.18)]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setContextMenu(null);
+              onReply?.();
+            }}
+            disabled={!!message.deleted}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <CornerUpLeft size={15} />
+            Reply
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setContextMenu(null);
+              onSelect?.();
+            }}
+            disabled={!!message.deleted}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <CheckSquare size={15} />
+            Select
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setContextMenu(null);
+              onForward?.();
+            }}
+            disabled={!!message.deleted}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Forward size={15} />
+            Forward
+          </button>
+          {isOwn ? (
+            <button
+              type="button"
+              onClick={() => {
+                setContextMenu(null);
+                onEdit?.();
+              }}
+              disabled={!!message.deleted || message.type !== 'text'}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <PencilLine size={15} />
+              Edit
+            </button>
+          ) : null}
+          {isOwn ? (
+            <button
+              type="button"
+              onClick={() => {
+                setContextMenu(null);
+                setDeleteOpen(true);
+              }}
+              disabled={!!message.deleted}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Trash2 size={15} />
+              Delete
+            </button>
+          ) : null}
         </div>
       ) : null}
     </>

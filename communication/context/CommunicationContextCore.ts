@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import { ChatConversationSummary, ChatMessage, ChatNotification, ChatUser } from '../types';
+import { ChatConversationSummary, ChatMessage, ChatNotification, ChatPinnedMessage, ChatUser } from '../types';
 
 export type CommunicationContextValue = {
   currentUser: { id: string; name: string; role: string; empId?: string; avatar?: string } | null;
@@ -14,6 +14,7 @@ export type CommunicationContextValue = {
 
   messages: ChatMessage[];
   messagesLoading: boolean;
+  pinnedMessage: ChatPinnedMessage | null;
 
   typingUserIds: Record<string, true>;
 
@@ -26,10 +27,12 @@ export type CommunicationContextValue = {
 
   sendText: (conversationKey: string, content: string, replyToMessageId?: string | null) => Promise<void>;
   sendFile: (conversationKey: string, file: File, content?: string, replyToMessageId?: string | null) => Promise<void>;
+  forwardMessages: (messageIds: string[], recipientIds: string[], note?: string) => Promise<void>;
   notifyTyping: (conversationKey: string) => void;
 
   editMessage: (messageId: string, conversationKey: string, newContent: string) => Promise<void>;
   deleteMessage: (messageId: string, conversationKey: string) => Promise<void>;
+  pinMessage: (messageId: string, conversationKey: string) => Promise<void>;
   clearChat: (conversationKey: string) => Promise<void>;
 
   notifications: ChatNotification[];
