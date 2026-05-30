@@ -1,11 +1,14 @@
-import React from 'react';
-import { CalendarDays } from 'lucide-react';
+import React, { useState } from 'react';
+import { CalendarDays, ChevronDown } from 'lucide-react';
 import { LeaveRequest, formatLeaveDayCount } from './attendanceUtils';
 import { getLeaveTypeLabel } from './leaveManagementPanelUtils';
+import LeaveLopBadges from './LeaveLopBadges';
+import { LOP_QUICK_ACTIONS } from './lopUtils';
 
 interface PendingApprovalsPanelProps {
   pendingLeaves: LeaveRequest[];
   onLeaveAction: (id: string, action: 'APPROVE' | 'REJECT') => void;
+  onLeaveLopAction?: (id: string, action: string, reason?: string) => Promise<void>;
   formatApprovalDate: (value: string) => string;
   calculateLeaveDays: (
     start?: string,
@@ -17,19 +20,38 @@ interface PendingApprovalsPanelProps {
   gridClassName?: string;
   showEmployeeLabelHeading?: boolean;
   compactTitleLine?: boolean;
+  showLopActions?: boolean;
 }
 
 const PendingApprovalsPanel: React.FC<PendingApprovalsPanelProps> = ({
   pendingLeaves,
   onLeaveAction,
+  onLeaveLopAction,
   formatApprovalDate,
   calculateLeaveDays,
   sectionClassName = 'rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)]',
   gridClassName = 'mt-5 grid gap-4',
   showEmployeeLabelHeading = true,
   compactTitleLine = false,
+  showLopActions = false,
 }) => {
+  const [expandedLopId, setExpandedLopId] = useState<string | null>(null);
+  const [overrideReason, setOverrideReason] = useState('');
+  const [lopActionLoading, setLopActionLoading] = useState<string | null>(null);
+
   if (!pendingLeaves.length) return null;
+
+  const handleLopAction = async (leaveId: string, action: string) => {
+    if (!onLeaveLopAction) return;
+    setLopActionLoading(`${leaveId}:${action}`);
+    try {
+      await onLeaveLopAction(leaveId, action, overrideReason.trim() || undefined);
+      setExpandedLopId(null);
+      setOverrideReason('');
+    } finally {
+      setLopActionLoading(null);
+    }
+  };
 
   return (
     <section className={sectionClassName}>
@@ -41,8 +63,10 @@ const PendingApprovalsPanel: React.FC<PendingApprovalsPanelProps> = ({
             leave.startDate.slice(0, 10),
             leave.endDate.slice(0, 10),
             false,
-            { type: leave.type, dayPortion: leave.dayPortion }
+            { type: leave.type, dayPortion: leave.dayPortion },
           ).total;
+          const isLopExpanded = expandedLopId === leave._id;
+
           return (
             <div key={leave._id} className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4">
               <div className="flex items-center justify-between gap-3">
@@ -50,7 +74,9 @@ const PendingApprovalsPanel: React.FC<PendingApprovalsPanelProps> = ({
                   {showEmployeeLabelHeading ? (
                     <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Employee</p>
                   ) : null}
-                  <p className={`mt-1 font-semibold tracking-[-0.02em] text-slate-900 ${compactTitleLine ? 'text-base' : 'text-[1.05rem]'}`}>
+                  <p
+                    className={`mt-1 font-semibold tracking-[-0.02em] text-slate-900 ${compactTitleLine ? 'text-base' : 'text-[1.05rem]'}`}
+                  >
                     {leave.empName || leave.empId}
                   </p>
                 </div>
@@ -58,13 +84,20 @@ const PendingApprovalsPanel: React.FC<PendingApprovalsPanelProps> = ({
                   pending
                 </span>
               </div>
+
+              <LeaveLopBadges badges={leave.lopBadges} compact className="mt-3" />
+
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <div className="inline-flex flex-wrap items-center gap-2 rounded-full bg-white px-3 py-1.5 shadow-sm ring-1 ring-slate-200">
                   <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">From</span>
-                  <span className="text-sm font-semibold tracking-[-0.01em] text-slate-800">{formatApprovalDate(leave.startDate)}</span>
+                  <span className="text-sm font-semibold tracking-[-0.01em] text-slate-800">
+                    {formatApprovalDate(leave.startDate)}
+                  </span>
                   <span className="text-slate-300">•</span>
                   <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">To</span>
-                  <span className="text-sm font-semibold tracking-[-0.01em] text-slate-800">{formatApprovalDate(leave.endDate)}</span>
+                  <span className="text-sm font-semibold tracking-[-0.01em] text-slate-800">
+                    {formatApprovalDate(leave.endDate)}
+                  </span>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-brand-red/5 px-3 py-1.5 text-sm font-semibold text-brand-red">
                   <CalendarDays size={14} />
@@ -73,7 +106,9 @@ const PendingApprovalsPanel: React.FC<PendingApprovalsPanelProps> = ({
               </div>
               <div className="mt-3 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Reason</p>
-                <p className={`mt-2 font-medium leading-7 tracking-[-0.01em] text-slate-800 ${compactTitleLine ? 'text-sm' : 'text-[15px]'}`}>
+                <p
+                  className={`mt-2 font-medium leading-7 tracking-[-0.01em] text-slate-800 ${compactTitleLine ? 'text-sm' : 'text-[15px]'}`}
+                >
                   {leave.reason || getLeaveTypeLabel(leave.type)}
                 </p>
               </div>
@@ -93,6 +128,42 @@ const PendingApprovalsPanel: React.FC<PendingApprovalsPanelProps> = ({
                   Reject
                 </button>
               </div>
+
+              {showLopActions && onLeaveLopAction ? (
+                <div className="mt-4 border-t border-slate-200/80 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedLopId(isLopExpanded ? null : leave._id)}
+                    className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700"
+                  >
+                    LOP quick actions
+                    <ChevronDown size={16} className={isLopExpanded ? 'rotate-180' : ''} />
+                  </button>
+                  {isLopExpanded ? (
+                    <div className="mt-3 space-y-2">
+                      <input
+                        value={overrideReason}
+                        onChange={(e) => setOverrideReason(e.target.value)}
+                        placeholder="Override reason (optional)"
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        {LOP_QUICK_ACTIONS.map((item) => (
+                          <button
+                            key={item.action}
+                            type="button"
+                            disabled={lopActionLoading === `${leave._id}:${item.action}`}
+                            onClick={() => void handleLopAction(leave._id, item.action)}
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 transition hover:border-brand-red/25 hover:bg-rose-50/50 disabled:opacity-50"
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           );
         })}

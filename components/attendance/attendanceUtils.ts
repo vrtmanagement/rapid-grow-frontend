@@ -87,6 +87,53 @@ export interface AttendanceSummaryResponse {
 
 export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
+export type LeaveDisplayStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'LOP_APPLIED'
+  | 'EXCEPTION_APPROVED';
+
+export type LeaveLopExceptionType = 'IGNORE_LOP' | 'PAID_EXCEPTION' | 'EMERGENCY_APPROVAL';
+
+export type LeaveLopAction =
+  | 'APPLY_LOP'
+  | 'REMOVE_LOP'
+  | 'OVERRIDE_POLICY'
+  | 'IGNORE_LOP'
+  | 'PAID_EXCEPTION'
+  | 'EMERGENCY_APPROVAL'
+  | 'APPROVE_NORMALLY'
+  | 'DISABLE_ATTENDANCE_DEDUCTION'
+  | 'ENABLE_ATTENDANCE_DEDUCTION';
+
+export interface LeaveLopBadge {
+  key: string;
+  label: string;
+  tone: 'warning' | 'danger' | 'info' | 'success';
+}
+
+export interface LeaveLopEvaluation {
+  appliesPolicyLop?: boolean;
+  warningAtApply?: boolean;
+  warningMessage?: string;
+  advanceNoticeHours?: number | null;
+  requiredAdvanceHours?: number | null;
+  ruleTriggers?: string[];
+  evaluatedAt?: string;
+}
+
+export interface LeaveBalanceImpact {
+  totalDays?: number;
+  paidDays?: number;
+  unpaidDays?: number;
+  lopDays?: number;
+  policyLopDays?: number;
+  deductionMultiplier?: number;
+  effectiveDeductionDays?: number;
+  normalizedType?: string;
+}
+
 export interface LeaveRequest {
   _id: string;
   empId: string;
@@ -97,11 +144,81 @@ export interface LeaveRequest {
   type: string;
   dayPortion?: 'FULL_DAY' | 'FIRST_HALF' | 'SECOND_HALF';
   status: LeaveStatus;
+  displayStatus?: LeaveDisplayStatus;
   approverRole: string;
   createdAt: string;
   decidedAt?: string;
   decidedByRole?: string;
+  lopEvaluation?: LeaveLopEvaluation;
+  lopApplied?: boolean;
+  exceptionType?: LeaveLopExceptionType | null;
+  skipAttendanceDeduction?: boolean;
+  lopOverrideReason?: string;
+  balanceImpact?: LeaveBalanceImpact;
+  lopBadges?: LeaveLopBadge[];
 }
+
+export interface LopPolicyConfig {
+  id: string;
+  enabled: boolean;
+  minAdvanceNoticeHours: number;
+  doubleDeductionEnabled: boolean;
+  deductionMultiplier: number;
+  lateApplicationCountsAsLop: boolean;
+  unapprovedLeaveCountsAsLop: boolean;
+  employeeExceptions: Array<{
+    empId: string;
+    reason: string;
+    expiresAt?: string | null;
+    createdByEmpId?: string;
+  }>;
+  skipAttendanceDeductionEmpIds: string[];
+  updatedByEmpId?: string;
+  updatedByName?: string;
+  presets?: {
+    advanceNoticeHours: number[];
+    multipliers: number[];
+  };
+}
+
+export interface LeaveLopPreview {
+  policy: {
+    enabled: boolean;
+    minAdvanceNoticeHours: number;
+    deductionMultiplier: number;
+    doubleDeductionEnabled: boolean;
+  };
+  evaluation: LeaveLopEvaluation;
+  multiplier: number;
+}
+
+export interface LeaveLopSummary {
+  year: number;
+  policyWarnings: string[];
+  totals: {
+    lopCount: number;
+    totalDeducted: number;
+    totalLopDays: number;
+  };
+  timeline: Array<{
+    id: string;
+    leaveRequestId: string;
+    leaveType: string;
+    deductedDays: number;
+    lopDays: number;
+    multiplier: number;
+    ruleTriggers: string[];
+    appliedAt: string;
+    overrideReason: string;
+  }>;
+  recentLeaves: LeaveRequest[];
+}
+
+export type AttendanceDayStatus =
+  | 'PRESENT'
+  | 'LEAVE'
+  | 'LOP'
+  | 'UNAPPROVED_ABSENCE';
 
 export interface LeaveBalanceTypeMetric {
   type: string;
@@ -190,6 +307,8 @@ export interface LeaveBalanceOverviewResponse {
     expiredCarryForward: number;
     yearlyAllocated: number;
     yearlyRemaining: number;
+    calendarLeaveDays?: number;
+    balanceDeductedDays?: number;
   };
   dashboardCard: {
     totalAvailable: number;
@@ -367,5 +486,77 @@ export function countLeaveDaysInRange(leaves: LeaveRequest[], rangeStart?: strin
     });
 
   return total;
+}
+
+function dateKeyFromValue(value: string | Date) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function leaveCoversDate(leave: LeaveRequest, dateKey: string) {
+  const startKey = dateKeyFromValue(leave.startDate);
+  const endKey = dateKeyFromValue(leave.endDate);
+  if (!startKey || !endKey || !dateKey) return false;
+  return dateKey >= startKey && dateKey <= endKey;
+}
+
+export function resolveAttendanceDayStatus(
+  dateKey: string,
+  leaves: LeaveRequest[],
+  hasWorkedMinutes: boolean,
+): AttendanceDayStatus {
+  if (hasWorkedMinutes) return 'PRESENT';
+
+  const dayLeaves = leaves.filter((leave) => leaveCoversDate(leave, dateKey));
+  if (!dayLeaves.length) return 'PRESENT';
+
+  const approvedLop = dayLeaves.find(
+    (leave) =>
+      leave.status === 'APPROVED' &&
+      (leave.lopApplied || (leave.balanceImpact?.lopDays || 0) > 0),
+  );
+  if (approvedLop) return 'LOP';
+
+  const pendingRisk = dayLeaves.find(
+    (leave) => leave.status === 'PENDING' && leave.lopEvaluation?.appliesPolicyLop,
+  );
+  if (pendingRisk) return 'UNAPPROVED_ABSENCE';
+
+  const approved = dayLeaves.find((leave) => leave.status === 'APPROVED');
+  if (approved) return 'LEAVE';
+
+  const pending = dayLeaves.find((leave) => leave.status === 'PENDING');
+  if (pending) return 'UNAPPROVED_ABSENCE';
+
+  return 'PRESENT';
+}
+
+export function getAttendanceStatusLabel(status: AttendanceDayStatus) {
+  switch (status) {
+    case 'LOP':
+      return 'LOP';
+    case 'LEAVE':
+      return 'Leave';
+    case 'UNAPPROVED_ABSENCE':
+      return 'Unapproved absence';
+    case 'PRESENT':
+    default:
+      return 'Present';
+  }
+}
+
+export function getAttendanceStatusTone(status: AttendanceDayStatus) {
+  switch (status) {
+    case 'LOP':
+      return 'bg-amber-50 text-amber-800 ring-amber-100';
+    case 'LEAVE':
+      return 'bg-indigo-50 text-indigo-700 ring-indigo-100';
+    case 'UNAPPROVED_ABSENCE':
+      return 'bg-rose-50 text-rose-800 ring-rose-100';
+    case 'PRESENT':
+    default:
+      return 'bg-emerald-50 text-emerald-700 ring-emerald-100';
+  }
 }
 

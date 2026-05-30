@@ -50,7 +50,7 @@ const statCardMeta = [
   { key: 'usedLeaves', label: 'Used leaves', tone: 'text-rose-600', bg: 'bg-rose-50/70' },
   { key: 'remainingLeaves', label: 'Remaining leaves', tone: 'text-emerald-700', bg: 'bg-emerald-50/80' },
   { key: 'paidLeaves', label: 'Paid leaves used', tone: 'text-sky-700', bg: 'bg-sky-50/75' },
-  { key: 'unpaidLeaves', label: 'Unpaid / LOP', tone: 'text-amber-700', bg: 'bg-amber-50/80' },
+  { key: 'lopDays', label: 'Unpaid / LOP', tone: 'text-amber-700', bg: 'bg-amber-50/80' },
   { key: 'pendingLeaveRequests', label: 'Pending requests', tone: 'text-violet-700', bg: 'bg-violet-50/75' },
   { key: 'approvedLeaveRequests', label: 'Approved requests', tone: 'text-emerald-700', bg: 'bg-emerald-50/65' },
 ] as const;
@@ -504,6 +504,10 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
           <div className="mt-6 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
             {statCardMeta.map((card, index) => {
               const value = summary?.[card.key] ?? 0;
+              const showLopDeductionNote =
+                card.key === 'usedLeaves' &&
+                (summary?.calendarLeaveDays ?? 0) > 0 &&
+                (summary?.balanceDeductedDays ?? value) > (summary?.calendarLeaveDays ?? 0);
               return (
                 <motion.div
                   key={card.key}
@@ -517,10 +521,16 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
                       {card.label}
                     </p>
                   </div>
-                  <div className="flex flex-1 items-center justify-center">
+                  <div className="flex flex-1 flex-col items-center justify-center gap-1">
                     <p className={`text-center text-[1.35rem] font-semibold leading-none tracking-[-0.04em] ${card.tone}`}>
                       {formatDayValue(value)}
                     </p>
+                    {showLopDeductionNote ? (
+                      <p className="text-center text-[10px] font-medium leading-snug text-rose-700/90">
+                        {formatDayValue(summary?.calendarLeaveDays ?? 0)} leave ·{' '}
+                        {formatDayValue(summary?.balanceDeductedDays ?? value)} deducted
+                      </p>
+                    ) : null}
                   </div>
                 </motion.div>
               );

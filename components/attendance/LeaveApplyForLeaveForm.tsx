@@ -1,5 +1,6 @@
 import React, { RefObject, useEffect, useRef, useState } from 'react';
-import { CalendarDays, ChevronDown, Sparkles, Wand2 } from 'lucide-react';
+import { AlertTriangle, CalendarDays, ChevronDown, Sparkles, X } from 'lucide-react';
+import { LeaveLopEvaluation } from './attendanceUtils';
 import DatePickerPopup from './DatePickerPopup';
 import { LEAVE_TYPE_OPTIONS, formatDisplayDate, ActivePopup } from './leaveManagementPanelUtils';
 import { formatLeaveDayCount } from './attendanceUtils';
@@ -25,6 +26,8 @@ interface LeaveApplyForLeaveFormProps {
   calculatedDays: number;
   selectedLeaveTypeOption: (typeof LEAVE_TYPE_OPTIONS)[number];
   onSubmitLeave: () => void;
+  lopPreviewLoading?: boolean;
+  lopEvaluation?: LeaveLopEvaluation | null;
 }
 
 const LeaveApplyForLeaveForm: React.FC<LeaveApplyForLeaveFormProps> = ({
@@ -46,6 +49,8 @@ const LeaveApplyForLeaveForm: React.FC<LeaveApplyForLeaveFormProps> = ({
   calculatedDays,
   selectedLeaveTypeOption,
   onSubmitLeave,
+  lopPreviewLoading = false,
+  lopEvaluation = null,
 }) => {
   const [typePopupPlacement, setTypePopupPlacement] = useState<'top' | 'bottom'>('bottom');
   const reasonTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -199,17 +204,25 @@ const LeaveApplyForLeaveForm: React.FC<LeaveApplyForLeaveFormProps> = ({
 
       <div className="relative mt-4" ref={reasonFieldRef}>
         <span className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-400">Reason</span>
-        <div className="rounded-[24px] border border-slate-200 bg-white p-4 transition focus-within:border-brand-red/35 focus-within:ring-4 focus-within:ring-brand-red/10">
+        <div className="relative rounded-[24px] border border-slate-200 bg-white p-4 transition focus-within:border-brand-red/35 focus-within:ring-4 focus-within:ring-brand-red/10">
+          <button
+            type="button"
+            onClick={() => onChangeReason('')}
+            disabled={!leaveReason}
+            aria-label="Clear leave reason"
+            className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <X size={14} />
+          </button>
           <div className="flex items-start justify-between gap-3">
             <textarea
               ref={reasonTextareaRef}
               value={leaveReason}
               onChange={(e) => onChangeReason(e.target.value)}
               rows={2}
-              className="min-h-[56px] max-h-[112px] w-full resize-none overflow-y-hidden bg-transparent text-sm leading-7 text-slate-700 outline-none placeholder:text-slate-400"
+              className="min-h-[56px] max-h-[112px] w-full resize-none overflow-y-hidden bg-transparent pr-12 text-sm leading-7 text-slate-700 outline-none placeholder:text-slate-400"
               placeholder="Type your leave reason here."
             />
-            <Wand2 size={18} className="mt-1 shrink-0 text-slate-300" />
           </div>
         </div>
       </div>
@@ -262,6 +275,30 @@ const LeaveApplyForLeaveForm: React.FC<LeaveApplyForLeaveFormProps> = ({
             </div>
           ) : null}
         </div>
+
+        {lopPreviewLoading ? (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-500 animate-pulse">
+            Checking LOP policy…
+          </div>
+        ) : null}
+
+        {!lopPreviewLoading && lopEvaluation?.warningAtApply && lopEvaluation.warningMessage ? (
+          <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50/90 px-4 py-4 shadow-[0_12px_30px_rgba(245,158,11,0.12)]">
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-600" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900">LOP policy warning</p>
+                <p className="mt-1 text-sm leading-6 text-amber-800">{lopEvaluation.warningMessage}</p>
+                {typeof lopEvaluation.advanceNoticeHours === 'number' ? (
+                  <p className="mt-2 text-xs text-amber-700/90">
+                    Advance notice: {lopEvaluation.advanceNoticeHours}h (required:{' '}
+                    {lopEvaluation.requiredAdvanceHours}h)
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <button
           type="button"

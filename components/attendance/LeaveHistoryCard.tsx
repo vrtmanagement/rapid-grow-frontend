@@ -2,6 +2,8 @@ import React from 'react';
 import { CalendarRange, Eye, PencilLine, Trash2 } from 'lucide-react';
 import { LeaveRequest, formatLeaveDayCount } from './attendanceUtils';
 import { getLeaveTypeLabel, getLeaveTypeTone } from './leaveManagementPanelUtils';
+import LeaveLopBadges from './LeaveLopBadges';
+import { getLeaveDisplayStatusLabel, getLeaveDisplayStatusTone } from './lopUtils';
 
 interface Props {
   leave: LeaveRequest;
@@ -52,10 +54,13 @@ const LeaveHistoryCard: React.FC<Props> = ({
               <span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${getLeaveTypeTone(leave.type)}`}>
                 {getLeaveTypeLabel(leave.type)}
               </span>
-              <span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${statusClasses[leave.status]}`}>
-                {leave.status}
+              <span
+                className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ring-1 ${getLeaveDisplayStatusTone(leave)}`}
+              >
+                {getLeaveDisplayStatusLabel(leave)}
               </span>
             </div>
+            <LeaveLopBadges badges={leave.lopBadges} compact className="mt-3" />
 
             <div className="mt-4 flex flex-wrap items-center gap-3 text-slate-900">
               <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3.5 py-1.5 shadow-sm">
