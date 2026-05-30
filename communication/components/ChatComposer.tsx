@@ -32,6 +32,27 @@ function getFileLabel(file?: File | null) {
   return extension || 'File';
 }
 
+function getImageFilesFromClipboard(data: DataTransfer | null) {
+  if (!data?.items?.length) return [];
+  const pastedImages: File[] = [];
+  for (const item of Array.from(data.items)) {
+    if (item.kind !== 'file' || !item.type.startsWith('image/')) continue;
+    const blob = item.getAsFile();
+    if (!blob) continue;
+    if (blob.name && blob.name.trim()) {
+      pastedImages.push(blob);
+      continue;
+    }
+    const ext = blob.type === 'image/jpeg' ? 'jpg' : blob.type.split('/')[1] || 'png';
+    pastedImages.push(
+      new File([blob], `pasted-image-${Date.now()}${pastedImages.length ? `-${pastedImages.length}` : ''}.${ext}`, {
+        type: blob.type,
+      }),
+    );
+  }
+  return pastedImages;
+}
+
 export function ChatComposer({
   conversationKey,
   onSendText,
@@ -126,6 +147,15 @@ export function ChatComposer({
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (disabled || sending || editingMessage) return;
+    const pastedImages = getImageFilesFromClipboard(e.clipboardData);
+    if (pastedImages.length === 0) return;
+    e.preventDefault();
+    setFiles((prev) => [...prev, ...pastedImages]);
+    notifyTyping();
   };
 
   const handleSend = async () => {
@@ -301,6 +331,7 @@ export function ChatComposer({
                   void handleSend();
                 }
               }}
+              onPaste={handlePaste}
               disabled={disabled || sending}
               rows={2}
               placeholder="Write a message..."
