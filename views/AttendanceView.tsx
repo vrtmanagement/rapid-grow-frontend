@@ -1339,6 +1339,21 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     }
   };
 
+  const handleLeaveLopAction = async (id: string, action: string, reason?: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/leaves/${id}/lop-action`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ action, reason }),
+      });
+      if (res.ok) {
+        await loadLeaves({ silent: true });
+      }
+    } catch (e) {
+      console.error('Failed to apply LOP action', e);
+    }
+  };
+
   const todayInfo = useMemo(() => {
     const todayKey = getLocalDateKey(new Date(liveNow));
     const openSessionIsToday =
@@ -1981,6 +1996,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
             pendingLeaves={pendingLeaves}
             leaveLoading={leaveLoading}
             onLeaveAction={handleLeaveAction}
+            onLeaveLopAction={handleLeaveLopAction}
             canApplyLeave={!isBackendAdminRole}
             approverLeaves={approverLeaves}
             isAdmin={!!isBackendAdminRole}

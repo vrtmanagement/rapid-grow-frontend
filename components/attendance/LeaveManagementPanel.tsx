@@ -5,8 +5,11 @@ import { getSocket } from '../../realtime/socket';
 import {
   LeaveAdminActivityItem,
   LeaveBalanceOverviewResponse,
+  LeaveLopEvaluation,
+  LeaveLopSummary,
   LeavePolicyConfig,
   LeaveRequest,
+  LopPolicyConfig,
 } from './attendanceUtils';
 import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
 import { usePermissions } from '../../context/usePermissions';
@@ -18,6 +21,8 @@ import LeaveAdminLeaveOperationsSection from './LeaveAdminLeaveOperationsSection
 import LeaveHistoryRecordsSection from './LeaveHistoryRecordsSection';
 import LeaveBalanceOverviewSection from './LeaveBalanceOverviewSection';
 import LeaveAdminPolicySection from './LeaveAdminPolicySection';
+import LeaveLopPolicySection from './LeaveLopPolicySection';
+import LeaveEmployeeLopSection from './LeaveEmployeeLopSection';
 import {
   createLeaveAdjustment as createLeaveAdjustmentApi,
   downloadLeaveReport,
@@ -26,6 +31,15 @@ import {
   fetchLeavePolicies,
   saveLeavePolicy,
 } from './leaveBalanceApi';
+import {
+  applyLeaveLopAction,
+  fetchLopPolicy,
+  fetchMyLopSummary,
+  previewLeaveLop,
+  saveLopPolicy,
+} from './lopPolicyApi';
+import { LOP_HISTORY_FILTER_OPTIONS, LopHistoryFilter, matchesLopHistoryFilter } from './lopUtils';
+import FilterDropdown from './FilterDropdown';
 import {
   REASON_SUGGESTIONS,
   LEAVE_TYPE_OPTIONS,
@@ -62,6 +76,7 @@ interface Props {
   pendingLeaves: LeaveRequest[];
   leaveLoading: boolean;
   onLeaveAction: (id: string, action: 'APPROVE' | 'REJECT') => void;
+  onLeaveLopAction?: (id: string, action: string, reason?: string) => Promise<void>;
   canApplyLeave: boolean;
   approverLeaves: LeaveRequest[];
   isAdmin: boolean;
@@ -91,6 +106,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
   pendingLeaves,
   leaveLoading,
   onLeaveAction,
+  onLeaveLopAction,
   canApplyLeave,
   approverLeaves,
   isAdmin,
@@ -106,6 +122,15 @@ const LeaveManagementPanel: React.FC<Props> = ({
 }) => {
   const { hasPermission } = usePermissions();
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+  const [lopHistoryFilter, setLopHistoryFilter] = useState<LopHistoryFilter>('ALL');
+  const [lopHistoryFilterOpen, setLopHistoryFilterOpen] = useState(false);
+  const lopHistoryFilterRef = useRef<HTMLDivElement | null>(null);
+  const [lopPolicy, setLopPolicy] = useState<LopPolicyConfig | null>(null);
+  const [lopPolicySaving, setLopPolicySaving] = useState(false);
+  const [lopSummary, setLopSummary] = useState<LeaveLopSummary | null>(null);
+  const [lopSummaryLoading, setLopSummaryLoading] = useState(false);
+  const [lopPreviewLoading, setLopPreviewLoading] = useState(false);
+  const [lopEvaluation, setLopEvaluation] = useState<LeaveLopEvaluation | null>(null);
   const [historyEmployeeFilter, setHistoryEmployeeFilter] = useState('');
   const [historyMonthFilter, setHistoryMonthFilter] = useState('');
   const [historyStatusPickerOpen, setHistoryStatusPickerOpen] = useState(false);
@@ -200,6 +225,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
 
     return baseLeaves.filter((leave) => {
       if (statusFilter !== 'ALL' && leave.status !== statusFilter) return false;
+      if (!matchesLopHistoryFilter(leave, lopHistoryFilter)) return false;
       if (historyMonthFilter && !leaveMatchesMonth(leave, historyMonthFilter)) return false;
       if (!selectedEmployeeId && !selectedEmployeeLabel) return true;
 
@@ -210,7 +236,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
 
       return getEmployeeRecordLabel(leave).toLowerCase() === selectedEmployeeLabel;
     });
-  }, [baseLeaves, historyEmployeeFilter, historyMonthFilter, statusFilter]);
+  }, [baseLeaves, historyEmployeeFilter, historyMonthFilter, lopHistoryFilter, statusFilter]);
 
   const adminOverviewLeaves = useMemo(() => {
     const selectedEmployeeId = getEmployeeIdFromLabel(adminEmployeeFilter);
@@ -236,9 +262,16 @@ const LeaveManagementPanel: React.FC<Props> = ({
       approved: adminOverviewLeaves.filter((leave) => leave.status === 'APPROVED').length,
       pending: adminOverviewLeaves.filter((leave) => leave.status === 'PENDING').length,
       rejected: adminOverviewLeaves.filter((leave) => leave.status === 'REJECTED').length,
+      lop: adminOverviewLeaves.filter((leave) =>
+        matchesLopHistoryFilter(leave, 'LOP_LEAVES'),
+      ).length,
     }),
     [adminOverviewLeaves],
   );
+
+  const lopHistoryFilterLabel =
+    LOP_HISTORY_FILTER_OPTIONS.find((option) => option.value === lopHistoryFilter)?.label ||
+    'All leaves';
 
   const adminEmployeeOptions = useMemo(() => {
     const uniqueEmployees = new Map<string, string>();
@@ -482,18 +515,66 @@ const LeaveManagementPanel: React.FC<Props> = ({
     }
 
     try {
-      const [policies, activity] = await Promise.all([
+      const [policies, activity, lopPolicyData] = await Promise.all([
         fetchLeavePolicies(),
         fetchLeaveActivity(8),
+        fetchLopPolicy().catch(() => null),
       ]);
       setPolicyItems(policies);
       setActivityItems(activity);
+      if (lopPolicyData) setLopPolicy(lopPolicyData);
     } catch (error) {
       console.error('Failed to load leave admin metadata', error);
       setPolicyItems([]);
       setActivityItems([]);
     }
   }, [isApproverPortal]);
+
+  const loadLopSummary = useCallback(async () => {
+    if (viewerRole !== 'employee') {
+      setLopSummary(null);
+      return;
+    }
+    setLopSummaryLoading(true);
+    try {
+      const summary = await fetchMyLopSummary(new Date().getFullYear());
+      setLopSummary(summary);
+    } catch (error) {
+      console.error('Failed to load LOP summary', error);
+      setLopSummary(null);
+    } finally {
+      setLopSummaryLoading(false);
+    }
+  }, [viewerRole]);
+
+  useEffect(() => {
+    if (!canApplyLeave || !leaveStart || !leaveEnd || hasInvalidRange) {
+      setLopEvaluation(null);
+      return undefined;
+    }
+
+    let mounted = true;
+    const timer = window.setTimeout(async () => {
+      setLopPreviewLoading(true);
+      try {
+        const preview = await previewLeaveLop({
+          startDate: leaveStart,
+          endDate: leaveEnd,
+          type: leaveType,
+        });
+        if (mounted) setLopEvaluation(preview.evaluation);
+      } catch {
+        if (mounted) setLopEvaluation(null);
+      } finally {
+        if (mounted) setLopPreviewLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      mounted = false;
+      window.clearTimeout(timer);
+    };
+  }, [canApplyLeave, hasInvalidRange, leaveEnd, leaveStart, leaveType]);
 
   useEffect(() => {
     if (viewerRole === 'employee' && historyEmployeeFilter) {
@@ -515,6 +596,10 @@ const LeaveManagementPanel: React.FC<Props> = ({
   useEffect(() => {
     void loadAdminMeta();
   }, [loadAdminMeta]);
+
+  useEffect(() => {
+    void loadLopSummary();
+  }, [loadLopSummary, myLeaves.length]);
 
   useEffect(() => {
     if (!baseLeaves.length && !currentOverview && viewerRole !== 'employee') return;
@@ -673,6 +758,32 @@ const LeaveManagementPanel: React.FC<Props> = ({
     };
   }, [activePopup]);
 
+  const handleSaveLopPolicy = async (payload: Record<string, unknown>) => {
+    setLopPolicySaving(true);
+    try {
+      const saved = await saveLopPolicy(payload);
+      setLopPolicy(saved);
+      setToast({ tone: 'success', message: 'LOP policy saved' });
+    } catch (error) {
+      setToast({
+        tone: 'info',
+        message: error instanceof Error ? error.message : 'Failed to save LOP policy',
+      });
+    } finally {
+      setLopPolicySaving(false);
+    }
+  };
+
+  const handleLeaveLopAction = async (leaveId: string, action: string, reason?: string) => {
+    if (onLeaveLopAction) {
+      await onLeaveLopAction(leaveId, action, reason);
+      setToast({ tone: 'success', message: 'LOP action applied' });
+      return;
+    }
+    await applyLeaveLopAction(leaveId, action, reason);
+    setToast({ tone: 'success', message: 'LOP action applied' });
+  };
+
   const handleSubmitLeave = async () => {
     if (hasInvalidRange) {
       setToast({ tone: 'info', message: 'Please choose a valid leave date range.' });
@@ -782,6 +893,8 @@ const LeaveManagementPanel: React.FC<Props> = ({
         <PendingApprovalsPanel
           pendingLeaves={pendingLeaves}
           onLeaveAction={onLeaveAction}
+          onLeaveLopAction={handleLeaveLopAction}
+          showLopActions={isApproverPortal}
           formatApprovalDate={formatApprovalDate}
           calculateLeaveDays={calculateLeaveDays}
           sectionClassName="w-full max-w-[720px] rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)]"
@@ -861,6 +974,8 @@ const LeaveManagementPanel: React.FC<Props> = ({
                   calculatedDays={calculatedDays}
                   selectedLeaveTypeOption={selectedLeaveTypeOption}
                   onSubmitLeave={handleSubmitLeave}
+                  lopPreviewLoading={lopPreviewLoading}
+                  lopEvaluation={lopEvaluation}
                 />
               )
             ) : (
@@ -887,6 +1002,8 @@ const LeaveManagementPanel: React.FC<Props> = ({
               <PendingApprovalsPanel
                 pendingLeaves={pendingLeaves}
                 onLeaveAction={onLeaveAction}
+                onLeaveLopAction={handleLeaveLopAction}
+                showLopActions
                 formatApprovalDate={formatApprovalDate}
                 calculateLeaveDays={calculateLeaveDays}
                 sectionClassName="order-1 w-full max-w-[720px] rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)]"
@@ -908,6 +1025,33 @@ const LeaveManagementPanel: React.FC<Props> = ({
             </div>
           ) : null}
         </div>
+
+        {viewerRole === 'employee' ? (
+          <LeaveEmployeeLopSection summary={lopSummary} loading={lopSummaryLoading} />
+        ) : null}
+
+        {isApproverPortal ? (
+          <div className="rounded-[26px] border border-slate-200 bg-white px-5 py-4 shadow-sm">
+            <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+              LOP filters
+            </span>
+            <FilterDropdown
+              value={lopHistoryFilter}
+              selectedLabel={lopHistoryFilterLabel}
+              options={LOP_HISTORY_FILTER_OPTIONS.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+              open={lopHistoryFilterOpen}
+              onToggle={() => setLopHistoryFilterOpen((prev) => !prev)}
+              onSelect={(value) => {
+                setLopHistoryFilter(value as LopHistoryFilter);
+                setLopHistoryFilterOpen(false);
+              }}
+              containerRef={lopHistoryFilterRef}
+            />
+          </div>
+        ) : null}
 
         <LeaveHistoryRecordsSection
           showHistoryEmployeeFilter={showHistoryEmployeeFilter}
@@ -946,19 +1090,28 @@ const LeaveManagementPanel: React.FC<Props> = ({
       ) : null}
 
       {showPolicySection ? (
-        <LeaveAdminPolicySection
-          viewerRole={viewerRole}
-          canManagePolicy={canManagePolicy}
-          policies={policyItems}
-          activity={activityItems}
-          employeeOptions={employeeOptions}
-          savingPolicy={policySaving}
-          savingAdjustment={adjustmentSaving}
-          exportLoading={exportLoading}
-          onSavePolicy={handleSavePolicy}
-          onCreateAdjustment={handleCreateAdjustment}
-          onExport={handleExport}
-        />
+        <>
+          <LeaveLopPolicySection
+            canManage={canManagePolicy}
+            policy={lopPolicy}
+            employeeOptions={employeeOptions}
+            saving={lopPolicySaving}
+            onSave={handleSaveLopPolicy}
+          />
+          <LeaveAdminPolicySection
+            viewerRole={viewerRole}
+            canManagePolicy={canManagePolicy}
+            policies={policyItems}
+            activity={activityItems}
+            employeeOptions={employeeOptions}
+            savingPolicy={policySaving}
+            savingAdjustment={adjustmentSaving}
+            exportLoading={exportLoading}
+            onSavePolicy={handleSavePolicy}
+            onCreateAdjustment={handleCreateAdjustment}
+            onExport={handleExport}
+          />
+        </>
       ) : null}
 
       {showWorkspaceSection && viewerRole === 'employee' ? (

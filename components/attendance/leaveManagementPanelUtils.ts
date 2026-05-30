@@ -73,6 +73,10 @@ export function calculateLeaveDays(
     };
   }
 
+  if (start === end) {
+    return { total: 1, invalid: false };
+  }
+
   const cursor = new Date(startDate);
   let total = 0;
 
