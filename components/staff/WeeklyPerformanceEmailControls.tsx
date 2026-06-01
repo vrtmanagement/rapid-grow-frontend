@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Clock3, Mail, Plus, Send, X } from 'lucide-react';
 import { API_BASE, getAuthHeaders } from '../../config/api';
 import {
@@ -70,7 +70,7 @@ const WeeklyPerformanceEmailControls: React.FC<WeeklyPerformanceEmailControlsPro
   const [manualSendEmpIds, setManualSendEmpIds] = useState<string[]>([]);
   const [employeeOptions, setEmployeeOptions] = useState<EmployeeOption[]>([]);
   const [employeePickerId, setEmployeePickerId] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,35 +88,29 @@ const WeeklyPerformanceEmailControls: React.FC<WeeklyPerformanceEmailControlsPro
   const selectedDayLabel =
     WEEKDAY_OPTIONS.find((option) => option.value === draft.dayOfWeek)?.label || 'Monday';
 
-  useEffect(() => {
-    let ignore = false;
+  const loadSettings = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    fetchWeeklyPerformanceEmailSettings()
-      .then((loaded) => {
-        if (ignore) return;
-        setSettings(loaded);
-        setDraft({
-          enabled: loaded.enabled,
-          time: loaded.time,
-          dayOfWeek: loaded.dayOfWeek,
-        });
-        setManualSendEmpIds([]);
-      })
-      .catch((loadError: unknown) => {
-        if (!ignore) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load settings');
-        }
-      })
-      .finally(() => {
-        if (!ignore) setLoading(false);
+    try {
+      const loaded = await fetchWeeklyPerformanceEmailSettings();
+      setSettings(loaded);
+      setDraft({
+        enabled: loaded.enabled,
+        time: loaded.time,
+        dayOfWeek: loaded.dayOfWeek,
       });
-
-    return () => {
-      ignore = true;
-    };
+      setManualSendEmpIds([]);
+    } catch (loadError: unknown) {
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load settings');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadSettings();
+  }, [loadSettings]);
 
   useEffect(() => {
     let ignore = false;
@@ -229,11 +223,15 @@ const WeeklyPerformanceEmailControls: React.FC<WeeklyPerformanceEmailControlsPro
         empIds: manualSendEmpIds.length ? manualSendEmpIds : undefined,
       });
       onToast?.(
-        result.sent > 0 ? 'success' : 'error',
-        result.message || `Sent ${result.sent} email(s).`,
+        'success',
+        result.message ||
+          (result.queued
+            ? 'Reports are sending in the background.'
+            : `Sent ${result.sent} email(s).`),
       );
-      const refreshed = await fetchWeeklyPerformanceEmailSettings();
-      setSettings(refreshed);
+      window.setTimeout(() => {
+        void loadSettings();
+      }, 4000);
     } catch (sendError: unknown) {
       const message = sendError instanceof Error ? sendError.message : 'Failed to send emails';
       setError(message);
@@ -488,9 +486,20 @@ const WeeklyPerformanceEmailControls: React.FC<WeeklyPerformanceEmailControlsPro
           Automation: all execution-matrix employees
         </p>
 
+        {loading ? (
+          <p className="mt-4 text-[13px] text-slate-500">Loading schedule settings…</p>
+        ) : null}
+
         {error ? (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
-            {error}
+          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700 sm:flex-row sm:items-center sm:justify-between">
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={() => loadSettings()}
+              className="shrink-0 rounded-full border border-red-200 bg-white px-4 py-2 text-[12px] font-semibold text-red-700 hover:bg-red-50"
+            >
+              Retry
+            </button>
           </div>
         ) : null}
 
@@ -503,7 +512,7 @@ const WeeklyPerformanceEmailControls: React.FC<WeeklyPerformanceEmailControlsPro
           >
             <Send size={16} />
             {sending
-              ? 'Sending...'
+              ? 'Queuing send...'
               : selectedEmployees.length === 1
                 ? `Send to ${selectedEmployees[0].empName}`
                 : selectedEmployees.length > 1

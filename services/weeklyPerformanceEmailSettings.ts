@@ -132,6 +132,28 @@ export function normalizeWeeklyPerformanceEmailSettings(
   };
 }
 
+const REQUEST_TIMEOUT_MS = 15000;
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('Request timed out. Check that the API gateway is running on port 5000.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 export function broadcastWeeklyPerformanceEmailSettings(settings: WeeklyPerformanceEmailSettings) {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(
@@ -142,7 +164,7 @@ export function broadcastWeeklyPerformanceEmailSettings(settings: WeeklyPerforma
 }
 
 export async function fetchWeeklyPerformanceEmailSettings(): Promise<WeeklyPerformanceEmailSettings> {
-  const res = await fetch(`${API_BASE}/performance/settings/weekly-email`, {
+  const res = await fetchWithTimeout(`${API_BASE}/performance/settings/weekly-email`, {
     headers: getAuthHeaders(),
   });
   const data = await res.json().catch(() => ({}));
@@ -159,7 +181,7 @@ export async function saveWeeklyPerformanceEmailSettings(input: {
   time: string;
   dayOfWeek: number;
 }): Promise<WeeklyPerformanceEmailSettings> {
-  const res = await fetch(`${API_BASE}/performance/settings/weekly-email`, {
+  const res = await fetchWithTimeout(`${API_BASE}/performance/settings/weekly-email`, {
     method: 'PATCH',
     headers: getAuthHeaders(),
     body: JSON.stringify(input),
@@ -179,6 +201,8 @@ export async function sendWeeklyPerformanceEmailsNow(options?: {
   weekId?: string;
   empIds?: string[];
 }): Promise<{
+  accepted?: boolean;
+  queued?: boolean;
   sent: number;
   skipped: number;
   employees: number;
@@ -189,11 +213,15 @@ export async function sendWeeklyPerformanceEmailsNow(options?: {
   if (options?.weekId) body.weekId = options.weekId;
   if (options?.empIds?.length) body.empIds = options.empIds;
 
-  const res = await fetch(`${API_BASE}/performance/weekly-email/send`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(body),
-  });
+  const res = await fetchWithTimeout(
+    `${API_BASE}/performance/weekly-email/send`,
+    {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(body),
+    },
+    30000,
+  );
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
