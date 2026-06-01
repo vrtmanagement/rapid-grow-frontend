@@ -974,6 +974,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         priority: params.priority,
         status: requestedStatus,
         emailChecklistEnabled: false,
+        reminderIntervalHours: Number(params.reminderIntervalHours) || 24,
         customFields:
           params.plannerDay && params.plannerGroup
             ? buildWeeklyTaskCustomFields(params.plannerDay, params.plannerGroup)
@@ -1721,9 +1722,12 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          checklistEmailWarning = data.message || 'Tasks were created, but the checklist email could not be sent.';
+          checklistEmailWarning =
+            data.message || 'Tasks were created, but the checklist email could not be sent.';
         } else if (!data.emailsSent) {
-          checklistEmailWarning = 'Tasks were created, but no checklist email was sent. Check the employee email address and mail credentials.';
+          checklistEmailWarning =
+            data.message ||
+            'Tasks were created, but no checklist email was sent. Check the employee email address and mail credentials.';
         }
       }
 
@@ -1912,7 +1916,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       if (!response.ok) throw new Error(data.message || 'Failed to send task checklist');
       setChecklistNotice(data.emailsSent > 0
         ? `Sent ${data.emailsSent} checklist email(s) for ${data.tasksScheduled || taskIds.length} task(s). Reminders repeat every ${data.reminderIntervalHours || bulkReminderIntervalHours} hour(s) for unfinished tasks.`
-        : `Checklist reminders were scheduled for ${data.tasksScheduled || taskIds.length} task(s), but no email was sent. Check the employee email address and mail credentials.`,
+        : (data.message || `Checklist reminders were scheduled for ${data.tasksScheduled || taskIds.length} task(s), but no email was sent. Check the employee email address and mail credentials.`),
       );
     } catch (e: any) {
       setError(e?.message || 'Failed to send task checklist');
