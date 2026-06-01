@@ -21,6 +21,7 @@ import {
   ScrollText,
   UserPlus2,
   Network,
+  Receipt,
 } from 'lucide-react';
 import { PlanningState } from '../../types';
 import Vision from '../../views/Vision';
@@ -42,6 +43,7 @@ import PermissionsView from '../../views/PermissionsView';
 import AnalysisView from '../../views/AnalysisView';
 import CRMPage from '../../views/CRMPage';
 import CRMLeadDetailPage from '../../views/CRMLeadDetailPage';
+import ExpenseTravelView from '../../views/ExpenseTravelView';
 import AiAgentView from '../../views/AiAgentView';
 import TaskAnalyticsView from '../../views/TaskAnalyticsView';
 import StrengthsDashboardView from '../../views/StrengthsDashboardView';
@@ -118,11 +120,13 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
   const routePathSource = browserHash.startsWith('#') ? browserHash.slice(1) : location.pathname;
   const routePath = (routePathSource || location.pathname || '/').split('?')[0] || '/';
   const isAttendanceRoute = routePath.startsWith('/attendance');
+  const isExpenseRoute = routePath.startsWith('/expense-travel');
   const isCommunicationRoute = routePath === '/communication';
   const isSharedSubnavRoute =
     routePath === '/' ||
     isCommunicationRoute ||
     routePath === '/staff' ||
+    routePath.startsWith('/expense-travel') ||
     routePath.startsWith('/spaces') ||
     routePath.startsWith('/workspaces') ||
     ['/yearly', '/quarterly', '/monthly', '/weekly', '/daily'].includes(routePath);
@@ -130,6 +134,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
     routePath === '/' ||
     isCommunicationRoute ||
     routePath === '/staff' ||
+    routePath.startsWith('/expense-travel') ||
     routePath.startsWith('/spaces') ||
     routePath.startsWith('/workspaces') ||
     ['/yearly', '/quarterly', '/monthly', '/weekly', '/daily'].includes(routePath);
@@ -245,6 +250,9 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
             {hasPower('CRM_VIEW') && (
               <SidebarLink to="/crm" icon={<UsersRound size={20} />} label={t('crm')} collapsed={!isSidebarOpen} />
             )}
+            {hasPower('EXPENSE_VIEW') && (
+              <SidebarLink to="/expense-travel" icon={<Receipt size={20} />} label="Expense & Travel" collapsed={!isSidebarOpen} />
+            )}
             {isSuperAdmin && (
               <SidebarLink to="/super-admin" icon={<Building2 size={20} />} label={t('superAdmin')} collapsed={!isSidebarOpen} />
             )}
@@ -292,7 +300,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
             className={`app-content no-scrollbar flex-1 bg-white dark:bg-slate-950/40 ${
               isCommunicationRoute
                 ? 'overflow-hidden p-0'
-                : isAttendanceRoute || isFlushSharedSubnavRoute
+                : isAttendanceRoute || isExpenseRoute || isFlushSharedSubnavRoute
                 ? 'overflow-y-auto px-4 pb-4 pt-0 sm:px-8 sm:pb-8 sm:pt-0 lg:px-16 lg:pb-16 lg:pt-0'
                 : 'overflow-y-auto p-4 sm:p-8 lg:p-16'
             }`}
@@ -388,6 +396,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView mode="manager" state={state} />} />}
               {hasPower('CRM_VIEW') && <Route path="/crm" element={<CRMPage />} />}
               {hasPower('CRM_VIEW') && <Route path="/crm/lead/:leadId" element={<CRMLeadDetailPage />} />}
+              {hasPower('EXPENSE_VIEW') && <Route path="/expense-travel" element={<ExpenseTravelView mode="manager" />} />}
               {isSuperAdmin && <Route path="/super-admin" element={<SuperAdminView />} />}
               {isAdmin && <Route path="/settings/billing" element={<BillingSettingsView />} />}
               {isAdmin && <Route path="/settings/audit-logs" element={<AuditLogsView />} />}

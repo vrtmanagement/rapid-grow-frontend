@@ -10,6 +10,7 @@ import {
   Database,
   FileText,
   UsersRound,
+  Receipt,
 } from 'lucide-react';
 import { PlanningState } from '../../types';
 import Vision from '../../views/Vision';
@@ -28,6 +29,7 @@ import SpacesTaskDetailView from '../../views/SpacesTaskDetailView';
 import WorkspacesView from '../../views/WorkspacesView';
 import CRMPage from '../../views/CRMPage';
 import CRMLeadDetailPage from '../../views/CRMLeadDetailPage';
+import ExpenseTravelView from '../../views/ExpenseTravelView';
 import AccessDenied from '../AccessDenied';
 import { SidebarLink, SidebarToggleButton } from './SidebarPrimitives';
 import { NotificationBellMenu, ThemeToggleButton, UserAccountMenu } from './AppTopbarControls';
@@ -89,6 +91,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
   const routePathSource = browserHash.startsWith('#') ? browserHash.slice(1) : location.pathname;
   const routePath = (routePathSource || location.pathname || '/').split('?')[0] || '/';
   const isAttendanceRoute = routePath.startsWith('/attendance');
+  const isExpenseRoute = routePath.startsWith('/expense-travel');
   const isCommunicationRoute = routePath === '/communication';
   const isFlushSharedSubnavRoute =
     routePath === '/' ||
@@ -138,6 +141,9 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
             )}
             {hasPower('ATTENDANCE_VIEW') && (
               <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />
+            )}
+            {hasPower('EXPENSE_VIEW') && (
+              <SidebarLink to="/expense-travel" icon={<Receipt size={20} />} label="Expense & Travel" collapsed={!isSidebarOpen} />
             )}
             <div className="app-sidebar-divider h-px bg-white/5 mx-2.5 my-3.5"></div>
             {hasVisionAccess && (
@@ -204,7 +210,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
           <div className={`app-content flex-1 bg-white dark:bg-slate-950/40 ${
             isCommunicationRoute
               ? 'overflow-hidden p-0'
-              : isAttendanceRoute || isFlushSharedSubnavRoute
+              : isAttendanceRoute || isExpenseRoute || isFlushSharedSubnavRoute
                 ? 'overflow-y-auto px-4 pb-4 pt-0 sm:px-8 sm:pb-8 sm:pt-0 lg:px-16 lg:pb-16 lg:pt-0'
                 : 'overflow-y-auto p-4 sm:p-8 lg:p-16'
           }`}>
@@ -261,6 +267,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
               {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView mode="employee" />} />}
               {hasPower('CRM_VIEW') && <Route path="/crm" element={<CRMPage />} />}
               {hasPower('CRM_VIEW') && <Route path="/crm/lead/:leadId" element={<CRMLeadDetailPage />} />}
+              {hasPower('EXPENSE_VIEW') && <Route path="/expense-travel" element={<ExpenseTravelView mode="employee" />} />}
               <Route path="*" element={<AccessDenied />} />
             </Routes>
           </div>
