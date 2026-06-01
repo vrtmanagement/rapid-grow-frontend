@@ -899,6 +899,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     taskDocumentFile: File | null;
     plannerDay?: Goal | null;
     plannerGroup?: WeeklyTaskGroup | null;
+    emailChecklistEnabled?: boolean;
   }) => {
     const cleanTitle = params.title.trim();
     if (!cleanTitle) {
@@ -973,7 +974,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         dueDate: params.dueDate,
         priority: params.priority,
         status: requestedStatus,
-        emailChecklistEnabled: false,
+        emailChecklistEnabled: params.emailChecklistEnabled === true,
         reminderIntervalHours: Number(params.reminderIntervalHours) || 24,
         customFields:
           params.plannerDay && params.plannerGroup
@@ -986,9 +987,10 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       throw new Error(data.message || 'Failed to create task');
     }
 
+    const checklistEmail = data?.checklistEmail;
     const normalizedTask = normalizeTaskForUi(data as SpacesTask);
     setTasks((prev) => upsertTaskById(prev, normalizedTask));
-    return normalizedTask;
+    return checklistEmail ? { ...normalizedTask, checklistEmail } : normalizedTask;
   }, [appendProjectTaskToState, me.id, me.role, mode, projects, uploadTaskDocument]);
 
   const teamMemberIds = useMemo(
@@ -1510,9 +1512,9 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     [isNoVisionSelected, plannerWeekOptions, resetCreateTaskForm, selectedWeeklyDay?.id, selectedWeeklyTaskGroup, weeklyTaskGroups],
   );
 
-  const closeTaskCreateModal = useCallback(() => {
+  const closeTaskCreateModal = useCallback((options?: { keepError?: boolean }) => {
     setIsTaskCreateModalOpen(false);
-    setError(null);
+    if (!options?.keepError) setError(null);
     resetCreateTaskForm();
     setUploadingTaskDocument(false);
     setSaving(false);
@@ -1694,6 +1696,9 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         : [cleanTitle];
       const createdTasks: SpacesTask[] = [];
       let checklistEmailWarning = '';
+      let checklistEmailSuccess = '';
+      const sendEmailOnCreate = emailChecklistEnabled && checklistTitles.length === 1;
+
       for (let index = 0; index < checklistTitles.length; index += 1) {
         const createdTask = await createTaskInternal({
           title: checklistTitles[index],
@@ -1707,32 +1712,51 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
           taskDocumentFile: index === 0 ? taskDocumentFile : null,
           plannerDay,
           plannerGroup,
+          emailChecklistEnabled: sendEmailOnCreate,
         });
         createdTasks.push(createdTask);
-      }
 
-      if (emailChecklistEnabled) {
-        const response = await fetch(`${API_BASE}/spaces/tasks/send-checklist`, {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            taskIds: createdTasks.map((task) => task.taskId),
-            reminderIntervalHours: Number(reminderIntervalHours),
-          }),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          checklistEmailWarning =
-            data.message || 'Tasks were created, but the checklist email could not be sent.';
-        } else if (!data.emailsSent) {
-          checklistEmailWarning =
-            data.message ||
-            'Tasks were created, but no checklist email was sent. Check the employee email address and mail credentials.';
+        if (sendEmailOnCreate) {
+          const checklistEmail = (createdTask as SpacesTask & { checklistEmail?: { emailsSent?: number; message?: string } })
+            .checklistEmail;
+          if (checklistEmail?.emailsSent) {
+            checklistEmailSuccess = 'Checklist email sent to the assignee. They can mark the task done from the email link.';
+          } else if (checklistEmail?.message) {
+            checklistEmailWarning = checklistEmail.message;
+          }
         }
       }
 
-      closeTaskCreateModal();
+      if (emailChecklistEnabled && !sendEmailOnCreate) {
+        try {
+          const response = await fetch(`${API_BASE}/spaces/tasks/send-checklist`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+              taskIds: createdTasks.map((task) => task.taskId),
+              reminderIntervalHours: Number(reminderIntervalHours),
+            }),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            checklistEmailWarning =
+              data.message || 'Tasks were created, but the checklist email could not be sent.';
+          } else if (!data.emailsSent) {
+            checklistEmailWarning =
+              data.message ||
+              'Tasks were created, but no checklist email was sent. Check the assignee email address and mail credentials.';
+          } else {
+            checklistEmailSuccess = `Checklist email sent for ${data.emailsSent} assignee(s).`;
+          }
+        } catch (emailErr: any) {
+          checklistEmailWarning =
+            emailErr?.message || 'Tasks were created, but the checklist email could not be sent.';
+        }
+      }
+
+      closeTaskCreateModal({ keepError: !!checklistEmailWarning });
       if (checklistEmailWarning) setError(checklistEmailWarning);
+      else if (checklistEmailSuccess) setChecklistNotice(checklistEmailSuccess);
     } catch (e: any) {
       setError(e?.message || 'Failed to create task');
     } finally {
