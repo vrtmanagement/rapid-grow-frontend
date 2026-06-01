@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, CheckCheck, CheckSquare, CornerUpLeft, Download, ExternalLink, Eye, FileText, Forward, Loader2, MoreVertical, PencilLine, Pin, PinOff, Trash2, X } from 'lucide-react';
+import { Check, CheckCheck, CheckSquare, Copy, CornerUpLeft, Download, ExternalLink, Eye, FileText, Forward, Loader2, MoreVertical, PencilLine, Pin, PinOff, Trash2, X } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
 import { MessageActionModal } from './MessageActionModal';
 import { apiDownloadCommunicationFile } from '../api';
@@ -159,6 +159,50 @@ function getAttachmentKind(fileName: string, mimeType: string) {
   } as const;
 }
 
+function getCopyableMessageText(message: ChatMessage): string {
+  if (message.deleted) return '';
+  const content = String(message.content ?? '');
+  if (message.type === 'text') {
+    return content;
+  }
+  if (content.length > 0) {
+    return content;
+  }
+  if (message.attachment?.fileName) {
+    return message.attachment.fileName;
+  }
+  if (message.fileUrl) {
+    return message.fileUrl;
+  }
+  return '';
+}
+
+async function copyMessageText(text: string): Promise<boolean> {
+  if (!text) return false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fall through to legacy copy
+  }
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
 function renderLinkedText(text: string) {
   const parts = String(text || '').split(/(https?:\/\/[^\s]+)/g);
   return parts.map((part, index) => {
@@ -276,6 +320,15 @@ export function MessageBubble({
   const attachmentSize = formatAttachmentSize(message.attachment?.size);
   const hasDownloadTarget = !!String(message.attachment?.fileId || '').trim() || directFileUrl !== '#';
   const canOpenAttachment = directFileUrl !== '#';
+  const copyableText = getCopyableMessageText(message);
+  const canCopyMessage = !message.deleted && copyableText.length > 0;
+
+  const handleCopyMessage = async () => {
+    setMenuOpen(false);
+    setContextMenu(null);
+    if (!canCopyMessage) return;
+    await copyMessageText(copyableText);
+  };
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -284,7 +337,7 @@ export function MessageBubble({
       if (!trigger) return;
       const rect = trigger.getBoundingClientRect();
 
-      let itemCount = 4; // Reply, Select, Forward, Pin
+      let itemCount = 5; // Reply, Select, Forward, Copy, Pin
       if (isImageAttachment && canOpenAttachment) itemCount += 1;
       if (isOwn) itemCount += 2; // Edit, Delete
       const menuHeight = itemCount * 34 + 12;
@@ -435,6 +488,17 @@ export function MessageBubble({
                   >
                     <Forward size={13} />
                     Forward
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleCopyMessage();
+                    }}
+                    disabled={!canCopyMessage}
+                    className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Copy size={13} />
+                    Copy
                   </button>
                   <button
                     type="button"
@@ -879,6 +943,17 @@ export function MessageBubble({
           >
             <Forward size={15} />
             Forward
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void handleCopyMessage();
+            }}
+            disabled={!canCopyMessage}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Copy size={15} />
+            Copy
           </button>
           {isOwn ? (
             <button
