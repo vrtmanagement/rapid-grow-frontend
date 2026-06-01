@@ -988,9 +988,8 @@ const AiAgentView: React.FC = () => {
       {activeTab === 'summary' && (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
           <p className="rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2 text-sm text-slate-700">
-            <span className="font-semibold">Automatic:</span> weekly PDF standup emails when ai-agent-service is
-            running (default Mon 9:00 Asia/Kolkata).{' '}
-            <span className="font-semibold">Manual:</span> &quot;Email weekly PDF standup&quot; sends immediately.
+            <span className="font-semibold">Manager standup:</span> use the button below to email managers a team PDF summary.{' '}
+            <span className="font-semibold">Employee performance:</span> configure automated weekly performance emails in Staff → Check-in &amp; performance email.
           </p>
           <div className="flex flex-wrap gap-2">
             <button

@@ -16,6 +16,7 @@ import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } f
 import AddEmployeeView from './AddEmployeeView';
 import InviteEmployeeView from './InviteEmployeeView';
 import PageSectionSubnav from '../components/layout/PageSectionSubnav';
+import WeeklyPerformanceEmailControls from '../components/staff/WeeklyPerformanceEmailControls';
 
 type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | string;
 
@@ -153,6 +154,7 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   const [reminderSaving, setReminderSaving] = useState(false);
   const [reminderError, setReminderError] = useState<string | null>(null);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
+  const [checkInControlsTab, setCheckInControlsTab] = useState<'daily' | 'weekly'>('daily');
   const departmentMenuRef = useRef<HTMLDivElement | null>(null);
   const statusMenuRef = useRef<HTMLDivElement | null>(null);
   const actionMenuRef = useRef<HTMLDivElement | null>(null);
@@ -949,11 +951,35 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
               </div>
               <div>
                 <h3 className="text-[18px] font-semibold tracking-[-0.02em] text-slate-900">
-                  Daily reminder controls
+                  Check-in & performance email
                 </h3>
                 <p className="mt-1 text-[14px] text-slate-500">
-                  Manage the shared daily reminder schedule for both email and in-app notifications.
+                  Daily check-in reminders and automated weekly performance reports for employees on the main execution matrix.
                 </p>
+                <div className="mt-4 inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setCheckInControlsTab('daily')}
+                    className={`rounded-full px-4 py-2 text-[12px] font-semibold transition ${
+                      checkInControlsTab === 'daily'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Daily check-in
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCheckInControlsTab('weekly')}
+                    className={`rounded-full px-4 py-2 text-[12px] font-semibold transition ${
+                      checkInControlsTab === 'weekly'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Weekly performance email
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -975,6 +1001,11 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
             </div>
           </div>
 
+          {checkInControlsTab === 'weekly' ? (
+            <WeeklyPerformanceEmailControls
+              onToast={(type, message) => setToast({ type, message })}
+            />
+          ) : (
           <div className="grid gap-5 px-6 py-5 xl:grid-cols-[1.25fr_minmax(360px,0.95fr)]">
               <div className="self-start rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_right,_rgba(251,191,36,0.18),_rgba(255,255,255,0)_48%),linear-gradient(180deg,rgba(255,251,243,1)_0%,rgba(255,255,255,1)_100%)] px-6 py-5">
                 <div className="flex items-start gap-4">
@@ -1199,6 +1230,7 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
               </div>
             </div>
           </div>
+          )}
         </div>
       ) : null}
 
