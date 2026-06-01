@@ -4,7 +4,7 @@ import { PermissionKey } from '../config/permissions';
 import { getSocket } from '../realtime/socket';
 import { BackendRole, PermissionContext } from './PermissionContextCore';
 
-const CACHE_KEY = 'rapidgrow-permissions-cache-v1';
+const CACHE_KEY = 'rapidgrow-permissions-cache-v2';
 const PERMISSIONS_UPDATE_KEY = 'rapidgrow-permissions-updated-at';
 const BROADCAST_CHANNEL = 'rapidgrow-permissions';
 
