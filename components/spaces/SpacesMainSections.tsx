@@ -1120,7 +1120,12 @@ const SpacesMainSections: React.FC<any> = (props) => {
         open={isTaskCreateModalOpen}
         onClose={closeTaskCreateModal}
         onSubmit={handleCreate}
-        canUseEmailChecklist={mode === 'manager'}
+        canUseEmailChecklist={
+          mode === 'manager' ||
+          me.role === 'ADMIN' ||
+          me.role === 'SUPER_ADMIN' ||
+          me.role === 'TEAM_LEAD'
+        }
         title={title}
         setTitle={setTitle}
         description={description}
