@@ -51,6 +51,12 @@ export interface SpacesTask {
   dueDate?: string;
   priority: TaskPriority;
   status: TaskStatus;
+  emailChecklist?: {
+    enabled?: boolean;
+    reminderIntervalHours?: number;
+    nextReminderAt?: string | null;
+    lastSentAt?: string | null;
+  };
   submittedFromStatus?: string;
   comments: SpacesComment[];
   customFields: Record<string, string>;

@@ -7,6 +7,7 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
     open,
     onClose,
     onSubmit,
+    canUseEmailChecklist,
     title,
     setTitle,
     description,
@@ -22,6 +23,12 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
     priorityOptions,
     status,
     setStatus,
+    emailChecklistEnabled,
+    setEmailChecklistEnabled,
+    additionalChecklistTitles,
+    setAdditionalChecklistTitles,
+    reminderIntervalHours,
+    setReminderIntervalHours,
     statusOptions,
     selectedProjectId,
     setSelectedProjectId,
@@ -309,6 +316,95 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                     <div className="mt-1 text-[12px] text-slate-500">PDF, DOCX, JPG, PNG, WEBP</div>
                   </label>
                 </div>
+
+                {canUseEmailChecklist ? <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-700">Automated Mail Checklist</div>
+                      <p className="mt-1 text-[12px] leading-5 text-slate-500">Email assigned work and repeat only unfinished items.</p>
+                    </div>
+                    <label className="relative inline-flex cursor-pointer items-center">
+                      <input
+                        type="checkbox"
+                        checked={emailChecklistEnabled}
+                        onChange={(event) => {
+                          const enabled = event.target.checked;
+                          setEmailChecklistEnabled(enabled);
+                          if (!enabled) setAdditionalChecklistTitles([]);
+                        }}
+                        className="peer sr-only"
+                      />
+                      <span className="h-7 w-12 rounded-full bg-slate-200 transition peer-checked:bg-emerald-600" />
+                      <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+                    </label>
+                  </div>
+
+                  {emailChecklistEnabled ? (
+                    <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
+                      <div>
+                        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Email Reminder Gap</label>
+                        <ThemedSelect
+                          value={reminderIntervalHours}
+                          onChange={setReminderIntervalHours}
+                          options={[
+                            { value: '1', label: 'Every 1 hour' },
+                            { value: '6', label: 'Every 6 hours' },
+                            { value: '12', label: 'Every 12 hours' },
+                            { value: '24', label: 'Every 24 hours' },
+                            { value: '48', label: 'Every 2 days' },
+                            { value: '168', label: 'Every 7 days' },
+                          ]}
+                          compact={true}
+                          fullWidthCompact={true}
+                          forceOpenDown={true}
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Checklist Tasks</label>
+                          <span className="text-[11px] text-slate-400">{1 + additionalChecklistTitles.length}/5</span>
+                        </div>
+                        <div className="mt-2 rounded-xl border border-emerald-100 bg-white px-3 py-2 text-[12px] text-slate-600">
+                          1. {title.trim() || 'Enter the task name above'}
+                        </div>
+                        <div className="mt-2 space-y-2">
+                          {additionalChecklistTitles.map((taskTitle: string, index: number) => (
+                            <div key={`checklist-title-${index}`} className="flex items-center gap-2">
+                              <input
+                                value={taskTitle}
+                                onChange={(event) => {
+                                  const next = [...additionalChecklistTitles];
+                                  next[index] = event.target.value;
+                                  setAdditionalChecklistTitles(next);
+                                }}
+                                className="h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-[13px] outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
+                                placeholder={`Checklist task ${index + 2}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setAdditionalChecklistTitles(additionalChecklistTitles.filter((_: string, itemIndex: number) => itemIndex !== index))}
+                                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-100"
+                                aria-label={`Remove checklist task ${index + 2}`}
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        {additionalChecklistTitles.length < 4 ? (
+                          <button
+                            type="button"
+                            onClick={() => setAdditionalChecklistTitles([...additionalChecklistTitles, ''])}
+                            className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-700 hover:text-emerald-800"
+                          >
+                            <Plus size={13} /> Add checklist task
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                </div> : null}
               </div>
             </div>
           </div>
