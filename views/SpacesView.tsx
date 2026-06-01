@@ -78,6 +78,9 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [status, setStatus] = useState<TaskStatus>('todo');
+  const [emailChecklistEnabled, setEmailChecklistEnabled] = useState(false);
+  const [additionalChecklistTitles, setAdditionalChecklistTitles] = useState<string[]>([]);
+  const [reminderIntervalHours, setReminderIntervalHours] = useState('24');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [taskDocumentFile, setTaskDocumentFile] = useState<File | null>(null);
   const [aiAssigning, setAiAssigning] = useState(false);
@@ -125,6 +128,8 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [bulkDueDate, setBulkDueDate] = useState('');
   const [bulkTouched, setBulkTouched] = useState({ status: false, assigneeId: false, dueDate: false });
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkReminderIntervalHours, setBulkReminderIntervalHours] = useState('24');
+  const [checklistNotice, setChecklistNotice] = useState('');
   const [bulkDeleteTaskModalOpen, setBulkDeleteTaskModalOpen] = useState(false);
   const projectNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -806,6 +811,9 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       setDueDate('');
       setPriority('medium');
       setStatus('todo');
+      setEmailChecklistEnabled(false);
+      setAdditionalChecklistTitles([]);
+      setReminderIntervalHours('24');
       setSelectedProjectId('');
       setTaskDocumentFile(null);
       setCreateTaskPlannerEnabled(Boolean(plannerDefaults?.plannerEnabled));
@@ -886,6 +894,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     dueDate: string;
     priority: TaskPriority;
     status: TaskStatus;
+    reminderIntervalHours: string;
     projectId: string;
     taskDocumentFile: File | null;
     plannerDay?: Goal | null;
@@ -920,6 +929,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         title: cleanTitle,
         description: descriptionText,
         status: requestedStatus,
+        reminderIntervalHours: Number(params.reminderIntervalHours),
         priority: params.priority,
         createdBy: me.id || 'employee',
         createdByRole: me.role || 'EMPLOYEE',
@@ -963,6 +973,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         dueDate: params.dueDate,
         priority: params.priority,
         status: requestedStatus,
+        emailChecklistEnabled: false,
         customFields:
           params.plannerDay && params.plannerGroup
             ? buildWeeklyTaskCustomFields(params.plannerDay, params.plannerGroup)
@@ -1673,20 +1684,51 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         }
       }
 
-      await createTaskInternal({
-        title: cleanTitle,
-        description,
-        assigneeId,
-        dueDate,
-        priority,
-        status,
-        projectId: selectedProjectId,
-        taskDocumentFile,
-        plannerDay,
-        plannerGroup,
-      });
+      if (emailChecklistEnabled && !assigneeId) {
+        throw new Error('Select an assignee before enabling checklist email reminders.');
+      }
+
+      const checklistTitles = emailChecklistEnabled
+        ? [cleanTitle, ...additionalChecklistTitles.map((item) => item.trim()).filter(Boolean)].slice(0, 5)
+        : [cleanTitle];
+      const createdTasks: SpacesTask[] = [];
+      let checklistEmailWarning = '';
+      for (let index = 0; index < checklistTitles.length; index += 1) {
+        const createdTask = await createTaskInternal({
+          title: checklistTitles[index],
+          description,
+          assigneeId,
+          dueDate,
+          priority,
+          status,
+          reminderIntervalHours,
+          projectId: selectedProjectId,
+          taskDocumentFile: index === 0 ? taskDocumentFile : null,
+          plannerDay,
+          plannerGroup,
+        });
+        createdTasks.push(createdTask);
+      }
+
+      if (emailChecklistEnabled) {
+        const response = await fetch(`${API_BASE}/spaces/tasks/send-checklist`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            taskIds: createdTasks.map((task) => task.taskId),
+            reminderIntervalHours: Number(reminderIntervalHours),
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          checklistEmailWarning = data.message || 'Tasks were created, but the checklist email could not be sent.';
+        } else if (!data.emailsSent) {
+          checklistEmailWarning = 'Tasks were created, but no checklist email was sent. Check the employee email address and mail credentials.';
+        }
+      }
 
       closeTaskCreateModal();
+      if (checklistEmailWarning) setError(checklistEmailWarning);
     } catch (e: any) {
       setError(e?.message || 'Failed to create task');
     } finally {
@@ -1788,6 +1830,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     setBulkDueDate('');
     setBulkStatus('todo');
     setBulkTouched({ status: false, assigneeId: false, dueDate: false });
+    setChecklistNotice('');
   };
 
   const applyBulkTaskUpdate = async (updates: Partial<SpacesTask>) => {
@@ -1841,6 +1884,41 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     }
 
     await applyBulkTaskUpdate(updates);
+  };
+
+  const sendSelectedTaskChecklist = async () => {
+    if (!selectedTasks.length || bulkSaving) return;
+    const taskIds = selectedTasks
+      .filter((task) => canSelectTask(task) && task.assigneeId && task.status !== 'done')
+      .map((task) => task.taskId);
+    if (!taskIds.length) {
+      setError('Choose unfinished tasks that have an assignee before sending a checklist.');
+      return;
+    }
+
+    setBulkSaving(true);
+    setError(null);
+    setChecklistNotice('');
+    try {
+      const response = await fetch(`${API_BASE}/spaces/tasks/send-checklist`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          taskIds,
+          reminderIntervalHours: Number(bulkReminderIntervalHours),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || 'Failed to send task checklist');
+      setChecklistNotice(data.emailsSent > 0
+        ? `Sent ${data.emailsSent} checklist email(s) for ${data.tasksScheduled || taskIds.length} task(s). Reminders repeat every ${data.reminderIntervalHours || bulkReminderIntervalHours} hour(s) for unfinished tasks.`
+        : `Checklist reminders were scheduled for ${data.tasksScheduled || taskIds.length} task(s), but no email was sent. Check the employee email address and mail credentials.`,
+      );
+    } catch (e: any) {
+      setError(e?.message || 'Failed to send task checklist');
+    } finally {
+      setBulkSaving(false);
+    }
   };
 
   const deleteSelectedTasks = async () => {
@@ -1986,6 +2064,12 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     priorityOptions,
     status,
     setStatus,
+    emailChecklistEnabled,
+    setEmailChecklistEnabled,
+    additionalChecklistTitles,
+    setAdditionalChecklistTitles,
+    reminderIntervalHours,
+    setReminderIntervalHours,
     statusOptions,
     description,
     setDescription,
@@ -2078,6 +2162,10 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     selectedTaskCount: selectedTasks.length,
     canBulkManageTasks,
     bulkSaving,
+    bulkReminderIntervalHours,
+    setBulkReminderIntervalHours,
+    checklistNotice,
+    sendSelectedTaskChecklist,
     bulkStatus,
     setBulkStatus,
     bulkAssigneeId,
