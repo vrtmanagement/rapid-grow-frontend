@@ -62,6 +62,8 @@ export interface SpacesTask {
     sourceTaskId?: string;
     dayOfWeek?: number | null;
     dayOfMonth?: number | null;
+    startMonth?: number | null;
+    endMonth?: number | null;
   };
   emailChecklist?: {
     enabled?: boolean;

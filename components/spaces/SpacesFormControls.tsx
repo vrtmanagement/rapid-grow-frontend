@@ -26,6 +26,9 @@ const TABLE_SELECT_MENU_CLASS =
 const TABLE_SELECT_OPTION_CLASS =
   'themed-control-option w-full px-4 py-2.5 text-left text-[13px] text-slate-700 transition-colors hover:bg-red-50 hover:text-brand-red';
 
+const HIDDEN_SCROLL_MENU_CLASS =
+  'overscroll-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden';
+
 const TABLE_DATE_TRIGGER_CLASS =
   'themed-control themed-date-trigger w-[138px] max-w-full rounded-xl border border-slate-200 bg-white px-4 pr-10 py-2 text-center text-[13px] text-slate-700 outline-none transition-colors hover:border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
@@ -345,7 +348,7 @@ export const ThemedSelect: React.FC<{
 
       {open && !disabled && !compact && (
         <div
-          className={`${menuClass} overflow-y-auto ${openAbove ? 'bottom-full top-auto mb-2 mt-0' : ''}`}
+          className={`${menuClass} ${HIDDEN_SCROLL_MENU_CLASS} overflow-y-auto ${openAbove ? 'bottom-full top-auto mb-2 mt-0' : ''}`}
           style={{ maxHeight: `${menuMaxHeight}px` }}
         >
           {options.map((option) => {
@@ -371,7 +374,7 @@ export const ThemedSelect: React.FC<{
         ? createPortal(
             <div
               ref={menuRef}
-              className={`${menuClass} fixed z-[220] overflow-y-auto`}
+              className={`${menuClass} ${HIDDEN_SCROLL_MENU_CLASS} fixed z-[220] overflow-y-auto`}
               style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, width: `${menuPosition.width}px`, maxHeight: `${menuMaxHeight}px` }}
             >
               {options.map((option) => {

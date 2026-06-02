@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { Paperclip, Plus, X } from 'lucide-react';
 import { CREATE_INPUT_CLASS, ThemedDatePicker, ThemedSelect } from './SpacesFormControls';
 
+const EVERYDAY_REPEAT_VALUE = 'everyday';
+
 const SpacesTaskCreateModal: React.FC<any> = (props) => {
   const {
     open,
@@ -53,38 +55,9 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
     plannerSummary,
   } = props;
 
-  const repeatCadenceOptions = React.useMemo(
-    () => [
-      { value: 'every_30_seconds', label: 'Every 30 seconds' },
-      { value: 'every_5_minutes', label: 'Every 5 minutes' },
-      { value: 'every_15_minutes', label: 'Every 15 minutes' },
-      { value: 'every_30_minutes', label: 'Every 30 minutes' },
-      { value: 'hourly', label: 'Every 1 hour' },
-      { value: 'every_2_hours', label: 'Every 2 hours' },
-      { value: 'daily', label: 'Every day' },
-      { value: 'every_2_days', label: 'Every 2 days' },
-      { value: 'weekly', label: 'Every week' },
-      { value: 'every_2_weeks', label: 'Every 2 weeks' },
-      { value: 'monthly', label: 'Every month' },
-    ],
-    [],
-  );
-
-  const repeatCountOptions = React.useMemo(
-    () => [
-      { value: '0', label: 'Unlimited' },
-      { value: '1', label: '1 time' },
-      { value: '2', label: '2 times' },
-      { value: '3', label: '3 times' },
-      { value: '5', label: '5 times' },
-      { value: '10', label: '10 times' },
-      { value: '25', label: '25 times' },
-    ],
-    [],
-  );
-
   const weekdayOptions = React.useMemo(
     () => [
+      { value: EVERYDAY_REPEAT_VALUE, label: 'Everyday' },
       { value: '0', label: 'Sunday' },
       { value: '1', label: 'Monday' },
       { value: '2', label: 'Tuesday' },
@@ -92,6 +65,24 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
       { value: '4', label: 'Thursday' },
       { value: '5', label: 'Friday' },
       { value: '6', label: 'Saturday' },
+    ],
+    [],
+  );
+
+  const monthOptions = React.useMemo(
+    () => [
+      { value: '1', label: 'January' },
+      { value: '2', label: 'February' },
+      { value: '3', label: 'March' },
+      { value: '4', label: 'April' },
+      { value: '5', label: 'May' },
+      { value: '6', label: 'June' },
+      { value: '7', label: 'July' },
+      { value: '8', label: 'August' },
+      { value: '9', label: 'September' },
+      { value: '10', label: 'October' },
+      { value: '11', label: 'November' },
+      { value: '12', label: 'December' },
     ],
     [],
   );
@@ -113,8 +104,31 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
     [],
   );
 
-  const isWeeklyRepeat = taskRecurrence?.cadence === 'weekly' || taskRecurrence?.cadence === 'every_2_weeks';
-  const isMonthlyRepeat = taskRecurrence?.cadence === 'monthly';
+  const timeOptions = React.useMemo(
+    () =>
+      Array.from({ length: 48 }, (_, index) => {
+        const hours = Math.floor(index / 2);
+        const minutes = index % 2 === 0 ? 0 : 30;
+        const suffix = hours >= 12 ? 'PM' : 'AM';
+        const twelveHour = hours % 12 || 12;
+        const label = `${twelveHour}:${String(minutes).padStart(2, '0')} ${suffix}`;
+        const value = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        return { value, label };
+      }),
+    [],
+  );
+
+  const isDateMode = taskRecurrence?.scheduleMode === 'date';
+  const dateFallbackNote = React.useMemo(() => {
+    const selectedDate = Number(taskRecurrence?.dayOfMonth || 1);
+    if (selectedDate >= 31) {
+      return 'Months with 31 days repeat on the 31st. Shorter months automatically fall back to their last day, including February 28th or 29th in leap years.';
+    }
+    if (selectedDate >= 30) {
+      return 'Months with 30 or 31 days repeat on the selected date. February automatically falls back to the 28th or 29th in leap years.';
+    }
+    return 'Dates from the 1st to the 28th repeat on the exact same calendar day each allowed month.';
+  }, [taskRecurrence?.dayOfMonth]);
 
   const normalizedPlannerWeekOptions = React.useMemo(() => {
     const unique = new Map<string, { value: string; label: string }>();
@@ -498,7 +512,6 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-700">Repeating Task</div>
-                      <p className="mt-1 text-[12px] leading-5 text-slate-500">Automatically create this task again for the selected assignee on a repeat schedule.</p>
                     </div>
                     <label className="relative inline-flex cursor-pointer items-center">
                       <input
@@ -521,75 +534,149 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                     <div className="min-h-0">
                       <div className="space-y-3 border-t border-slate-200 pt-3">
                         <div>
-                          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Repeat Every</label>
-                          <ThemedSelect
-                            value={taskRecurrence?.cadence || 'hourly'}
-                            onChange={(value) =>
-                              setTaskRecurrence((prev: any) => ({
-                                ...(prev || {}),
-                                cadence: value,
-                              }))
-                            }
-                            options={repeatCadenceOptions}
-                            compact={true}
-                            fullWidthCompact={true}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Repeat Times</label>
-                          <ThemedSelect
-                            value={taskRecurrence?.repeatCount || '0'}
-                            onChange={(value) =>
-                              setTaskRecurrence((prev: any) => ({
-                                ...(prev || {}),
-                                repeatCount: value,
-                              }))
-                            }
-                            options={repeatCountOptions}
-                            compact={true}
-                            fullWidthCompact={true}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Day</label>
-                            <ThemedSelect
-                              value={taskRecurrence?.dayOfWeek || '0'}
-                              onChange={(value) =>
-                                setTaskRecurrence((prev: any) => ({
-                                  ...(prev || {}),
-                                  dayOfWeek: value,
-                                }))
-                              }
-                              options={weekdayOptions}
-                              compact={true}
-                              fullWidthCompact={true}
-                              disabled={!isWeeklyRepeat}
-                            />
-                          </div>
-                          <div>
-                            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Date</label>
-                            <ThemedSelect
-                              value={taskRecurrence?.dayOfMonth || '1'}
-                              onChange={(value) =>
-                                setTaskRecurrence((prev: any) => ({
-                                  ...(prev || {}),
-                                  dayOfMonth: value,
-                                }))
-                              }
-                              options={dayOfMonthOptions}
-                              compact={true}
-                              fullWidthCompact={true}
-                              disabled={!isMonthlyRepeat}
-                            />
+                          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Repeat By</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { value: 'day', label: 'Day' },
+                              { value: 'date', label: 'Date' },
+                            ].map((option) => {
+                              const active = (taskRecurrence?.scheduleMode || 'day') === option.value;
+                              return (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  onClick={() =>
+                                    setTaskRecurrence((prev: any) => ({
+                                      ...(prev || {}),
+                                      scheduleMode: option.value,
+                                    }))
+                                  }
+                                  className={`inline-flex h-9 items-center justify-center rounded-[18px] border px-4 text-[12px] font-semibold transition ${
+                                    active
+                                      ? 'border-brand-red bg-brand-red text-white'
+                                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  {option.label}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-red-100 bg-white px-3 py-2 text-[12px] text-slate-500">
-                          Use <span className="font-semibold text-slate-700">Day</span> for weekly repeats, <span className="font-semibold text-slate-700">Date</span> for monthly repeats, and <span className="font-semibold text-slate-700">Repeat Times</span> to control how many copies are created.
-                        </div>
+                        {isDateMode ? (
+                          <>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">From</label>
+                                <ThemedSelect
+                                  value={taskRecurrence?.startMonth || '1'}
+                                  onChange={(value) =>
+                                    setTaskRecurrence((prev: any) => {
+                                      const nextStart = Number(value || 1);
+                                      const prevEnd = Number(prev?.endMonth || nextStart);
+                                      return {
+                                        ...(prev || {}),
+                                        startMonth: value,
+                                        endMonth: String(Math.max(nextStart, prevEnd)),
+                                      };
+                                    })
+                                  }
+                                  options={monthOptions}
+                                  compact={true}
+                                  fullWidthCompact={true}
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">To</label>
+                                <ThemedSelect
+                                  value={taskRecurrence?.endMonth || taskRecurrence?.startMonth || '12'}
+                                  onChange={(value) =>
+                                    setTaskRecurrence((prev: any) => ({
+                                      ...(prev || {}),
+                                      endMonth: String(Math.max(Number(prev?.startMonth || 1), Number(value || prev?.startMonth || 1))),
+                                    }))
+                                  }
+                                  options={monthOptions.filter((option) => Number(option.value) >= Number(taskRecurrence?.startMonth || 1))}
+                                  compact={true}
+                                  fullWidthCompact={true}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Date</label>
+                                <ThemedSelect
+                                  value={taskRecurrence?.dayOfMonth || '1'}
+                                  onChange={(value) =>
+                                    setTaskRecurrence((prev: any) => ({
+                                      ...(prev || {}),
+                                      dayOfMonth: value,
+                                    }))
+                                  }
+                                  options={dayOfMonthOptions}
+                                  compact={true}
+                                  fullWidthCompact={true}
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Time</label>
+                                <ThemedSelect
+                                  value={taskRecurrence?.time || '09:00'}
+                                  onChange={(value) =>
+                                    setTaskRecurrence((prev: any) => ({
+                                      ...(prev || {}),
+                                      time: value,
+                                    }))
+                                  }
+                                  options={timeOptions}
+                                  compact={true}
+                                  fullWidthCompact={true}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-red-100 bg-white px-3 py-2 text-[12px] text-slate-500">
+                              {dateFallbackNote}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Day</label>
+                                <ThemedSelect
+                                  value={taskRecurrence?.dayOfWeek || '0'}
+                                  onChange={(value) =>
+                                    setTaskRecurrence((prev: any) => ({
+                                      ...(prev || {}),
+                                      dayOfWeek: value,
+                                    }))
+                                  }
+                                  options={weekdayOptions}
+                                  compact={true}
+                                  fullWidthCompact={true}
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Time</label>
+                                <ThemedSelect
+                                  value={taskRecurrence?.time || '09:00'}
+                                  onChange={(value) =>
+                                    setTaskRecurrence((prev: any) => ({
+                                      ...(prev || {}),
+                                      time: value,
+                                    }))
+                                  }
+                                  options={timeOptions}
+                                  compact={true}
+                                  fullWidthCompact={true}
+                                />
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
