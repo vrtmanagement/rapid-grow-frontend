@@ -54,7 +54,124 @@ interface Props {
   updateState?: (updater: (prev: PlanningState) => PlanningState) => void;
 }
 
+type TaskRecurrenceDraft = {
+  enabled: boolean;
+  scheduleMode: 'day' | 'date';
+  dayOfWeek: string;
+  dayOfMonth: string;
+  time: string;
+  startMonth: string;
+  endMonth: string;
+  repeatCount: string;
+};
+
 const NO_VISION_SELECTOR_VALUE = '__no_vision__';
+const EVERYDAY_REPEAT_VALUE = 'everyday';
+
+function getDefaultRepeatTime() {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const roundedMinutes = Math.ceil(now.getMinutes() / 30) * 30;
+  if (roundedMinutes >= 60) {
+    now.setHours(now.getHours() + 1, 0, 0, 0);
+  } else {
+    now.setMinutes(roundedMinutes, 0, 0);
+  }
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
+function buildDefaultTaskRecurrenceDraft(): TaskRecurrenceDraft {
+  const now = new Date();
+  return {
+    enabled: false,
+    scheduleMode: 'day',
+    dayOfWeek: String(now.getDay()),
+    dayOfMonth: String(now.getDate()),
+    time: getDefaultRepeatTime(),
+    startMonth: String(now.getMonth() + 1),
+    endMonth: '12',
+    repeatCount: '0',
+  };
+}
+
+function parseTimeValue(timeValue: string) {
+  const [rawHours = '9', rawMinutes = '0'] = String(timeValue || '').split(':');
+  const hours = Math.max(0, Math.min(23, Number(rawHours) || 0));
+  const minutes = Math.max(0, Math.min(59, Number(rawMinutes) || 0));
+  return { hours, minutes };
+}
+
+function clampLocalDayOfMonth(year: number, monthIndex: number, dayOfMonth: number) {
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  return Math.max(1, Math.min(lastDay, dayOfMonth));
+}
+
+function buildLocalScheduledDate(year: number, monthIndex: number, dayOfMonth: number, timeValue: string) {
+  const safeDay = clampLocalDayOfMonth(year, monthIndex, dayOfMonth);
+  const { hours, minutes } = parseTimeValue(timeValue);
+  return new Date(year, monthIndex, safeDay, hours, minutes, 0, 0);
+}
+
+function buildNextDayModeRun(dayOfWeek: string, timeValue: string, fromDate = new Date()) {
+  const now = new Date(fromDate);
+  const candidate = new Date(now);
+  const { hours, minutes } = parseTimeValue(timeValue);
+  candidate.setSeconds(0, 0);
+  candidate.setHours(hours, minutes, 0, 0);
+
+  if (dayOfWeek === EVERYDAY_REPEAT_VALUE) {
+    if (candidate.getTime() <= now.getTime()) {
+      candidate.setDate(candidate.getDate() + 1);
+    }
+    return candidate;
+  }
+
+  const targetDay = Number(dayOfWeek);
+  const safeTargetDay = Number.isInteger(targetDay) ? Math.max(0, Math.min(6, targetDay)) : now.getDay();
+  let offset = (safeTargetDay - now.getDay() + 7) % 7;
+  if (offset === 0 && candidate.getTime() <= now.getTime()) {
+    offset = 7;
+  }
+  candidate.setDate(candidate.getDate() + offset);
+  return candidate;
+}
+
+function buildNextDateModeRun(
+  dayOfMonth: string,
+  startMonth: string,
+  endMonth: string,
+  timeValue: string,
+  fromDate = new Date(),
+) {
+  const now = new Date(fromDate);
+  const targetDay = Math.max(1, Math.min(31, Number(dayOfMonth) || 1));
+  const start = Math.max(1, Math.min(12, Number(startMonth) || now.getMonth() + 1));
+  const end = Math.max(start, Math.min(12, Number(endMonth) || start));
+
+  for (let yearOffset = 0; yearOffset < 3; yearOffset += 1) {
+    const year = now.getFullYear() + yearOffset;
+    for (let month = start; month <= end; month += 1) {
+      const candidate = buildLocalScheduledDate(year, month - 1, targetDay, timeValue);
+      if (candidate.getTime() > now.getTime()) {
+        return candidate;
+      }
+    }
+  }
+
+  return buildLocalScheduledDate(now.getFullYear() + 1, start - 1, targetDay, timeValue);
+}
+
+function formatChecklistIntervalLabel(value: string | number) {
+  const hours = Number(value);
+  if (!Number.isFinite(hours) || hours <= 0) return '1 hour';
+  const minutes = Math.round(hours * 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  if (minutes % 60 === 0) {
+    const wholeHours = minutes / 60;
+    return `${wholeHours} hour${wholeHours === 1 ? '' : 's'}`;
+  }
+  return `${minutes} minutes`;
+}
 
 const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const navigate = useNavigate();
@@ -81,6 +198,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [emailChecklistEnabled, setEmailChecklistEnabled] = useState(false);
   const [additionalChecklistTitles, setAdditionalChecklistTitles] = useState<string[]>([]);
   const [reminderIntervalHours, setReminderIntervalHours] = useState('24');
+  const [taskRecurrence, setTaskRecurrence] = useState<TaskRecurrenceDraft>(() => buildDefaultTaskRecurrenceDraft());
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [taskDocumentFile, setTaskDocumentFile] = useState<File | null>(null);
   const [aiAssigning, setAiAssigning] = useState(false);
@@ -373,8 +491,8 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     [updateState],
   );
 
-  const loadSpaces = async () => {
-    setSpacesLoading(true);
+  const loadSpaces = async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) setSpacesLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() });
@@ -390,14 +508,22 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
           : [],
       );
     } catch (e: any) {
-      setError(e?.message || 'Failed to load spaces');
+      if (!options.silent) setError(e?.message || 'Failed to load spaces');
     } finally {
-      setSpacesLoading(false);
+      if (!options.silent) setSpacesLoading(false);
     }
   };
 
   useEffect(() => {
     loadSpaces();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void loadSpaces({ silent: true });
+    }, 10000);
+    return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -814,6 +940,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       setEmailChecklistEnabled(false);
       setAdditionalChecklistTitles([]);
       setReminderIntervalHours('24');
+      setTaskRecurrence(buildDefaultTaskRecurrenceDraft());
       setSelectedProjectId('');
       setTaskDocumentFile(null);
       setCreateTaskPlannerEnabled(Boolean(plannerDefaults?.plannerEnabled));
@@ -849,6 +976,52 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       documentMimeType: String(uploaded.documentMimeType || file.type || ''),
     };
   }, []);
+
+  const buildTaskRecurrencePayload = useCallback(() => {
+    if (!taskRecurrence.enabled) return undefined;
+    const repeatCount = Number(taskRecurrence.repeatCount || 0);
+    const recurrenceLimit = Number.isFinite(repeatCount) && repeatCount > 0 ? { maxOccurrences: repeatCount } : {};
+
+    if (taskRecurrence.scheduleMode === 'day') {
+      const nextRunAt = buildNextDayModeRun(taskRecurrence.dayOfWeek, taskRecurrence.time).toISOString();
+      if (taskRecurrence.dayOfWeek === EVERYDAY_REPEAT_VALUE) {
+        return {
+          enabled: true,
+          frequency: 'daily',
+          interval: 1,
+          intervalUnit: 'day',
+          nextRunAt,
+          ...recurrenceLimit,
+        };
+      }
+      return {
+        enabled: true,
+        frequency: 'weekly',
+        interval: 1,
+        intervalUnit: 'week',
+        dayOfWeek: Number(taskRecurrence.dayOfWeek || 0),
+        nextRunAt,
+        ...recurrenceLimit,
+      };
+    }
+
+    return {
+      enabled: true,
+      frequency: 'monthly',
+      interval: 1,
+      intervalUnit: 'month',
+      dayOfMonth: Number(taskRecurrence.dayOfMonth || 1),
+      startMonth: Number(taskRecurrence.startMonth || 1),
+      endMonth: Number(taskRecurrence.endMonth || taskRecurrence.startMonth || 1),
+      nextRunAt: buildNextDateModeRun(
+        taskRecurrence.dayOfMonth,
+        taskRecurrence.startMonth,
+        taskRecurrence.endMonth,
+        taskRecurrence.time,
+      ).toISOString(),
+      ...recurrenceLimit,
+    };
+  }, [taskRecurrence]);
 
   const handleAiAssignPdfUpload = useCallback(async (file: File | null) => {
     if (!file || aiAssigning) return;
@@ -900,6 +1073,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     plannerDay?: Goal | null;
     plannerGroup?: WeeklyTaskGroup | null;
     emailChecklistEnabled?: boolean;
+    recurrence?: Record<string, unknown>;
   }) => {
     const cleanTitle = params.title.trim();
     if (!cleanTitle) {
@@ -976,6 +1150,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         status: requestedStatus,
         emailChecklistEnabled: params.emailChecklistEnabled === true,
         reminderIntervalHours: Number(params.reminderIntervalHours) || 24,
+        recurrence: params.recurrence,
         customFields:
           params.plannerDay && params.plannerGroup
             ? buildWeeklyTaskCustomFields(params.plannerDay, params.plannerGroup)
@@ -1694,6 +1869,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       const checklistTitles = emailChecklistEnabled
         ? [cleanTitle, ...additionalChecklistTitles.map((item) => item.trim()).filter(Boolean)].slice(0, 5)
         : [cleanTitle];
+      const recurrence = buildTaskRecurrencePayload();
       const createdTasks: SpacesTask[] = [];
       let checklistEmailWarning = '';
       let checklistEmailSuccess = '';
@@ -1713,6 +1889,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
           plannerDay,
           plannerGroup,
           emailChecklistEnabled: sendEmailOnCreate,
+          recurrence,
         });
         createdTasks.push(createdTask);
 
@@ -1939,7 +2116,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || 'Failed to send task checklist');
       setChecklistNotice(data.emailsSent > 0
-        ? `Sent ${data.emailsSent} checklist email(s) for ${data.tasksScheduled || taskIds.length} task(s). Reminders repeat every ${data.reminderIntervalHours || bulkReminderIntervalHours} hour(s) for unfinished tasks.`
+        ? `Sent ${data.emailsSent} checklist email(s) for ${data.tasksScheduled || taskIds.length} task(s). Reminders repeat every ${formatChecklistIntervalLabel(data.reminderIntervalHours || bulkReminderIntervalHours)} for unfinished tasks.`
         : (data.message || `Checklist reminders were scheduled for ${data.tasksScheduled || taskIds.length} task(s), but no email was sent. Check the employee email address and mail credentials.`),
       );
     } catch (e: any) {
@@ -2098,6 +2275,8 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     setAdditionalChecklistTitles,
     reminderIntervalHours,
     setReminderIntervalHours,
+    taskRecurrence,
+    setTaskRecurrence,
     statusOptions,
     description,
     setDescription,

@@ -26,6 +26,9 @@ const TABLE_SELECT_MENU_CLASS =
 const TABLE_SELECT_OPTION_CLASS =
   'themed-control-option w-full px-4 py-2.5 text-left text-[13px] text-slate-700 transition-colors hover:bg-red-50 hover:text-brand-red';
 
+const HIDDEN_SCROLL_MENU_CLASS =
+  'overscroll-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden';
+
 const TABLE_DATE_TRIGGER_CLASS =
   'themed-control themed-date-trigger w-[138px] max-w-full rounded-xl border border-slate-200 bg-white px-4 pr-10 py-2 text-center text-[13px] text-slate-700 outline-none transition-colors hover:border-slate-300 focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
@@ -245,6 +248,7 @@ export const ThemedSelect: React.FC<{
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [menuMaxHeight, setMenuMaxHeight] = useState(240);
   const [openAbove, setOpenAbove] = useState(false);
 
   useEffect(() => {
@@ -262,15 +266,21 @@ export const ThemedSelect: React.FC<{
     const updatePlacement = () => {
       if (!wrapperRef.current) return;
       const rect = wrapperRef.current.getBoundingClientRect();
-      const estimatedHeight = compact ? (denseMenu ? 196 : 240) : 290;
+      const visibleRows = Math.min(Math.max(options.length, 1), compact ? 6 : 7);
+      const rowHeight = compact ? (denseMenu ? 32 : 38) : 48;
+      const desiredHeight = visibleRows * rowHeight + (denseMenu ? 10 : 16);
+      const gap = compact ? 6 : 8;
       const spaceBelow = window.innerHeight - rect.bottom;
       const spaceAbove = rect.top;
-      const shouldOpenAbove = forceOpenDown ? false : spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+      const shouldOpenAbove = forceOpenDown ? false : spaceBelow < desiredHeight + gap && spaceAbove > spaceBelow;
+      const availableSpace = shouldOpenAbove ? rect.top - gap - 8 : window.innerHeight - rect.bottom - gap - 8;
+      const nextMaxHeight = Math.max(120, Math.min(desiredHeight, availableSpace));
       setOpenAbove(shouldOpenAbove);
+      setMenuMaxHeight(nextMaxHeight);
       if (compact) {
         setMenuPosition({
           left: rect.left,
-          top: shouldOpenAbove ? Math.max(8, rect.top - estimatedHeight - 6) : rect.bottom + 6,
+          top: shouldOpenAbove ? Math.max(8, rect.top - nextMaxHeight - gap) : rect.bottom + gap,
           width: rect.width,
         });
       }
@@ -282,7 +292,7 @@ export const ThemedSelect: React.FC<{
       window.removeEventListener('resize', updatePlacement);
       window.removeEventListener('scroll', updatePlacement, true);
     };
-  }, [open, compact, denseMenu, forceOpenDown]);
+  }, [open, compact, denseMenu, forceOpenDown, options.length]);
 
   useEffect(() => {
     if (!open || !compact) return;
@@ -291,12 +301,16 @@ export const ThemedSelect: React.FC<{
       const rect = wrapperRef.current.getBoundingClientRect();
       const rowHeight = denseMenu ? 32 : 38;
       const estimatedHeight = Math.min(Math.max(options.length, 1), 6) * rowHeight + (denseMenu ? 10 : 16);
+      const gap = 6;
       const spaceBelow = window.innerHeight - rect.bottom;
       const spaceAbove = rect.top;
       const shouldOpenAbove = forceOpenDown ? false : spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+      const availableSpace = shouldOpenAbove ? rect.top - gap - 8 : window.innerHeight - rect.bottom - gap - 8;
+      const nextMaxHeight = Math.max(120, Math.min(estimatedHeight, availableSpace));
       setOpenAbove(shouldOpenAbove);
+      setMenuMaxHeight(nextMaxHeight);
       setMenuPosition({
-        top: shouldOpenAbove ? Math.max(8, rect.top - estimatedHeight - 6) : rect.bottom + 6,
+        top: shouldOpenAbove ? Math.max(8, rect.top - nextMaxHeight - gap) : rect.bottom + gap,
         left: rect.left,
         width: rect.width,
       });
@@ -333,7 +347,10 @@ export const ThemedSelect: React.FC<{
       </button>
 
       {open && !disabled && !compact && (
-        <div className={`${menuClass} ${openAbove ? 'bottom-full top-auto mb-2 mt-0' : ''}`}>
+        <div
+          className={`${menuClass} ${HIDDEN_SCROLL_MENU_CLASS} overflow-y-auto ${openAbove ? 'bottom-full top-auto mb-2 mt-0' : ''}`}
+          style={{ maxHeight: `${menuMaxHeight}px` }}
+        >
           {options.map((option) => {
             const isSelected = option.value === value;
             return (
@@ -357,8 +374,8 @@ export const ThemedSelect: React.FC<{
         ? createPortal(
             <div
               ref={menuRef}
-              className={`${menuClass} fixed z-[220] overflow-y-auto ${denseMenu ? 'max-h-[196px]' : 'max-h-[240px]'}`}
-              style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, width: `${menuPosition.width}px` }}
+              className={`${menuClass} ${HIDDEN_SCROLL_MENU_CLASS} fixed z-[220] overflow-y-auto`}
+              style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, width: `${menuPosition.width}px`, maxHeight: `${menuMaxHeight}px` }}
             >
               {options.map((option) => {
                 const isSelected = option.value === value;
