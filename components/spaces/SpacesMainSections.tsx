@@ -598,6 +598,9 @@ const SpacesMainSections: React.FC<any> = (props) => {
 
     return 'bg-slate-50 text-slate-400';
   };
+  const openTaskDetail = (taskId: string) => {
+    navigate(`/spaces/task/${taskId}`);
+  };
   const getWeeklyTaskCardClasses = (priorityValue?: string) => {
     const normalizedPriority = String(priorityValue || 'medium').trim().toLowerCase();
     if (normalizedPriority === 'high') return 'border border-slate-200 border-t-[3px] border-t-brand-red bg-white hover:bg-[#fff7f7]';
@@ -920,15 +923,26 @@ const SpacesMainSections: React.FC<any> = (props) => {
             </div>
             <div className="mt-4 min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-0.5">
               {topPriorityTasks.length > 0 ? topPriorityTasks.map((task: any, index: number) => (
-                <label
+                <div
                   key={task.taskId}
-                  className={`flex items-start gap-2 rounded-2xl px-3 py-2 transition-colors ${getTopPriorityCardClasses(task, index)}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openTaskDetail(task.taskId)}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    openTaskDetail(task.taskId);
+                  }}
+                  className={`flex cursor-pointer items-start gap-2 rounded-2xl px-3 py-2 transition-colors ${getTopPriorityCardClasses(task, index)}`}
                 >
                   <input
                     type="checkbox"
                     checked={isCompletedPriorityStatus(task.status)}
+                    disabled={!canChangeStatus(task)}
+                    onClick={(event) => event.stopPropagation()}
                     onChange={(e) => patchTask(task.taskId, { status: e.target.checked ? 'done' : 'todo' })}
-                    className={`mt-0.5 h-3 w-3 ${isCompletedPriorityStatus(task.status) ? 'accent-emerald-600' : ''}`}
+                    className={`mt-0.5 h-3 w-3 ${isCompletedPriorityStatus(task.status) ? 'accent-emerald-600' : ''} ${canChangeStatus(task) ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
                   />
                   <div className="min-w-0 flex-1">
                     <div className={`line-clamp-2 text-[12px] font-semibold leading-[1.1rem] ${isCompletedPriorityStatus(task.status) ? 'text-emerald-700 line-through decoration-2' : 'text-slate-800'}`}>
@@ -952,7 +966,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
                     <div className="mt-1 text-[11px] text-slate-500">Due: {task.dueDate || '-'} · Priority: {task.priority} · Status: {task.status}</div>
                     </>
                   )}
-                </label>
+                </div>
               )) : (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-[13px] text-slate-500">No active priorities available.</div>
               )}
