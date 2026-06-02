@@ -397,6 +397,8 @@ const SpacesMainSections: React.FC<any> = (props) => {
     setAdditionalChecklistTitles,
     reminderIntervalHours,
     setReminderIntervalHours,
+    taskRecurrence,
+    setTaskRecurrence,
     statusOptions,
     description,
     setDescription,
@@ -1161,6 +1163,8 @@ const SpacesMainSections: React.FC<any> = (props) => {
         setAdditionalChecklistTitles={setAdditionalChecklistTitles}
         reminderIntervalHours={reminderIntervalHours}
         setReminderIntervalHours={setReminderIntervalHours}
+        taskRecurrence={taskRecurrence}
+        setTaskRecurrence={setTaskRecurrence}
         statusOptions={statusOptions}
         selectedProjectId={selectedProjectId}
         setSelectedProjectId={setSelectedProjectId}

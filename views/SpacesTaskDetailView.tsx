@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { API_BASE, getAuthHeaders } from '../config/api';
-import TaskEnhancementsPanel from '../components/tasks/TaskEnhancementsPanel';
 
 interface SpacesTaskDetail {
   taskId: string;
@@ -68,7 +67,6 @@ const SpacesTaskDetailView: React.FC<Props> = () => {
   const { taskId = '' } = useParams();
   const navigate = useNavigate();
   const [task, setTask] = useState<SpacesTaskDetail | null>(null);
-  const [allTasks, setAllTasks] = useState<Array<{ taskId: string; title: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,12 +89,6 @@ const SpacesTaskDetailView: React.FC<Props> = () => {
           throw new Error('Task not found');
         }
         setTask(found);
-        setAllTasks(
-          tasks.map((t: any) => ({
-            taskId: String(t.taskId),
-            title: String(t.title || t.taskId),
-          }))
-        );
       } catch (e: any) {
         setError(e?.message || 'Failed to load task details');
       } finally {
@@ -218,15 +210,6 @@ const SpacesTaskDetailView: React.FC<Props> = () => {
         </section>
       ) : null}
 
-      {!loading && !error && task ? (
-        <TaskEnhancementsPanel
-          task={task as any}
-          allTasks={allTasks}
-          onUpdated={() => {
-            window.dispatchEvent(new CustomEvent('rapidgrow:spaces-refresh'));
-          }}
-        />
-      ) : null}
     </div>
   );
 };

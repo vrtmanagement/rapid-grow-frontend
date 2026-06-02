@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Paperclip, Plus, X } from 'lucide-react';
 import { CREATE_INPUT_CLASS, ThemedDatePicker, ThemedSelect } from './SpacesFormControls';
 
@@ -29,6 +30,8 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
     setAdditionalChecklistTitles,
     reminderIntervalHours,
     setReminderIntervalHours,
+    taskRecurrence,
+    setTaskRecurrence,
     statusOptions,
     selectedProjectId,
     setSelectedProjectId,
@@ -49,6 +52,69 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
     setPlannerDayId,
     plannerSummary,
   } = props;
+
+  const repeatCadenceOptions = React.useMemo(
+    () => [
+      { value: 'every_30_seconds', label: 'Every 30 seconds' },
+      { value: 'every_5_minutes', label: 'Every 5 minutes' },
+      { value: 'every_15_minutes', label: 'Every 15 minutes' },
+      { value: 'every_30_minutes', label: 'Every 30 minutes' },
+      { value: 'hourly', label: 'Every 1 hour' },
+      { value: 'every_2_hours', label: 'Every 2 hours' },
+      { value: 'daily', label: 'Every day' },
+      { value: 'every_2_days', label: 'Every 2 days' },
+      { value: 'weekly', label: 'Every week' },
+      { value: 'every_2_weeks', label: 'Every 2 weeks' },
+      { value: 'monthly', label: 'Every month' },
+    ],
+    [],
+  );
+
+  const repeatCountOptions = React.useMemo(
+    () => [
+      { value: '0', label: 'Unlimited' },
+      { value: '1', label: '1 time' },
+      { value: '2', label: '2 times' },
+      { value: '3', label: '3 times' },
+      { value: '5', label: '5 times' },
+      { value: '10', label: '10 times' },
+      { value: '25', label: '25 times' },
+    ],
+    [],
+  );
+
+  const weekdayOptions = React.useMemo(
+    () => [
+      { value: '0', label: 'Sunday' },
+      { value: '1', label: 'Monday' },
+      { value: '2', label: 'Tuesday' },
+      { value: '3', label: 'Wednesday' },
+      { value: '4', label: 'Thursday' },
+      { value: '5', label: 'Friday' },
+      { value: '6', label: 'Saturday' },
+    ],
+    [],
+  );
+
+  const dayOfMonthOptions = React.useMemo(
+    () =>
+      Array.from({ length: 31 }, (_, index) => {
+        const day = index + 1;
+        const suffix =
+          day % 10 === 1 && day % 100 !== 11
+            ? 'st'
+            : day % 10 === 2 && day % 100 !== 12
+              ? 'nd'
+              : day % 10 === 3 && day % 100 !== 13
+                ? 'rd'
+                : 'th';
+        return { value: String(day), label: `${day}${suffix}` };
+      }),
+    [],
+  );
+
+  const isWeeklyRepeat = taskRecurrence?.cadence === 'weekly' || taskRecurrence?.cadence === 'every_2_weeks';
+  const isMonthlyRepeat = taskRecurrence?.cadence === 'monthly';
 
   const normalizedPlannerWeekOptions = React.useMemo(() => {
     const unique = new Map<string, { value: string; label: string }>();
@@ -129,13 +195,37 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
 
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm" onClick={onClose}>
+  return createPortal(
+    <>
+      <style>{`
+        @keyframes spacesTaskDrawerBackdropIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        @keyframes spacesTaskDrawerSlideIn {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .spaces-task-drawer-backdrop,
+          .spaces-task-drawer-panel {
+            animation-duration: 1ms !important;
+          }
+        }
+      `}</style>
       <div
-        className="w-full max-w-3xl overflow-hidden rounded-[28px] border border-slate-200 bg-white"
-        onClick={(event) => event.stopPropagation()}
+        className="spaces-task-drawer-backdrop fixed inset-0 z-[160] flex justify-end bg-slate-950/35 backdrop-blur-[2px]"
+        style={{ animation: 'spacesTaskDrawerBackdropIn 180ms ease-out both' }}
+        onClick={onClose}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div
+          className="spaces-task-drawer-panel flex h-full w-full max-w-[760px] flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl"
+          style={{ animation: 'spacesTaskDrawerSlideIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both' }}
+          onClick={(event) => event.stopPropagation()}
+        >
+        <div className="shrink-0 flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <div>
             <div className="text-[13px] font-semibold uppercase tracking-[0.18em] text-slate-400">Task Hub</div>
             <h3 className="mt-1 text-[30px] font-semibold leading-none text-slate-900">Create New Task</h3>
@@ -149,13 +239,13 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
           </button>
         </div>
 
-        <div className="max-h-[74vh] overflow-y-auto px-6 py-3.5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-3.5">
           <div className="space-y-3">
             {error ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</div>
             ) : null}
 
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.35fr)_300px]">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.35fr)_300px]">
               <div className="space-y-3">
                 <div>
                   <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Task Name *</label>
@@ -175,25 +265,25 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Assignee</label>
-                    <ThemedSelect value={assigneeId} onChange={setAssigneeId} options={createAssigneeOptions} placeholder="Unassigned" disabled={employeesLoading} forceOpenDown={true} />
+                    <ThemedSelect value={assigneeId} onChange={setAssigneeId} options={createAssigneeOptions} placeholder="Unassigned" disabled={employeesLoading} />
                   </div>
                   <div>
                     <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Due Date</label>
-                    <ThemedDatePicker value={dueDate} onChange={setDueDate} forceOpenDown={true} />
+                    <ThemedDatePicker value={dueDate} onChange={setDueDate} />
                   </div>
                   <div>
                     <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Priority</label>
-                    <ThemedSelect value={priority} onChange={setPriority} options={priorityOptions} forceOpenDown={true} />
+                    <ThemedSelect value={priority} onChange={setPriority} options={priorityOptions} />
                   </div>
                   <div>
                     <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Status</label>
-                    <ThemedSelect value={status} onChange={setStatus} options={statusOptions} forceOpenDown={true} />
+                    <ThemedSelect value={status} onChange={setStatus} options={statusOptions} />
                   </div>
                 </div>
 
                 <div>
                   <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Project</label>
-                  <ThemedSelect value={selectedProjectId} onChange={setSelectedProjectId} options={projectSelectOptions} placeholder="No project" disabled={projectsLoading} forceOpenDown={true} />
+                  <ThemedSelect value={selectedProjectId} onChange={setSelectedProjectId} options={projectSelectOptions} placeholder="No project" disabled={projectsLoading} />
                 </div>
               </div>
 
@@ -244,7 +334,6 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                             compact={true}
                             fullWidthCompact={true}
                             denseMenu={true}
-                            forceOpenDown={true}
                           />
                         </div>
                         <div>
@@ -264,7 +353,6 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                             compact={true}
                             fullWidthCompact={true}
                             denseMenu={true}
-                            forceOpenDown={true}
                             disabled={!plannerQuarterOptions.length}
                           />
                         </div>
@@ -280,7 +368,6 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                             compact={true}
                             fullWidthCompact={true}
                             denseMenu={true}
-                            forceOpenDown={true}
                             disabled={!plannerMonthOptions.length}
                           />
                         </div>
@@ -294,7 +381,6 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                             compact={true}
                             fullWidthCompact={true}
                             denseMenu={true}
-                            forceOpenDown={true}
                             disabled={!compactPlannerWeekOptions.length}
                           />
                         </div>
@@ -347,6 +433,9 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                           value={reminderIntervalHours}
                           onChange={setReminderIntervalHours}
                           options={[
+                            { value: '0.0833333333', label: 'Every 5 minutes' },
+                            { value: '0.25', label: 'Every 15 minutes' },
+                            { value: '0.5', label: 'Every 30 minutes' },
                             { value: '1', label: 'Every 1 hour' },
                             { value: '6', label: 'Every 6 hours' },
                             { value: '12', label: 'Every 12 hours' },
@@ -356,7 +445,6 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                           ]}
                           compact={true}
                           fullWidthCompact={true}
-                          forceOpenDown={true}
                         />
                       </div>
 
@@ -405,12 +493,113 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                     </div>
                   ) : null}
                 </div> : null}
+
+                <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-700">Repeating Task</div>
+                      <p className="mt-1 text-[12px] leading-5 text-slate-500">Automatically create this task again for the selected assignee on a repeat schedule.</p>
+                    </div>
+                    <label className="relative inline-flex cursor-pointer items-center">
+                      <input
+                        type="checkbox"
+                        checked={!!taskRecurrence?.enabled}
+                        onChange={(event) =>
+                          setTaskRecurrence((prev: any) => ({
+                            ...(prev || {}),
+                            enabled: event.target.checked,
+                          }))
+                        }
+                        className="peer sr-only"
+                      />
+                      <span className="h-7 w-12 rounded-full bg-slate-200 transition peer-checked:bg-brand-red/90" />
+                      <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+                    </label>
+                  </div>
+
+                  <div className={`grid overflow-hidden transition-all duration-300 ease-out ${taskRecurrence?.enabled ? 'mt-3 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                    <div className="min-h-0">
+                      <div className="space-y-3 border-t border-slate-200 pt-3">
+                        <div>
+                          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Repeat Every</label>
+                          <ThemedSelect
+                            value={taskRecurrence?.cadence || 'hourly'}
+                            onChange={(value) =>
+                              setTaskRecurrence((prev: any) => ({
+                                ...(prev || {}),
+                                cadence: value,
+                              }))
+                            }
+                            options={repeatCadenceOptions}
+                            compact={true}
+                            fullWidthCompact={true}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Repeat Times</label>
+                          <ThemedSelect
+                            value={taskRecurrence?.repeatCount || '0'}
+                            onChange={(value) =>
+                              setTaskRecurrence((prev: any) => ({
+                                ...(prev || {}),
+                                repeatCount: value,
+                              }))
+                            }
+                            options={repeatCountOptions}
+                            compact={true}
+                            fullWidthCompact={true}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Day</label>
+                            <ThemedSelect
+                              value={taskRecurrence?.dayOfWeek || '0'}
+                              onChange={(value) =>
+                                setTaskRecurrence((prev: any) => ({
+                                  ...(prev || {}),
+                                  dayOfWeek: value,
+                                }))
+                              }
+                              options={weekdayOptions}
+                              compact={true}
+                              fullWidthCompact={true}
+                              disabled={!isWeeklyRepeat}
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Date</label>
+                            <ThemedSelect
+                              value={taskRecurrence?.dayOfMonth || '1'}
+                              onChange={(value) =>
+                                setTaskRecurrence((prev: any) => ({
+                                  ...(prev || {}),
+                                  dayOfMonth: value,
+                                }))
+                              }
+                              options={dayOfMonthOptions}
+                              compact={true}
+                              fullWidthCompact={true}
+                              disabled={!isMonthlyRepeat}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-red-100 bg-white px-3 py-2 text-[12px] text-slate-500">
+                          Use <span className="font-semibold text-slate-700">Day</span> for weekly repeats, <span className="font-semibold text-slate-700">Date</span> for monthly repeats, and <span className="font-semibold text-slate-700">Repeat Times</span> to control how many copies are created.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-3.5">
+        <div className="shrink-0 flex items-center justify-end gap-3 border-t border-slate-100 bg-white px-6 py-3.5 shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
           <button
             type="button"
             onClick={onClose}
@@ -430,8 +619,10 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
             {uploadingTaskDocument ? 'Uploading...' : saving ? 'Creating...' : 'Create Task'}
           </button>
         </div>
+        </div>
       </div>
-    </div>
+    </>,
+    document.body,
   );
 };
 

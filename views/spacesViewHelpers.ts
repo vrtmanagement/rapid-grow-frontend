@@ -51,6 +51,18 @@ export interface SpacesTask {
   dueDate?: string;
   priority: TaskPriority;
   status: TaskStatus;
+  recurrence?: {
+    enabled?: boolean;
+    frequency?: 'secondly' | 'minutely' | 'hourly' | 'daily' | 'weekly' | 'monthly' | '';
+    interval?: number;
+    maxOccurrences?: number;
+    generatedCount?: number;
+    nextRunAt?: string | null;
+    endDate?: string | null;
+    sourceTaskId?: string;
+    dayOfWeek?: number | null;
+    dayOfMonth?: number | null;
+  };
   emailChecklist?: {
     enabled?: boolean;
     reminderIntervalHours?: number;
