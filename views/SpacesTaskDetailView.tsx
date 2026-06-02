@@ -1,22 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Octagon } from 'lucide-react';
 import { API_BASE, getAuthHeaders } from '../config/api';
-
-interface SpacesTaskDetail {
-  taskId: string;
-  title: string;
-  description?: string;
-  projectId?: string;
-  assigneeId?: string;
-  assigneeName?: string;
-  dueDate?: string;
-  priority?: string;
-  status?: string;
-  documentUrl?: string;
-  documentName?: string;
-  createdByEmpId?: string;
-  createdByName?: string;
-}
+import {
+  canEditTaskForView,
+  getLoggedInEmployee,
+  isRecurringSeriesActive,
+  isRecurringSeriesTask,
+  normalizeTaskForUi,
+  type SpacesTask,
+} from './spacesViewHelpers';
 
 interface Props {
   mode: 'employee' | 'manager';
@@ -63,41 +56,109 @@ function normalizeStatusLabel(status?: string): string {
   return status || '-';
 }
 
-const SpacesTaskDetailView: React.FC<Props> = () => {
+const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
   const { taskId = '' } = useParams();
   const navigate = useNavigate();
-  const [task, setTask] = useState<SpacesTaskDetail | null>(null);
+  const me = useMemo(() => getLoggedInEmployee(), []);
+  const [task, setTask] = useState<SpacesTask | null>(null);
+  const [allTasks, setAllTasks] = useState<SpacesTask[]>([]);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [stoppingRecurrence, setStoppingRecurrence] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadTask = async () => {
-      if (!taskId) return;
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.message || 'Failed to load task details');
-        }
+  const loadTask = async () => {
+    if (!taskId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() });
+      if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
-        const found = tasks.find((x: any) => String(x?.taskId || '') === taskId) || null;
-        if (!found) {
-          throw new Error('Task not found');
-        }
-        setTask(found);
-      } catch (e: any) {
-        setError(e?.message || 'Failed to load task details');
-      } finally {
-        setLoading(false);
+        throw new Error(data.message || 'Failed to load task details');
       }
-    };
+      const data = await res.json().catch(() => ({}));
+      const tasks = Array.isArray(data?.tasks)
+        ? data.tasks.map((item: SpacesTask) => normalizeTaskForUi(item))
+        : [];
+      const found = tasks.find((item) => item.taskId === taskId) || null;
+      if (!found) {
+        throw new Error('Task not found');
+      }
+      setAllTasks(tasks);
+      setTask(found);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load task details');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    loadTask();
+  useEffect(() => {
+    void loadTask();
   }, [taskId]);
+
+  const showRecurringBadge = task ? isRecurringSeriesTask(task) : false;
+  const showStopRepeating =
+    Boolean(task) &&
+    showRecurringBadge &&
+    isRecurringSeriesActive(allTasks, task as SpacesTask) &&
+    canEditTaskForView(task as SpacesTask, me, mode);
+
+  const handleStopRepeating = async () => {
+    if (!task || !showStopRepeating || stoppingRecurrence) return;
+    setStoppingRecurrence(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/spaces/tasks/${task.taskId}/recurrence/stop`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to stop repeating task');
+      }
+
+      const sourceTaskId = String(data.sourceTaskId || '').trim();
+      if (sourceTaskId) {
+        setAllTasks((prev) =>
+          prev.map((item) => {
+            if (item.taskId !== sourceTaskId) return item;
+            return normalizeTaskForUi({
+              ...item,
+              recurrence: {
+                ...(item.recurrence || {}),
+                enabled: false,
+                nextRunAt: null,
+              },
+            });
+          }),
+        );
+        setTask((prev) => {
+          if (!prev) return prev;
+          if (prev.taskId === sourceTaskId) {
+            return normalizeTaskForUi({
+              ...prev,
+              recurrence: {
+                ...(prev.recurrence || {}),
+                enabled: false,
+                nextRunAt: null,
+              },
+            });
+          }
+          return prev;
+        });
+      } else if (data.task) {
+        const normalized = normalizeTaskForUi(data.task as SpacesTask);
+        setTask(normalized);
+        setAllTasks((prev) => prev.map((item) => (item.taskId === normalized.taskId ? normalized : item)));
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Failed to stop repeating task');
+    } finally {
+      setStoppingRecurrence(false);
+    }
+  };
 
   const projectLabel = useMemo(() => {
     if (!task?.projectId) return 'No project';
@@ -134,13 +195,26 @@ const SpacesTaskDetailView: React.FC<Props> = () => {
 
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-xl font-semibold text-slate-900">Task Details</h2>
-        <button
-          type="button"
-          onClick={() => navigate('/spaces')}
-          className="px-3 py-1.5 rounded-lg border border-brand-red/20 bg-rose-50 text-brand-red text-sm font-semibold hover:bg-rose-100"
-        >
-          Back
-        </button>
+        <div className="flex items-center gap-2">
+          {showStopRepeating ? (
+            <button
+              type="button"
+              onClick={() => void handleStopRepeating()}
+              disabled={stoppingRecurrence}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Octagon size={14} />
+              {stoppingRecurrence ? 'Stopping...' : 'Stop repeating'}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => navigate('/spaces')}
+            className="px-3 py-1.5 rounded-lg border border-brand-red/20 bg-rose-50 text-brand-red text-sm font-semibold hover:bg-rose-100"
+          >
+            Back
+          </button>
+        </div>
       </div>
 
       {loading ? <p className="text-slate-500 text-sm">Loading...</p> : null}
@@ -151,8 +225,28 @@ const SpacesTaskDetailView: React.FC<Props> = () => {
           <div className="space-y-3">
             <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
               <p className="text-slate-500">Title</p>
-              <p className="font-bold text-slate-900 break-words">{task.title}</p>
+              <div className="flex flex-wrap items-center gap-2 break-words">
+                {showRecurringBadge ? (
+                  <span
+                    className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md border border-red-200 bg-red-50 px-1 text-[10px] font-bold uppercase tracking-[0.04em] text-brand-red"
+                    title="Repeating task"
+                  >
+                    R
+                  </span>
+                ) : null}
+                <p className="font-bold text-slate-900">{task.title}</p>
+              </div>
             </div>
+            {showRecurringBadge ? (
+              <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
+                <p className="text-slate-500">Repeating</p>
+                <p className="text-slate-900">
+                  {showStopRepeating
+                    ? 'This task is part of an active repeat schedule.'
+                    : 'This task is part of a repeat schedule that has been stopped.'}
+                </p>
+              </div>
+            ) : null}
             <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
               <p className="text-slate-500">Description</p>
               <div className="text-slate-900 whitespace-pre-wrap break-words">

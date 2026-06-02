@@ -1,7 +1,12 @@
 import React from 'react';
-import { CheckSquare, Eye, MessageSquareText, MoreVertical, Pencil, Plus, X } from 'lucide-react';
+import { CheckSquare, Eye, MessageSquareText, MoreVertical, Octagon, Pencil, Plus, X } from 'lucide-react';
 import { TaskHubTableSkeleton, ThemedSelect } from './SpacesFormControls';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
+import {
+  isRecurringSeriesActive,
+  isRecurringSeriesTask,
+  type SpacesTask,
+} from '../../views/spacesViewHelpers';
 
 function getPriorityPillClass(priority?: string) {
   const normalized = String(priority || 'medium').trim().toLowerCase();
@@ -46,6 +51,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
     setIsRenamingColumnId,
     setActiveColumnMenuId,
     sortedTasks,
+    tasks = [],
     setColumns,
     setError,
     activeColumnMenuId,
@@ -57,6 +63,8 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
     isTaskLocked,
     getTaskRowClasses,
     patchTask,
+    stopTaskRecurrence,
+    stoppingRecurrenceTaskId,
     projectNameById,
     mode,
     me,
@@ -257,6 +265,13 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                 const assignee = assigneeOptionsForTask(t.assigneeId).find((employee: any) => employee.empId === t.assigneeId);
                 const assigneeName = assignee ? assignee.empName || 'Unknown User' : 'Unassigned';
                 const assigneeAvatar = getDisplayAvatarUrl(assignee?.avatar, assigneeName);
+                const showRecurringBadge = isRecurringSeriesTask(t as SpacesTask);
+                const showStopRepeating =
+                  showRecurringBadge &&
+                  isRecurringSeriesActive(tasks as SpacesTask[], t as SpacesTask) &&
+                  canEditTask(t) &&
+                  typeof stopTaskRecurrence === 'function';
+                const isStoppingRecurrence = stoppingRecurrenceTaskId === t.taskId;
 
                 return (
                   <tr
@@ -273,16 +288,26 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                     className={`${getTaskRowClasses(t)} cursor-pointer ${isSelected ? '!bg-red-50/80 ring-1 ring-inset ring-red-200' : ''}`}
                   >
                     <td className="px-3 py-3">
-                      <input
-                        defaultValue={t.title}
-                        onBlur={(e) => {
-                          if (!canEdit || isLockedDoneRow) return;
-                          const next = e.target.value.trim();
-                          if (next && next !== t.title) patchTask(t.taskId, { title: next });
-                        }}
-                        disabled={!canEdit || isLockedDoneRow}
-                        className="w-full border-none bg-transparent text-[14px] font-medium text-slate-900 outline-none disabled:text-slate-500"
-                      />
+                      <div className="flex items-center gap-2">
+                        {showRecurringBadge ? (
+                          <span
+                            className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md border border-red-200 bg-red-50 px-1 text-[10px] font-bold uppercase tracking-[0.04em] text-brand-red"
+                            title="Repeating task"
+                          >
+                            R
+                          </span>
+                        ) : null}
+                        <input
+                          defaultValue={t.title}
+                          onBlur={(e) => {
+                            if (!canEdit || isLockedDoneRow) return;
+                            const next = e.target.value.trim();
+                            if (next && next !== t.title) patchTask(t.taskId, { title: next });
+                          }}
+                          disabled={!canEdit || isLockedDoneRow}
+                          className="min-w-0 flex-1 border-none bg-transparent text-[14px] font-medium text-slate-900 outline-none disabled:text-slate-500"
+                        />
+                      </div>
                       <div className="mt-1 space-y-0.5 text-[11px] text-slate-400">
                         <div className="flex flex-wrap items-center gap-1.5">
                           {t.projectId ? <span>Project: {projectNameById.get(t.projectId) || t.projectId}</span> : null}
@@ -348,7 +373,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                       </td>
                     ))}
                     <td className="px-2 py-3 text-right">
-                      {(canValidateTask(t) || canEditTask(t) || canDeleteTask(t) || (canBulkManageTasks && canSelectTask?.(t))) ? (
+                      {(canValidateTask(t) || canEditTask(t) || canDeleteTask(t) || showStopRepeating || (canBulkManageTasks && canSelectTask?.(t))) ? (
                         <div className="inline-flex items-center gap-2">
                           {canValidateTask(t) ? (
                             <>
@@ -369,7 +394,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                             {activeRowMenuId === t.taskId ? (
                               <div
                                 ref={activeRowMenuRef}
-                                className={`absolute right-0 z-20 w-40 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2 shadow-lg ${
+                                className={`absolute right-0 z-20 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2 shadow-lg ${
                                   activeRowMenuPlacement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'
                                 }`}
                               >
@@ -432,6 +457,23 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                                   >
                                     <CheckSquare size={14} />
                                     {isSelected ? 'Unselect' : 'Select'}
+                                  </button>
+                                ) : null}
+                                {showStopRepeating ? (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (isStoppingRecurrence) return;
+                                      setActiveRowMenuId(null);
+                                      setActiveRowMenuPlacement('bottom');
+                                      activeRowMenuButtonRef.current = null;
+                                      await stopTaskRecurrence(t);
+                                    }}
+                                    disabled={isStoppingRecurrence}
+                                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <Octagon size={14} />
+                                    {isStoppingRecurrence ? 'Stopping...' : 'Stop repeating'}
                                   </button>
                                 ) : null}
                                 {canDeleteTask(t) ? (

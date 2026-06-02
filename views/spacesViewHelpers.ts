@@ -155,6 +155,24 @@ export function normalizeTaskForUi(task: SpacesTask): SpacesTask {
   };
 }
 
+export function getRecurringSourceTaskId(task: SpacesTask): string {
+  if (task.recurrence?.enabled) return task.taskId;
+  return String(task.recurrence?.sourceTaskId || '').trim();
+}
+
+export function isRecurringSeriesTask(task: SpacesTask): boolean {
+  if (task.recurrence?.enabled) return true;
+  return Boolean(String(task.recurrence?.sourceTaskId || '').trim());
+}
+
+export function isRecurringSeriesActive(tasks: SpacesTask[], task: SpacesTask): boolean {
+  const sourceTaskId = getRecurringSourceTaskId(task);
+  if (!sourceTaskId) return false;
+  if (task.recurrence?.enabled) return true;
+  const sourceTask = tasks.find((item) => item.taskId === sourceTaskId);
+  return Boolean(sourceTask?.recurrence?.enabled);
+}
+
 export function getReviewerLabel(role?: BackendRole): string {
   const normalized = normalizeRole(role);
   if (normalized === 'SUPER_ADMIN' || normalized === 'ADMIN') return 'Admin';

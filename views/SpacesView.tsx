@@ -43,6 +43,8 @@ import {
   isSubmittedStatus,
   normalizeRole,
   normalizeTaskForUi,
+  isRecurringSeriesActive,
+  isRecurringSeriesTask,
   projectCharterPayloadFromBackendProject,
   assigneeOptionsForTaskHelper,
   toggleDailyHelper,
@@ -205,6 +207,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [aiAssignFileName, setAiAssignFileName] = useState('');
   const [uploadingTaskDocument, setUploadingTaskDocument] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [stoppingRecurrenceTaskId, setStoppingRecurrenceTaskId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isTaskCreateModalOpen, setIsTaskCreateModalOpen] = useState(false);
   const [createTaskPlannerEnabled, setCreateTaskPlannerEnabled] = useState(false);
@@ -844,6 +847,50 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       setError(e?.message || 'Failed to update task');
       loadSpaces();
       return false;
+    }
+  };
+
+  const stopTaskRecurrence = async (task: SpacesTask) => {
+    if (!isRecurringSeriesTask(task) || !isRecurringSeriesActive(tasks, task)) return false;
+    setStoppingRecurrenceTaskId(task.taskId);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/spaces/tasks/${task.taskId}/recurrence/stop`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to stop repeating task');
+      }
+
+      const sourceTaskId = String(data.sourceTaskId || '').trim();
+      if (sourceTaskId) {
+        setTasks((prev) =>
+          prev.map((item) => {
+            if (item.taskId !== sourceTaskId) return item;
+            return normalizeTaskForUi({
+              ...item,
+              recurrence: {
+                ...(item.recurrence || {}),
+                enabled: false,
+                nextRunAt: null,
+              },
+            });
+          }),
+        );
+      } else if (data.task) {
+        const normalized = normalizeTaskForUi(data.task as SpacesTask);
+        setTasks((prev) => upsertTaskById(prev, normalized));
+      }
+
+      return true;
+    } catch (e: any) {
+      setError(e?.message || 'Failed to stop repeating task');
+      await loadSpaces({ silent: true });
+      return false;
+    } finally {
+      setStoppingRecurrenceTaskId(null);
     }
   };
 
@@ -2307,6 +2354,8 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     plannerSummary,
     topPriorityTasks,
     patchTask,
+    stopTaskRecurrence,
+    stoppingRecurrenceTaskId,
     deleteTask,
     weeklyError,
     state,
