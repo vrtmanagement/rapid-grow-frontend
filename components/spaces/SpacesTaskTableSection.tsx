@@ -97,6 +97,11 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
   const activeRowMenuRef = React.useRef<HTMLDivElement | null>(null);
   const activeRowMenuButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const hasSelectedTasks = selectedTaskIds.length > 0;
+  const openTaskDetail = (taskId: string) => {
+    navigate(`/spaces/task/${taskId}`);
+  };
+  const isRowInteractiveTarget = (target: HTMLElement) =>
+    Boolean(target.closest('button, select, textarea, input, a, [role="button"]'));
 
   const resolveRowMenuPlacement = (triggerEl: HTMLButtonElement | null, menuHeight = ROW_MENU_FALLBACK_HEIGHT) => {
     if (!triggerEl) return 'bottom' as const;
@@ -257,12 +262,15 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                   <tr
                     key={t.taskId}
                     onClick={(event) => {
-                      if (!hasSelectedTasks || isSelected || !canSelectTask?.(t)) return;
                       const target = event.target as HTMLElement;
-                      if (target.closest('button, select, textarea, a, [role="button"]')) return;
-                      toggleTaskSelection?.(t);
+                      if (isRowInteractiveTarget(target)) return;
+                      if (hasSelectedTasks && !isSelected && canSelectTask?.(t)) {
+                        toggleTaskSelection?.(t);
+                        return;
+                      }
+                      openTaskDetail(t.taskId);
                     }}
-                    className={`${getTaskRowClasses(t)} ${hasSelectedTasks && canSelectTask?.(t) && !isSelected ? 'cursor-pointer' : ''} ${isSelected ? '!bg-red-50/80 ring-1 ring-inset ring-red-200' : ''}`}
+                    className={`${getTaskRowClasses(t)} cursor-pointer ${isSelected ? '!bg-red-50/80 ring-1 ring-inset ring-red-200' : ''}`}
                   >
                     <td className="px-3 py-3">
                       <input
@@ -371,7 +379,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                                     setActiveRowMenuId(null);
                                     setActiveRowMenuPlacement('bottom');
                                     activeRowMenuButtonRef.current = null;
-                                    navigate(`/spaces/task/${t.taskId}`);
+                                    openTaskDetail(t.taskId);
                                   }}
                                   className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium text-slate-700 transition hover:bg-slate-50"
                                 >
