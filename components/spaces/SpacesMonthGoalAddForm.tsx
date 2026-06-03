@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, Paperclip, Plus, X } from 'lucide-react';
+import { FileDropZone } from '../ui/FileDropZone';
 import { CREATE_INPUT_CLASS, ThemedSelect } from './SpacesFormControls';
 import {
   buildMonthGoalContextFromKeys,
@@ -308,7 +309,15 @@ const SpacesMonthGoalAddForm: React.FC<SpacesMonthGoalAddFormProps> = ({
 
                   <div>
                     <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Document / Attachments</label>
-                    <label className="flex min-h-[132px] cursor-pointer flex-col items-center justify-center rounded-[22px] border border-dashed border-red-200 bg-slate-50/70 px-5 text-center transition hover:bg-red-50/50">
+                    <FileDropZone
+                      as="label"
+                      multiple={false}
+                      disabled={saving || uploadingDocument}
+                      className="flex min-h-[132px] cursor-pointer flex-col items-center justify-center rounded-[22px] border border-dashed border-red-200 bg-slate-50/70 px-5 text-center transition hover:bg-red-50/50"
+                      overlayTitle="Drop document here"
+                      overlayHint="PDF, DOCX, JPG, PNG, WEBP · max 10 MB"
+                      onFiles={(files) => setTaskDocumentFile(files[0] || null)}
+                    >
                       <input
                         type="file"
                         accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
@@ -323,7 +332,7 @@ const SpacesMonthGoalAddForm: React.FC<SpacesMonthGoalAddFormProps> = ({
                         {taskDocumentFile ? taskDocumentFile.name : 'Click to upload or drag and drop'}
                       </div>
                       <div className="mt-1 text-[12px] text-slate-500">PDF, DOCX, JPG, PNG, WEBP · max 10 MB</div>
-                    </label>
+                    </FileDropZone>
                   </div>
                 </div>
 

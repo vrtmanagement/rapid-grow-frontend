@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useAnimationControls, useReducedMotion } from 'framer-motion';
 import { Plus, UploadCloud, WandSparkles } from 'lucide-react';
+import { FileDropZone } from '../ui/FileDropZone';
 import { ThemedSelect } from './SpacesFormControls';
 import SpacesMonthGoalsSection from './SpacesMonthGoalsSection';
 import SpacesTaskCreateModal from './SpacesTaskCreateModal';
@@ -656,7 +657,17 @@ const SpacesMainSections: React.FC<any> = (props) => {
       </div>
 
       {mode === 'manager' ? (
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <FileDropZone
+          multiple={false}
+          disabled={aiAssigning}
+          className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm"
+          overlayTitle="Drop file for AI Assign"
+          overlayHint="PDF, Word, Excel, CSV, or plain text"
+          onFiles={(files) => {
+            const file = files[0] || null;
+            void handleAiAssignPdfUpload(file);
+          }}
+        >
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
@@ -684,12 +695,12 @@ const SpacesMainSections: React.FC<any> = (props) => {
                 onChange={(event) => {
                   const file = event.target.files?.[0] || null;
                   event.target.value = '';
-                  handleAiAssignPdfUpload(file);
+                  void handleAiAssignPdfUpload(file);
                 }}
               />
             </label>
           </div>
-        </div>
+        </FileDropZone>
       ) : null}
 
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

@@ -3,7 +3,10 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Bold, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Copy, FileText, Globe, Hash, Italic, Link2, Linkedin, Mail, Sparkles, Underline, X } from 'lucide-react';
 import { apiCreateContent, apiDeleteContentDraft, apiGetContent, apiGetContentDraft, apiUpdateContent, apiUploadContentFile, apiUpsertContentDraft, ContentAsset, ContentDraftMode, ContentType } from '../services/contentApi';
 import Toast from '../components/ui/Toast';
+import { FileDropZone } from '../components/ui/FileDropZone';
 import { normalizeLooseListMarkup, prepareClipboardPasteForDescription } from '../utils/clipboardPaste';
+import { takeContentDropFiles } from '../utils/pendingContentDropFiles';
+import { toFileArray } from '../utils/fileTransfer';
 
 const LINK_STORAGE_KEY = 'rapidgrow-content-links-v1';
 const TAG_STORAGE_KEY = 'rapidgrow-content-tags-v1';
@@ -494,12 +497,13 @@ const ContentCreateView: React.FC = () => {
     syncDescriptionFromEditor();
   }, [syncDescriptionFromEditor]);
 
-  const handleAttachmentUpload = async (files: FileList | null) => {
-    if (!files?.length) return;
+  const handleAttachmentUpload = async (files: FileList | File[] | null) => {
+    const fileList = toFileArray(files);
+    if (!fileList.length) return;
     setUploading(true);
     setError(null);
     try {
-      const uploads = await Promise.all(Array.from(files).map((file) => apiUploadContentFile(file)));
+      const uploads = await Promise.all(fileList.map((file) => apiUploadContentFile(file)));
       setAttachments((prev) => [...prev, ...uploads]);
       setToast({ message: 'Files uploaded successfully.', type: 'success' });
     } catch (err: any) {
@@ -509,6 +513,13 @@ const ContentCreateView: React.FC = () => {
       setUploading(false);
     }
   };
+
+  useEffect(() => {
+    if (!draftHydrated) return;
+    const pending = takeContentDropFiles();
+    if (pending.length) void handleAttachmentUpload(pending);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftHydrated]);
 
   const removeAttachment = (asset: ContentAsset) => {
     setAttachments((prev) => prev.filter((entry) => entry.fileId !== asset.fileId || entry.fileUrl !== asset.fileUrl));
@@ -869,6 +880,14 @@ const ContentCreateView: React.FC = () => {
       </div>
 
       <form onSubmit={handleSave} className="space-y-3 rounded-[1.5rem] border border-slate-200/80 bg-white/95 p-3 shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:p-4 lg:p-5">
+        <FileDropZone
+          as="div"
+          className="space-y-3"
+          disabled={uploading || submitting}
+          overlayTitle="Drop files to attach"
+          overlayHint="Images, PDFs, Office docs, and more"
+          onFiles={(files) => void handleAttachmentUpload(files)}
+        >
         <div className="flex items-center gap-2.5 border-b border-slate-200/80 pb-2.5">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-[1.15rem] border border-violet-200 bg-violet-50 text-violet-700">
@@ -1204,11 +1223,17 @@ const ContentCreateView: React.FC = () => {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50/70 px-3.5 py-2.5 text-sm font-medium text-violet-700">
+          <FileDropZone
+            as="label"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50/70 px-3.5 py-2.5 text-sm font-medium text-violet-700"
+            disabled={uploading || submitting}
+            overlayTitle="Drop files here"
+            onFiles={(files) => void handleAttachmentUpload(files)}
+          >
             <FileText size={16} />
             {uploading ? 'Uploading files...' : 'Add files'}
-            <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rtf" className="hidden" onChange={(e) => handleAttachmentUpload(e.target.files)} />
-          </label>
+            <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rtf" className="hidden" onChange={(e) => void handleAttachmentUpload(e.target.files)} />
+          </FileDropZone>
           {!isFollowMode && (
             <>
               <div ref={linkPickerWrapRef} className="relative">
@@ -1344,6 +1369,7 @@ const ContentCreateView: React.FC = () => {
             {submitting ? 'Saving...' : isEditMode ? 'Update Content' : 'Save Content'}
           </button>
         </div>
+        </FileDropZone>
       </form>
       {showAutoAddedManager && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4">

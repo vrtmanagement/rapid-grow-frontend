@@ -8,7 +8,10 @@ import ContentMainPanels from '../components/content/ContentMainPanels';
 import MomentsList from '../components/content/MomentsList';
 import SavedDraftsPanel from '../components/content/SavedDraftsPanel';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
+import { FileDropZone } from '../components/ui/FileDropZone';
 import Toast from '../components/ui/Toast';
+import { queueContentDropFiles } from '../utils/pendingContentDropFiles';
+import { toFileArray } from '../utils/fileTransfer';
 import { PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } from '../utils/avatar';
 import {
   CalendarDayCounters,
@@ -721,12 +724,13 @@ const ContentView: React.FC = () => {
     );
   };
 
-  const handleAttachmentUpload = async (files: FileList | null) => {
-    if (!files?.length) return;
+  const handleAttachmentUpload = async (files: FileList | File[] | null) => {
+    const fileList = toFileArray(files);
+    if (!fileList.length) return;
     setUploadingAttachment(true);
     setError(null);
     try {
-      const uploads = await Promise.all(Array.from(files).map((file) => apiUploadContentFile(file)));
+      const uploads = await Promise.all(fileList.map((file) => apiUploadContentFile(file)));
       setAttachments((prev) => [...prev, ...uploads]);
     } catch (err: any) {
       setError(err.message || 'Failed to upload attachment');
@@ -1012,6 +1016,20 @@ const ContentView: React.FC = () => {
         setShowScheduleForm={setShowScheduleForm}
       />
 
+      <FileDropZone
+        className="min-h-[200px]"
+        disabled={uploadingAttachment || submitting}
+        overlayTitle="Drop files to add content"
+        overlayHint="Opens the content composer with your files attached"
+        onFiles={(files) => {
+          if (showModal) {
+            void handleAttachmentUpload(files);
+            return;
+          }
+          queueContentDropFiles(files);
+          openCreatePage();
+        }}
+      >
       <ContentMainPanels
         ctx={{
           activeTab,
@@ -1092,6 +1110,7 @@ const ContentView: React.FC = () => {
           ScheduleDatePicker,
         }}
       />
+      </FileDropZone>
 
       {showModal && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4">
@@ -1107,7 +1126,15 @@ const ContentView: React.FC = () => {
                 </button>
               </div>
             </div>
-            <form onSubmit={handleSave} className="space-y-4 p-6">
+            <form onSubmit={handleSave} className="p-6">
+              <FileDropZone
+                as="div"
+                className="space-y-4"
+                disabled={uploadingAttachment || submitting}
+                overlayTitle="Drop files to attach"
+                overlayHint="Images, PDFs, Office docs, and more"
+                onFiles={(files) => void handleAttachmentUpload(files)}
+              >
               <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Content title" className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100" />
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <select value={type} onChange={(e) => setType(e.target.value as ContentType)} className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100">
@@ -1128,11 +1155,17 @@ const ContentView: React.FC = () => {
                 placeholder="Description"
                 className="min-h-[240px] w-full resize-none overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 text-[15px] leading-7 outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
               />
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50/70 px-4 py-3 text-sm font-medium text-violet-700">
+              <FileDropZone
+                as="label"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50/70 px-4 py-3 text-sm font-medium text-violet-700"
+                disabled={uploadingAttachment || submitting}
+                overlayTitle="Drop files here"
+                onFiles={(files) => void handleAttachmentUpload(files)}
+              >
                 <FileText size={16} />
                 {uploadingAttachment ? 'Uploading files...' : 'Add files'}
-                <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rtf" className="hidden" onChange={(e) => handleAttachmentUpload(e.target.files)} />
-              </label>
+                <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rtf" className="hidden" onChange={(e) => void handleAttachmentUpload(e.target.files)} />
+              </FileDropZone>
               {attachments.length > 0 && (
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                   {attachments.map((asset) => (
@@ -1157,6 +1190,7 @@ const ContentView: React.FC = () => {
                   {submitting ? 'Saving...' : editingItem ? 'Update Content' : 'Save Content'}
                 </button>
               </div>
+              </FileDropZone>
             </form>
           </div>
         </div>
