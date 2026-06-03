@@ -157,12 +157,15 @@ export function normalizeTaskForUi(task: SpacesTask): SpacesTask {
 
 export function getRecurringSourceTaskId(task: SpacesTask): string {
   if (task.recurrence?.enabled) return task.taskId;
-  return String(task.recurrence?.sourceTaskId || '').trim();
+  const sourceTaskId = String(task.recurrence?.sourceTaskId || '').trim();
+  if (!sourceTaskId || sourceTaskId === task.taskId) return '';
+  return sourceTaskId;
 }
 
 export function isRecurringSeriesTask(task: SpacesTask): boolean {
   if (task.recurrence?.enabled) return true;
-  return Boolean(String(task.recurrence?.sourceTaskId || '').trim());
+  const sourceTaskId = String(task.recurrence?.sourceTaskId || '').trim();
+  return Boolean(sourceTaskId && sourceTaskId !== task.taskId);
 }
 
 export function isRecurringSeriesActive(tasks: SpacesTask[], task: SpacesTask): boolean {
