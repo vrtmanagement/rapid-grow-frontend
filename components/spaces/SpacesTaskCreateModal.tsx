@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { Paperclip, Plus, X } from 'lucide-react';
+import { FileDropZone } from '../ui/FileDropZone';
 import { CREATE_INPUT_CLASS, ThemedDatePicker, ThemedSelect } from './SpacesFormControls';
 
 const EVERYDAY_REPEAT_VALUE = 'everyday';
@@ -408,7 +409,15 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
 
                 <div>
                   <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Document / Attachments</label>
-                  <label className="flex min-h-[132px] cursor-pointer flex-col items-center justify-center rounded-[22px] border border-dashed border-red-200 bg-slate-50/70 px-5 text-center transition hover:bg-red-50/50">
+                  <FileDropZone
+                    as="label"
+                    multiple={false}
+                    disabled={saving || uploadingTaskDocument}
+                    className="flex min-h-[132px] cursor-pointer flex-col items-center justify-center rounded-[22px] border border-dashed border-red-200 bg-slate-50/70 px-5 text-center transition hover:bg-red-50/50"
+                    overlayTitle="Drop document here"
+                    overlayHint="PDF, DOCX, JPG, PNG, WEBP"
+                    onFiles={(files) => setTaskDocumentFile(files[0] || null)}
+                  >
                     <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" className="hidden" onChange={(e) => setTaskDocumentFile(e.target.files?.[0] || null)} />
                     <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
                       <Paperclip size={20} />
@@ -417,7 +426,7 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                       {taskDocumentFile ? taskDocumentFile.name : 'Click to upload or drag and drop'}
                     </div>
                     <div className="mt-1 text-[12px] text-slate-500">PDF, DOCX, JPG, PNG, WEBP</div>
-                  </label>
+                  </FileDropZone>
                 </div>
 
                 {canUseEmailChecklist ? <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5">
