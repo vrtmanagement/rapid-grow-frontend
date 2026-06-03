@@ -715,10 +715,26 @@ const App: React.FC = () => {
         setState((prev) =>
           normalizeGoalHierarchy({
             ...prev,
-            yearlyGoals: goals.filter((g: any) => g.level === 'year').map((g: any) => ({ id: g.goalId, text: g.text || '', completed: !!g.completed, level: 'year' as const })),
+            yearlyGoals: goals
+              .filter((g: any) => g.level === 'year')
+              .map((g: any) => ({
+                id: g.goalId,
+                text: g.text || '',
+                details: g.details || '',
+                completed: !!g.completed,
+                level: 'year' as const,
+              })),
             quarterlyGoals: goals
               .filter((g: any) => g.level === 'quarter')
-              .map((g: any) => ({ id: g.goalId, text: g.text || '', completed: !!g.completed, level: 'quarter' as const, parentId: g.parentId || '', timeline: g.timeline || '' })),
+              .map((g: any) => ({
+                id: g.goalId,
+                text: g.text || '',
+                details: g.details || '',
+                completed: !!g.completed,
+                level: 'quarter' as const,
+                parentId: g.parentId || '',
+                timeline: g.timeline || '',
+              })),
             monthlyGoals: goals
               .filter((g: any) => g.level === 'month')
               .map((g: any) => ({ id: g.goalId, text: g.text || '', completed: !!g.completed, level: 'month' as const, parentId: g.parentId || '', details: g.details || '' })),

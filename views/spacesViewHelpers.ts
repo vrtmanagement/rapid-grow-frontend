@@ -6,6 +6,15 @@ export type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | s
 export type TaskStatus = 'todo' | 'doing' | 'review' | 'done' | 'blocked';
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type TaskFilterMode = 'all' | 'me' | 'assigned';
+
+/** True when the task is owned by the viewer via assignee (or unassigned + created by them). */
+export function isTaskAssignedToViewer(task: SpacesTask, viewerId?: string): boolean {
+  const viewer = String(viewerId || '').trim();
+  if (!viewer) return false;
+  const assignee = String(task.assigneeId || '').trim();
+  if (assignee) return assignee === viewer;
+  return String(task.createdByEmpId || '').trim() === viewer;
+}
 export type CreatePanelTab = 'add-task' | 'top-priorities' | 'weekly-tasks';
 export type WeeklyRangeFilter = 'this-week' | 'next-week' | 'two-weeks' | 'month';
 
@@ -135,6 +144,14 @@ export function normalizeRole(role?: BackendRole): BackendRole {
 
 export function isSubmittedStatus(status?: string): boolean {
   return String(status || '').trim().toLowerCase() === 'review';
+}
+
+/** Task Hub table: pending first, then submitted (review), then done. */
+export function getTaskHubStatusSortRank(status?: string): number {
+  const normalized = normalizeTaskStatus(status);
+  if (normalized === 'review') return 1;
+  if (normalized === 'done') return 2;
+  return 0;
 }
 
 export function normalizeTaskStatus(status?: string): TaskStatus {

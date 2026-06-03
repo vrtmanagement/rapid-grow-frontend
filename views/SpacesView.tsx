@@ -7,6 +7,13 @@ import { saveGoal } from '../services/goalApi';
 import { getSocket } from '../realtime/socket';
 import PageSectionSubnav from '../components/layout/PageSectionSubnav';
 import { parseDateValue } from '../components/spaces/SpacesFormControls';
+import type { CreateMonthGoalTaskPayload } from '../components/spaces/SpacesMonthGoalAddForm';
+import {
+  buildMonthGoalCustomFields,
+  MonthGoalContext,
+  MonthGoalTaskDraft,
+  validateMonthGoalTaskDraft,
+} from '../components/spaces/monthGoalsHelpers';
 import SpacesMainSections, { PremiumCreateTaskButton } from '../components/spaces/SpacesMainSections';
 import {
   BackendRole,
@@ -40,7 +47,9 @@ import {
   getTaskRowClassesForView,
   isTaskLockedForView,
   shouldHideAdminTaskFromViewer,
+  isTaskAssignedToViewer,
   isSubmittedStatus,
+  getTaskHubStatusSortRank,
   normalizeRole,
   normalizeTaskForUi,
   isRecurringSeriesActive,
@@ -207,6 +216,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [aiAssignFileName, setAiAssignFileName] = useState('');
   const [uploadingTaskDocument, setUploadingTaskDocument] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [monthGoalSaving, setMonthGoalSaving] = useState(false);
   const [stoppingRecurrenceTaskId, setStoppingRecurrenceTaskId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isTaskCreateModalOpen, setIsTaskCreateModalOpen] = useState(false);
@@ -215,6 +225,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [createTaskPlannerMonthId, setCreateTaskPlannerMonthId] = useState('');
   const [createTaskPlannerWeekId, setCreateTaskPlannerWeekId] = useState('');
   const [createTaskPlannerDayId, setCreateTaskPlannerDayId] = useState('');
+  const [createTaskMonthGoalContext, setCreateTaskMonthGoalContext] = useState<MonthGoalContext | null>(null);
   const [weeklyError, setWeeklyError] = useState('');
   const [selectedDayByWeek, setSelectedDayByWeek] = useState<Record<string, string>>({});
   const [selectedWeeklyProjectId, setSelectedWeeklyProjectId] = useState('');
@@ -237,6 +248,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [rejectFeedbackDraft, setRejectFeedbackDraft] = useState('');
   const [rejectingTask, setRejectingTask] = useState(false);
   const [taskFilterMode, setTaskFilterMode] = useState<TaskFilterMode>('me');
+  const [taskAssigneeFilterId, setTaskAssigneeFilterId] = useState('');
   const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | ''>('');
   const [taskSearch, setTaskSearch] = useState('');
   const [taskPage, setTaskPage] = useState(1);
@@ -339,6 +351,12 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   );
   const viewerRole = normalizeRole(me.role);
   const canManageWeeklyRows = viewerRole === 'SUPER_ADMIN' || viewerRole === 'ADMIN' || viewerRole === 'TEAM_LEAD';
+  const canPickMonthGoalSchedule = true;
+  const canPickMonthGoalAssignee = canManageWeeklyRows;
+  const allowedMonthGoalAssigneeIds = useMemo(
+    () => new Set(assignableEmployees.map((employee) => employee.empId)),
+    [assignableEmployees],
+  );
   const canBulkManageTasks = mode === 'manager' && canManageWeeklyRows;
   const canToggleWeeklyDay = canManageWeeklyRows || mode === 'employee';
   const assignmentHint =
@@ -995,6 +1013,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       setCreateTaskPlannerMonthId(plannerDefaults?.monthId || '');
       setCreateTaskPlannerWeekId(plannerDefaults?.weekId || '');
       setCreateTaskPlannerDayId(plannerDefaults?.dayId || '');
+      setCreateTaskMonthGoalContext(null);
     },
     [me.id],
   );
@@ -1119,6 +1138,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     taskDocumentFile: File | null;
     plannerDay?: Goal | null;
     plannerGroup?: WeeklyTaskGroup | null;
+    monthGoalContext?: MonthGoalContext | null;
     emailChecklistEnabled?: boolean;
     recurrence?: Record<string, unknown>;
   }) => {
@@ -1178,7 +1198,11 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
 
     const plannerDescription =
       descriptionText ||
-      (params.plannerGroup ? `Created from Daily plan: ${params.plannerGroup.week.text || 'Weekly Goal'}` : '');
+      (params.monthGoalContext
+        ? `Created from Month goal: ${params.monthGoalContext.monthLabel} > ${params.monthGoalContext.weekLabel} > ${params.monthGoalContext.dayLabel}`
+        : params.plannerGroup
+          ? `Created from Daily plan: ${params.plannerGroup.week.text || 'Weekly Goal'}`
+          : '');
 
     const res = await fetch(`${API_BASE}/spaces/tasks`, {
       method: 'POST',
@@ -1198,8 +1222,9 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         emailChecklistEnabled: params.emailChecklistEnabled === true,
         reminderIntervalHours: Number(params.reminderIntervalHours) || 24,
         recurrence: params.recurrence,
-        customFields:
-          params.plannerDay && params.plannerGroup
+        customFields: params.monthGoalContext
+          ? buildMonthGoalCustomFields(params.monthGoalContext)
+          : params.plannerDay && params.plannerGroup
             ? buildWeeklyTaskCustomFields(params.plannerDay, params.plannerGroup)
             : undefined,
       }),
@@ -1215,6 +1240,50 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     return checklistEmail ? { ...normalizedTask, checklistEmail } : normalizedTask;
   }, [appendProjectTaskToState, me.id, me.role, mode, projects, uploadTaskDocument]);
 
+  const createMonthGoalTask = useCallback(
+    async (params: CreateMonthGoalTaskPayload) => {
+      const draft: MonthGoalTaskDraft = {
+        title: params.title,
+        description: params.description,
+        assigneeId: canPickMonthGoalAssignee ? params.assigneeId : me.id || '',
+        taskDocumentFile: params.taskDocumentFile,
+        monthKey: params.context.monthKey,
+        weekKey: params.context.weekKey,
+        dayKey: params.context.dayKey,
+      };
+
+      const validationErrors = validateMonthGoalTaskDraft(draft, {
+        canPickSchedule: true,
+        canPickAssignee: canPickMonthGoalAssignee,
+        employeeId: me.id || '',
+        allowedAssigneeIds: allowedMonthGoalAssigneeIds,
+      });
+      if (validationErrors.length) {
+        throw new Error(validationErrors[0]);
+      }
+
+      setMonthGoalSaving(true);
+      setError(null);
+      try {
+        await createTaskInternal({
+          title: params.title.trim(),
+          description: params.description.trim(),
+          assigneeId: canPickMonthGoalAssignee ? params.assigneeId : me.id || '',
+          dueDate: params.context.dayDate,
+          priority: 'medium',
+          status: 'todo',
+          reminderIntervalHours: '24',
+          projectId: '',
+          taskDocumentFile: params.taskDocumentFile,
+          monthGoalContext: params.context,
+        });
+      } finally {
+        setMonthGoalSaving(false);
+      }
+    },
+    [allowedMonthGoalAssigneeIds, canPickMonthGoalAssignee, createTaskInternal, me.id],
+  );
+
   const teamMemberIds = useMemo(
     () => new Set(assignableEmployees.map((emp) => emp.empId)),
     [assignableEmployees],
@@ -1226,19 +1295,32 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   );
 
   const taskBelongsToMe = useCallback(
-    (task: SpacesTask) =>
-      task.assigneeId === me.id || (!task.assigneeId && task.createdByEmpId === me.id),
+    (task: SpacesTask) => isTaskAssignedToViewer(task, me.id),
     [me.id],
   );
+  const canUseAssigneeFilter = mode === 'manager' && canManageWeeklyRows;
+  const taskAssigneeFilterOptions = useMemo(
+    () =>
+      assignableEmployees.map((employee) => ({
+        value: employee.empId,
+        label: employee.empId === me.id ? `${employee.empName} (You)` : employee.empName || 'Unknown User',
+      })),
+    [assignableEmployees, me.id],
+  );
+
+  useEffect(() => {
+    if (!canUseAssigneeFilter || !me.id) return;
+    setTaskAssigneeFilterId((current) => (current ? current : me.id));
+  }, [canUseAssigneeFilter, me.id]);
 
   const filteredTasks = useMemo(() => {
     let list = visibleTasks;
 
-    if (taskFilterMode === 'me' && me.id) {
+    if (canUseAssigneeFilter && taskAssigneeFilterId) {
+      list = list.filter((t) => String(t.assigneeId || '').trim() === taskAssigneeFilterId);
+    } else if (taskFilterMode === 'me' && me.id) {
       list = list.filter((t) => taskBelongsToMe(t));
-    }
-
-    if (taskFilterMode === 'assigned' && me.id) {
+    } else if (taskFilterMode === 'assigned' && me.id) {
       list = list.filter(
         (t) => t.assigneeId === me.id && t.createdByEmpId !== me.id,
       );
@@ -1268,13 +1350,36 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         createdByName.toLowerCase().includes(term)
       );
     });
-  }, [visibleTasks, taskFilterMode, taskStatusFilter, taskSearch, me.id, employeeNameById, taskBelongsToMe]);
+  }, [
+    visibleTasks,
+    taskFilterMode,
+    taskStatusFilter,
+    taskSearch,
+    me.id,
+    employeeNameById,
+    taskBelongsToMe,
+    canUseAssigneeFilter,
+    taskAssigneeFilterId,
+  ]);
+
+  const monthGoalSourceTasks = useMemo(() => {
+    let list = visibleTasks;
+    if (mode === 'employee' && me.id) {
+      list = list.filter((task) => isTaskAssignedToViewer(task, me.id));
+    } else if (canUseAssigneeFilter && taskAssigneeFilterId) {
+      list = list.filter((task) => String(task.assigneeId || '').trim() === taskAssigneeFilterId);
+    }
+    return list;
+  }, [visibleTasks, mode, me.id, canUseAssigneeFilter, taskAssigneeFilterId]);
 
   const sortedTasks = useMemo(() => {
     if (filteredTasks.length === 0) return filteredTasks;
     const copy = [...filteredTasks];
     const managerRoles = new Set<BackendRole>(['SUPER_ADMIN', 'ADMIN', 'TEAM_LEAD']);
     copy.sort((a, b) => {
+      const statusDiff = getTaskHubStatusSortRank(a.status) - getTaskHubStatusSortRank(b.status);
+      if (statusDiff !== 0) return statusDiff;
+
       if (mode === 'employee') {
         const aManager = managerRoles.has((a.createdByRole || '').toUpperCase());
         const bManager = managerRoles.has((b.createdByRole || '').toUpperCase());
@@ -1293,7 +1398,11 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       String(today.getDate()).padStart(2, '0'),
     ].join('-');
     const pending = visibleTasks.filter((task) => {
-      if (me.id && !taskBelongsToMe(task)) return false;
+      if (canUseAssigneeFilter && taskAssigneeFilterId) {
+        if (String(task.assigneeId || '').trim() !== taskAssigneeFilterId) return false;
+      } else if (me.id && !taskBelongsToMe(task)) {
+        return false;
+      }
       if (!activePriorityStatuses.has(task.status)) return false;
       if (!String(task.title || '').trim()) return false;
       return true;
@@ -1321,7 +1430,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       })
       .slice(0, 6);
-  }, [visibleTasks, me.id, taskBelongsToMe]);
+  }, [visibleTasks, me.id, taskBelongsToMe, canUseAssigneeFilter, taskAssigneeFilterId]);
 
   const weeklyTaskGroups = useMemo<WeeklyTaskGroup[]>(
     () => buildWeeklyTaskGroups(state, visibleTasks, parseDateValue),
@@ -1700,6 +1809,9 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   }, [getDayDisplay, selectedPlannerWeekGroup]);
 
   const plannerSummary = useMemo(() => {
+    if (createTaskMonthGoalContext) {
+      return `${createTaskMonthGoalContext.monthLabel} · ${createTaskMonthGoalContext.weekLabel} · ${createTaskMonthGoalContext.dayLabel}`;
+    }
     if (!selectedPlannerWeekGroup) return '';
     const selectedPlannerDay =
       selectedPlannerWeekGroup.days.find((day) => day.id === createTaskPlannerDayId) ||
@@ -1709,11 +1821,25 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     const dayIndex = selectedPlannerWeekGroup.days.findIndex((day) => day.id === selectedPlannerDay.id);
     const dayInfo = getDayDisplay(selectedPlannerWeekGroup.weekStart, Math.max(dayIndex, 0));
     return `${selectedPlannerWeekGroup.weekSummaryLabel} · ${dayInfo.weekday} ${dayInfo.dateText}`;
-  }, [createTaskPlannerDayId, getDayDisplay, selectedPlannerWeekGroup]);
+  }, [createTaskMonthGoalContext, createTaskPlannerDayId, getDayDisplay, selectedPlannerWeekGroup]);
 
   const openTaskCreateModal = useCallback(
-    (plannerDefaults?: { plannerEnabled?: boolean; weeklyGroup?: WeeklyTaskGroup | null; day?: Goal | null }) => {
+    (plannerDefaults?: {
+      plannerEnabled?: boolean;
+      weeklyGroup?: WeeklyTaskGroup | null;
+      day?: Goal | null;
+      monthGoalContext?: MonthGoalContext;
+    }) => {
       setError(null);
+      if (plannerDefaults?.monthGoalContext) {
+        setCreateTaskMonthGoalContext(plannerDefaults.monthGoalContext);
+        resetCreateTaskForm({ plannerEnabled: false });
+        setDueDate(plannerDefaults.monthGoalContext.dayDate || '');
+        setIsTaskCreateModalOpen(true);
+        return;
+      }
+
+      setCreateTaskMonthGoalContext(null);
       const defaultWeekId =
         plannerDefaults?.weeklyGroup?.weekSelectionKey ||
         selectedWeeklyTaskGroup?.weekSelectionKey ||
@@ -1874,8 +2000,9 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     try {
       let plannerDay: Goal | null = null;
       let plannerGroup: WeeklyTaskGroup | null = null;
+      const monthGoalContext = createTaskMonthGoalContext;
 
-      if (createTaskPlannerEnabled) {
+      if (!monthGoalContext && createTaskPlannerEnabled) {
         const selectedGroup =
           activeWeeklyGroups.find((group) => group.weekSelectionKey === createTaskPlannerWeekId) ||
           selectedWeeklyTaskGroup ||
@@ -1935,6 +2062,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
           taskDocumentFile: index === 0 ? taskDocumentFile : null,
           plannerDay,
           plannerGroup,
+          monthGoalContext,
           emailChecklistEnabled: sendEmailOnCreate,
           recurrence,
         });
@@ -2005,7 +2133,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
 
   useEffect(() => {
     setTaskPage(1);
-  }, [taskFilterMode, taskStatusFilter, taskSearch, mode]);
+  }, [taskFilterMode, taskStatusFilter, taskSearch, taskAssigneeFilterId, mode]);
 
   useEffect(() => {
     setTaskPage((prev) => Math.min(prev, totalTaskPages));
@@ -2352,8 +2480,16 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     setCreateTaskPlannerDayId,
     plannerDayOptions,
     plannerSummary,
+    hideWeeklyPlannerInCreateModal: Boolean(createTaskMonthGoalContext),
     topPriorityTasks,
     patchTask,
+    onCreateMonthGoalTask: createMonthGoalTask,
+    canPickMonthGoalSchedule,
+    canPickMonthGoalAssignee,
+    employeeId: me.id || '',
+    allowedAssigneeIds: allowedMonthGoalAssigneeIds,
+    monthGoalSaving,
+    monthGoalUploading: uploadingTaskDocument,
     stopTaskRecurrence,
     stoppingRecurrenceTaskId,
     deleteTask,
@@ -2368,6 +2504,11 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     getDayDisplay,
     setSelectedDayByWeek,
     tasks,
+    monthGoalSourceTasks,
+    canUseAssigneeFilter,
+    taskAssigneeFilterId,
+    setTaskAssigneeFilterId,
+    taskAssigneeFilterOptions,
       toggleDaily,
       canManageWeeklyRows,
       canToggleWeeklyDay,

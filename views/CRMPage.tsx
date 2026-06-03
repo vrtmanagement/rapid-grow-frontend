@@ -5,7 +5,7 @@ import CRMTable from './crm/CRMTable';
 import CRMLeadForm, { CRMLeadPayload } from './crm/CRMLeadForm';
 import CRMImportModal from './crm/CRMImportModal';
 import CRMExportButton from './crm/CRMExportButton';
-import { ArrowDownToLine, ArrowRightLeft, ChevronDown, FilterX, MoreVertical, Plus, Trash2 } from 'lucide-react';
+import { ArrowDownToLine, ArrowRightLeft, ChevronDown, FilterX, MoreVertical, Plus, Search, Trash2 } from 'lucide-react';
 import { getStoredAuthSession } from '../config/api';
 import { crmJson, crmUploadFile } from '../services/crmApi';
 
@@ -392,6 +392,22 @@ const CRMPage: React.FC = () => {
   const pageWindowStart = Math.max(1, page - 2);
   const pageWindowEnd = Math.min(totalPages, page + 2);
   const pageNumbers = Array.from({ length: Math.max(0, pageWindowEnd - pageWindowStart + 1) }, (_, idx) => pageWindowStart + idx);
+  const leadsNeedingAction = useMemo(
+    () =>
+      leads.reduce((count, item) => {
+        const customFields = item?.customFields || {};
+        const actionsRaw =
+          customFields.action_items ??
+          customFields.actionItems ??
+          customFields.actions ??
+          customFields.lead_actions;
+        const hasAction =
+          Array.isArray(actionsRaw) &&
+          actionsRaw.some((entry: any) => String(entry?.title || '').trim());
+        return count + (hasAction ? 0 : 1);
+      }, 0),
+    [leads],
+  );
   const handleDeleteCustomCardTab = useCallback(
     async (tabName: string) => {
       const normalizedTarget = String(tabName || '').trim().toUpperCase();
@@ -449,10 +465,28 @@ const CRMPage: React.FC = () => {
   );
 
   return (
-    <div className="-mt-10 -ml-10 space-y-5">
-      <div className="rounded-3xl border border-slate-200 bg-gradient-to-r from-white via-slate-50 to-indigo-50/60 px-6 py-5 text-slate-900 shadow-[0_18px_45px_rgba(15,23,42,0.10)]">
-        <h1 className="text-xl font-semibold text-slate-900">CRM Command Center</h1>
-        <p className="text-sm text-slate-600 mt-1">Manage hot, warm, cold, and custom leads with fast actions and clean workflows.</p>
+    <div className="-mt-10 -ml-10 space-y-4 bg-slate-50/70 p-4 pr-5">
+      <div className="rounded-lg border border-slate-200 bg-white px-5 py-4 text-slate-900">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900">CRM</h1>
+            <p className="mt-1 text-sm text-slate-600">Action-focused lead list with tabs, follow-ups, and quick communication.</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Current</div>
+              <div className="mt-1 text-sm font-semibold text-slate-900">{activeTab}</div>
+            </div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Needs Action</div>
+              <div className="mt-1 text-sm font-semibold text-amber-800">{leadsNeedingAction}</div>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Scope</div>
+              <div className="mt-1 max-w-[120px] truncate text-sm font-semibold text-slate-900" title={selectedPersonLabel}>{selectedPersonLabel}</div>
+            </div>
+          </div>
+        </div>
       </div>
       {leadFormOpen ? (
         <CRMLeadForm
@@ -473,27 +507,25 @@ const CRMPage: React.FC = () => {
         />
       ) : (
       <>
-      <CRMStatsCards
-        stats={stats}
-        onCardClick={(card) => {
-          setPage(1);
-          if (card.type === 'custom' && card.customTabName) {
-            setActiveTab(card.customTabName);
-            setCardFilter({ type: 'custom', customTabName: card.customTabName });
-            return;
-          }
-          setCardFilter({ type: card.type });
-        }}
-      />
-      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 items-start">
-      <div ref={leftTabsMenuRef} className="rounded-2xl bg-white/95 border border-slate-200 shadow-[0_14px_35px_rgba(15,23,42,0.08)] overflow-visible sticky top-4 z-20 backdrop-blur-sm">
-        <aside className="bg-slate-50/70 p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Lead Tabs</div>
+      <div className="grid grid-cols-1 lg:grid-cols-[236px_1fr] gap-4 items-start">
+      <div ref={leftTabsMenuRef} className="rounded-lg bg-white border border-slate-200 overflow-visible sticky top-4 z-20">
+        <aside className="p-3">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lead Tabs</div>
+            <button
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              onClick={() => setCreateTabOpen(true)}
+              title="Create custom tab"
+              aria-label="Create custom tab"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
           <div className="space-y-2">
             {tabs.map((tab) => (
-              <div key={tab} className={`group relative w-full inline-flex items-center justify-between rounded-lg border transition-all duration-200 ${tab === activeTab ? 'bg-gradient-to-r from-brand-red to-rose-600 text-white border-brand-red shadow-md' : 'bg-white border-slate-300 text-slate-700 hover:border-brand-red/40 hover:shadow-md hover:-translate-y-0.5'}`}>
-                <button className="px-3 py-2 text-sm text-left flex-1" onClick={() => { setPage(1); setCardFilter({ type: 'none' }); setActiveTab(tab); }}>
-                  {tab}
+              <div key={tab} className={`group relative w-full inline-flex items-center justify-between rounded-lg border transition-all duration-200 ${tab === activeTab ? 'bg-slate-900 text-white border-slate-900 shadow-sm' : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'}`}>
+                <button className="flex-1 px-3 py-2 text-left text-sm" onClick={() => { setPage(1); setCardFilter({ type: 'none' }); setActiveTab(tab); }}>
+                  <span className="block truncate font-medium">{tab}</span>
                 </button>
                 <button
                   className={`absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 inline-flex items-center justify-center rounded-md transition-all ${
@@ -549,39 +581,44 @@ const CRMPage: React.FC = () => {
                 ) : null}
               </div>
             ))}
-            <button
-              className="w-full px-3 py-2 rounded-lg border border-dashed border-slate-400 text-slate-700 text-sm text-left hover:bg-white hover:shadow-sm transition-all duration-200"
-              onClick={() => setCreateTabOpen(true)}
-            >
-              + Create Custom Tab
-            </button>
           </div>
         </aside>
       </div>
 
       <div className="space-y-4">
-      <div className="rounded-2xl bg-white border border-slate-200 p-5 space-y-4 shadow-[0_14px_35px_rgba(15,23,42,0.08)]">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-800">Lead Controls</h2>
-          <span className="text-xs text-slate-500">Active Tab: <span className="font-semibold text-slate-700">{activeTab}</span></span>
-        </div>
+      <div className="rounded-lg bg-white border border-slate-200 p-4 space-y-4">
+        <CRMStatsCards
+          stats={stats}
+          onCardClick={(card) => {
+            setPage(1);
+            if (card.type === 'custom' && card.customTabName) {
+              setActiveTab(card.customTabName);
+              setCardFilter({ type: 'custom', customTabName: card.customTabName });
+              return;
+            }
+            setCardFilter({ type: card.type });
+          }}
+        />
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[300px] flex-1">
             <label className="text-xs text-slate-500 mb-1 block">Search Leads</label>
-            <input className="w-full rounded-lg border border-slate-300 px-3 py-2 bg-white focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red/60 transition-all" placeholder="Search by name, email, company, position..." value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
+            <div className="relative">
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm transition-all focus:border-brand-red/60 focus:ring-2 focus:ring-brand-red/20" placeholder="Search by name, email, company, position..." value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
+            </div>
           </div>
           <CRMExportButton leadType={activeTab} customTabName={currentCustomTab} />
-          <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 hover:-translate-y-0.5 transition-all duration-200" onClick={() => setImportOpen(true)}>
+          <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 transition-colors hover:bg-slate-50" onClick={() => setImportOpen(true)}>
             <ArrowDownToLine size={15} />
             Import Excel
           </button>
-          <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-brand-red to-rose-600 text-white shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200" onClick={() => { setEditingLead(null); setLeadFormOpen(true); }}>
+          <button className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-white shadow-sm transition-colors hover:bg-slate-800" onClick={() => { setEditingLead(null); setLeadFormOpen(true); }}>
             <Plus size={15} />
             Add Lead
           </button>
         </div>
         {canUseRoleFilters && (
-          <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100/80 p-4">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Role Filters</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
@@ -589,7 +626,7 @@ const CRMPage: React.FC = () => {
                   <button
                     className={`w-full rounded-lg border px-3 py-2 text-left text-sm flex items-center justify-between transition-colors ${
                       selectedScopePerson
-                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:border-indigo-300'
+                        ? 'border-slate-300 bg-white text-slate-900 hover:border-slate-400'
                         : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
                     }`}
                     onClick={() => setPersonDropdownOpen((open) => !open)}
@@ -611,7 +648,7 @@ const CRMPage: React.FC = () => {
                         <button
                           className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                             !personFilterId
-                              ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                              ? 'bg-slate-900 text-white font-semibold'
                               : 'hover:bg-slate-100 text-slate-700'
                           }`}
                           onClick={() => {
@@ -628,7 +665,7 @@ const CRMPage: React.FC = () => {
                           <button
                             className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                               personFilterId === currentUserId
-                                ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                                ? 'bg-slate-900 text-white font-semibold'
                                 : 'hover:bg-slate-100 text-slate-700'
                             }`}
                             onClick={() => {
@@ -647,7 +684,7 @@ const CRMPage: React.FC = () => {
                             key={member.id}
                             className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
                               personFilterId === member.id
-                                ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                                ? 'bg-slate-900 text-white font-semibold'
                                 : 'hover:bg-slate-100 text-slate-700'
                             }`}
                             onClick={() => {
@@ -671,7 +708,7 @@ const CRMPage: React.FC = () => {
               </div>
               <div className="flex items-end">
                 <button
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:-translate-y-0.5 transition-all duration-200"
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-700 transition-colors hover:bg-slate-50"
                   onClick={() => {
                     setPersonFilterId('');
                     setPersonSearch('');
@@ -685,7 +722,7 @@ const CRMPage: React.FC = () => {
                 </button>
                 {hiddenCustomLeadsCount > 0 ? (
                   <button
-                    className="ml-2 px-4 py-2 rounded-lg border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-60"
+                    className="ml-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-600 transition-colors hover:bg-red-100 disabled:opacity-60"
                     onClick={async () => {
                       setDeletingHiddenCustomLeads(true);
                       try {
@@ -714,8 +751,11 @@ const CRMPage: React.FC = () => {
         )}
       </div>
 
-      <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Bulk Actions</h3>
+      <div className="rounded-lg bg-white border border-slate-200 p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-slate-700">Bulk Actions</h3>
+          <span className="text-xs text-slate-500">{selectedIds.length} selected</span>
+        </div>
         <div className="flex gap-2 flex-wrap">
         <button
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-red-300 text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50"
@@ -745,10 +785,10 @@ const CRMPage: React.FC = () => {
       </div>
 
       {pageLoading ? (
-        <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-slate-500">Loading leads...</div>
+        <div className="rounded-lg bg-white border border-slate-200 p-8 text-center text-slate-500">Loading leads...</div>
       ) : (
-      <div className="rounded-2xl bg-white border border-slate-200 shadow-[0_14px_35px_rgba(15,23,42,0.08)] overflow-visible">
-        <div className="p-4">
+      <div className="rounded-lg bg-white border border-slate-200 overflow-visible">
+        <div className="p-3">
           <CRMTable
             items={leads}
             rowStart={(page - 1) * pageSize}
@@ -766,7 +806,7 @@ const CRMPage: React.FC = () => {
       </div>
       )}
 
-      <div className="rounded-2xl bg-white border border-slate-200 px-4 py-3 flex items-center justify-between shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
+      <div className="rounded-lg bg-white border border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm text-slate-600">
           Showing <span className="font-semibold text-slate-800">{leads.length}</span> records (page <span className="font-semibold text-slate-800">{page}</span> of <span className="font-semibold text-slate-800">{totalPages}</span>) - {pageSize} per page
         </div>
@@ -790,7 +830,7 @@ const CRMPage: React.FC = () => {
           {pageNumbers.map((pageNo) => (
             <button
               key={pageNo}
-              className={`px-3 py-1.5 rounded border text-sm transition-all duration-200 ${pageNo === page ? 'border-brand-red bg-gradient-to-r from-brand-red to-rose-600 text-white shadow-sm' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+              className={`px-3 py-1.5 rounded border text-sm transition-all duration-200 ${pageNo === page ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
               onClick={() => setPage(pageNo)}
             >
               {pageNo}
