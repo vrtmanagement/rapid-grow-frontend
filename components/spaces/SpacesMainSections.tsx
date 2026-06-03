@@ -567,17 +567,17 @@ const SpacesMainSections: React.FC<any> = (props) => {
   return (
     <>
       <div className="space-y-4">
-        <div className="grid items-start gap-4 xl:grid-cols-[2fr_3fr]">
-          <div className="order-1 flex flex-col rounded-3xl border border-slate-200 bg-white p-5">
+        <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(250px,20%)_minmax(0,80%)]">
+          <div className="order-1 flex h-full min-h-0 flex-col rounded-3xl border border-slate-200 bg-white p-5">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <h4 className="text-sm font-semibold text-slate-900">Top Priorities</h4>
               </div>
               <span className="inline-flex items-center whitespace-nowrap rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600">
-                {completedTopPriorities}/{topPriorityTasks.length} done
+                {completedTopPriorities}/{topPriorityTasks.length}
               </span>
             </div>
-            <div className="mt-4 space-y-1.5">
+            <div className="mt-4 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {topPriorityTasks.length > 0 ? topPriorityTasks.map((task: any, index: number) => (
                 <div
                   key={task.taskId}
@@ -601,7 +601,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
                     className={`mt-0.5 h-3 w-3 ${isCompletedPriorityStatus(task.status) ? 'accent-emerald-600' : ''} ${canChangeStatus(task) ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
                   />
                   <div className="min-w-0 flex-1">
-                    <div className={`line-clamp-2 text-[12px] font-semibold leading-[1.1rem] ${isCompletedPriorityStatus(task.status) ? 'text-emerald-700 line-through decoration-2' : 'text-slate-800'}`}>
+                    <div className={`truncate text-[12px] font-semibold leading-[1.1rem] ${isCompletedPriorityStatus(task.status) ? 'text-emerald-700 line-through decoration-2' : 'text-slate-800'}`}>
                       {task.title || 'Untitled task'}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-1">
@@ -624,7 +624,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
                   )}
                 </div>
               )) : (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-[13px] text-slate-500">No active priorities available.</div>
+                <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-[13px] text-slate-500">No active priorities available.</div>
               )}
             </div>
           </div>
@@ -714,18 +714,6 @@ const SpacesMainSections: React.FC<any> = (props) => {
             <button type="button" onClick={() => setTaskFilterMode('me')} className={`px-4 py-1.5 text-[13px] rounded-full ${taskFilterMode === 'me' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>Me</button>
             <button type="button" onClick={() => setTaskFilterMode('assigned')} className={`px-4 py-1.5 text-[13px] rounded-full ${taskFilterMode === 'assigned' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>Assigned</button>
           </div>
-          {canUseAssigneeFilter ? (
-            <div className="w-full sm:w-56">
-              <ThemedSelect
-                value={taskAssigneeFilterId}
-                onChange={setTaskAssigneeFilterId}
-                options={taskAssigneeFilterOptions}
-                placeholder="Select team member"
-                compact={true}
-                fullWidthCompact={true}
-              />
-            </div>
-          ) : null}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="w-full sm:w-44">
               <ThemedSelect
