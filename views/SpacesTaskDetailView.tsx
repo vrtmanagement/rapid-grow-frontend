@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Octagon } from 'lucide-react';
+import { ArrowLeft, Octagon } from 'lucide-react';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import {
   canEditTaskForView,
@@ -194,7 +194,17 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-slate-900">Task Details</h2>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/spaces')}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-brand-red/20 hover:bg-rose-50 hover:text-brand-red"
+            aria-label="Back to Task Hub"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <h2 className="text-xl font-semibold text-slate-900">Task Details</h2>
+        </div>
         <div className="flex items-center gap-2">
           {showStopRepeating ? (
             <button
@@ -207,13 +217,6 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
               {stoppingRecurrence ? 'Stopping...' : 'Stop repeating'}
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={() => navigate('/spaces')}
-            className="px-3 py-1.5 rounded-lg border border-brand-red/20 bg-rose-50 text-brand-red text-sm font-semibold hover:bg-rose-100"
-          >
-            Back
-          </button>
         </div>
       </div>
 

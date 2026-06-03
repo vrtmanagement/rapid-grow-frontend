@@ -36,6 +36,7 @@ type SpacesMonthGoalAddFormProps = {
   saving: boolean;
   uploadingDocument: boolean;
   initialMonthKey?: string;
+  initialWeekKey?: string;
 };
 
 const SpacesMonthGoalAddForm: React.FC<SpacesMonthGoalAddFormProps> = ({
@@ -52,6 +53,7 @@ const SpacesMonthGoalAddForm: React.FC<SpacesMonthGoalAddFormProps> = ({
   saving,
   uploadingDocument,
   initialMonthKey,
+  initialWeekKey,
 }) => {
   const planableMonths = useMemo(() => getPlanableCalendarMonths(), []);
 
@@ -118,16 +120,21 @@ const SpacesMonthGoalAddForm: React.FC<SpacesMonthGoalAddFormProps> = ({
       const weeks = getWeeksForMonth(monthObj);
       const today = new Date();
       const week =
-        weeks.find((item) => today >= item.startDate && today <= item.endDate) || weeks[0];
+        weeks.find((item) => item.key === initialWeekKey) ||
+        weeks.find((item) => today >= item.startDate && today <= item.endDate) ||
+        weeks[0];
       setWeekKey(week?.key || '');
       const days = week ? getDaysForWeek(week) : [];
-      const day = days.find((item) => item.date.toDateString() === today.toDateString()) || days[0];
+      const day =
+        (initialWeekKey
+          ? days[0]
+          : days.find((item) => item.date.toDateString() === today.toDateString())) || days[0];
       setDayKey(day?.key || '');
     } else {
       setWeekKey('');
       setDayKey('');
     }
-  }, [open, canPickAssignee, employeeId, initialMonthKey, planableMonths]);
+  }, [open, canPickAssignee, employeeId, initialMonthKey, initialWeekKey, planableMonths]);
 
   useEffect(() => {
     if (!open) return undefined;
