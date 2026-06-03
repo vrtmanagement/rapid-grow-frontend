@@ -28,23 +28,6 @@ const CRMTable: React.FC<CRMTableProps> = ({ items, rowStart = 0, selectedIds, d
     if (raw && typeof raw === 'object' && 'value' in raw) return String((raw as any).value ?? '').trim();
     return String(raw ?? '').trim();
   };
-  const getLatestAction = (item: any) => {
-    const customFields = item?.customFields || {};
-    const actionsRaw =
-      customFields.action_items ??
-      customFields.actionItems ??
-      customFields.actions ??
-      customFields.lead_actions;
-    if (!Array.isArray(actionsRaw) || actionsRaw.length === 0) return null;
-    return actionsRaw
-      .map((entry: any) => ({
-        title: String(entry?.title || '').trim(),
-        description: String(entry?.description || '').trim(),
-        updatedAt: String(entry?.updatedAt || entry?.createdAt || ''),
-      }))
-      .filter((entry) => entry.title)
-      .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())[0] || null;
-  };
   const renderCellText = (
     value: unknown,
     options?: { maxChars?: number; tooltipFullText?: boolean },
@@ -72,7 +55,6 @@ const CRMTable: React.FC<CRMTableProps> = ({ items, rowStart = 0, selectedIds, d
               <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[210px]">Contact</th>
               <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[190px]">Organization</th>
               <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[170px]">Email / Phone</th>
-              <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[230px]">Next Action</th>
               <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[140px]">Designation</th>
               <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[110px]">Actions</th>
             </tr>
@@ -84,7 +66,6 @@ const CRMTable: React.FC<CRMTableProps> = ({ items, rowStart = 0, selectedIds, d
                 const companyUrl = String(item.url || getCustomFieldValue(item, 'company_url') || '-');
                 const email = String(item.email || '').trim();
                 const phone = String(item.phone || getCustomFieldValue(item, 'phone_number') || '').trim();
-                const latestAction = getLatestAction(item);
                 const fullName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || '-';
                 const rowNumber = rowStart + idx + 1;
                 const isSelected = selectedIds.includes(item._id);
@@ -176,16 +157,6 @@ const CRMTable: React.FC<CRMTableProps> = ({ items, rowStart = 0, selectedIds, d
                     {!email && !phone ? <span className="text-slate-400">-</span> : null}
                   </div>
                 </td>
-                <td className="px-3 py-3 w-[230px]">
-                  {latestAction ? (
-                    <div className="min-w-0">
-                      <div className="truncate font-medium text-slate-800" title={latestAction.title}>{latestAction.title}</div>
-                      <div className="mt-0.5 truncate text-xs text-slate-500" title={latestAction.description}>{latestAction.description || 'No notes added'}</div>
-                    </div>
-                  ) : (
-                    <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">Needs action</span>
-                  )}
-                </td>
                 <td className="px-3 py-3 truncate w-[140px]">{designation}</td>
                 <td className="px-3 py-3 w-[110px]">
                   <div className="flex items-center gap-2 whitespace-nowrap">
@@ -214,7 +185,7 @@ const CRMTable: React.FC<CRMTableProps> = ({ items, rowStart = 0, selectedIds, d
             ))}
             {!items.length && (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-slate-500">No leads found.</td>
+                <td colSpan={7} className="px-3 py-6 text-center text-slate-500">No leads found.</td>
               </tr>
             )}
           </tbody>

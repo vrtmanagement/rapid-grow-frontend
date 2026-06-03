@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { crmJson } from '../services/crmApi';
 import { getStoredAuthSession } from '../config/api';
 import { ArrowLeft } from 'lucide-react';
-import { convertLeadToProject } from '../services/p3Api';
 
 type ToastTone = 'success' | 'error';
 type ToastItem = { id: number; tone: ToastTone; message: string };
@@ -65,7 +64,6 @@ const CRMLeadDetailPage: React.FC = () => {
   const [actionTitle, setActionTitle] = useState('');
   const [actionDescription, setActionDescription] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<LeadActionItem | null>(null);
-  const [converting, setConverting] = useState(false);
   const sessionEmployee = getStoredAuthSession()?.employee || {};
   const actorName = String(sessionEmployee?.empName || sessionEmployee?.name || 'User');
   const actorInitials =
@@ -462,28 +460,6 @@ const CRMLeadDetailPage: React.FC = () => {
       <div className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50 to-indigo-50/60 shadow-[0_20px_55px_rgba(15,23,42,0.10)] p-5 md:p-6">
         <div className="flex flex-wrap items-center justify-end gap-3 mb-4">
           <div className="flex flex-wrap gap-2">
-            {String(lead?.status || '').toUpperCase() !== 'CONVERTED' && (
-              <button
-                type="button"
-                disabled={converting}
-                onClick={async () => {
-                  setConverting(true);
-                  try {
-                    const result = await convertLeadToProject(leadId);
-                    pushToast('Lead converted to project charter.', 'success');
-                    setLead(result.lead || lead);
-                    if (result.project?.clientProjectId) navigate('/workspaces');
-                  } catch (e: any) {
-                    pushToast(e?.message || 'Conversion failed', 'error');
-                  } finally {
-                    setConverting(false);
-                  }
-                }}
-                className="px-3 py-1.5 rounded-lg bg-brand-red text-white text-sm font-semibold disabled:opacity-60"
-              >
-                {converting ? 'Converting...' : 'Convert to project'}
-              </button>
-            )}
             <button
               disabled
               className="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-400 text-sm cursor-not-allowed"

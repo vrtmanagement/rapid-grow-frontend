@@ -392,22 +392,6 @@ const CRMPage: React.FC = () => {
   const pageWindowStart = Math.max(1, page - 2);
   const pageWindowEnd = Math.min(totalPages, page + 2);
   const pageNumbers = Array.from({ length: Math.max(0, pageWindowEnd - pageWindowStart + 1) }, (_, idx) => pageWindowStart + idx);
-  const leadsNeedingAction = useMemo(
-    () =>
-      leads.reduce((count, item) => {
-        const customFields = item?.customFields || {};
-        const actionsRaw =
-          customFields.action_items ??
-          customFields.actionItems ??
-          customFields.actions ??
-          customFields.lead_actions;
-        const hasAction =
-          Array.isArray(actionsRaw) &&
-          actionsRaw.some((entry: any) => String(entry?.title || '').trim());
-        return count + (hasAction ? 0 : 1);
-      }, 0),
-    [leads],
-  );
   const handleDeleteCustomCardTab = useCallback(
     async (tabName: string) => {
       const normalizedTarget = String(tabName || '').trim().toUpperCase();
@@ -467,25 +451,9 @@ const CRMPage: React.FC = () => {
   return (
     <div className="-mt-10 -ml-10 space-y-4 bg-slate-50/70 p-4 pr-5">
       <div className="rounded-lg border border-slate-200 bg-white px-5 py-4 text-slate-900">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900">CRM</h1>
-            <p className="mt-1 text-sm text-slate-600">Action-focused lead list with tabs, follow-ups, and quick communication.</p>
-          </div>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Current</div>
-              <div className="mt-1 text-sm font-semibold text-slate-900">{activeTab}</div>
-            </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Needs Action</div>
-              <div className="mt-1 text-sm font-semibold text-amber-800">{leadsNeedingAction}</div>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Scope</div>
-              <div className="mt-1 max-w-[120px] truncate text-sm font-semibold text-slate-900" title={selectedPersonLabel}>{selectedPersonLabel}</div>
-            </div>
-          </div>
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900">CRM</h1>
+          <p className="mt-1 text-sm text-slate-600">Action-focused lead list with tabs, follow-ups, and quick communication.</p>
         </div>
       </div>
       {leadFormOpen ? (

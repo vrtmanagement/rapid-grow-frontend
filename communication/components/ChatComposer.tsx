@@ -53,6 +53,10 @@ function getImageFilesFromClipboard(data: DataTransfer | null) {
   return pastedImages;
 }
 
+function canAcceptComposerFiles(disabled: boolean, sending: boolean, editingMessage?: ChatMessage | null) {
+  return !disabled && !sending && !editingMessage;
+}
+
 export function ChatComposer({
   conversationKey,
   onSendText,
@@ -65,6 +69,8 @@ export function ChatComposer({
   editingMessage,
   onCancelEdit,
   onSaveEdit,
+  incomingFiles,
+  onIncomingFilesConsumed,
 }: {
   conversationKey: string;
   onSendText: (content: string, replyToMessageId?: string | null) => Promise<void>;
@@ -77,6 +83,8 @@ export function ChatComposer({
   editingMessage?: ChatMessage | null;
   onCancelEdit?: () => void;
   onSaveEdit?: (message: ChatMessage, content: string) => Promise<void>;
+  incomingFiles?: File[];
+  onIncomingFilesConsumed?: () => void;
 }) {
   const MAX_TEXTAREA_HEIGHT = 200;
   const [content, setContent] = useState('');
@@ -117,6 +125,20 @@ export function ChatComposer({
     resizeComposerTextarea(textareaRef.current);
   }, [content]);
 
+  const addComposerFiles = (nextFiles: File[]) => {
+    if (!nextFiles.length) return;
+    if (!canAcceptComposerFiles(disabled, sending, editingMessage)) return;
+    setFiles((prev) => [...prev, ...nextFiles]);
+    notifyTyping();
+  };
+
+  useEffect(() => {
+    if (!incomingFiles?.length) return;
+    addComposerFiles(incomingFiles);
+    onIncomingFilesConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingFiles]);
+
   useEffect(() => {
     const previewFile = files.find((file) => isImageFile(file) || isVideoFile(file)) || null;
     if (!previewFile) {
@@ -150,12 +172,11 @@ export function ChatComposer({
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    if (disabled || sending || editingMessage) return;
+    if (!canAcceptComposerFiles(disabled, sending, editingMessage)) return;
     const pastedImages = getImageFilesFromClipboard(e.clipboardData);
     if (pastedImages.length === 0) return;
     e.preventDefault();
-    setFiles((prev) => [...prev, ...pastedImages]);
-    notifyTyping();
+    addComposerFiles(pastedImages);
   };
 
   const handleSend = async () => {
@@ -195,7 +216,7 @@ export function ChatComposer({
   };
 
   return (
-    <div className="communication-composer border-t border-slate-200 bg-white/95 p-4 shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
+    <div className="communication-composer shrink-0 border-t border-slate-200 bg-white/95 p-4 shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
       {files.length > 0 ? (
         <div className="mb-3 space-y-2">
           {files.map((file, index) => (
@@ -372,9 +393,7 @@ export function ChatComposer({
                     multiple
                     accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.rtf,.html,.htm,.css,.js,.json,.xml,.zip,.rar,.7z,.svg,.odt,.odp,.ods"
                     onChange={(e) => {
-                      const selected = Array.from(e.target.files || []);
-                      setFiles((prev) => [...prev, ...selected]);
-                      notifyTyping();
+                      addComposerFiles(Array.from(e.target.files || []));
                     }}
                   />
                 </label>

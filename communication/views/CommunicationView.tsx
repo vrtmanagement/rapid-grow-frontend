@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useCommunication } from '../context/useCommunication';
 import { AvatarPreviewEntity, AvatarPreviewModal } from '../components/AvatarPreviewModal';
 import { ChatSidebar } from '../components/ChatSidebar';
 import { ChatMessages } from '../components/ChatMessages';
 import { ChatComposer } from '../components/ChatComposer';
 import { ChatHeaderMenu } from '../components/ChatHeaderMenu';
-import { Mail } from 'lucide-react';
+import { FileUp, Mail } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
 import Toast from '../../components/ui/Toast';
@@ -45,6 +45,20 @@ function CommunicationMobileSkeleton() {
       </div>
     </div>
   );
+}
+
+function getFilesFromDataTransfer(data: DataTransfer | null) {
+  if (!data) return [];
+  if (data.files?.length) {
+    return Array.from(data.files).filter((file) => file.size > 0 || file.name.trim().length > 0);
+  }
+  const dropped: File[] = [];
+  for (const item of Array.from(data.items)) {
+    if (item.kind !== 'file') continue;
+    const file = item.getAsFile();
+    if (file) dropped.push(file);
+  }
+  return dropped;
 }
 
 function TypingDots() {
@@ -104,12 +118,20 @@ function CommunicationLayout() {
   const [previewEntity, setPreviewEntity] = useState<AvatarPreviewEntity | null>(null);
   const [isClearingChat, setIsClearingChat] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [incomingComposerFiles, setIncomingComposerFiles] = useState<File[] | null>(null);
+  const [isChatDragOver, setIsChatDragOver] = useState(false);
+  const chatDragDepthRef = useRef(0);
+  const canDropFilesOnChat = canCompose && !messagesLoading && !editingMessage && !forwardModalOpen;
+
   useEffect(() => {
     setReplyToMessage(null);
     setEditingMessage(null);
     setSelectedMessageIds([]);
     setForwardSelectionMode(false);
     setForwardModalMessageIds([]);
+    setIncomingComposerFiles(null);
+    setIsChatDragOver(false);
+    chatDragDepthRef.current = 0;
   }, [selectedConversationKey]);
 
   useEffect(() => {
@@ -475,7 +497,45 @@ function CommunicationLayout() {
               </div>
             </div>
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div
+              className={`relative flex min-h-0 flex-1 flex-col ${isChatDragOver ? 'bg-blue-50/40' : ''}`}
+              onDragEnter={(e) => {
+                if (!canDropFilesOnChat) return;
+                if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+                e.preventDefault();
+                chatDragDepthRef.current += 1;
+                setIsChatDragOver(true);
+              }}
+              onDragLeave={(e) => {
+                if (!canDropFilesOnChat) return;
+                e.preventDefault();
+                chatDragDepthRef.current = Math.max(0, chatDragDepthRef.current - 1);
+                if (chatDragDepthRef.current === 0) setIsChatDragOver(false);
+              }}
+              onDragOver={(e) => {
+                if (!canDropFilesOnChat) return;
+                if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+              }}
+              onDrop={(e) => {
+                if (!canDropFilesOnChat) return;
+                e.preventDefault();
+                chatDragDepthRef.current = 0;
+                setIsChatDragOver(false);
+                const dropped = getFilesFromDataTransfer(e.dataTransfer);
+                if (dropped.length) setIncomingComposerFiles(dropped);
+              }}
+            >
+              {isChatDragOver ? (
+                <div className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-blue-400 bg-blue-50/90">
+                  <div className="flex flex-col items-center gap-2 px-6 text-center">
+                    <FileUp size={32} className="text-blue-600" />
+                    <div className="text-base font-semibold text-blue-900">Drop to attach</div>
+                    <div className="text-sm text-blue-700">Images, videos, audio, and documents</div>
+                  </div>
+                </div>
+              ) : null}
               <div className="px-4 pt-4">
                 <ForwardActionBar
                   visible={forwardSelectionMode}
@@ -527,27 +587,26 @@ function CommunicationLayout() {
                 onDeleteMessage={(messageId, conversationKey) => ctx.deleteMessage(messageId, conversationKey)}
                 onReplyMessage={(message) => setReplyToMessage(message)}
               />
+
+              <ChatComposer
+                conversationKey={selectedConversationKey!}
+                disabled={messagesLoading}
+                notifyTyping={() => ctx.notifyTyping(selectedConversationKey!)}
+                onSendText={(content, replyId) => ctx.sendText(selectedConversationKey!, content, replyId)}
+                onSendFile={(file, content, replyId) => ctx.sendFile(selectedConversationKey!, file, content, replyId)}
+                replyToMessage={replyToMessage}
+                onCancelReply={() => setReplyToMessage(null)}
+                resolveUserName={resolveUserName}
+                editingMessage={editingMessage}
+                onCancelEdit={() => setEditingMessage(null)}
+                onSaveEdit={async (message, content) => {
+                  await ctx.editMessage(message.id, message.conversationKey, content);
+                }}
+                incomingFiles={incomingComposerFiles || undefined}
+                onIncomingFilesConsumed={() => setIncomingComposerFiles(null)}
+              />
             </div>
           )}
-
-          {/* Composer */}
-          {canCompose ? (
-            <ChatComposer
-              conversationKey={selectedConversationKey!}
-              disabled={messagesLoading}
-              notifyTyping={() => ctx.notifyTyping(selectedConversationKey!)}
-              onSendText={(content, replyId) => ctx.sendText(selectedConversationKey!, content, replyId)}
-              onSendFile={(file, content, replyId) => ctx.sendFile(selectedConversationKey!, file, content, replyId)}
-              replyToMessage={replyToMessage}
-              onCancelReply={() => setReplyToMessage(null)}
-              resolveUserName={resolveUserName}
-              editingMessage={editingMessage}
-              onCancelEdit={() => setEditingMessage(null)}
-              onSaveEdit={async (message, content) => {
-                await ctx.editMessage(message.id, message.conversationKey, content);
-              }}
-            />
-          ) : null}
         </div>
       </div>
 
