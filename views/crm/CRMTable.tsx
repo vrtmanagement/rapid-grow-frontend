@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Check, Pencil, Trash2 } from 'lucide-react';
+import React from 'react';
+import { Check, ExternalLink, Mail, Pencil, Phone, Trash2 } from 'lucide-react';
 
 interface CRMTableProps {
   items: any[];
@@ -28,67 +28,52 @@ const CRMTable: React.FC<CRMTableProps> = ({ items, rowStart = 0, selectedIds, d
     if (raw && typeof raw === 'object' && 'value' in raw) return String((raw as any).value ?? '').trim();
     return String(raw ?? '').trim();
   };
-  const [copiedCell, setCopiedCell] = useState('');
-  const copyCellValue = async (e: React.MouseEvent, key: string, value: unknown) => {
-    e.stopPropagation();
-    const text = String(value ?? '').trim();
-    if (!text || text === '-') return;
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedCell(key);
-      window.setTimeout(() => {
-        setCopiedCell((prev) => (prev === key ? '' : prev));
-      }, 1200);
-    } catch {
-      // Fail silently if clipboard is blocked.
-    }
+  const getLatestAction = (item: any) => {
+    const customFields = item?.customFields || {};
+    const actionsRaw =
+      customFields.action_items ??
+      customFields.actionItems ??
+      customFields.actions ??
+      customFields.lead_actions;
+    if (!Array.isArray(actionsRaw) || actionsRaw.length === 0) return null;
+    return actionsRaw
+      .map((entry: any) => ({
+        title: String(entry?.title || '').trim(),
+        description: String(entry?.description || '').trim(),
+        updatedAt: String(entry?.updatedAt || entry?.createdAt || ''),
+      }))
+      .filter((entry) => entry.title)
+      .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())[0] || null;
   };
-  const renderCopyableText = (
-    itemId: string,
-    field: 'url' | 'company' | 'name',
+  const renderCellText = (
     value: unknown,
-    copyLabel: string,
     options?: { maxChars?: number; tooltipFullText?: boolean },
   ) => {
     const text = String(value ?? '').trim();
     if (!text || text === '-') return '-';
-    const copyKey = `${itemId}-${field}`;
-    const isCopied = copiedCell === copyKey;
     const maxChars = options?.maxChars;
     const shouldTruncate = typeof maxChars === 'number' && maxChars > 0 && text.length > maxChars;
     const displayText = shouldTruncate ? `${text.slice(0, maxChars)}...` : text;
-    const tooltipText = isCopied
-      ? 'Copied'
-      : options?.tooltipFullText
-        ? `${text} (click to copy)`
-        : `Copy ${copyLabel}`;
     return (
-      <button
-        type="button"
-        className="group relative inline-flex max-w-full items-center text-left text-slate-700 hover:text-brand-red"
-        onClick={(e) => copyCellValue(e, copyKey, text)}
-      >
+      <span className="inline-flex max-w-full text-left text-slate-700" title={options?.tooltipFullText ? text : undefined}>
         <span className="truncate">{displayText}</span>
-        <span className="pointer-events-none absolute left-1/2 top-0 z-[9999] -translate-x-1/2 -translate-y-[calc(100%+10px)] whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
-          {tooltipText}
-        </span>
-        <span className="pointer-events-none absolute left-1/2 top-0 z-[9999] h-2 w-2 -translate-x-1/2 -translate-y-[6px] rotate-45 bg-slate-900 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
-      </button>
+      </span>
     );
   };
 
   return (
-    <div className="rounded-2xl bg-white border border-slate-200 overflow-visible shadow-sm">
+    <div className="rounded-lg bg-white border border-slate-200 overflow-hidden shadow-sm">
       <div className="overflow-x-auto overflow-y-visible">
         <table className="min-w-full table-fixed text-sm">
-          <thead className="sticky top-0 bg-slate-100/95 backdrop-blur border-b border-slate-200">
+          <thead className="sticky top-0 bg-slate-50/95 backdrop-blur border-b border-slate-200">
             <tr>
               <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[64px]">S No</th>
               <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[70px]">Select</th>
-              <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[170px]">Name</th>
-              <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[170px]">Company URL</th>
-              <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[170px]">Company</th>
-              <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[150px]">Designation</th>
+              <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[210px]">Contact</th>
+              <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[190px]">Organization</th>
+              <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[170px]">Email / Phone</th>
+              <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[230px]">Next Action</th>
+              <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[140px]">Designation</th>
               <th className="px-3 py-3 text-left text-[11px] uppercase tracking-wide text-slate-600 w-[110px]">Actions</th>
             </tr>
           </thead>
@@ -97,6 +82,10 @@ const CRMTable: React.FC<CRMTableProps> = ({ items, rowStart = 0, selectedIds, d
               (() => {
                 const designation = String(item.position || getCustomFieldValue(item, 'designation') || '-');
                 const companyUrl = String(item.url || getCustomFieldValue(item, 'company_url') || '-');
+                const email = String(item.email || '').trim();
+                const phone = String(item.phone || getCustomFieldValue(item, 'phone_number') || '').trim();
+                const latestAction = getLatestAction(item);
+                const fullName = `${item.firstName || ''} ${item.lastName || ''}`.trim() || '-';
                 const rowNumber = rowStart + idx + 1;
                 const isSelected = selectedIds.includes(item._id);
                 return (
@@ -134,19 +123,71 @@ const CRMTable: React.FC<CRMTableProps> = ({ items, rowStart = 0, selectedIds, d
                     <Check size={13} />
                   </button>
                 </td>
-                <td className="px-3 py-2 w-[170px] overflow-visible relative">
-                  {renderCopyableText(
-                    item._id,
-                    'name',
-                    `${item.firstName || ''} ${item.lastName || ''}`.trim() || '-',
-                    'Name',
-                    { maxChars: 20, tooltipFullText: true },
+                <td className="px-3 py-3 w-[210px]">
+                  <button
+                    type="button"
+                    className="group flex min-w-0 items-center gap-2 text-left"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpen(item);
+                    }}
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold text-white">
+                      {fullName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('') || 'L'}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-slate-900 group-hover:text-brand-red">{fullName}</span>
+                      <span className="block truncate text-xs text-slate-500">{item.leadType || 'Lead'}</span>
+                    </span>
+                  </button>
+                </td>
+                <td className="px-3 py-3 w-[190px]">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-slate-800">{renderCellText(item.company || '-', { maxChars: 28, tooltipFullText: true })}</div>
+                    {companyUrl && companyUrl !== '-' ? (
+                      <a
+                        className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-xs text-indigo-600 hover:text-indigo-700"
+                        href={companyUrl.startsWith('http') ? companyUrl : `https://${companyUrl}`}
+                        onClick={(e) => e.stopPropagation()}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={companyUrl}
+                      >
+                        <ExternalLink size={12} />
+                        <span className="truncate">{renderCellText(companyUrl, { maxChars: 25 })}</span>
+                      </a>
+                    ) : null}
+                  </div>
+                </td>
+                <td className="px-3 py-3 w-[170px]">
+                  <div className="flex min-w-0 flex-col gap-1">
+                    {email ? (
+                      <a className="inline-flex items-center gap-1.5 truncate text-xs font-medium text-slate-700 hover:text-brand-red" href={`mailto:${email}`} onClick={(e) => e.stopPropagation()} title={email}>
+                        <Mail size={13} />
+                        <span className="truncate">{email}</span>
+                      </a>
+                    ) : null}
+                    {phone ? (
+                      <a className="inline-flex items-center gap-1.5 truncate text-xs text-slate-500 hover:text-brand-red" href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} title={phone}>
+                        <Phone size={13} />
+                        <span className="truncate">{phone}</span>
+                      </a>
+                    ) : null}
+                    {!email && !phone ? <span className="text-slate-400">-</span> : null}
+                  </div>
+                </td>
+                <td className="px-3 py-3 w-[230px]">
+                  {latestAction ? (
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-slate-800" title={latestAction.title}>{latestAction.title}</div>
+                      <div className="mt-0.5 truncate text-xs text-slate-500" title={latestAction.description}>{latestAction.description || 'No notes added'}</div>
+                    </div>
+                  ) : (
+                    <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">Needs action</span>
                   )}
                 </td>
-                <td className="px-3 py-2 w-[170px] overflow-visible relative">{renderCopyableText(item._id, 'url', companyUrl, 'Company URL', { maxChars: 25, tooltipFullText: true })}</td>
-                <td className="px-3 py-2 w-[170px] overflow-visible relative">{renderCopyableText(item._id, 'company', item.company || '-', 'Company', { maxChars: 25, tooltipFullText: true })}</td>
-                <td className="px-3 py-2 truncate w-[150px]">{designation}</td>
-                <td className="px-3 py-2 w-[110px]">
+                <td className="px-3 py-3 truncate w-[140px]">{designation}</td>
+                <td className="px-3 py-3 w-[110px]">
                   <div className="flex items-center gap-2 whitespace-nowrap">
                   <button
                     className="inline-flex items-center justify-center rounded-md border border-slate-300 h-7 w-7 text-slate-700 hover:bg-slate-100"
@@ -173,7 +214,7 @@ const CRMTable: React.FC<CRMTableProps> = ({ items, rowStart = 0, selectedIds, d
             ))}
             {!items.length && (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-slate-500">No leads found.</td>
+                <td colSpan={8} className="px-3 py-6 text-center text-slate-500">No leads found.</td>
               </tr>
             )}
           </tbody>

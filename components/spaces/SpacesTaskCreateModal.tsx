@@ -53,6 +53,7 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
     plannerDayId,
     setPlannerDayId,
     plannerSummary,
+    hideWeeklyPlanner = false,
   } = props;
 
   const weekdayOptions = React.useMemo(
@@ -302,6 +303,7 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
               </div>
 
               <div className="space-y-3">
+                {!hideWeeklyPlanner ? (
                 <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5">
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -402,6 +404,7 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                     </div>
                   ) : null}
                 </div>
+                ) : null}
 
                 <div>
                   <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Document / Attachments</label>

@@ -508,6 +508,13 @@ const VisionHierarchyCard = ({
   onEdit,
   onDelete,
   isAdmin,
+  isEditing = false,
+  draft,
+  onDraftChange,
+  onSave,
+  onCancel,
+  titlePlaceholder = 'Title',
+  detailsPlaceholder = 'Add notes, metrics, or execution detail',
   isProgressLoading = false,
   menuOpen,
   onMenuToggle,
@@ -516,20 +523,32 @@ const VisionHierarchyCard = ({
   isCurrentPeriod = false,
 }) => {
   const Icon = cardIconByStage[stageKey] || Target;
+  const displayTitle = isEditing ? (draft?.text ?? title) : title;
+  const displayDetails = isEditing ? (draft?.details ?? details ?? '') : details;
+
+  const stopEditEvent = (event) => {
+    event.stopPropagation();
+  };
 
   return (
   <div
-    className={`group relative flex h-full flex-col overflow-hidden rounded-[2rem] border bg-white transition hover:-translate-y-1 ${
+    className={`group relative flex h-full flex-col rounded-[2rem] border bg-white transition ${
+      isEditing ? 'z-30 overflow-visible ring-2 ring-brand-red/25' : menuOpen ? 'z-30 overflow-visible hover:-translate-y-1' : 'overflow-hidden hover:-translate-y-1'
+    } ${
       isCurrentPeriod
         ? 'border-red-200 shadow-none ring-1 ring-red-100 hover:shadow-none'
         : 'border-slate-200 shadow-[0_20px_55px_rgba(15,23,42,0.07)] hover:border-slate-300 hover:shadow-[0_28px_70px_rgba(15,23,42,0.12)]'
     }`}
-    onMouseLeave={onMenuClose}
   >
     <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 transition group-hover:from-brand-red group-hover:via-rose-400 group-hover:to-orange-300" />
     <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-transparent blur-2xl transition" />
-    {isAdmin ? (
-      <div className="absolute right-5 top-5 z-20">
+    {isAdmin && !isEditing ? (
+      <div
+        className="absolute right-5 top-5 z-40"
+        data-vision-card-menu="true"
+        onClick={stopEditEvent}
+        onMouseDown={stopEditEvent}
+      >
         <button
           type="button"
           onClick={(event) => {
@@ -537,16 +556,18 @@ const VisionHierarchyCard = ({
             onMenuToggle();
           }}
           className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white/95 text-slate-500 shadow-sm transition hover:border-slate-300 hover:text-slate-900 ${
-            menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            menuOpen ? 'opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
           }`}
           aria-label="Open card actions"
+          aria-expanded={menuOpen}
         >
           <MoreVertical size={16} />
         </button>
         {menuOpen ? (
-          <div className="absolute right-0 mt-2 w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2 shadow-[0_18px_45px_rgba(15,23,42,0.14)]">
+          <div className="absolute right-0 z-50 mt-2 w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2 shadow-[0_18px_45px_rgba(15,23,42,0.14)]">
             <button
               type="button"
+              onMouseDown={stopEditEvent}
               onClick={(event) => {
                 event.stopPropagation();
                 onEdit();
@@ -559,6 +580,7 @@ const VisionHierarchyCard = ({
             </button>
             <button
               type="button"
+              onMouseDown={stopEditEvent}
               onClick={(event) => {
                 event.stopPropagation();
                 onDelete();
@@ -575,16 +597,17 @@ const VisionHierarchyCard = ({
     ) : null}
 
       <div
-        role="button"
-        tabIndex={0}
-        onClick={onOpen}
+        role={isEditing ? undefined : 'button'}
+        tabIndex={isEditing ? undefined : 0}
+        onClick={isEditing ? undefined : onOpen}
       onKeyDown={(event) => {
+        if (isEditing) return;
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           onOpen();
         }
       }}
-      className="relative flex w-full flex-1 cursor-pointer flex-col p-6 text-left"
+      className={`relative flex w-full flex-1 flex-col p-6 text-left ${isEditing ? '' : 'cursor-pointer'}`}
     >
         <div className="flex items-start justify-between gap-4 pr-14">
           <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.4rem] shadow-none transition-all duration-300 ${
@@ -595,12 +618,20 @@ const VisionHierarchyCard = ({
           <Icon size={24} />
           </div>
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-            <div className="rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-600">
-              Planning
-            </div>
-            <div className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-brand-red">
-            {stageLabel}
-            </div>
+            {isEditing ? (
+              <div className="rounded-full border border-brand-red/20 bg-red-50 px-3 py-1 text-xs font-semibold text-brand-red">
+                Editing
+              </div>
+            ) : (
+              <>
+                <div className="rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-600">
+                  Planning
+                </div>
+                <div className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-brand-red">
+                  {stageLabel}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -608,108 +639,129 @@ const VisionHierarchyCard = ({
           <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
           {badge}
           </div>
-          {dateRange && (
+          {dateRange && !isEditing ? (
             <div className={`rounded-full border px-3 py-1 text-xs font-medium ${
               isCurrentPeriod ? 'border-slate-200 bg-slate-50 text-slate-500 transition group-hover:border-red-200 group-hover:bg-red-50 group-hover:text-brand-red' : 'border-slate-200 bg-slate-50 text-slate-500'
             }`}>
               {dateRange}
             </div>
-          )}
+          ) : null}
         </div>
 
-        <div
-        className="mt-5 overflow-hidden font-semibold leading-[1.08] tracking-[-0.04em] text-slate-900"
-        style={{
-          ...visionTitleStyle(title),
-          display: '-webkit-box',
-          WebkitBoxOrient: 'vertical',
-          WebkitLineClamp: 2,
-        }}
-        title={title}
-      >
-        {title}
-      </div>
+        {isEditing ? (
+          <div className="mt-5 space-y-3" onClick={stopEditEvent} onMouseDown={stopEditEvent}>
+            <label className="block">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Title</span>
+              <textarea
+                value={displayTitle}
+                onChange={(event) => onDraftChange({ text: event.target.value })}
+                rows={2}
+                placeholder={titlePlaceholder}
+                className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
+                autoFocus
+              />
+            </label>
+            <label className="block">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Details</span>
+              <textarea
+                value={displayDetails}
+                onChange={(event) => onDraftChange({ details: event.target.value })}
+                rows={3}
+                placeholder={detailsPlaceholder}
+                className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 outline-none transition focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
+              />
+            </label>
+          </div>
+        ) : (
+          <>
+            <div
+              className="mt-5 overflow-hidden font-semibold leading-[1.08] tracking-[-0.04em] text-slate-900"
+              style={{
+                ...visionTitleStyle(title),
+                display: '-webkit-box',
+                WebkitBoxOrient: 'vertical',
+                WebkitLineClamp: 2,
+              }}
+              title={title}
+            >
+              {title}
+            </div>
 
-      {details ? <p className="mt-4 text-sm leading-7 text-slate-500">{details}</p> : null}
+            {details ? <p className="mt-4 text-sm leading-7 text-slate-500">{details}</p> : null}
+          </>
+        )}
 
-      <div className={`mt-5 flex items-center justify-between text-sm text-slate-500 ${details ? '' : 'pt-1'}`}>
-        <span>Vision progress</span>
-        <span className="text-2xl font-semibold text-slate-900">{progress}%</span>
-      </div>
-      <div className="mt-3">
-        <ProgressBar progress={progress} tone="red" loading={isProgressLoading} />
-      </div>
+      {!isEditing ? (
+        <>
+          <div className={`mt-5 flex items-center justify-between text-sm text-slate-500 ${details ? '' : 'pt-1'}`}>
+            <span>Vision progress</span>
+            <span className="text-2xl font-semibold text-slate-900">{progress}%</span>
+          </div>
+          <div className="mt-3">
+            <ProgressBar progress={progress} tone="red" loading={isProgressLoading} />
+          </div>
 
-      <div className="mt-6 rounded-[1.6rem] border border-slate-200 bg-slate-50/85 p-4 shadow-none">
-        <div className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 text-sm text-slate-500">
-          {infoRows.map((row) => (
-            <React.Fragment key={row.label}>
-              <span>{row.label}</span>
-              <span className="font-semibold text-slate-900">{row.value}</span>
-            </React.Fragment>
-          ))}
-        </div>
-      </div>
+          <div className="mt-6 rounded-[1.6rem] border border-slate-200 bg-slate-50/85 p-4 shadow-none">
+            <div className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 text-sm text-slate-500">
+              {infoRows.map((row) => (
+                <React.Fragment key={row.label}>
+                  <span>{row.label}</span>
+                  <span className="font-semibold text-slate-900">{row.value}</span>
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : null}
     </div>
 
-    <div className="relative flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-5">
-      <div className="text-sm font-semibold text-slate-900">
-        {progress}% complete
-      </div>
-      <Link
-        to={linkTo}
-        className="inline-flex items-center gap-2 text-base font-semibold text-brand-red transition hover:text-red-600"
-      >
-        {footerLabel}
-        <ArrowRight size={16} />
-      </Link>
+    <div
+      className="relative flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-5"
+      onClick={isEditing ? stopEditEvent : undefined}
+      onMouseDown={isEditing ? stopEditEvent : undefined}
+    >
+      {isEditing ? (
+        <>
+          <div className="text-sm font-medium text-slate-500">Save your changes</div>
+          <div className="flex items-center gap-2">
+            <SmallActionButton
+              variant="primary"
+              onClick={(event) => {
+                event.stopPropagation();
+                onSave();
+              }}
+            >
+              Save
+            </SmallActionButton>
+            <SmallActionButton
+              onClick={(event) => {
+                event.stopPropagation();
+                onCancel();
+              }}
+            >
+              Cancel
+            </SmallActionButton>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="text-sm font-semibold text-slate-900">
+            {progress}% complete
+          </div>
+          <Link
+            to={linkTo}
+            className="inline-flex items-center gap-2 text-base font-semibold text-brand-red transition hover:text-red-600"
+            onClick={stopEditEvent}
+          >
+            {footerLabel}
+            <ArrowRight size={16} />
+          </Link>
+        </>
+      )}
     </div>
   </div>
   );
 };
-
-const EditorPanel = ({
-  title,
-  goal,
-  draft,
-  setDraft,
-  onSave,
-  onCancel,
-  showDetails = true,
-  placeholder = 'Write here',
-  detailsPlaceholder = 'Add notes, metrics, or execution detail',
-}) => (
-  <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_14px_35px_rgba(15,23,42,0.06)]">
-    <div className="flex items-center justify-between gap-3">
-      <div>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{title}</div>
-        <div className="mt-1 text-sm text-slate-500">Edit the selected item without leaving this stage.</div>
-      </div>
-      <div className="flex items-center gap-2">
-        <SmallActionButton variant="primary" onClick={onSave}>
-          Save
-        </SmallActionButton>
-        <SmallActionButton onClick={onCancel}>Cancel</SmallActionButton>
-      </div>
-    </div>
-    <textarea
-      value={draft?.text ?? goal?.text ?? ''}
-      onChange={(event) => setDraft({ text: event.target.value })}
-      rows={3}
-      placeholder={placeholder}
-      className="mt-4 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-brand-red/30"
-    />
-    {showDetails ? (
-      <textarea
-        value={draft?.details ?? goal?.details ?? ''}
-        onChange={(event) => setDraft({ details: event.target.value })}
-        rows={3}
-        placeholder={detailsPlaceholder}
-        className="mt-3 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 outline-none transition focus:border-brand-red/30"
-      />
-    ) : null}
-  </div>
-);
 
 const DailyRow = ({ day, index, isAdmin, onEdit, dateStr }) => (
   <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
@@ -747,7 +799,10 @@ const Vision = ({ state, updateState, loading = false }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const stage = resolveVisionStageFromPath(location.pathname);
-  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(String(state?.currentUser?.role || '').toUpperCase());
+  const backendRole = String(getStoredAuthSession()?.employee?.role || '').toUpperCase();
+  const isAdmin =
+    state?.currentUser?.role === 'Admin' ||
+    ['ADMIN', 'SUPER_ADMIN'].includes(backendRole);
 
   const [draftById, setDraftById] = useState({});
   const [editingId, setEditingId] = useState('');
@@ -1085,9 +1140,22 @@ const Vision = ({ state, updateState, loading = false }) => {
 
   const openEditor = (goal) => {
     if (!isAdmin || !goal) return;
+    setOpenCardMenuId('');
     setDraft(goal);
     setEditingId(goal.id);
   };
+
+  useEffect(() => {
+    if (!openCardMenuId) return undefined;
+    const closeMenu = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('[data-vision-card-menu="true"]')) return;
+      setOpenCardMenuId('');
+    };
+    document.addEventListener('mousedown', closeMenu);
+    return () => document.removeEventListener('mousedown', closeMenu);
+  }, [openCardMenuId]);
 
   const closeEditor = () => setEditingId('');
 
@@ -1974,8 +2042,8 @@ const Vision = ({ state, updateState, loading = false }) => {
         visions.length ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {visions.map((vision) => (
-              <div key={vision.id} className="space-y-3">
                 <VisionHierarchyCard
+                  key={vision.id}
                   item={vision}
                   stageKey="year"
                   stageLabel="Yearly"
@@ -1995,6 +2063,13 @@ const Vision = ({ state, updateState, loading = false }) => {
                   onEdit={() => openEditor(vision)}
                   onDelete={() => deleteHierarchyItem(vision)}
                   isAdmin={isAdmin}
+                  isEditing={editingId === vision.id}
+                  draft={draftById[vision.id]}
+                  onDraftChange={(updates) => setDraft(vision, updates)}
+                  onSave={() => saveNode(vision)}
+                  onCancel={closeEditor}
+                  titlePlaceholder="Define the yearly strategic vision"
+                  detailsPlaceholder="Add notes, metrics, or execution detail"
                   isProgressLoading={progressLoading}
                   menuOpen={openCardMenuId === vision.id}
                   onMenuToggle={() => setOpenCardMenuId((current) => (current === vision.id ? '' : vision.id))}
@@ -2002,18 +2077,6 @@ const Vision = ({ state, updateState, loading = false }) => {
                   isCurrentPeriod={isCurrentPlanningYear}
                   currentLabel="Current year"
                 />
-                {editingId === vision.id ? (
-                  <EditorPanel
-                    title="Edit yearly vision"
-                    goal={vision}
-                    draft={draftById[vision.id]}
-                    setDraft={(updates) => setDraft(vision, updates)}
-                    onSave={() => saveNode(vision)}
-                    onCancel={closeEditor}
-                    placeholder="Define the yearly strategic vision"
-                  />
-                ) : null}
-              </div>
             ))}
           </div>
         ) : (
@@ -2031,8 +2094,8 @@ const Vision = ({ state, updateState, loading = false }) => {
         selectedYear ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {selectedYear.quarters.map((quarter) => (
-              <div key={quarter.id} className="space-y-3">
                 <VisionHierarchyCard
+                  key={quarter.id}
                   item={quarter}
                   stageKey="quarter"
                   stageLabel="Quarterly"
@@ -2059,6 +2122,13 @@ const Vision = ({ state, updateState, loading = false }) => {
                   onEdit={() => openEditor(quarter)}
                   onDelete={() => deleteHierarchyItem(quarter)}
                   isAdmin={isAdmin}
+                  isEditing={editingId === quarter.id}
+                  draft={draftById[quarter.id]}
+                  onDraftChange={(updates) => setDraft(quarter, updates)}
+                  onSave={() => saveNode(quarter)}
+                  onCancel={closeEditor}
+                  titlePlaceholder={`Define the outcome for ${quarter.timeline}`}
+                  detailsPlaceholder="Add notes, metrics, or execution detail"
                   isProgressLoading={progressLoading}
                   menuOpen={openCardMenuId === quarter.id}
                   onMenuToggle={() => setOpenCardMenuId((current) => (current === quarter.id ? '' : quarter.id))}
@@ -2066,18 +2136,6 @@ const Vision = ({ state, updateState, loading = false }) => {
                   isCurrentPeriod={isCurrentPlanningYear && quarter.timeline === currentQuarterTimeline}
                   currentLabel="Current quarter"
                 />
-                {editingId === quarter.id ? (
-                  <EditorPanel
-                    title={`Edit ${quarter.timeline}`}
-                    goal={quarter}
-                    draft={draftById[quarter.id]}
-                    setDraft={(updates) => setDraft(quarter, updates)}
-                    onSave={() => saveNode(quarter)}
-                    onCancel={closeEditor}
-                    placeholder={`Define the outcome for ${quarter.timeline}`}
-                  />
-                ) : null}
-              </div>
             ))}
           </div>
         ) : (
@@ -2091,8 +2149,8 @@ const Vision = ({ state, updateState, loading = false }) => {
         selectedQuarter ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {selectedQuarter.months.map((month) => (
-              <div key={month.id} className="space-y-3">
                 <VisionHierarchyCard
+                  key={month.id}
                   item={month}
                   stageKey="month"
                   stageLabel="Monthly"
@@ -2124,6 +2182,13 @@ const Vision = ({ state, updateState, loading = false }) => {
                   onEdit={() => openEditor(month)}
                   onDelete={() => deleteHierarchyItem(month)}
                   isAdmin={isAdmin}
+                  isEditing={editingId === month.id}
+                  draft={draftById[month.id]}
+                  onDraftChange={(updates) => setDraft(month, updates)}
+                  onSave={() => saveNode(month)}
+                  onCancel={closeEditor}
+                  titlePlaceholder="Define the monthly milestone"
+                  detailsPlaceholder="Add notes, metrics, or execution detail"
                   isProgressLoading={progressLoading}
                   menuOpen={openCardMenuId === month.id}
                   onMenuToggle={() => setOpenCardMenuId((current) => (current === month.id ? '' : month.id))}
@@ -2135,18 +2200,6 @@ const Vision = ({ state, updateState, loading = false }) => {
                   }
                   currentLabel="Current month"
                 />
-                {editingId === month.id ? (
-                  <EditorPanel
-                    title={`Edit Month ${month.calendarMonthNumber || getCalendarMonthNumber(month.timeline, selectedQuarter.timeline)}`}
-                    goal={month}
-                    draft={draftById[month.id]}
-                    setDraft={(updates) => setDraft(month, updates)}
-                    onSave={() => saveNode(month)}
-                    onCancel={closeEditor}
-                    placeholder="Define the monthly milestone"
-                  />
-                ) : null}
-              </div>
             ))}
           </div>
         ) : (
@@ -2160,8 +2213,8 @@ const Vision = ({ state, updateState, loading = false }) => {
         selectedMonth ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {selectedMonth.weeks.map((week) => (
-              <div key={week.id} className="space-y-3">
                 <VisionHierarchyCard
+                  key={week.id}
                   item={week}
                   stageKey="week"
                   stageLabel="Weekly"
@@ -2197,6 +2250,13 @@ const Vision = ({ state, updateState, loading = false }) => {
                   onEdit={() => openEditor(week)}
                   onDelete={() => deleteHierarchyItem(week)}
                   isAdmin={isAdmin}
+                  isEditing={editingId === week.id}
+                  draft={draftById[week.id]}
+                  onDraftChange={(updates) => setDraft(week, updates)}
+                  onSave={() => saveNode(week)}
+                  onCancel={closeEditor}
+                  titlePlaceholder="Define the weekly task or commitment"
+                  detailsPlaceholder="Add notes, metrics, or execution detail"
                   isProgressLoading={progressLoading}
                   menuOpen={openCardMenuId === week.id}
                   onMenuToggle={() => setOpenCardMenuId((current) => (current === week.id ? '' : week.id))}
@@ -2209,18 +2269,6 @@ const Vision = ({ state, updateState, loading = false }) => {
                   }
                   currentLabel="This week"
                 />
-                {editingId === week.id ? (
-                  <EditorPanel
-                    title={`Edit Week ${week.yearWeekNumber || week.slotIndex}`}
-                    goal={week}
-                    draft={draftById[week.id]}
-                    setDraft={(updates) => setDraft(week, updates)}
-                    onSave={() => saveNode(week)}
-                    onCancel={closeEditor}
-                    placeholder="Define the weekly task or commitment"
-                  />
-                ) : null}
-              </div>
             ))}
           </div>
         ) : (
