@@ -20,8 +20,9 @@ import ForgotPasswordView from './views/ForgotPasswordView';
 import ResetPasswordView from './views/ResetPasswordView';
 import OnboardingTour from './components/onboarding/OnboardingTour';
 import { CommunicationProvider } from './communication/context/CommunicationContext';
-import { apiListConversations } from './communication/api';
+import { apiListConversations, apiListUsers } from './communication/api';
 import { getUnreadDirectMessageSourceCount } from './communication/unread';
+import { mapListConversationsApiRowToSummary } from './communication/context/communicationContextHelpers';
 import { getSocket } from './realtime/socket';
 import { mapBackendRoleToUiRole } from './config/permissions';
 import { usePermissions } from './context/usePermissions';
@@ -607,9 +608,24 @@ const App: React.FC = () => {
 
     async function syncCommunicationUnreadCount() {
       try {
-        const data = await apiListConversations();
+        const userId = String(state.currentUser?.id || '');
+        const [data, usersData] = await Promise.all([
+          apiListConversations(),
+          apiListUsers().catch(() => ({ users: [] as { id?: string }[] })),
+        ]);
         if (active) {
-          setCommunicationUnreadCount(getUnreadDirectMessageSourceCount(data.conversations || []));
+          const mappedConversations = (data.conversations || []).map(mapListConversationsApiRowToSummary);
+          const visibleUserIds = new Set(
+            (usersData.users || [])
+              .map((user) => String(user?.id || '').trim())
+              .filter(Boolean),
+          );
+          setCommunicationUnreadCount(
+            getUnreadDirectMessageSourceCount(mappedConversations, {
+              currentUserId: userId,
+              visibleUserIds,
+            }),
+          );
         }
       } catch (err) {
         console.warn('Failed to load communication unread count', err);
@@ -618,23 +634,18 @@ const App: React.FC = () => {
 
     syncCommunicationUnreadCount();
 
-    const socket = getSocket();
-    const handleUnreadCount = (payload: any) => {
-      if (!payload || String(payload.userId) !== String(state.currentUser.id)) return;
-      syncCommunicationUnreadCount();
-    };
     const handleCommunicationSync = (event: Event) => {
       const detail = (event as CustomEvent<{ unreadSourceCount?: number }>).detail;
-      if (!detail || typeof detail.unreadSourceCount !== 'number') return;
-      setCommunicationUnreadCount(detail.unreadSourceCount);
+      if (!detail) return;
+      if (typeof detail.unreadSourceCount === 'number') {
+        setCommunicationUnreadCount(detail.unreadSourceCount);
+      }
     };
 
-    socket.on('unreadCount', handleUnreadCount);
     window.addEventListener('rapidgrow:communication-unread-sync', handleCommunicationSync as EventListener);
 
     return () => {
       active = false;
-      socket.off('unreadCount', handleUnreadCount);
       window.removeEventListener('rapidgrow:communication-unread-sync', handleCommunicationSync as EventListener);
     };
   }, [isAuthenticated, state.currentUser?.id]);
