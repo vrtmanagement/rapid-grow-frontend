@@ -710,9 +710,27 @@ const SpacesMainSections: React.FC<any> = (props) => {
         </div>
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
           <div className="inline-flex rounded-full border border-slate-200 bg-white p-1">
-            <button type="button" onClick={() => setTaskFilterMode('all')} className={`px-4 py-1.5 text-[13px] rounded-full ${taskFilterMode === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>All</button>
-            <button type="button" onClick={() => setTaskFilterMode('me')} className={`px-4 py-1.5 text-[13px] rounded-full ${taskFilterMode === 'me' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>Me</button>
-            <button type="button" onClick={() => setTaskFilterMode('assigned')} className={`px-4 py-1.5 text-[13px] rounded-full ${taskFilterMode === 'assigned' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>Assigned</button>
+            <button
+              type="button"
+              onClick={() => setTaskFilterMode('all')}
+              className={`px-4 py-1.5 text-[13px] rounded-full ${taskFilterMode === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setTaskFilterMode('me')}
+              className={`px-4 py-1.5 text-[13px] rounded-full ${taskFilterMode === 'me' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              Me
+            </button>
+            <button
+              type="button"
+              onClick={() => setTaskFilterMode('assigned')}
+              className={`px-4 py-1.5 text-[13px] rounded-full ${taskFilterMode === 'assigned' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              Assigned
+            </button>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="w-full sm:w-44">
@@ -725,7 +743,12 @@ const SpacesMainSections: React.FC<any> = (props) => {
               />
             </div>
             <div className="flex items-center gap-2">
-              <input value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} placeholder="Search by employee ID or name..." className="w-full md:w-80 rounded-full border border-slate-200 px-4 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red" />
+              <input
+                value={taskSearch}
+                onChange={(e) => setTaskSearch(e.target.value)}
+                placeholder="Search tasks, people, or IDs..."
+                className="w-full md:w-80 rounded-full border border-slate-200 px-4 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+              />
               {taskSearch.trim() ? (
                 <button type="button" onClick={() => setTaskSearch('')} className="text-[12px] text-slate-500 hover:text-brand-red">Clear</button>
               ) : null}
@@ -796,7 +819,15 @@ const SpacesMainSections: React.FC<any> = (props) => {
               <button type="button" onClick={saveBulkTaskChanges} disabled={bulkSaving || !bulkTouched || (!bulkTouched.status && !bulkTouched.assigneeId && !bulkTouched.dueDate)} className="h-10 rounded-xl bg-slate-900 px-4 text-[12px] font-semibold text-white transition hover:bg-brand-red disabled:cursor-not-allowed disabled:opacity-60">
                 {bulkSaving ? 'Saving...' : 'Save'}
               </button>
-              <button type="button" onClick={() => setBulkDeleteTaskModalOpen(true)} disabled={bulkSaving} className="h-10 rounded-xl bg-brand-red px-3 text-[12px] font-semibold text-white transition hover:bg-brand-navy disabled:cursor-not-allowed disabled:opacity-60">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteTaskModal(null);
+                  setBulkDeleteTaskModalOpen(true);
+                }}
+                disabled={bulkSaving}
+                className="h-10 rounded-xl bg-brand-red px-3 text-[12px] font-semibold text-white transition hover:bg-brand-navy disabled:cursor-not-allowed disabled:opacity-60"
+              >
                 Delete
               </button>
             </div>
@@ -819,7 +850,7 @@ const SpacesMainSections: React.FC<any> = (props) => {
         </div>
       ) : null}
 
-      <SpacesTaskTableSection columns={columns} isRenamingColumnId={isRenamingColumnId} renameDraft={renameDraft} setRenameDraft={setRenameDraft} setIsRenamingColumnId={setIsRenamingColumnId} setActiveColumnMenuId={setActiveColumnMenuId} sortedTasks={sortedTasks} tasks={tasks} setColumns={setColumns} setError={setError} activeColumnMenuId={activeColumnMenuId} setColumnToDelete={setColumnToDelete} handleAddColumn={handleAddColumn} spacesLoading={spacesLoading} paginatedTasks={paginatedTasks} canEditTask={canEditTask} isTaskLocked={isTaskLocked} getTaskRowClasses={getTaskRowClasses} patchTask={patchTask} stopTaskRecurrence={stopTaskRecurrence} stoppingRecurrenceTaskId={stoppingRecurrenceTaskId} projectNameById={projectNameById} mode={mode} me={me} assigneeOptionsForTask={assigneeOptionsForTask} employeesLoading={employeesLoading} canEditDueDate={canEditDueDate} priorityOptions={priorityOptions} canChangeStatus={canChangeStatus} statusOptions={statusOptions} forceDownloadDocument={forceDownloadDocument} canCommentOnTask={canCommentOnTask} setCommentTaskId={setCommentTaskId} setModalStatus={setModalStatus} canValidateTask={canValidateTask} canDeleteTask={canDeleteTask} handleApproveTask={handleApproveTask} handleRejectTask={handleRejectTask} navigate={navigate} setEditingTask={setEditingTask} setEditingTaskMode={setEditingTaskMode} setEditingTaskDraft={setEditingTaskDraft} setDeleteTaskModal={setDeleteTaskModal} selectedTaskIds={selectedTaskIds} canBulkManageTasks={canBulkManageTasks} toggleTaskSelection={toggleTaskSelection} canSelectTask={canSelectTask} taskPage={taskPage} TASKS_PER_PAGE={TASKS_PER_PAGE} setTaskPage={setTaskPage} visibleTaskPages={visibleTaskPages} totalTaskPages={totalTaskPages} API_BASE={API_BASE} getAuthHeaders={getAuthHeaders} />
+      <SpacesTaskTableSection columns={columns} isRenamingColumnId={isRenamingColumnId} renameDraft={renameDraft} setRenameDraft={setRenameDraft} setIsRenamingColumnId={setIsRenamingColumnId} setActiveColumnMenuId={setActiveColumnMenuId} sortedTasks={sortedTasks} tasks={tasks} setColumns={setColumns} setError={setError} activeColumnMenuId={activeColumnMenuId} setColumnToDelete={setColumnToDelete} handleAddColumn={handleAddColumn} spacesLoading={spacesLoading} paginatedTasks={paginatedTasks} canEditTask={canEditTask} isTaskLocked={isTaskLocked} getTaskRowClasses={getTaskRowClasses} patchTask={patchTask} stopTaskRecurrence={stopTaskRecurrence} stoppingRecurrenceTaskId={stoppingRecurrenceTaskId} projectNameById={projectNameById} mode={mode} me={me} assigneeOptionsForTask={assigneeOptionsForTask} employeesLoading={employeesLoading} canEditDueDate={canEditDueDate} priorityOptions={priorityOptions} canChangeStatus={canChangeStatus} statusOptions={statusOptions} forceDownloadDocument={forceDownloadDocument} canCommentOnTask={canCommentOnTask} setCommentTaskId={setCommentTaskId} setModalStatus={setModalStatus} canValidateTask={canValidateTask} canDeleteTask={canDeleteTask} handleApproveTask={handleApproveTask} handleRejectTask={handleRejectTask} navigate={navigate} setEditingTask={setEditingTask} setEditingTaskMode={setEditingTaskMode} setEditingTaskDraft={setEditingTaskDraft} setDeleteTaskModal={setDeleteTaskModal} setBulkDeleteTaskModalOpen={setBulkDeleteTaskModalOpen} selectedTaskIds={selectedTaskIds} canBulkManageTasks={canBulkManageTasks} toggleTaskSelection={toggleTaskSelection} canSelectTask={canSelectTask} taskPage={taskPage} TASKS_PER_PAGE={TASKS_PER_PAGE} setTaskPage={setTaskPage} visibleTaskPages={visibleTaskPages} totalTaskPages={totalTaskPages} API_BASE={API_BASE} getAuthHeaders={getAuthHeaders} />
 
       <SpacesTaskCreateModal
         open={isTaskCreateModalOpen}

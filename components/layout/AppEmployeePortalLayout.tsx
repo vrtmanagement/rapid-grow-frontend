@@ -211,7 +211,9 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
                 : 'overflow-y-auto p-4 sm:p-8 lg:p-16'
           }`}>
             <Routes>
-              {hasPower('DASHBOARD_VIEW') && <Route path="/" element={<EmployeeDashboardView />} />}
+              {hasPower('DASHBOARD_VIEW') && (
+                <Route path="/" element={<EmployeeDashboardView uiConfig={state.uiConfig} />} />
+              )}
               {hasPower('SPACES_VIEW') && (
                 <Route path="/spaces" element={<SpacesView mode="employee" state={state} updateState={updateState} />} />
               )}

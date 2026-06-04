@@ -87,6 +87,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
     setEditingTaskMode,
     setEditingTaskDraft,
     setDeleteTaskModal,
+    setBulkDeleteTaskModalOpen,
     selectedTaskIds = [],
     canBulkManageTasks,
     toggleTaskSelection,
@@ -484,6 +485,11 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
                                       setActiveRowMenuId(null);
                                       setActiveRowMenuPlacement('bottom');
                                       activeRowMenuButtonRef.current = null;
+                                      if (selectedTaskIds.length > 1 && setBulkDeleteTaskModalOpen) {
+                                        setDeleteTaskModal(null);
+                                        setBulkDeleteTaskModalOpen(true);
+                                        return;
+                                      }
                                       setDeleteTaskModal(t);
                                     }}
                                     disabled={isLockedDoneRow}

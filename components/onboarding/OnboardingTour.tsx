@@ -9,7 +9,7 @@ type TourStep = {
 };
 
 const OWNER_STEPS: TourStep[] = [
-  { title: 'Command dashboard', body: 'Track team execution and on-time delivery from the dashboard.', route: '/' },
+  { title: 'Command Matrix', body: 'See projects, tasks, attendance, and weekly performance in one place.', route: '/' },
   { title: 'TaskHub', body: 'Create, assign, and complete work in TaskHub.', route: '/spaces' },
   { title: 'Vision goals', body: 'Connect goals to tasks and watch progress update automatically.', route: '/yearly' },
   { title: 'Invite your team', body: 'Add employees from Staff when you are ready to scale.', route: '/staff' },

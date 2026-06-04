@@ -1,12 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { PlanningState, WorkspaceTask } from '../types';
-import { Target, Calendar, Clock, BarChart3, TrendingUp, Award, Users, CheckCircle2, Zap, User, Sparkles, Diamond, UserPlus, Shield, Mail, X } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { PlanningState } from '../types';
+import { Target, TrendingUp, Award, Users, CheckCircle2, Zap, User, UserPlus, Shield, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { API_BASE, getAuthHeaders } from '../config/api';
-import { AdminCardGridSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
+import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
+import { AdminCardGridSkeleton, SkeletonBlock } from '../components/ui/Skeleton';
 import ExecutionMatrix from '../components/dashboard/ExecutionMatrix';
 import PageSectionSubnav from '../components/layout/PageSectionSubnav';
 import { usePermissions } from '../context/usePermissions';
+import { getSocket } from '../realtime/socket';
+import {
+  buildCommandMatrixTopPriorityTasks,
+  buildEmployeeNameLookup,
+  enrichTasksWithEmployeeNames,
+  isTaskAssignedToViewer,
+  normalizeRole,
+  resolveAssigneeLabel,
+  TASKHUB_TOP_PRIORITY_LIMIT,
+  type BackendRole,
+  type EmployeeOption,
+  type SpacesTask,
+  type TaskStatus,
+} from './spacesViewHelpers';
 
 interface Props {
   state: PlanningState;
@@ -27,14 +41,65 @@ interface EmployeeRow {
   [key: string]: unknown;
 }
 
+function normalizeTaskStatus(status?: string): TaskStatus {
+  const normalized = String(status || 'todo')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+
+  if (['todo', 'to_do', 'pending', 'open'].includes(normalized)) return 'todo';
+  if (['doing', 'in_progress', 'progress', 'ongoing'].includes(normalized)) return 'doing';
+  if (['review', 'submitted', 'submit', 'for_review'].includes(normalized)) return 'review';
+  if (['done', 'completed', 'complete', 'closed'].includes(normalized)) return 'done';
+  if (['blocked', 'on_hold', 'hold'].includes(normalized)) return 'blocked';
+  return 'todo';
+}
+
+function buildAssignableTeamMemberIds(
+  employees: EmployeeOption[],
+  viewerEmpId: string,
+  viewerRole: BackendRole,
+) {
+  const ids = new Set<string>();
+  if (viewerEmpId) ids.add(viewerEmpId);
+
+  const role = normalizeRole(viewerRole);
+  employees.forEach((employee) => {
+    const empId = String(employee.empId || '').trim();
+    if (!empId) return;
+    const memberRole = normalizeRole(employee.role || 'EMPLOYEE');
+    if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
+      if (memberRole === 'TEAM_LEAD' || memberRole === 'EMPLOYEE' || empId === viewerEmpId) {
+        ids.add(empId);
+      }
+      return;
+    }
+    if (role === 'TEAM_LEAD') {
+      if (memberRole === 'EMPLOYEE' || empId === viewerEmpId) {
+        ids.add(empId);
+      }
+    }
+  });
+
+  return ids;
+}
+
 const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
-  const [viewScope, setViewScope] = useState<'individual' | 'team'>('individual');
+  const backendRole = String(getStoredAuthSession()?.employee?.role || '').toUpperCase();
+  const defaultScope: 'individual' | 'team' =
+    backendRole === 'ADMIN' || backendRole === 'SUPER_ADMIN' || backendRole === 'TEAM_LEAD' ? 'team' : 'individual';
+  const [viewScope, setViewScope] = useState<'individual' | 'team'>(defaultScope);
   const [allAdmins, setAllAdmins] = useState<EmployeeRow[]>([]);
   const [adminsLoaded, setAdminsLoaded] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState<EmployeeRow | null>(null);
+  const [taskHubTasks, setTaskHubTasks] = useState<SpacesTask[]>([]);
+  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
+  const [tasksError, setTasksError] = useState<string | null>(null);
   const { hasPermission } = usePermissions();
   const isSuperAdmin = state.currentUser.role === 'Admin' && state.currentUser.powers?.includes('EDIT_STRATEGY');
   const canViewExecutionMatrix = state.currentUser.role === 'Admin' || hasPermission('EXECUTION_MATRIX_VIEW');
+  const viewerEmpId = String(getStoredAuthSession()?.employee?.empId || '').trim();
 
   useEffect(() => {
     if (!isSuperAdmin) return;
@@ -58,16 +123,149 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
     load();
   }, [isSuperAdmin]);
 
-  const allTasks: WorkspaceTask[] = state.workspaces.flatMap(ws => 
-    ws.projects.flatMap(p => p.tasks)
+  const loadTaskHubTasks = useCallback(async (options: { silent?: boolean } = {}) => {
+    if (isSuperAdmin) return;
+    if (!options.silent) {
+      setTasksLoading(true);
+      setTasksError(null);
+    }
+    try {
+      const [spacesRes, employeesRes] = await Promise.all([
+        fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() }),
+        fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() }),
+      ]);
+
+      if (!spacesRes.ok) {
+        const payload = await spacesRes.json().catch(() => ({}));
+        throw new Error(payload.message || 'Failed to load TaskHub tasks');
+      }
+
+      const spacesPayload = await spacesRes.json().catch(() => ({}));
+      const tasks = Array.isArray(spacesPayload?.tasks) ? (spacesPayload.tasks as SpacesTask[]) : [];
+      setTaskHubTasks(tasks);
+
+      if (employeesRes.ok) {
+        const employeePayload = await employeesRes.json().catch(() => []);
+        const list = Array.isArray(employeePayload) ? employeePayload : [];
+        setEmployees(
+          list
+            .map((entry: any) => ({
+              empId: String(entry.empId || entry._id || '').trim(),
+              empName: String(entry.empName || entry.name || '').trim(),
+              role: (entry.role || 'EMPLOYEE') as BackendRole,
+              _id: entry._id ? String(entry._id) : undefined,
+            }))
+            .filter((entry: EmployeeOption & { _id?: string }) => entry.empId),
+        );
+      } else {
+        setEmployees([]);
+      }
+    } catch (error: any) {
+      setTasksError(error?.message || 'Failed to load TaskHub tasks');
+      setTaskHubTasks([]);
+      setEmployees([]);
+    } finally {
+      if (!options.silent) setTasksLoading(false);
+    }
+  }, [isSuperAdmin]);
+
+  useEffect(() => {
+    if (isSuperAdmin) return;
+    void loadTaskHubTasks();
+  }, [isSuperAdmin, loadTaskHubTasks]);
+
+  useEffect(() => {
+    if (isSuperAdmin) return;
+    const socket = getSocket();
+    const refresh = () => void loadTaskHubTasks({ silent: true });
+    socket.on('spaces:changed', refresh);
+    socket.on('taskAssigned', refresh);
+    socket.on('task:validation', refresh);
+    socket.on('performance:update', refresh);
+    return () => {
+      socket.off('spaces:changed', refresh);
+      socket.off('taskAssigned', refresh);
+      socket.off('task:validation', refresh);
+      socket.off('performance:update', refresh);
+    };
+  }, [isSuperAdmin, loadTaskHubTasks]);
+
+  const scopedTasks = useMemo(() => {
+    if (viewScope === 'team') return taskHubTasks;
+    return taskHubTasks.filter((task) => isTaskAssignedToViewer(task, viewerEmpId));
+  }, [taskHubTasks, viewScope, viewerEmpId]);
+
+  const completedCount = scopedTasks.filter((task) => normalizeTaskStatus(task.status) === 'done').length;
+  const openCount = scopedTasks.filter((task) => normalizeTaskStatus(task.status) !== 'done').length;
+  const highPriorityCount = scopedTasks.filter(
+    (task) => task.priority === 'high' && normalizeTaskStatus(task.status) !== 'done',
+  ).length;
+  const totalCount = scopedTasks.length;
+  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const teamMemberEmpIds = useMemo(
+    () => buildAssignableTeamMemberIds(employees, viewerEmpId, backendRole as BackendRole),
+    [employees, viewerEmpId, backendRole],
   );
 
-  const myTasks = allTasks.filter(t => t.assigneeId === state.currentUser.id);
-  const currentScopeTasks = viewScope === 'individual' ? myTasks : allTasks;
+  const employeeById = useMemo(() => {
+    const map = new Map<string, EmployeeOption>();
+    employees.forEach((employee) => map.set(employee.empId, employee));
+    return map;
+  }, [employees]);
 
-  const completedCount = currentScopeTasks.filter(t => t.status === 'done').length;
-  const totalCount = currentScopeTasks.length;
-  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const employeeNameById = useMemo(() => buildEmployeeNameLookup(employees), [employees]);
+
+  const taskHubTasksWithNames = useMemo(
+    () => enrichTasksWithEmployeeNames(taskHubTasks, employeeNameById),
+    [taskHubTasks, employeeNameById],
+  );
+
+  const priorityPanelTasks = useMemo(
+    () =>
+      buildCommandMatrixTopPriorityTasks({
+        tasks: taskHubTasksWithNames,
+        viewerEmpId,
+        viewerRole: backendRole as BackendRole,
+        employees,
+        teamMemberEmpIds,
+        employeeById,
+        viewScope,
+      }),
+    [
+      taskHubTasksWithNames,
+      viewerEmpId,
+      backendRole,
+      employees,
+      teamMemberEmpIds,
+      employeeById,
+      viewScope,
+    ],
+  );
+
+  const priorityPanelSubtitle = useMemo(() => {
+    const count = priorityPanelTasks.length;
+    const label = count === 1 ? 'task' : 'tasks';
+    const limitNote = `up to ${TASKHUB_TOP_PRIORITY_LIMIT} per person`;
+    if (backendRole === 'ADMIN' || backendRole === 'SUPER_ADMIN') {
+      return `${count} TaskHub Top Priorities ${label} · everyone in your org`;
+    }
+    if (backendRole === 'TEAM_LEAD') {
+      return `${count} TaskHub Top Priorities ${label} · your team`;
+    }
+    return `${count} TaskHub Top Priorities ${label} · yours`;
+  }, [priorityPanelTasks.length, backendRole]);
+
+  const showScopeToggle = backendRole !== 'ADMIN' && backendRole !== 'SUPER_ADMIN' && backendRole !== 'TEAM_LEAD';
+
+  function formatStatusLabel(status: TaskStatus) {
+    if (status === 'todo') return 'To do';
+    if (status === 'doing') return 'In progress';
+    if (status === 'review') return 'In review';
+    if (status === 'done') return 'Done';
+    if (status === 'blocked') return 'Blocked';
+    return status;
+  }
+  const showTaskHubSkeleton = loading || tasksLoading;
 
   if (loading) {
     return isSuperAdmin ? (
@@ -191,7 +389,7 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
             >
               <UserPlus size={16} /> {isSuperAdmin ? 'Add Branch' : 'Add Emp'}
             </Link>
-            {!isSuperAdmin && (
+            {!isSuperAdmin && showScopeToggle ? (
               <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
                 <button
                   onClick={() => setViewScope('individual')}
@@ -210,7 +408,7 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
                   <Users size={15} /> Team Dynamics
                 </button>
               </div>
-            )}
+            ) : null}
           </div>
         }
       />
@@ -314,42 +512,144 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
 
       {!isSuperAdmin && (
         <>
+          <div>
+            <h2 className="text-3xl text-slate-900 leading-none">{state.uiConfig.dashboardTitle}</h2>
+            <p className="text-slate-500 text-lg mt-3">{state.uiConfig.dashboardSub}</p>
+            <p className="text-slate-400 text-sm mt-2">
+              Stats from TaskHub. The list below mirrors each person&apos;s TaskHub Top Priorities
+              {backendRole === 'TEAM_LEAD'
+                ? ' for your team.'
+                : backendRole === 'ADMIN' || backendRole === 'SUPER_ADMIN'
+                  ? ' across your organization.'
+                  : viewScope === 'team'
+                    ? ' for your team.'
+                    : ' assigned to you.'}
+            </p>
+          </div>
+
+          {tasksError && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 text-sm">
+              {tasksError}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <StatCard icon={<CheckCircle2 className="text-brand-red" />} label="Mission Cleared" value={completedCount} sub="Units Resolved" color="bg-red-50" />
-            <StatCard icon={<TrendingUp className="text-slate-600" />} label="Active Pipeline" value={currentScopeTasks.length} sub="Deployed Units" color="bg-slate-100" />
-            <StatCard icon={<Award className="text-brand-red" />} label="Critical Path" value={currentScopeTasks.filter(t => t.priority === 'high').length} sub="High Value" color="bg-red-50" />
-            <StatCard icon={<Zap className="text-amber-500" />} label="VRT Velocity" value={`${progressPercent}%`} sub="System Rating" color="bg-amber-50" />
+            {showTaskHubSkeleton ? (
+              Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={`dashboard-stat-skeleton-${index}`}
+                  className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200 flex items-start gap-8 animate-pulse"
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-slate-100 shrink-0" />
+                  <div className="space-y-3 flex-1">
+                    <div className="h-4 w-28 rounded-full bg-slate-100" />
+                    <div className="h-9 w-16 rounded-full bg-slate-200" />
+                    <div className="h-4 w-24 rounded-full bg-slate-100" />
+                  </div>
+                </div>
+              ))
+            ) : (
+              <>
+                <StatCard icon={<CheckCircle2 className="text-brand-red" />} label="Tasks completed" value={completedCount} sub="Marked done in TaskHub" color="bg-red-50" />
+                <StatCard icon={<TrendingUp className="text-slate-600" />} label="Open tasks" value={openCount} sub="Still in progress" color="bg-slate-100" />
+                <StatCard icon={<Award className="text-brand-red" />} label="High priority" value={highPriorityCount} sub="Open high-priority items" color="bg-red-50" />
+                <StatCard icon={<Zap className="text-amber-500" />} label="Completion rate" value={`${progressPercent}%`} sub="Done vs total" color="bg-amber-50" />
+              </>
+            )}
           </div>
 
           <div className="grid gap-8">
-            <div className="bg-slate-900 p-12 rounded-[2rem] text-white shadow-2xl relative overflow-hidden flex flex-col group">
+            <div className="bg-slate-900 p-8 sm:p-10 rounded-[2rem] text-white shadow-2xl relative overflow-hidden flex flex-col group">
                <div className="absolute top-0 right-0 w-full h-1.5 bg-brand-red"></div>
-               <div className="relative z-10 flex-1">
-                <div className="flex items-center justify-between mb-10">
-                   <h3 className="text-xl tracking-tighter">Strategic ops</h3>
-                   <div className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-brand-red">
+               <div className="relative z-10 flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-4 mb-6">
+                   <div>
+                     <h3 className="text-xl tracking-tight text-white">TaskHub Top Priorities</h3>
+                     {!showTaskHubSkeleton && (
+                       <p className="mt-1 text-sm text-slate-400">{priorityPanelSubtitle}</p>
+                     )}
+                   </div>
+                   <div className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-brand-red shrink-0">
                       <Target size={16} />
                    </div>
                  </div>
-                 <div className="space-y-6">
-                   {currentScopeTasks.slice(-7).reverse().map((task, i) => (
-                     <div key={i} className="flex items-center justify-between group/item border-b border-white/5 pb-4">
-                       <div className="flex items-center gap-4">
-                         <div className={`w-2 h-2 rounded-full ${task.status === 'done' ? 'bg-brand-red' : 'bg-slate-600'}`}></div>
-                         <span className="text-md truncate max-w-[150px] text-slate-300 group-hover/item:text-white transition-colors">{task.title}</span>
+                 <div className="max-h-[min(520px,65vh)] overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
+                   {showTaskHubSkeleton &&
+                     Array.from({ length: 6 }).map((_, index) => (
+                       <div key={`recent-task-skeleton-${index}`} className="flex items-start gap-3 border-b border-white/5 py-3 animate-pulse">
+                         <div className="mt-2 h-2 w-2 rounded-full bg-white/10 shrink-0" />
+                         <div className="flex-1 space-y-2">
+                           <div className="h-4 w-full max-w-md rounded-full bg-white/10" />
+                           <div className="h-3 w-24 rounded-full bg-white/10" />
+                         </div>
                        </div>
-                       <span className="text-[9px] text-slate-500">{task.status}</span>
-                     </div>
-                   ))}
-                   {currentScopeTasks.length === 0 && (
-                    <p className="text-slate-600 text-md text-center py-12">No Deployed Units</p>
+                     ))}
+                   {!showTaskHubSkeleton &&
+                     priorityPanelTasks.map((task) => {
+                       const status = normalizeTaskStatus(task.status);
+                       const showAssignee =
+                         backendRole === 'ADMIN' ||
+                         backendRole === 'SUPER_ADMIN' ||
+                         backendRole === 'TEAM_LEAD';
+                       return (
+                         <Link
+                           key={task.taskId}
+                           to={`/spaces/task/${task.taskId}`}
+                           className="flex items-start gap-3 border-b border-white/5 py-3 last:border-b-0 hover:bg-white/5 rounded-lg px-1 -mx-1 transition-colors"
+                         >
+                           <div className="mt-2 h-2 w-2 rounded-full shrink-0 bg-brand-red" />
+                           <div className="min-w-0 flex-1">
+                             <p className="text-[15px] leading-snug text-slate-100 break-words">
+                               {task.title}
+                             </p>
+                             {(showAssignee && task.assigneeId) || task.dueDate ? (
+                               <p className="mt-1 text-xs text-slate-500">
+                                 {showAssignee && task.assigneeId
+                                   ? resolveAssigneeLabel(task.assigneeId, task.assigneeName, employeeNameById)
+                                   : null}
+                                 {showAssignee && task.assigneeId && task.dueDate ? ' · ' : null}
+                                 {task.dueDate ? `Due ${task.dueDate}` : null}
+                               </p>
+                             ) : null}
+                           </div>
+                           <span
+                             className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize ${
+                               task.priority === 'high'
+                                 ? 'border-rose-400/30 bg-rose-500/10 text-rose-200'
+                                 : task.priority === 'medium'
+                                   ? 'border-amber-400/30 bg-amber-500/10 text-amber-100'
+                                   : 'border-white/10 bg-white/5 text-slate-300'
+                             }`}
+                           >
+                             {task.priority}
+                           </span>
+                           <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-slate-300">
+                             {formatStatusLabel(status)}
+                           </span>
+                         </Link>
+                       );
+                     })}
+                   {!showTaskHubSkeleton && priorityPanelTasks.length === 0 && (
+                    <div className="text-center py-10">
+                      <p className="text-slate-400 text-md">No Top Priorities right now</p>
+                      <p className="text-slate-500 text-sm mt-2">
+                        {backendRole === 'ADMIN' || backendRole === 'SUPER_ADMIN'
+                          ? 'Shows the same tasks as each person’s TaskHub Top Priorities section.'
+                          : backendRole === 'TEAM_LEAD'
+                            ? 'Your team has no active items in their Top Priorities lists.'
+                            : 'You have no active items in your TaskHub Top Priorities.'}
+                      </p>
+                    </div>
                    )}
                  </div>
                </div>
-               <div className="mt-10 pt-10 border-t border-white/10 relative z-10">
-                  <button className="w-full py-5 bg-brand-red text-white rounded-xl text-[15px] shadow-xl hover:bg-white hover:text-brand-red transition-all">
-                     Personnel Audit Log
-                  </button>
+               <div className="mt-8 pt-8 border-t border-white/10 relative z-10">
+                  <Link
+                    to="/spaces"
+                    className="block w-full py-5 bg-brand-red text-white rounded-xl text-center text-[15px] shadow-xl hover:bg-white hover:text-brand-red transition-all"
+                  >
+                     Open TaskHub
+                  </Link>
                </div>
             </div>
 

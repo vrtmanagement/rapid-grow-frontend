@@ -274,7 +274,7 @@ const SpacesTaskModals: React.FC<any> = (props) => {
               <button
                 type="button"
                 disabled={bulkSaving}
-                onClick={deleteSelectedTasks}
+                onClick={() => void deleteSelectedTasks()}
                 className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded-full bg-brand-red px-5 py-2 text-[13px] font-semibold text-white hover:bg-brand-navy disabled:cursor-not-allowed disabled:opacity-80"
               >
                 {bulkSaving ? (
@@ -291,7 +291,7 @@ const SpacesTaskModals: React.FC<any> = (props) => {
         </div>
       )}
 
-      {deleteTaskModal && (
+      {deleteTaskModal && !bulkDeleteTaskModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
           onClick={() => {
@@ -308,14 +308,17 @@ const SpacesTaskModals: React.FC<any> = (props) => {
                 type="button"
                 disabled={isDeletingTask}
                 onClick={async () => {
+                  if (!deleteTaskModal?.taskId || isDeletingTask) return;
                   setIsDeletingTask(true);
                   try {
-                    await deleteTask(deleteTaskModal.taskId);
+                    const ok = await deleteTask(deleteTaskModal.taskId);
+                    if (ok) {
+                      setDeleteTaskModal(null);
+                    }
                   } catch (e: any) {
                     setError(e?.message || 'Failed to delete task');
                   } finally {
                     setIsDeletingTask(false);
-                    setDeleteTaskModal(null);
                   }
                 }}
                 className="inline-flex min-w-[116px] items-center justify-center gap-2 rounded-full bg-brand-red px-5 py-2 text-[13px] font-semibold text-white hover:bg-brand-navy disabled:cursor-not-allowed disabled:opacity-80"

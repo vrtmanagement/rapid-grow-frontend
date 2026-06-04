@@ -1,33 +1,53 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Octagon } from 'lucide-react';
+import {
+  ArrowLeft,
+  Calendar,
+  Download,
+  FolderKanban,
+  MessageSquare,
+  Octagon,
+  RefreshCw,
+  Repeat,
+  User,
+} from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import {
+  buildEmployeeNameLookup,
   canEditTaskForView,
+  enrichTasksWithEmployeeNames,
   getLoggedInEmployee,
   isRecurringSeriesActive,
   isRecurringSeriesTask,
   normalizeTaskForUi,
+  resolveAssigneeLabel,
+  resolveEmployeeDisplayName,
+  type SpacesComment,
   type SpacesTask,
+  type TaskPriority,
+  type TaskStatus,
 } from './spacesViewHelpers';
 
 interface Props {
   mode: 'employee' | 'manager';
 }
 
-function getDownloadableUrl(url: string): string {
-  return String(url || '').trim();
-}
+const pageEase = [0.22, 1, 0.36, 1] as const;
+
+const sectionReveal = {
+  hidden: { opacity: 0, y: 12 },
+  show: (index: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.38, delay: 0.08 + index * 0.05, ease: pageEase },
+  }),
+};
 
 async function downloadWithFallback(url: string, fileName?: string) {
-  const href = getDownloadableUrl(url);
-  if (!href) {
-    throw new Error('Document URL is missing');
-  }
-  const query = new URLSearchParams({
-    url: href,
-    name: fileName || 'task-document',
-  });
+  const href = String(url || '').trim();
+  if (!href) throw new Error('Document URL is missing');
+  const query = new URLSearchParams({ url: href, name: fileName || 'task-document' });
   const response = await fetch(`${API_BASE}/spaces/tasks/document-download?${query.toString()}`, {
     method: 'GET',
     headers: getAuthHeaders(),
@@ -45,24 +65,102 @@ async function downloadWithFallback(url: string, fileName?: string) {
 }
 
 function normalizeStatusLabel(status?: string): string {
-  const value = String(status || '')
-    .trim()
-    .toLowerCase();
-  if (value === 'todo') return 'To Do';
-  if (value === 'doing') return 'Doing';
-  if (value === 'review') return 'Submitted';
+  const value = String(status || '').trim().toLowerCase();
+  if (value === 'todo') return 'To do';
+  if (value === 'doing') return 'In progress';
+  if (value === 'review') return 'In review';
   if (value === 'done') return 'Done';
   if (value === 'blocked') return 'Blocked';
-  return status || '-';
+  return status || 'Unknown';
+}
+
+function getStatusAccent(status: TaskStatus) {
+  if (status === 'done') return 'bg-emerald-500';
+  if (status === 'doing') return 'bg-sky-500';
+  if (status === 'review') return 'bg-violet-500';
+  if (status === 'blocked') return 'bg-rose-500';
+  return 'bg-slate-400';
+}
+
+function formatDueDate(value?: string) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const [year, month, day] = raw.split('-').map(Number);
+  if (!year || !month || !day) return raw;
+  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function formatDateTime(value?: string) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return parsed.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+function SpecCell({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="min-w-0 py-1">
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</dt>
+      <dd className="mt-2 text-[15px] font-medium leading-snug text-slate-900 break-words">{value}</dd>
+    </div>
+  );
+}
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">{children}</h3>
+  );
+}
+
+function TaskDetailSkeleton({ reducedMotion }: { reducedMotion: boolean }) {
+  const pulse = reducedMotion ? {} : { opacity: [0.45, 0.9, 0.45] };
+  const pulseTransition = reducedMotion ? undefined : { duration: 1.5, repeat: Infinity, ease: 'easeInOut' as const };
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <motion.div animate={pulse} transition={pulseTransition} className="border-b border-slate-100 px-8 py-10 sm:px-10">
+        <div className="h-5 w-40 rounded bg-slate-100" />
+        <div className="mt-6 h-10 w-4/5 max-w-xl rounded bg-slate-200" />
+        <div className="mt-3 h-4 w-48 rounded bg-slate-100" />
+      </motion.div>
+      <div className="grid gap-8 border-b border-slate-100 px-8 py-8 sm:grid-cols-4 sm:px-10">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <motion.div key={`sk-${index}`} animate={pulse} transition={pulseTransition} className="space-y-2">
+            <div className="h-3 w-16 rounded bg-slate-100" />
+            <div className="h-5 w-28 rounded bg-slate-200" />
+          </motion.div>
+        ))}
+      </div>
+      <motion.div animate={pulse} transition={pulseTransition} className="px-8 py-8 sm:px-10">
+        <div className="h-3 w-24 rounded bg-slate-100" />
+        <div className="mt-4 h-20 w-full rounded bg-slate-50" />
+      </motion.div>
+    </div>
+  );
 }
 
 const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
   const { taskId = '' } = useParams();
   const navigate = useNavigate();
+  const prefersReducedMotion = useReducedMotion();
   const me = useMemo(() => getLoggedInEmployee(), []);
   const [task, setTask] = useState<SpacesTask | null>(null);
   const [allTasks, setAllTasks] = useState<SpacesTask[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [employeeNameById, setEmployeeNameById] = useState<Map<string, string>>(() => new Map());
+  const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [stoppingRecurrence, setStoppingRecurrence] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,22 +170,43 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+      const [spacesRes, employeesRes] = await Promise.all([
+        fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() }),
+        fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() }),
+      ]);
+
+      if (!spacesRes.ok) {
+        const data = await spacesRes.json().catch(() => ({}));
         throw new Error(data.message || 'Failed to load task details');
       }
-      const data = await res.json().catch(() => ({}));
+
+      let nameLookup = new Map<string, string>();
+      if (employeesRes.ok) {
+        const employeePayload = await employeesRes.json().catch(() => []);
+        const list = Array.isArray(employeePayload) ? employeePayload : [];
+        nameLookup = buildEmployeeNameLookup(
+          list.map((entry: any) => ({
+            empId: String(entry.empId || entry._id || '').trim(),
+            empName: String(entry.empName || entry.name || '').trim(),
+            _id: entry._id ? String(entry._id) : undefined,
+          })),
+        );
+      }
+      setEmployeeNameById(nameLookup);
+
+      const data = await spacesRes.json().catch(() => ({}));
       const tasks = Array.isArray(data?.tasks)
-        ? data.tasks.map((item: SpacesTask) => normalizeTaskForUi(item))
+        ? enrichTasksWithEmployeeNames(
+            data.tasks.map((item: SpacesTask) => normalizeTaskForUi(item)),
+            nameLookup,
+          )
         : [];
       const found = tasks.find((item) => item.taskId === taskId) || null;
-      if (!found) {
-        throw new Error('Task not found');
-      }
+      if (!found) throw new Error('Task not found');
       setAllTasks(tasks);
       setTask(found);
     } catch (e: any) {
+      setTask(null);
       setError(e?.message || 'Failed to load task details');
     } finally {
       setLoading(false);
@@ -105,6 +224,19 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
     isRecurringSeriesActive(allTasks, task as SpacesTask) &&
     canEditTaskForView(task as SpacesTask, me, mode);
 
+  const status = (task?.status || 'todo') as TaskStatus;
+  const priority = (task?.priority || 'medium') as TaskPriority;
+  const dueDateLabel = formatDueDate(task?.dueDate);
+  const createdLabel = formatDateTime(task?.createdAt);
+  const updatedLabel = formatDateTime(task?.updatedAt);
+  const isHighPriority = priority === 'high';
+  const assigneeLabel = task
+    ? resolveAssigneeLabel(task.assigneeId, task.assigneeName, employeeNameById)
+    : 'Unassigned';
+  const createdByLabel = task
+    ? resolveEmployeeDisplayName(task.createdByEmpId, task.createdByName, employeeNameById) || '—'
+    : '—';
+
   const handleStopRepeating = async () => {
     if (!task || !showStopRepeating || stoppingRecurrence) return;
     setStoppingRecurrence(true);
@@ -115,9 +247,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
         headers: getAuthHeaders(),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to stop repeating task');
-      }
+      if (!res.ok) throw new Error(data.message || 'Failed to stop repeating task');
 
       const sourceTaskId = String(data.sourceTaskId || '').trim();
       if (sourceTaskId) {
@@ -126,11 +256,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
             if (item.taskId !== sourceTaskId) return item;
             return normalizeTaskForUi({
               ...item,
-              recurrence: {
-                ...(item.recurrence || {}),
-                enabled: false,
-                nextRunAt: null,
-              },
+              recurrence: { ...(item.recurrence || {}), enabled: false, nextRunAt: null },
             });
           }),
         );
@@ -139,11 +265,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
           if (prev.taskId === sourceTaskId) {
             return normalizeTaskForUi({
               ...prev,
-              recurrence: {
-                ...(prev.recurrence || {}),
-                enabled: false,
-                nextRunAt: null,
-              },
+              recurrence: { ...(prev.recurrence || {}), enabled: false, nextRunAt: null },
             });
           }
           return prev;
@@ -160,11 +282,6 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
     }
   };
 
-  const projectLabel = useMemo(() => {
-    if (!task?.projectId) return 'No project';
-    return task.projectId;
-  }, [task?.projectId]);
-
   const handleDownload = async () => {
     if (!task?.documentUrl) return;
     setDownloading(true);
@@ -178,135 +295,289 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
     }
   };
 
-  const dash = (value?: string | null) => {
-    const s = String(value ?? '').trim();
-    return s ? s : <span className="text-slate-400">-</span>;
-  };
-
   return (
-    <div className="max-w-6xl mx-auto space-y-5 animate-in fade-in duration-500">
-      <div className="text-[13px] text-slate-500 flex items-center gap-2">
-        <Link to="/spaces" className="hover:text-brand-red">
-          Task Hub
-        </Link>
-        <span>/</span>
-        <span className="text-slate-700">Task Details</span>
-      </div>
-
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+    <div className="mx-auto max-w-4xl pb-16">
+      <motion.header
+        initial={prefersReducedMotion ? false : { opacity: 0, y: -6 }}
+        animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+        transition={{ duration: 0.32, ease: pageEase }}
+        className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-5"
+      >
+        <div className="flex min-w-0 items-center gap-4">
           <button
             type="button"
             onClick={() => navigate('/spaces')}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-brand-red/20 hover:bg-rose-50 hover:text-brand-red"
-            aria-label="Back to Task Hub"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            aria-label="Back to TaskHub"
           >
             <ArrowLeft size={18} />
           </button>
-          <h2 className="text-xl font-semibold text-slate-900">Task Details</h2>
+          <nav className="min-w-0 text-sm text-slate-500">
+            <Link to="/spaces" className="font-medium text-slate-600 transition hover:text-brand-red">
+              TaskHub
+            </Link>
+            <span className="mx-2 text-slate-300">/</span>
+            <span className="text-slate-800">Task</span>
+          </nav>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void loadTask()}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
           {showStopRepeating ? (
             <button
               type="button"
               onClick={() => void handleStopRepeating()}
               disabled={stoppingRecurrence}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200/80 px-3 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-50 disabled:opacity-50"
             >
               <Octagon size={14} />
-              {stoppingRecurrence ? 'Stopping...' : 'Stop repeating'}
+              {stoppingRecurrence ? 'Stopping…' : 'Stop repeating'}
             </button>
           ) : null}
         </div>
-      </div>
+      </motion.header>
 
-      {loading ? <p className="text-slate-500 text-sm">Loading...</p> : null}
-      {error ? <p className="text-red-600 text-sm">{error}</p> : null}
+      <AnimatePresence mode="wait">
+        {error ? (
+          <motion.div
+            key="error"
+            initial={prefersReducedMotion ? false : { opacity: 0 }}
+            animate={prefersReducedMotion ? undefined : { opacity: 1 }}
+            exit={prefersReducedMotion ? undefined : { opacity: 0 }}
+            className="py-16 text-center"
+          >
+            <p className="text-base font-medium text-rose-700">{error}</p>
+            <button
+              type="button"
+              onClick={() => void loadTask()}
+              className="mt-4 text-sm font-semibold text-brand-red hover:underline"
+            >
+              Try again
+            </button>
+          </motion.div>
+        ) : null}
 
-      {!loading && !error && task ? (
-        <section className="rounded-lg bg-white p-6 shadow-sm">
-          <div className="space-y-3">
-            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
-              <p className="text-slate-500">Title</p>
-              <div className="flex flex-wrap items-center gap-2 break-words">
-                {showRecurringBadge ? (
-                  <span
-                    className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md border border-red-200 bg-red-50 px-1 text-[10px] font-bold uppercase tracking-[0.04em] text-brand-red"
-                    title="Repeating task"
-                  >
-                    R
-                  </span>
-                ) : null}
-                <p className="font-bold text-slate-900">{task.title}</p>
-              </div>
-            </div>
-            {showRecurringBadge ? (
-              <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
-                <p className="text-slate-500">Repeating</p>
-                <p className="text-slate-900">
-                  {showStopRepeating
-                    ? 'This task is part of an active repeat schedule.'
-                    : 'This task is part of a repeat schedule that has been stopped.'}
-                </p>
-              </div>
-            ) : null}
-            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
-              <p className="text-slate-500">Description</p>
-              <div className="text-slate-900 whitespace-pre-wrap break-words">
-                {task.description?.trim() ? task.description : <span className="text-slate-400">-</span>}
-              </div>
-            </div>
-            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
-              <p className="text-slate-500">Document</p>
-              <div className="text-slate-900 break-words">
-                {task.documentUrl ? (
-                  <button
-                    type="button"
-                    onClick={handleDownload}
-                    disabled={downloading}
-                    className="text-blue-700 hover:underline text-left disabled:opacity-60 disabled:cursor-not-allowed disabled:no-underline"
-                  >
-                    {downloading ? 'Downloading...' : `Download ${task.documentName || 'document'}`}
-                  </button>
-                ) : (
-                  <span className="text-slate-400">-</span>
-                )}
-              </div>
-            </div>
-            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
-              <p className="text-slate-500">Project</p>
-              <p className="text-slate-900 break-words">{projectLabel}</p>
-            </div>
-            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
-              <p className="text-slate-500">Assignee</p>
-              <p className="text-slate-900 break-words">
-                {task.assigneeName || task.assigneeId || 'Unassigned'}
-              </p>
-            </div>
-            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
-              <p className="text-slate-500">Due Date</p>
-              <p className="text-slate-900 break-words">{dash(task.dueDate)}</p>
-            </div>
-            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
-              <p className="text-slate-500">Priority</p>
-              <p className="text-slate-900 capitalize break-words">{dash(task.priority)}</p>
-            </div>
-            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
-              <p className="text-slate-500">Status</p>
-              <div>
-                <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+        {loading ? (
+          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <TaskDetailSkeleton reducedMotion={!!prefersReducedMotion} />
+          </motion.div>
+        ) : null}
+
+        {!loading && !error && task ? (
+          <motion.article
+            key={task.taskId}
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 16 }}
+            animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+            exit={prefersReducedMotion ? undefined : { opacity: 0, y: 8 }}
+            transition={{ duration: 0.45, ease: pageEase }}
+            className={`relative overflow-hidden rounded-2xl border bg-white ${
+              isHighPriority ? 'border-rose-200/80' : 'border-slate-200'
+            }`}
+          >
+            <div
+              className={`absolute inset-y-0 left-0 w-1 ${
+                isHighPriority ? 'bg-brand-red' : getStatusAccent(status)
+              }`}
+            />
+
+            <div className="border-b border-slate-100 px-8 py-9 sm:px-10 sm:py-10">
+              <motion.div
+                custom={0}
+                variants={sectionReveal}
+                initial={prefersReducedMotion ? false : 'hidden'}
+                animate={prefersReducedMotion ? undefined : 'show'}
+                className="flex flex-wrap items-center gap-x-4 gap-y-2"
+              >
+                <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <span className={`h-2 w-2 rounded-full ${getStatusAccent(status)}`} />
                   {normalizeStatusLabel(task.status)}
                 </span>
-              </div>
-            </div>
-            <div className="grid grid-cols-[130px_1fr] gap-3 text-sm items-start">
-              <p className="text-slate-500">Created By</p>
-              <p className="text-slate-900 break-words">{dash(task.createdByName || task.createdByEmpId)}</p>
-            </div>
-          </div>
-        </section>
-      ) : null}
+                <span className="h-1 w-1 rounded-full bg-slate-300" />
+                <span
+                  className={`text-sm font-medium ${
+                    isHighPriority ? 'text-brand-red' : 'text-slate-600 capitalize'
+                  }`}
+                >
+                  {priority} priority
+                </span>
+                {showRecurringBadge ? (
+                  <>
+                    <span className="h-1 w-1 rounded-full bg-slate-300" />
+                    <span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600">
+                      <Repeat size={13} className="text-brand-red" />
+                      Repeating
+                    </span>
+                  </>
+                ) : null}
+              </motion.div>
 
+              <motion.h1
+                custom={1}
+                variants={sectionReveal}
+                initial={prefersReducedMotion ? false : 'hidden'}
+                animate={prefersReducedMotion ? undefined : 'show'}
+                className="mt-5 text-[1.75rem] font-semibold leading-[1.2] tracking-[-0.02em] text-slate-950 sm:text-[2.125rem] break-words"
+              >
+                {task.title}
+              </motion.h1>
+
+              <motion.p
+                custom={2}
+                variants={sectionReveal}
+                initial={prefersReducedMotion ? false : 'hidden'}
+                animate={prefersReducedMotion ? undefined : 'show'}
+                className="mt-3 font-mono text-xs text-slate-400"
+              >
+                {task.taskId}
+              </motion.p>
+
+              {showRecurringBadge ? (
+                <motion.p
+                  custom={2}
+                  variants={sectionReveal}
+                  initial={prefersReducedMotion ? false : 'hidden'}
+                  animate={prefersReducedMotion ? undefined : 'show'}
+                  className="mt-5 text-sm text-slate-500"
+                >
+                  {showStopRepeating
+                    ? 'Active repeat schedule — use Stop repeating to end future copies.'
+                    : 'Repeat schedule has been stopped for this series.'}
+                </motion.p>
+              ) : null}
+            </div>
+
+            <motion.dl
+              custom={3}
+              variants={sectionReveal}
+              initial={prefersReducedMotion ? false : 'hidden'}
+              animate={prefersReducedMotion ? undefined : 'show'}
+              className="grid gap-x-10 gap-y-6 border-b border-slate-100 px-8 py-8 sm:grid-cols-2 lg:grid-cols-4 sm:px-10"
+            >
+              <SpecCell
+                label="Assignee"
+                value={
+                  <span className="inline-flex items-center gap-2">
+                    <User size={15} className="shrink-0 text-slate-400" />
+                    {assigneeLabel}
+                  </span>
+                }
+              />
+              <SpecCell
+                label="Due date"
+                value={
+                  <span className="inline-flex items-center gap-2">
+                    <Calendar size={15} className="shrink-0 text-slate-400" />
+                    {dueDateLabel || <span className="font-normal text-slate-400">Not set</span>}
+                  </span>
+                }
+              />
+              <SpecCell
+                label="Project"
+                value={
+                  <span className="inline-flex items-center gap-2">
+                    <FolderKanban size={15} className="shrink-0 text-slate-400" />
+                    {task.projectId || <span className="font-normal text-slate-400">None</span>}
+                  </span>
+                }
+              />
+              <SpecCell
+                label="Created by"
+                value={createdByLabel}
+              />
+            </motion.dl>
+
+            <motion.section
+              custom={4}
+              variants={sectionReveal}
+              initial={prefersReducedMotion ? false : 'hidden'}
+              animate={prefersReducedMotion ? undefined : 'show'}
+              className="border-b border-slate-100 px-8 py-8 sm:px-10"
+            >
+              <SectionHeading>Description</SectionHeading>
+              <p className="mt-4 max-w-3xl text-[15px] leading-[1.7] text-slate-700 whitespace-pre-wrap break-words">
+                {task.description?.trim() || (
+                  <span className="text-slate-400">No description provided.</span>
+                )}
+              </p>
+            </motion.section>
+
+            {task.documentUrl ? (
+              <motion.section
+                custom={5}
+                variants={sectionReveal}
+                initial={prefersReducedMotion ? false : 'hidden'}
+                animate={prefersReducedMotion ? undefined : 'show'}
+                className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 px-8 py-6 sm:px-10"
+              >
+                <div className="min-w-0">
+                  <SectionHeading>Attachment</SectionHeading>
+                  <p className="mt-2 truncate text-sm font-medium text-slate-800">
+                    {task.documentName || 'task-document'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleDownload()}
+                  disabled={downloading}
+                  className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+                >
+                  <Download size={15} />
+                  {downloading ? 'Downloading…' : 'Download'}
+                </button>
+              </motion.section>
+            ) : null}
+
+            {Array.isArray(task.comments) && task.comments.length > 0 ? (
+              <motion.section
+                custom={6}
+                variants={sectionReveal}
+                initial={prefersReducedMotion ? false : 'hidden'}
+                animate={prefersReducedMotion ? undefined : 'show'}
+                className="border-b border-slate-100 px-8 py-8 sm:px-10"
+              >
+                <div className="flex items-center gap-2">
+                  <MessageSquare size={15} className="text-slate-400" />
+                  <SectionHeading>Comments · {task.comments.length}</SectionHeading>
+                </div>
+                <ul className="mt-6 divide-y divide-slate-100">
+                  {task.comments.map((comment, index) => (
+                    <li key={comment.id || `${comment.createdAt}-${index}`} className="py-5 first:pt-0 last:pb-0">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {comment.fromName || comment.fromEmpId || 'Team member'}
+                        </p>
+                        <time className="text-xs text-slate-400">{formatDateTime(comment.createdAt)}</time>
+                      </div>
+                      <p className="mt-2 text-sm leading-relaxed text-slate-600 whitespace-pre-wrap break-words">
+                        {comment.text}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </motion.section>
+            ) : null}
+
+            <motion.footer
+              custom={7}
+              variants={sectionReveal}
+              initial={prefersReducedMotion ? false : 'hidden'}
+              animate={prefersReducedMotion ? undefined : 'show'}
+              className="flex flex-wrap items-center justify-between gap-3 px-8 py-5 text-xs text-slate-400 sm:px-10"
+            >
+              <span>{createdLabel ? `Created ${createdLabel}` : null}</span>
+              <span>{updatedLabel ? `Updated ${updatedLabel}` : null}</span>
+            </motion.footer>
+          </motion.article>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 };
