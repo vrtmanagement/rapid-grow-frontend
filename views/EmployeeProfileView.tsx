@@ -164,6 +164,10 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
   const canAccessPermissionsTab = canAccessPrivacyTab;
   const canAccessAuditLogTab = canAccessPrivacyTab;
   const canAccessAnalysisTab = hasPermission('ANALYSIS_VIEW');
+  const auditLogEntityType = useMemo(() => {
+    const params = new URLSearchParams(location.search || '');
+    return String(params.get('entityType') || params.get('recordType') || '').trim();
+  }, [location.search]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search || '');
@@ -701,7 +705,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
 
             {activeSettingsTab === 'audit-log' && canAccessAuditLogTab ? (
               <div className="mt-3">
-                <AuditLogsView embedded />
+                <AuditLogsView embedded initialEntityType={auditLogEntityType} />
               </div>
             ) : null}
 

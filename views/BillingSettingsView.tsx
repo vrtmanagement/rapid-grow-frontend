@@ -9,7 +9,11 @@ const PLANS = [
   { id: 'business' as const, label: 'Business', users: 200, ai: 10000 },
 ];
 
-const BillingSettingsView: React.FC = () => {
+type BillingSettingsViewProps = {
+  embedded?: boolean;
+};
+
+const BillingSettingsView: React.FC<BillingSettingsViewProps> = ({ embedded = false }) => {
   const [params] = useSearchParams();
   const [billing, setBilling] = useState<any>(null);
   const [error, setError] = useState('');
@@ -57,13 +61,19 @@ const BillingSettingsView: React.FC = () => {
   };
 
   return (
-    <section className="space-y-6 max-w-3xl">
-      <header>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Billing & plan</h1>
-        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+    <section className={`space-y-6 ${embedded ? 'max-w-none' : 'max-w-3xl'}`}>
+      {!embedded ? (
+        <header>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Billing & plan</h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            Manage subscription via Stripe. Your current data is not changed when you upgrade.
+          </p>
+        </header>
+      ) : (
+        <p className="text-sm text-slate-600 dark:text-slate-400">
           Manage subscription via Stripe. Your current data is not changed when you upgrade.
         </p>
-      </header>
+      )}
 
       {statusBanner === 'success' && (
         <p className="text-sm text-emerald-700 bg-emerald-50 rounded-xl px-4 py-3">

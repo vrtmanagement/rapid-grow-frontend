@@ -44,7 +44,7 @@ export async function fetchAuditLogs(params?: {
   if (params?.limit) q.set('limit', String(params.limit));
   if (params?.entityType) q.set('entityType', params.entityType);
   if (params?.action) q.set('action', params.action);
-  return apiGetJson<AuditLogsResponse>(`/audit-logs?${q.toString()}`);
+  return apiGetJson<AuditLogsResponse>(`/audit-logs?${q.toString()}`, {}, { force: true });
 }
 
 export async function sendEmployeeInvite(body: {

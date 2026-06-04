@@ -92,7 +92,10 @@ export function invalidateApiCacheForMutation(url: string, init?: RequestInit): 
   try {
     const parsed = new URL(url);
     const path = parsed.pathname;
-    if (path.includes('/crm')) invalidateApiCache('/crm');
+    if (path.includes('/crm')) {
+      invalidateApiCache('/crm');
+      invalidateApiCache('/audit-logs');
+    }
     if (path.includes('/content')) invalidateApiCache('/content');
     if (path.includes('/spaces')) invalidateApiCache('/spaces');
     if (path.includes('/attendance')) invalidateApiCache('/attendance');
