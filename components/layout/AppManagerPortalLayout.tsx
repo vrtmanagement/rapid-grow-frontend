@@ -11,7 +11,6 @@ import {
   ListTodo,
   FileText,
   Contact,
-  Bot,
   Building2,
   CreditCard,
   Sparkles,
@@ -36,15 +35,26 @@ import ExpenseTravelView from '../../views/ExpenseTravelView';
 import AiAgentView from '../../views/AiAgentView';
 import TaskAnalyticsView from '../../views/TaskAnalyticsView';
 import StrengthsDashboardView from '../../views/StrengthsDashboardView';
-import AiUsageSettingsView from '../../views/AiUsageSettingsView';
 import SuperAdminView from '../../views/SuperAdminView';
-import BillingSettingsView from '../../views/BillingSettingsView';
+import BillingAiUsageView from '../../views/BillingAiUsageView';
 import PlanLimitsBanner from '../plan/PlanLimitsBanner';
 import { useI18n } from '../../context/I18nContext';
 import AccessDenied from '../AccessDenied';
 import { SidebarLink, SidebarToggleButton } from './SidebarPrimitives';
 import { NotificationBellMenu, ThemeToggleButton, UserAccountMenu } from './AppTopbarControls';
 import type { AppShellNotification } from './authenticatedShellTypes';
+
+const RedirectToBillingAiTab: React.FC<{ panel: 'billing' | 'ai-usage'; aiPanel?: 'usage' | 'settings' }> = ({
+  panel,
+  aiPanel = 'usage',
+}) => {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  params.set('panel', panel);
+  if (panel === 'ai-usage') params.set('aiPanel', aiPanel);
+  const search = params.toString();
+  return <Navigate to={`/billing-ai${search ? `?${search}` : ''}`} replace />;
+};
 
 export interface AppManagerPortalLayoutProps {
   globalToastsElement: React.ReactNode;
@@ -110,10 +120,12 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
   const isExpenseRoute = routePath.startsWith('/expense-travel');
   const isCommunicationRoute = routePath === '/communication';
   const isReflectionRoute = routePath === '/reflection' || routePath === '/review';
+  const isBillingAiRoute = routePath === '/billing-ai' || routePath.startsWith('/billing-ai/');
   const isSharedSubnavRoute =
     routePath === '/' ||
     isCommunicationRoute ||
     isReflectionRoute ||
+    isBillingAiRoute ||
     routePath === '/staff' ||
     routePath.startsWith('/staff/') ||
     routePath.startsWith('/expense-travel') ||
@@ -124,6 +136,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
     routePath === '/' ||
     isCommunicationRoute ||
     isReflectionRoute ||
+    isBillingAiRoute ||
     routePath === '/staff' ||
     routePath.startsWith('/staff/') ||
     routePath.startsWith('/expense-travel') ||
@@ -223,10 +236,12 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               <SidebarLink to="/super-admin" icon={<Building2 size={20} />} label={t('superAdmin')} collapsed={!isSidebarOpen} />
             )}
             {isAdmin && (
-              <SidebarLink to="/settings/billing" icon={<CreditCard size={20} />} label="Billing" collapsed={!isSidebarOpen} />
-            )}
-            {isAdmin && (
-              <SidebarLink to="/ai/usage" icon={<Bot size={20} />} label="AI usage & settings" collapsed={!isSidebarOpen} />
+              <SidebarLink
+                to="/billing-ai"
+                icon={<CreditCard size={20} />}
+                label="Billing & AI usage"
+                collapsed={!isSidebarOpen}
+              />
             )}
           </nav>
         </aside>
@@ -285,8 +300,16 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               )}
               <Route path="/strengths" element={<StrengthsDashboardView />} />
               <Route path="/strengths/gaps" element={<StrengthsDashboardView />} />
-              <Route path="/ai/usage" element={<AiUsageSettingsView />} />
-              <Route path="/ai/settings" element={<AiUsageSettingsView />} />
+              {isAdmin && <Route path="/billing-ai" element={<BillingAiUsageView />} />}
+              {isAdmin && (
+                <Route path="/settings/billing" element={<RedirectToBillingAiTab panel="billing" />} />
+              )}
+              {isAdmin && (
+                <Route path="/ai/usage" element={<RedirectToBillingAiTab panel="ai-usage" />} />
+              )}
+              {isAdmin && (
+                <Route path="/ai/settings" element={<RedirectToBillingAiTab panel="ai-usage" aiPanel="settings" />} />
+              )}
               {hasPower('STAFF_VIEW') && (
                 <Route path="/org-chart" element={<Navigate to="/staff/org-chart" replace />} />
               )}
@@ -366,7 +389,6 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {hasPower('CRM_VIEW') && <Route path="/crm/lead/:leadId" element={<CRMLeadDetailPage />} />}
               {hasPower('EXPENSE_VIEW') && <Route path="/expense-travel" element={<ExpenseTravelView mode="manager" />} />}
               {isSuperAdmin && <Route path="/super-admin" element={<SuperAdminView />} />}
-              {isAdmin && <Route path="/settings/billing" element={<BillingSettingsView />} />}
               {isAdmin && (
                 <Route path="/settings/audit-logs" element={<Navigate to="/profile?tab=audit-log" replace />} />
               )}

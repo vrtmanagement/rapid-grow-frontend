@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, Filter, RefreshCw, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Filter, RefreshCw } from 'lucide-react';
 import { ThemedSelect } from '../components/spaces/SpacesFormControls';
-import { fetchAuditLogs } from '../services/platformApi';
+import { fetchAuditLogs, type AuditLogsResponse } from '../services/platformApi';
 
 const PAGE_SIZE = 20;
 
@@ -17,37 +17,43 @@ type AuditLogRow = {
 
 type FilterOption = { value: string; label: string };
 
-type AppliedFilters = {
+type AuditFilters = {
   entityType: string;
   action: string;
 };
 
-const EMPTY_FILTERS: AppliedFilters = {
-  entityType: '',
-  action: '',
-};
+const BASE_ENTITY_TYPE_OPTIONS: FilterOption[] = [{ value: 'crm', label: 'CRM' }];
 
 type AuditLogsViewProps = {
   embedded?: boolean;
+  initialEntityType?: string;
 };
 
-const AuditLogsView: React.FC<AuditLogsViewProps> = ({ embedded = false }) => {
+const AuditLogsView: React.FC<AuditLogsViewProps> = ({ embedded = false, initialEntityType = '' }) => {
+  const normalizedInitialEntityType = String(initialEntityType || '').trim();
   const [logs, setLogs] = useState<AuditLogRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [entityTypeOptions, setEntityTypeOptions] = useState<FilterOption[]>([]);
+  const [entityTypeOptions, setEntityTypeOptions] = useState<FilterOption[]>(BASE_ENTITY_TYPE_OPTIONS);
   const [actionOptions, setActionOptions] = useState<FilterOption[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(true);
-  const [draftFilters, setDraftFilters] = useState<AppliedFilters>(EMPTY_FILTERS);
-  const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<AuditFilters>({
+    entityType: normalizedInitialEntityType,
+    action: '',
+  });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
   const activeFilterCount = useMemo(
-    () => [appliedFilters.entityType, appliedFilters.action].filter(Boolean).length,
-    [appliedFilters],
+    () => [filters.entityType, filters.action].filter(Boolean).length,
+    [filters],
   );
+
+  const updateFilter = (patch: Partial<AuditFilters>) => {
+    setFilters((prev) => ({ ...prev, ...patch }));
+    setPage(1);
+  };
 
   const rowOffset = (page - 1) * PAGE_SIZE;
 
@@ -58,17 +64,19 @@ const AuditLogsView: React.FC<AuditLogsViewProps> = ({ embedded = false }) => {
       const res = await fetchAuditLogs({
         page,
         limit: PAGE_SIZE,
-        entityType: appliedFilters.entityType || undefined,
-        action: appliedFilters.action || undefined,
+        entityType: filters.entityType || undefined,
+        action: filters.action || undefined,
       });
-      setLogs(Array.isArray(res.items) ? (res.items as AuditLogRow[]) : []);
-      setTotal(Number(res.total || 0));
-      setTotalPages(Math.max(1, Number(res.totalPages || 1)));
-      if (Array.isArray(res.entityTypeOptions) && res.entityTypeOptions.length) {
-        setEntityTypeOptions(res.entityTypeOptions);
+      const payload = res as AuditLogsResponse & { success?: boolean; data?: AuditLogsResponse };
+      const data: AuditLogsResponse = payload.items ? payload : payload.data || {};
+      setLogs(Array.isArray(data.items) ? (data.items as AuditLogRow[]) : []);
+      setTotal(Number(data.total || 0));
+      setTotalPages(Math.max(1, Number(data.totalPages || 1)));
+      if (Array.isArray(data.entityTypeOptions) && data.entityTypeOptions.length) {
+        setEntityTypeOptions(data.entityTypeOptions);
       }
-      if (Array.isArray(res.actionOptions) && res.actionOptions.length) {
-        setActionOptions(res.actionOptions);
+      if (Array.isArray(data.actionOptions) && data.actionOptions.length) {
+        setActionOptions(data.actionOptions);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load audit logs');
@@ -78,22 +86,16 @@ const AuditLogsView: React.FC<AuditLogsViewProps> = ({ embedded = false }) => {
     } finally {
       setLoading(false);
     }
-  }, [appliedFilters, page]);
+  }, [filters, page]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const applyFilters = () => {
+  useEffect(() => {
+    setFilters({ entityType: normalizedInitialEntityType, action: '' });
     setPage(1);
-    setAppliedFilters({ ...draftFilters });
-  };
-
-  const clearFilters = () => {
-    setDraftFilters(EMPTY_FILTERS);
-    setAppliedFilters(EMPTY_FILTERS);
-    setPage(1);
-  };
+  }, [normalizedInitialEntityType]);
 
   const pageNumbers = useMemo(() => {
     const windowSize = 5;
@@ -103,10 +105,13 @@ const AuditLogsView: React.FC<AuditLogsViewProps> = ({ embedded = false }) => {
     return Array.from({ length: end - adjustedStart + 1 }, (_, index) => adjustedStart + index);
   }, [page, totalPages]);
 
-  const entityTypeSelectOptions = useMemo(
-    () => [{ value: '', label: 'All types' }, ...entityTypeOptions],
-    [entityTypeOptions],
-  );
+  const entityTypeSelectOptions = useMemo(() => {
+    const merged = new Map<string, FilterOption>();
+    for (const option of [...BASE_ENTITY_TYPE_OPTIONS, ...entityTypeOptions]) {
+      merged.set(option.value, option);
+    }
+    return [{ value: '', label: 'All types' }, ...[...merged.values()].sort((a, b) => a.label.localeCompare(b.label))];
+  }, [entityTypeOptions]);
 
   const actionSelectOptions = useMemo(
     () => [{ value: '', label: 'All actions' }, ...actionOptions],
@@ -118,7 +123,7 @@ const AuditLogsView: React.FC<AuditLogsViewProps> = ({ embedded = false }) => {
       {embedded ? (
         <div className="flex flex-wrap items-start justify-between gap-3">
           <p className="text-sm text-slate-600">
-            Track who changed tasks, employees, expenses, attendance, CRM, and other records.
+            Track who changed tasks, employees, expenses, attendance, CRM leads, and other records. Filter by record type to view CRM activity.
           </p>
           <button
             type="button"
@@ -135,7 +140,7 @@ const AuditLogsView: React.FC<AuditLogsViewProps> = ({ embedded = false }) => {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Audit log</h1>
             <p className="mt-1 text-sm text-slate-600">
-              Track who changed tasks, employees, expenses, attendance, CRM, and other records.
+              Track who changed tasks, employees, expenses, attendance, CRM leads, and other records. Filter by record type to view CRM activity.
             </p>
           </div>
           <button
@@ -176,8 +181,8 @@ const AuditLogsView: React.FC<AuditLogsViewProps> = ({ embedded = false }) => {
                   Record type
                 </span>
                 <ThemedSelect
-                  value={draftFilters.entityType}
-                  onChange={(value) => setDraftFilters((prev) => ({ ...prev, entityType: value }))}
+                  value={filters.entityType}
+                  onChange={(value) => updateFilter({ entityType: value })}
                   options={entityTypeSelectOptions}
                   placeholder="All types"
                   compact
@@ -191,8 +196,8 @@ const AuditLogsView: React.FC<AuditLogsViewProps> = ({ embedded = false }) => {
                   Action
                 </span>
                 <ThemedSelect
-                  value={draftFilters.action}
-                  onChange={(value) => setDraftFilters((prev) => ({ ...prev, action: value }))}
+                  value={filters.action}
+                  onChange={(value) => updateFilter({ action: value })}
                   options={actionSelectOptions}
                   placeholder="All actions"
                   compact
@@ -200,24 +205,6 @@ const AuditLogsView: React.FC<AuditLogsViewProps> = ({ embedded = false }) => {
                   forceOpenDown
                 />
               </label>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={applyFilters}
-                className="rounded-lg bg-brand-red px-4 py-2 text-sm font-semibold text-white hover:bg-brand-red/90"
-              >
-                Apply filters
-              </button>
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                <X size={14} />
-                Clear
-              </button>
             </div>
           </div>
         ) : null}

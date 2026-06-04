@@ -2,39 +2,54 @@ import React, { useState } from 'react';
 import AiSettingsView from './AiSettingsView';
 import AiUsageDashboardView from './AiUsageDashboardView';
 
-const AiUsageSettingsView: React.FC = () => {
-  const [activePanel, setActivePanel] = useState<'usage' | 'settings'>('usage');
+import PageSectionSubnav from '../components/layout/PageSectionSubnav';
+
+type AiUsagePanel = 'usage' | 'settings';
+
+type AiUsageSettingsViewProps = {
+  embedded?: boolean;
+  activePanel?: AiUsagePanel;
+  hideSubnav?: boolean;
+};
+
+const AiUsageSettingsView: React.FC<AiUsageSettingsViewProps> = ({
+  embedded = false,
+  activePanel: controlledPanel,
+  hideSubnav = false,
+}) => {
+  const [internalPanel, setInternalPanel] = useState<AiUsagePanel>('usage');
+  const activePanel = controlledPanel ?? internalPanel;
+
+  const subnavTabClass = (panel: AiUsagePanel) =>
+    `border-b-2 px-1 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors sm:text-[12px] ${
+      activePanel === panel
+        ? 'border-brand-red text-slate-900'
+        : 'border-transparent text-slate-500 hover:text-slate-900'
+    }`;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-wide text-brand-red">AI operations</p>
-        <h1 className="mt-1 text-3xl font-bold text-slate-950">AI usage & settings</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-          Monitor calls and cost, then tune company AI defaults from the same screen.
-        </p>
-      </div>
-
-      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
-        <button
-          type="button"
-          onClick={() => setActivePanel('usage')}
-          className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
-            activePanel === 'usage' ? 'bg-brand-red text-white' : 'text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          Usage
-        </button>
-        <button
-          type="button"
-          onClick={() => setActivePanel('settings')}
-          className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
-            activePanel === 'settings' ? 'bg-brand-red text-white' : 'text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          Settings
-        </button>
-      </div>
+    <div className={embedded ? 'space-y-6' : 'mx-auto max-w-6xl space-y-8 animate-in fade-in duration-700'}>
+      {!embedded && !hideSubnav ? (
+        <PageSectionSubnav
+          flushWithinContentPadding
+          leading={
+            <>
+              <span className="h-1.5 w-8 shrink-0 rounded-full bg-brand-red" />
+              <span className="truncate text-sm font-medium text-slate-600 sm:text-[15px]">AI usage &amp; settings</span>
+            </>
+          }
+          center={
+            <>
+              <button type="button" onClick={() => setInternalPanel('usage')} className={subnavTabClass('usage')}>
+                Usage
+              </button>
+              <button type="button" onClick={() => setInternalPanel('settings')} className={subnavTabClass('settings')}>
+                Settings
+              </button>
+            </>
+          }
+        />
+      ) : null}
 
       {activePanel === 'usage' ? <AiUsageDashboardView embedded /> : <AiSettingsView embedded />}
     </div>
