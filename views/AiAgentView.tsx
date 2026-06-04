@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Bot,
   CalendarDays,
@@ -11,6 +11,7 @@ import {
   Users,
 } from 'lucide-react';
 import AccessDenied from '../components/AccessDenied';
+import PageSectionSubnav from '../components/layout/PageSectionSubnav';
 import Toast from '../components/ui/Toast';
 import { usePermissions } from '../context/usePermissions';
 import { API_BASE, getAuthHeaders } from '../config/api';
@@ -36,6 +37,7 @@ import {
   type ProjectPlan,
   type TaskAssignment,
 } from '../services/aiAgentApi';
+import { PremiumCreateTaskButton } from '../components/spaces/SpacesMainSections';
 
 type TabId = 'extract' | 'approval' | 'capacity' | 'project' | 'summary' | 'followups' | 'performance';
 
@@ -51,6 +53,7 @@ interface ProjectOption {
 
 const AiAgentView: React.FC = () => {
   const { hasPermission } = usePermissions();
+  const navigate = useNavigate();
   const canUse = hasPermission('SPACES_VIEW');
 
   const [activeTab, setActiveTab] = useState<TabId>('extract');
@@ -439,7 +442,38 @@ const AiAgentView: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-6xl space-y-6">
+    <div className="-mx-16 -mb-16 mt-0 min-h-full overflow-x-hidden space-y-6 px-6 pb-8 pt-0 animate-in fade-in duration-700">
+      <PageSectionSubnav
+        outerClassName="px-6 sm:px-10 lg:px-14"
+        innerClassName="gap-2 py-1.5 lg:min-h-[50px] lg:gap-3.5"
+        leading={
+          <>
+            <div className="h-1.5 w-8 rounded-full bg-brand-red" />
+            <span className="text-[14px] font-medium text-slate-900">Task Hub</span>
+          </>
+        }
+        center={
+          <>
+            <button
+              type="button"
+              onClick={() => navigate('/spaces')}
+              className="border-b-2 border-transparent px-1 py-1.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-500 transition-colors hover:text-slate-900"
+            >
+              Overview
+            </button>
+            <button
+              type="button"
+              className="border-b-2 border-brand-red px-1 py-1.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-900"
+            >
+              AI Agent
+            </button>
+          </>
+        }
+        trailing={
+          <PremiumCreateTaskButton onClick={() => navigate('/spaces', { state: { openCreateTask: true } })} />
+        }
+      />
+      <div className="mx-auto max-w-6xl space-y-6 px-6 sm:px-10 lg:px-14">
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-start gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red">
@@ -1182,6 +1216,7 @@ const AiAgentView: React.FC = () => {
         </div>
       )}
       {toast && <Toast type={toast.type} message={toast.message} />}
+      </div>
     </div>
   );
 };

@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   Database,
   FileText,
-  HardDrive,
   UsersRound,
   Bot,
   Building2,
@@ -21,7 +20,6 @@ import {
   ScrollText,
   UserPlus2,
   Network,
-  Receipt,
 } from 'lucide-react';
 import { PlanningState } from '../../types';
 import Vision from '../../views/Vision';
@@ -33,7 +31,6 @@ import SpacesView from '../../views/SpacesView';
 import FeedbackView from '../../views/FeedbackView';
 import AttendanceView from '../../views/AttendanceView';
 import StaffView from '../../views/StaffView';
-import MemoryUsageView from '../../views/MemoryUsageView';
 import CommunicationView from '../../communication/views/CommunicationView';
 import { GlobalCommunicationNotifications } from '../../communication/components/GlobalCommunicationNotifications';
 import ContentView from '../../views/ContentView';
@@ -188,14 +185,6 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                     collapsed={!isSidebarOpen}
                   />
                 )}
-                {hasPower('SPACES_VIEW') && (
-                  <SidebarLink
-                    to="/ai-agent"
-                    icon={<Bot size={20} />}
-                    label="AI Agent"
-                    collapsed={!isSidebarOpen}
-                  />
-                )}
                 {hasPower('ATTENDANCE_VIEW') && (
                   <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />
                 )}
@@ -229,9 +218,6 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
             {hasPower('CONTENT_VIEW') && (
               <SidebarLink to="/content" icon={<FileText size={20} />} label="Content" collapsed={!isSidebarOpen} />
             )}
-            {isAdmin && (
-              <SidebarLink to="/memory-usage" icon={<HardDrive size={20} />} label="Memory Usage" collapsed={!isSidebarOpen} />
-            )}
             {isAdmin && hasPower('ANALYSIS_VIEW') && (
               <SidebarLink to="/analysis" icon={<Settings size={20} />} label="Analysis" collapsed={!isSidebarOpen} />
             )}
@@ -249,9 +235,6 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
             )}
             {hasPower('CRM_VIEW') && (
               <SidebarLink to="/crm" icon={<UsersRound size={20} />} label={t('crm')} collapsed={!isSidebarOpen} />
-            )}
-            {hasPower('EXPENSE_VIEW') && (
-              <SidebarLink to="/expense-travel" icon={<Receipt size={20} />} label="Expense & Travel" collapsed={!isSidebarOpen} />
             )}
             {isSuperAdmin && (
               <SidebarLink to="/super-admin" icon={<Building2 size={20} />} label={t('superAdmin')} collapsed={!isSidebarOpen} />
@@ -328,7 +311,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {hasPower('SPACES_VIEW') && (
                 <Route path="/spaces" element={<SpacesView mode="manager" state={state} updateState={updateState} />} />
               )}
-              {hasPower('SPACES_VIEW') && <Route path="/ai-agent" element={<AiAgentView />} />}
+              {hasPower('SPACES_VIEW') && <Route path="/spaces/ai-agent" element={<AiAgentView />} />}
               {hasPower('SPACES_VIEW') && <Route path="/spaces/task/:taskId" element={<SpacesTaskDetailView mode="manager" />} />}
               {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance" element={<AttendanceView mode="manager" />} />}
               {hasPower('ATTENDANCE_VIEW') && <Route path="/attendance/history" element={<AttendanceView mode="manager" />} />}
@@ -389,7 +372,6 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                 <Route path="/content/day/:dayKey/type/:typeKey/item/:itemKey" element={<ContentView />} />
               )}
               {hasPower('CONTENT_VIEW') && <Route path="/content/new" element={<ContentCreateView />} />}
-              {isAdmin && <Route path="/memory-usage" element={<MemoryUsageView />} />}
               {isAdmin && hasPower('ANALYSIS_VIEW') && <Route path="/analysis" element={<AnalysisView />} />}
               {isAdmin && hasPower('FEEDBACK_VIEW') && <Route path="/feedback" element={<FeedbackView />} />}
               {isAdmin && <Route path="/permissions" element={<PermissionsView canEdit={true} />} />}

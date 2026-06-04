@@ -1659,6 +1659,15 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
             >
               Leave
             </button>
+            {hasPermission('EXPENSE_VIEW') && (
+              <button
+                type="button"
+                onClick={() => navigate('/expense-travel')}
+                className="border-b-2 border-transparent px-1 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 transition-colors hover:text-slate-900 sm:text-[12px]"
+              >
+                Expense & Travel
+              </button>
+            )}
           </>
         }
         trailing={

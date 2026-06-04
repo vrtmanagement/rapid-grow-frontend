@@ -417,11 +417,11 @@ const ExpenseTravelView: React.FC<Props> = ({ mode = 'manager' }) => {
 
         leading={
 
-          <div>
+          <div className="flex items-center gap-3">
 
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Finance</p>
+            <span className="h-1.5 w-8 rounded-full bg-brand-red" />
 
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Expense & Travel</h1>
+            <h1 className="truncate text-sm font-medium text-slate-600 dark:text-slate-300 sm:text-[15px]">Expense & Travel</h1>
 
           </div>
 
@@ -430,6 +430,24 @@ const ExpenseTravelView: React.FC<Props> = ({ mode = 'manager' }) => {
         center={
 
           <>
+
+            {hasPermission('ATTENDANCE_VIEW') && (
+
+              <button
+
+                type="button"
+
+                onClick={() => navigate('/attendance')}
+
+                className="whitespace-nowrap border-b-2 border-transparent px-1 py-1.5 text-[13px] font-medium text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+
+              >
+
+                Overview
+
+              </button>
+
+            )}
 
             {visibleSections.map((section) => (
 
@@ -441,7 +459,7 @@ const ExpenseTravelView: React.FC<Props> = ({ mode = 'manager' }) => {
 
                 onClick={() => handleSectionChange(section.id)}
 
-                className={`whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium transition ${
+                className={`whitespace-nowrap border-b-2 px-1 py-1.5 text-[13px] font-medium transition ${
 
                   activeSection === section.id
 

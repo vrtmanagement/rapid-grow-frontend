@@ -10,7 +10,6 @@ import {
   Database,
   FileText,
   UsersRound,
-  Receipt,
 } from 'lucide-react';
 import { PlanningState } from '../../types';
 import Vision from '../../views/Vision';
@@ -141,9 +140,6 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
             )}
             {hasPower('ATTENDANCE_VIEW') && (
               <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />
-            )}
-            {hasPower('EXPENSE_VIEW') && (
-              <SidebarLink to="/expense-travel" icon={<Receipt size={20} />} label="Expense & Travel" collapsed={!isSidebarOpen} />
             )}
             <div className="app-sidebar-divider h-px bg-white/5 mx-2.5 my-3.5"></div>
             {hasVisionAccess && (

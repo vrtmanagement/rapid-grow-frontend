@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
 import { QUARTER_LABELS } from '../appSeedConstants';
 import { Goal, PlanningState, WorkspaceTask } from '../types';
@@ -186,6 +186,7 @@ function formatChecklistIntervalLabel(value: string | number) {
 
 const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const taskHubRootRef = useRef<HTMLDivElement | null>(null);
   const generateId = () =>
     (typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -1869,6 +1870,12 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   }, [resetCreateTaskForm]);
 
   useEffect(() => {
+    if (!location.state || !(location.state as { openCreateTask?: boolean }).openCreateTask) return;
+    openTaskCreateModal();
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.pathname, location.state, navigate, openTaskCreateModal]);
+
+  useEffect(() => {
     if (!createTaskPlannerEnabled) return;
     if (!plannerWeekOptions.length) {
       setCreateTaskPlannerWeekId('');
@@ -2621,6 +2628,25 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
             <div className="h-1.5 w-8 rounded-full bg-brand-red" />
             <span className="text-[14px] font-medium text-slate-900">Task Hub</span>
           </>
+        }
+        center={
+          mode === 'manager' ? (
+            <>
+              <button
+                type="button"
+                className="border-b-2 border-brand-red px-1 py-1.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-900"
+              >
+                Overview
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/spaces/ai-agent')}
+                className="border-b-2 border-transparent px-1 py-1.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-500 transition-colors hover:text-slate-900"
+              >
+                AI Agent
+              </button>
+            </>
+          ) : undefined
         }
         trailing={<PremiumCreateTaskButton onClick={() => openTaskCreateModal()} />}
       />
