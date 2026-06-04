@@ -1,4 +1,4 @@
-import type { SpacesTask } from '../../views/spacesViewHelpers';
+import type { SpacesTask } from '../../types/spaces';
 
 export interface CalendarMonth {
   key: string;

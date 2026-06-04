@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import type { SpacesTask } from '../../views/spacesViewHelpers';
+import type { SpacesTask } from '../../types/spaces';
 import SpacesMonthGoalAddForm, { CreateMonthGoalTaskPayload } from './SpacesMonthGoalAddForm';
 import SpacesMonthGoalDetailDrawer from './SpacesMonthGoalDetailDrawer';
 import { ThemedSelect } from './SpacesFormControls';
@@ -17,6 +17,12 @@ import {
   isMonthGoalTask,
   isTaskCompleted,
 } from './monthGoalsHelpers';
+import {
+  formatTopPriorityDateLabel,
+  formatTopPriorityLabel,
+  getTopPriorityCardClasses,
+  getTopPriorityPillClasses,
+} from '../../utils/spaces/topPriority';
 
 type SpacesMonthGoalsSectionProps = {
   tasks: SpacesTask[];
@@ -59,36 +65,6 @@ const isCompletedStatus = (status?: string) => {
   const s = String(status || '').trim().toLowerCase();
   return s === 'review' || s === 'done';
 };
-
-const getTopPriorityCardClasses = (task: SpacesTask, index: number) => {
-  if (isCompletedStatus(task.status)) {
-    return 'border border-emerald-200 bg-emerald-50/80 hover:bg-emerald-100/70';
-  }
-  if (index % 2 === 0) {
-    return 'border border-slate-200 border-l-[3px] border-l-brand-red bg-white hover:bg-[#f7faff]';
-  }
-  return 'border border-slate-300 border-l-[3px] border-l-slate-400 bg-white hover:bg-[#f7faff]';
-};
-
-const getTopPriorityPillClasses = (type: 'priority' | 'status' | 'date', value?: string) => {
-  if (type === 'priority') {
-    const p = String(value || 'medium').trim().toLowerCase();
-    if (p === 'high') return 'bg-red-50 text-brand-red';
-    if (p === 'low') return 'bg-sky-50 text-sky-700';
-    return 'bg-amber-50 text-amber-700';
-  }
-  if (type === 'status') {
-    const s = String(value || 'todo').trim().toLowerCase();
-    if (s === 'doing') return 'bg-indigo-50 text-indigo-600';
-    if (s === 'done' || s === 'review') return 'bg-emerald-50 text-emerald-700';
-    if (s === 'blocked') return 'bg-rose-50 text-rose-600';
-    return 'bg-slate-100 text-slate-500';
-  }
-  return 'bg-slate-50 text-slate-400';
-};
-
-const formatPillLabel = (value: string) =>
-  String(value || '').trim().replace(/^./, (char: string) => char.toUpperCase());
 
 const formatWeekDateRange = (week: ReturnType<typeof getWeeksForMonth>[number]) => {
   const startLabel = week.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -208,9 +184,7 @@ const SpacesMonthGoalsSection: React.FC<SpacesMonthGoalsSectionProps> = ({
 
   const renderTaskRow = (task: SpacesTask, index: number) => {
     const dayLabel = getTaskDayLabel(task);
-    const dateLabel = task.dueDate
-      ? new Date(`${task.dueDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      : dayLabel || '-';
+    const dateLabel = task.dueDate ? formatTopPriorityDateLabel(task.dueDate) : dayLabel || '-';
 
     return (
       <div
@@ -246,10 +220,10 @@ const SpacesMonthGoalsSection: React.FC<SpacesMonthGoalsSectionProps> = ({
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-1">
             <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${getTopPriorityPillClasses('priority', task.priority)}`}>
-              {formatPillLabel(task.priority || 'medium')}
+              {formatTopPriorityLabel(task.priority || 'medium')}
             </span>
             <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${getTopPriorityPillClasses('status', task.status)}`}>
-              {formatPillLabel(task.status || 'todo')}
+              {formatTopPriorityLabel(task.status || 'todo')}
             </span>
             <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${getTopPriorityPillClasses('date', task.dueDate)}`}>
               {dateLabel}
@@ -331,7 +305,13 @@ const SpacesMonthGoalsSection: React.FC<SpacesMonthGoalsSectionProps> = ({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3.5 py-3.5 pr-2.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div
+          className={
+            weekEntry.tasks.length
+              ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-3.5 py-3.5 pr-2.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+              : 'flex min-h-0 flex-1 items-center justify-center px-3.5 py-3.5'
+          }
+        >
           {weekEntry.tasks.length ? (
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
               {weekEntry.tasks.map((task, index) => renderTaskRow(task, index))}
@@ -340,7 +320,7 @@ const SpacesMonthGoalsSection: React.FC<SpacesMonthGoalsSectionProps> = ({
             <button
               type="button"
               onClick={() => openAddFormForMonth(monthKey, weekEntry.week.key)}
-              className="flex min-h-[112px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-100/80 px-4 text-center text-[13px] font-medium text-slate-500 transition hover:border-brand-red/25 hover:bg-slate-50 hover:text-slate-700"
+              className="flex min-h-[168px] min-w-[220px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-100/80 px-6 text-center text-[13px] font-medium text-slate-500 transition hover:border-brand-red/25 hover:bg-slate-50 hover:text-slate-700"
             >
               Add task for {weekEntry.label}
             </button>

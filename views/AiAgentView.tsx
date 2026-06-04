@@ -37,7 +37,7 @@ import {
   type ProjectPlan,
   type TaskAssignment,
 } from '../services/aiAgentApi';
-import { PremiumCreateTaskButton } from '../components/spaces/SpacesMainSections';
+import SpacesCreateTaskButton from '../components/spaces/SpacesCreateTaskButton';
 
 type TabId = 'extract' | 'approval' | 'capacity' | 'project' | 'summary' | 'followups' | 'performance';
 
@@ -470,7 +470,7 @@ const AiAgentView: React.FC = () => {
           </>
         }
         trailing={
-          <PremiumCreateTaskButton onClick={() => navigate('/spaces', { state: { openCreateTask: true } })} />
+          <SpacesCreateTaskButton onClick={() => navigate('/spaces', { state: { openCreateTask: true } })} />
         }
       />
       <div className="mx-auto max-w-6xl space-y-6 px-6 sm:px-10 lg:px-14">

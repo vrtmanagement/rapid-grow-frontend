@@ -20,6 +20,9 @@ const TABLE_SELECT_TRIGGER_CLASS =
 const COMPACT_FULL_WIDTH_SELECT_TRIGGER_CLASS =
   'themed-control themed-select-trigger flex w-full items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
+const TOOLBAR_INLINE_SELECT_TRIGGER_CLASS =
+  'themed-control themed-select-trigger inline-flex min-h-[34px] min-w-[7.5rem] items-center justify-between gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[13px] text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+
 const TABLE_SELECT_MENU_CLASS =
   'themed-control-menu absolute left-0 top-full z-30 mt-1.5 w-full overflow-hidden rounded-xl border border-slate-200 bg-white';
 
@@ -267,6 +270,7 @@ export const ThemedSelect: React.FC<{
   disabled?: boolean;
   compact?: boolean;
   fullWidthCompact?: boolean;
+  toolbarInline?: boolean;
   denseMenu?: boolean;
   forceOpenDown?: boolean;
 }> = ({
@@ -277,6 +281,7 @@ export const ThemedSelect: React.FC<{
   disabled = false,
   compact = false,
   fullWidthCompact = false,
+  toolbarInline = false,
   denseMenu = false,
   forceOpenDown = false,
 }) => {
@@ -286,6 +291,7 @@ export const ThemedSelect: React.FC<{
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 0 });
   const [menuMaxHeight, setMenuMaxHeight] = useState(240);
   const [openAbove, setOpenAbove] = useState(false);
+  const useCompactMenu = compact || toolbarInline;
 
   useEffect(() => {
     if (!open) return;
@@ -302,10 +308,10 @@ export const ThemedSelect: React.FC<{
     const updatePlacement = () => {
       if (!wrapperRef.current) return;
       const rect = wrapperRef.current.getBoundingClientRect();
-      const visibleRows = Math.min(Math.max(options.length, 1), compact ? 6 : 7);
-      const rowHeight = compact ? (denseMenu ? 32 : 38) : 48;
+      const visibleRows = Math.min(Math.max(options.length, 1), useCompactMenu ? 6 : 7);
+      const rowHeight = useCompactMenu ? (denseMenu ? 32 : 38) : 48;
       const desiredHeight = visibleRows * rowHeight + (denseMenu ? 10 : 16);
-      const gap = compact ? 6 : 8;
+      const gap = useCompactMenu ? 6 : 8;
       const spaceBelow = window.innerHeight - rect.bottom;
       const spaceAbove = rect.top;
       const shouldOpenAbove = forceOpenDown ? false : spaceBelow < desiredHeight + gap && spaceAbove > spaceBelow;
@@ -313,7 +319,7 @@ export const ThemedSelect: React.FC<{
       const nextMaxHeight = Math.max(120, Math.min(desiredHeight, availableSpace));
       setOpenAbove(shouldOpenAbove);
       setMenuMaxHeight(nextMaxHeight);
-      if (compact) {
+      if (useCompactMenu) {
         setMenuPosition({
           left: rect.left,
           top: shouldOpenAbove ? Math.max(8, rect.top - nextMaxHeight - gap) : rect.bottom + gap,
@@ -328,10 +334,10 @@ export const ThemedSelect: React.FC<{
       window.removeEventListener('resize', updatePlacement);
       window.removeEventListener('scroll', updatePlacement, true);
     };
-  }, [open, compact, denseMenu, forceOpenDown, options.length]);
+  }, [open, useCompactMenu, denseMenu, forceOpenDown, options.length]);
 
   useEffect(() => {
-    if (!open || !compact) return;
+    if (!open || !useCompactMenu) return;
     const updatePosition = () => {
       if (!wrapperRef.current) return;
       const rect = wrapperRef.current.getBoundingClientRect();
@@ -358,16 +364,18 @@ export const ThemedSelect: React.FC<{
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [open, compact, options.length, denseMenu, forceOpenDown]);
+  }, [open, useCompactMenu, options.length, denseMenu, forceOpenDown]);
 
   const selected = options.find((option) => option.value === value);
-  const triggerClass = compact
-    ? fullWidthCompact
-      ? COMPACT_FULL_WIDTH_SELECT_TRIGGER_CLASS
-      : TABLE_SELECT_TRIGGER_CLASS
-    : CREATE_SELECT_TRIGGER_CLASS;
-  const menuClass = compact ? TABLE_SELECT_MENU_CLASS : CREATE_SELECT_MENU_CLASS;
-  const optionClass = compact
+  const triggerClass = toolbarInline
+    ? TOOLBAR_INLINE_SELECT_TRIGGER_CLASS
+    : compact
+      ? fullWidthCompact
+        ? COMPACT_FULL_WIDTH_SELECT_TRIGGER_CLASS
+        : TABLE_SELECT_TRIGGER_CLASS
+      : CREATE_SELECT_TRIGGER_CLASS;
+  const menuClass = useCompactMenu ? TABLE_SELECT_MENU_CLASS : CREATE_SELECT_MENU_CLASS;
+  const optionClass = useCompactMenu
     ? denseMenu
       ? 'w-full px-4 py-1.5 text-left text-[12px] text-slate-700 transition-colors hover:bg-red-50 hover:text-brand-red'
       : TABLE_SELECT_OPTION_CLASS
@@ -376,13 +384,18 @@ export const ThemedSelect: React.FC<{
   return (
     <div ref={wrapperRef} className="relative">
       <button type="button" onClick={() => !disabled && setOpen((prev) => !prev)} disabled={disabled} className={triggerClass}>
-        <span className={`min-w-0 flex-1 truncate whitespace-nowrap pr-2 text-left ${selected ? 'text-slate-700' : 'text-slate-400'}`}>
+        <span
+          className={`min-w-0 flex-1 truncate whitespace-nowrap text-left ${toolbarInline ? 'pr-1' : 'pr-2'} ${selected ? 'text-slate-700' : 'text-slate-400'}`}
+        >
           {selected?.label || placeholder}
         </span>
-        <ChevronDown size={compact ? 16 : 18} className={`shrink-0 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          size={toolbarInline ? 15 : useCompactMenu ? 16 : 18}
+          className={`shrink-0 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
       </button>
 
-      {open && !disabled && !compact && (
+      {open && !disabled && !useCompactMenu && (
         <div
           className={`${menuClass} ${THIN_SCROLL_MENU_CLASS} overflow-y-auto ${openAbove ? 'bottom-full top-auto mb-2 mt-0' : ''}`}
           style={{ maxHeight: `${menuMaxHeight}px` }}
@@ -406,7 +419,7 @@ export const ThemedSelect: React.FC<{
         </div>
       )}
 
-      {open && !disabled && compact
+      {open && !disabled && useCompactMenu
         ? createPortal(
             <div
               ref={menuRef}

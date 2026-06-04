@@ -1,5 +1,5 @@
 import { apiGetJson } from '../config/api';
-import type { SpacesColumn, SpacesTask } from '../views/spacesViewHelpers';
+import type { SpacesColumn, SpacesTask } from '../types/spaces';
 
 export const SPACES_TASKS_PAGE_SIZE = 15;
 export const COMMAND_MATRIX_TASK_LIMIT = 25;

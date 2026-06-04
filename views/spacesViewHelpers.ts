@@ -1,11 +1,36 @@
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { Goal, PlanningState } from '../types';
+import type {
+  BackendRole,
+  CreatePanelTab,
+  EmployeeOption,
+  ProjectOption,
+  SpacesColumn,
+  SpacesComment,
+  SpacesMode,
+  SpacesTask,
+  TaskFilterMode,
+  TaskPriority,
+  TaskStatus,
+  WeeklyRangeFilter,
+  WeeklyTaskGroup,
+} from '../types/spaces';
 
-export type SpacesMode = 'employee' | 'manager';
-export type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | string;
-export type TaskStatus = 'todo' | 'doing' | 'review' | 'done' | 'blocked';
-export type TaskPriority = 'low' | 'medium' | 'high';
-export type TaskFilterMode = 'all' | 'me' | 'assigned';
+export type {
+  BackendRole,
+  CreatePanelTab,
+  EmployeeOption,
+  ProjectOption,
+  SpacesColumn,
+  SpacesComment,
+  SpacesMode,
+  SpacesTask,
+  TaskFilterMode,
+  TaskPriority,
+  TaskStatus,
+  WeeklyRangeFilter,
+  WeeklyTaskGroup,
+} from '../types/spaces';
 
 /** True when the task is owned by the viewer via assignee (or unassigned + created by them). */
 export function buildEmployeeNameLookup(
@@ -77,109 +102,6 @@ export function isTaskAssignedToViewer(task: SpacesTask, viewerId?: string): boo
   if (assignee) return assignee === viewer;
   return String(task.createdByEmpId || '').trim() === viewer;
 }
-export type CreatePanelTab = 'add-task' | 'top-priorities' | 'weekly-tasks';
-export type WeeklyRangeFilter = 'this-week' | 'next-week' | 'two-weeks' | 'month';
-
-export interface ProjectOption {
-  id: string;
-  name: string;
-  vision?: string;
-}
-
-export interface EmployeeOption {
-  empId: string;
-  empName: string;
-  avatar?: string;
-  role?: BackendRole;
-}
-
-export interface SpacesColumn {
-  id: string;
-  name: string;
-}
-
-export interface SpacesComment {
-  id: string;
-  text: string;
-  fromEmpId?: string;
-  fromName?: string;
-  createdAt: string;
-  editedAt?: string;
-}
-
-export interface SpacesTask {
-  taskId: string;
-  title: string;
-  description?: string;
-  documentUrl?: string;
-  documentName?: string;
-  documentMimeType?: string;
-  projectId?: string;
-  projectTaskId?: string;
-  assigneeId?: string;
-  assigneeName?: string;
-  isViewed?: boolean;
-  dueDate?: string;
-  priority: TaskPriority;
-  status: TaskStatus;
-  recurrence?: {
-    enabled?: boolean;
-    frequency?: 'secondly' | 'minutely' | 'hourly' | 'daily' | 'weekly' | 'monthly' | '';
-    interval?: number;
-    maxOccurrences?: number;
-    generatedCount?: number;
-    nextRunAt?: string | null;
-    endDate?: string | null;
-    sourceTaskId?: string;
-    dayOfWeek?: number | null;
-    dayOfMonth?: number | null;
-    startMonth?: number | null;
-    endMonth?: number | null;
-  };
-  emailChecklist?: {
-    enabled?: boolean;
-    reminderIntervalHours?: number;
-    nextReminderAt?: string | null;
-    lastSentAt?: string | null;
-  };
-  submittedFromStatus?: string;
-  comments: SpacesComment[];
-  customFields: Record<string, string>;
-  createdByEmpId?: string;
-  createdByName?: string;
-  createdByRole?: BackendRole;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface WeeklyTaskGroup {
-  week: Goal;
-  days: Goal[];
-  month?: Goal;
-  quarter?: Goal;
-  year?: Goal;
-  yearId: string;
-  quarterId: string;
-  monthId: string;
-  weekId: string;
-  yearLabel: string;
-  quarterLabel: string;
-  monthLabel: string;
-  weekLabel: string;
-  quarterNumber: number;
-  calendarMonthNumber: number;
-  calendarMonthName: string;
-  yearWeekNumber: number;
-  breadcrumbLabel: string;
-  weekRangeLabel: string;
-  weekSummaryLabel: string;
-  weekStart: Date;
-  weekEnd: Date;
-  monthIndexInQuarter: number;
-  weekIndexInMonth: number;
-  isPlaceholderWeek?: boolean;
-  weekSelectionKey: string;
-}
 
 export function safeJsonParse<T>(raw: string | null): T | null {
   if (!raw) return null;
@@ -232,7 +154,7 @@ export const TASKHUB_TOP_PRIORITY_LIMIT = 6;
 /** Command matrix / dashboard task strips — avoid loading unbounded lists. */
 export const COMMAND_MATRIX_DISPLAY_LIMIT = 25;
 
-const TOP_PRIORITY_ACTIVE_STATUSES = new Set<TaskStatus>(['todo', 'doing', 'review', 'blocked']);
+const TOP_PRIORITY_NEARBY_FUTURE_DAYS = 7;
 
 const TOP_PRIORITY_RANK: Record<TaskPriority, number> = {
   high: 0,
@@ -252,6 +174,21 @@ function parseTopPriorityDueDate(value?: string): Date | null {
   const [year, month, day] = value.split('-').map(Number);
   if (!year || !month || !day) return null;
   return new Date(year, month - 1, day);
+}
+
+function isTopPriorityWorkComplete(status?: string) {
+  const normalized = normalizeTaskStatus(status);
+  return normalized === 'done' || normalized === 'review';
+}
+
+function isNearbyTopPriorityDueDate(dueDate?: string, todayValue = getLocalDateKey()) {
+  const due = parseTopPriorityDueDate(String(dueDate || '').trim());
+  if (!due) return false;
+  const today = parseTopPriorityDueDate(todayValue);
+  if (!today) return false;
+  const diffDays = Math.floor((due.getTime() - today.getTime()) / 86400000);
+  if (diffDays <= 0) return true;
+  return diffDays <= TOP_PRIORITY_NEARBY_FUTURE_DAYS;
 }
 
 export function compareTopPriorityTasks(left: SpacesTask, right: SpacesTask, todayValue = getLocalDateKey()) {
@@ -285,14 +222,28 @@ export function buildTopPriorityTasksForAssignee(
   if (!assignee) return [];
 
   const todayValue = getLocalDateKey();
-  const pending = tasks.filter((task) => {
+  const assigneeTasks = tasks.filter((task) => {
     if (String(task.assigneeId || '').trim() !== assignee) return false;
-    if (!TOP_PRIORITY_ACTIVE_STATUSES.has(normalizeTaskStatus(task.status))) return false;
     if (!String(task.title || '').trim()) return false;
     return true;
   });
 
-  return [...pending].sort((left, right) => compareTopPriorityTasks(left, right, todayValue)).slice(0, limit);
+  const incomplete = assigneeTasks.filter((task) => !isTopPriorityWorkComplete(task.status));
+  const nearbyIncomplete = incomplete.filter((task) => isNearbyTopPriorityDueDate(task.dueDate, todayValue));
+  const otherIncomplete = incomplete.filter((task) => !isNearbyTopPriorityDueDate(task.dueDate, todayValue));
+
+  const hasNearbyDueTasks = assigneeTasks.some((task) => isNearbyTopPriorityDueDate(task.dueDate, todayValue));
+  const allNearbyDueWorkComplete =
+    hasNearbyDueTasks &&
+    assigneeTasks
+      .filter((task) => isNearbyTopPriorityDueDate(task.dueDate, todayValue))
+      .every((task) => isTopPriorityWorkComplete(task.status));
+
+  const candidates = allNearbyDueWorkComplete ? incomplete : [...nearbyIncomplete, ...otherIncomplete];
+
+  return [...candidates]
+    .sort((left, right) => compareTopPriorityTasks(left, right, todayValue))
+    .slice(0, limit);
 }
 
 export function buildCommandMatrixTopPriorityTasks(options: {
