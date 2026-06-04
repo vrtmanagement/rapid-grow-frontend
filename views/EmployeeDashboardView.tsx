@@ -18,6 +18,8 @@ import ExecutionMatrix from '../components/dashboard/ExecutionMatrix';
 import { usePermissions } from '../context/usePermissions';
 import { getSocket } from '../realtime/socket';
 import { AttendanceSummaryResponse, getHoursColor } from '../components/attendance/attendanceUtils';
+import type { UIConfig } from '../types';
+import { DEFAULT_UI_CONFIG } from '../appSeedConstants';
 
 interface Project {
   clientProjectId: string;
@@ -412,7 +414,11 @@ function getTrendMeta(trend: TrendDirection) {
   };
 }
 
-const EmployeeDashboardView: React.FC = () => {
+interface EmployeeDashboardProps {
+  uiConfig?: UIConfig;
+}
+
+const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DEFAULT_UI_CONFIG }) => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [widgetsLoading, setWidgetsLoading] = useState(true);
@@ -645,11 +651,12 @@ const EmployeeDashboardView: React.FC = () => {
           <>
             <div className="flex items-center gap-2 mb-3">
               <div className="h-1.5 w-8 bg-brand-red rounded-full" />
-              <span className="text-[15px] text-slate-500">Your Workspace</span>
+              <span className="text-[15px] text-slate-500">Your workspace</span>
             </div>
-            <h2 className="text-4xl text-slate-900 leading-none">Dashboard</h2>
-            <p className="text-slate-500 text-lg mt-3">
-              Projects you are assigned to as Champion, Lead, or Team Member
+            <h2 className="text-4xl text-slate-900 leading-none">{uiConfig.dashboardTitle}</h2>
+            <p className="text-slate-500 text-lg mt-3">{uiConfig.dashboardSub}</p>
+            <p className="text-slate-400 text-sm mt-2">
+              Project charters you are assigned to as Champion, Lead, or Team Member
             </p>
           </>
         )}

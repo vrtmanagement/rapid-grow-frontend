@@ -8,6 +8,68 @@ export type TaskPriority = 'low' | 'medium' | 'high';
 export type TaskFilterMode = 'all' | 'me' | 'assigned';
 
 /** True when the task is owned by the viewer via assignee (or unassigned + created by them). */
+export function buildEmployeeNameLookup(
+  employees: Array<{ empId?: string; empName?: string; _id?: string }>,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  employees.forEach((employee) => {
+    const empName = String(employee.empName || '').trim();
+    if (!empName) return;
+    const empId = String(employee.empId || '').trim();
+    if (empId) map.set(empId, empName);
+    const recordId = String(employee._id || '').trim();
+    if (recordId) map.set(recordId, empName);
+  });
+  return map;
+}
+
+export function resolveEmployeeDisplayName(
+  id?: string,
+  cachedName?: string,
+  nameById?: Map<string, string>,
+): string {
+  const trimmedName = String(cachedName || '').trim();
+  if (trimmedName) return trimmedName;
+  const key = String(id || '').trim();
+  if (!key || !nameById) return '';
+  return nameById.get(key) || '';
+}
+
+export function resolveAssigneeLabel(
+  assigneeId?: string,
+  assigneeName?: string,
+  nameById?: Map<string, string>,
+): string {
+  const resolved = resolveEmployeeDisplayName(assigneeId, assigneeName, nameById);
+  if (resolved) return resolved;
+  const key = String(assigneeId || '').trim();
+  if (!key) return 'Unassigned';
+  return 'Unknown user';
+}
+
+export function enrichTasksWithEmployeeNames<T extends SpacesTask>(
+  tasks: T[],
+  nameById: Map<string, string>,
+): T[] {
+  if (!nameById.size) return tasks;
+  return tasks.map((task) => {
+    const assigneeName = resolveEmployeeDisplayName(task.assigneeId, task.assigneeName, nameById);
+    const createdByName = resolveEmployeeDisplayName(
+      task.createdByEmpId,
+      task.createdByName,
+      nameById,
+    );
+    if (assigneeName === task.assigneeName && createdByName === task.createdByName) {
+      return task;
+    }
+    return {
+      ...task,
+      assigneeName: assigneeName || task.assigneeName,
+      createdByName: createdByName || task.createdByName,
+    };
+  });
+}
+
 export function isTaskAssignedToViewer(task: SpacesTask, viewerId?: string): boolean {
   const viewer = String(viewerId || '').trim();
   if (!viewer) return false;
@@ -162,6 +224,142 @@ export function normalizeTaskStatus(status?: string): TaskStatus {
   if (['done', 'completed', 'complete', 'closed'].includes(normalized)) return 'done';
   if (['blocked', 'on_hold', 'hold'].includes(normalized)) return 'blocked';
   return 'todo';
+}
+
+/** Matches TaskHub sidebar "Top Priorities" (up to 6 active items per assignee). */
+export const TASKHUB_TOP_PRIORITY_LIMIT = 6;
+
+const TOP_PRIORITY_ACTIVE_STATUSES = new Set<TaskStatus>(['todo', 'doing', 'review', 'blocked']);
+
+const TOP_PRIORITY_RANK: Record<TaskPriority, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+};
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseTopPriorityDueDate(value?: string): Date | null {
+  if (!value) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+export function compareTopPriorityTasks(left: SpacesTask, right: SpacesTask, todayValue = getLocalDateKey()) {
+  const leftCompleted = left.status === 'review';
+  const rightCompleted = right.status === 'review';
+  if (leftCompleted !== rightCompleted) return leftCompleted ? 1 : -1;
+
+  const leftDueDate = String(left.dueDate || '').trim();
+  const rightDueDate = String(right.dueDate || '').trim();
+  const leftIsToday = Boolean(todayValue && leftDueDate === todayValue);
+  const rightIsToday = Boolean(todayValue && rightDueDate === todayValue);
+  if (leftIsToday !== rightIsToday) return leftIsToday ? -1 : 1;
+
+  const priorityDiff = TOP_PRIORITY_RANK[left.priority] - TOP_PRIORITY_RANK[right.priority];
+  if (priorityDiff !== 0) return priorityDiff;
+
+  const leftDue = parseTopPriorityDueDate(leftDueDate)?.getTime() || Number.MAX_SAFE_INTEGER;
+  const rightDue = parseTopPriorityDueDate(rightDueDate)?.getTime() || Number.MAX_SAFE_INTEGER;
+  if (leftDue !== rightDue) return leftDue - rightDue;
+
+  return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+}
+
+/** Same selection rules as TaskHub → Top Priorities for one assignee. */
+export function buildTopPriorityTasksForAssignee(
+  tasks: SpacesTask[],
+  assigneeId: string,
+  limit = TASKHUB_TOP_PRIORITY_LIMIT,
+): SpacesTask[] {
+  const assignee = String(assigneeId || '').trim();
+  if (!assignee) return [];
+
+  const todayValue = getLocalDateKey();
+  const pending = tasks.filter((task) => {
+    if (String(task.assigneeId || '').trim() !== assignee) return false;
+    if (!TOP_PRIORITY_ACTIVE_STATUSES.has(normalizeTaskStatus(task.status))) return false;
+    if (!String(task.title || '').trim()) return false;
+    return true;
+  });
+
+  return [...pending].sort((left, right) => compareTopPriorityTasks(left, right, todayValue)).slice(0, limit);
+}
+
+export function buildCommandMatrixTopPriorityTasks(options: {
+  tasks: SpacesTask[];
+  viewerEmpId: string;
+  viewerRole: BackendRole;
+  employees: EmployeeOption[];
+  teamMemberEmpIds: Set<string>;
+  employeeById: Map<string, EmployeeOption>;
+  viewScope?: 'individual' | 'team';
+}): SpacesTask[] {
+  const {
+    tasks,
+    viewerEmpId,
+    viewerRole,
+    employees,
+    teamMemberEmpIds,
+    employeeById,
+    viewScope = 'team',
+  } = options;
+  const role = normalizeRole(viewerRole);
+  const viewer = { id: viewerEmpId, role };
+  const todayValue = getLocalDateKey();
+  const seenTaskIds = new Set<string>();
+  const merged: SpacesTask[] = [];
+
+  const pushUnique = (items: SpacesTask[]) => {
+    items.forEach((task) => {
+      if (!task?.taskId || seenTaskIds.has(task.taskId)) return;
+      seenTaskIds.add(task.taskId);
+      merged.push(task);
+    });
+  };
+
+  const visiblePool = tasks.filter((task) => {
+    const assigneeId = String(task.assigneeId || '').trim();
+    if (!assigneeId) return false;
+    if (role === 'TEAM_LEAD') {
+      if (!teamMemberEmpIds.has(assigneeId)) return false;
+      return !shouldHideAdminTaskFromViewer(task, viewer, employeeById, teamMemberEmpIds);
+    }
+    return true;
+  });
+
+  if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
+    const assigneeIds = new Set<string>();
+    employees.forEach((employee) => {
+      const memberRole = normalizeRole(employee.role || 'EMPLOYEE');
+      if (memberRole === 'TEAM_LEAD' || memberRole === 'EMPLOYEE') {
+        assigneeIds.add(employee.empId);
+      }
+    });
+    visiblePool.forEach((task) => {
+      const assigneeId = String(task.assigneeId || '').trim();
+      if (assigneeId) assigneeIds.add(assigneeId);
+    });
+
+    Array.from(assigneeIds).forEach((assigneeId) => {
+      pushUnique(buildTopPriorityTasksForAssignee(visiblePool, assigneeId));
+    });
+  } else if (role === 'TEAM_LEAD') {
+    Array.from(teamMemberEmpIds).forEach((assigneeId) => {
+      pushUnique(buildTopPriorityTasksForAssignee(visiblePool, assigneeId));
+    });
+  } else if (viewerEmpId) {
+    const pool = visiblePool.filter((task) => isTaskAssignedToViewer(task, viewerEmpId));
+    pushUnique(buildTopPriorityTasksForAssignee(pool, viewerEmpId));
+  }
+
+  return merged.sort((left, right) => compareTopPriorityTasks(left, right, todayValue));
 }
 
 export function normalizeTaskForUi(task: SpacesTask): SpacesTask {
@@ -672,7 +870,9 @@ export function canEditTaskForView(t: SpacesTask, me: { id?: string; role?: Back
 
 export function canDeleteTaskForView(t: SpacesTask, me: { id?: string; role?: BackendRole }, mode: SpacesMode): boolean {
   const role = (me.role || '').toUpperCase() as BackendRole;
-  if (mode === 'employee') return t.createdByEmpId === me.id;
+  if (mode === 'employee') {
+    return t.createdByEmpId === me.id || t.assigneeId === me.id;
+  }
   if (role === 'SUPER_ADMIN' || role === 'ADMIN') return true;
   if (role === 'TEAM_LEAD') {
     if (t.createdByEmpId === me.id) return true;

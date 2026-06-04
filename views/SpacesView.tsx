@@ -39,6 +39,7 @@ import {
   canEditDueDateForView,
   canEditTaskForView,
   canValidateTaskForView,
+  buildTopPriorityTasksForAssignee,
   buildWeeklyTaskCustomFields,
   buildWeeklyTaskGroups,
   createDaysForWeekHelper,
@@ -913,63 +914,56 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     }
   };
 
-  const deleteTask = async (taskId: string) => {
+  const deleteTask = async (taskId: string, options?: { bulk?: boolean }) => {
     setError(null);
-    const existing = tasks.find((task) => task.taskId === taskId) || null;
-    if (!existing) return true;
+    const normalizedTaskId = String(taskId || '').trim();
+    if (!normalizedTaskId) return false;
 
-    setTasks((prev) => prev.filter((task) => task.taskId !== taskId));
-
-    let backendProject: any = null;
-    let existingProjectTasks: any[] = [];
+    const existing = tasks.find((task) => task.taskId === normalizedTaskId) || null;
 
     try {
-      if (existing.projectId && existing.projectTaskId) {
-        const resProject = await fetch(`${API_BASE}/project-charters/${existing.projectId}`, {
-          headers: getAuthHeaders(),
-        });
-        if (!resProject.ok) {
-          throw new Error('Failed to load project details');
-        }
-
-        backendProject = await resProject.json().catch(() => ({}));
-        existingProjectTasks = Array.isArray(backendProject?.tasks) ? backendProject.tasks : [];
-        const updatedProjectTasks = existingProjectTasks.filter(
-          (projectTask: any) => String(projectTask?.id || '').trim() !== String(existing.projectTaskId || '').trim(),
-        );
-
-        const resSaveProject = await fetch(`${API_BASE}/project-charters`, {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify(projectCharterPayloadFromBackendProject(backendProject, updatedProjectTasks)),
-        });
-        if (!resSaveProject.ok) {
-          const data = await resSaveProject.json().catch(() => ({}));
-          throw new Error(data.message || 'Failed to sync project task deletion');
-        }
-      }
-
-      const res = await fetch(`${API_BASE}/spaces/tasks/${taskId}`, {
+      const res = await fetch(`${API_BASE}/spaces/tasks/${encodeURIComponent(normalizedTaskId)}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (backendProject && existing.projectId && existing.projectTaskId) {
-          await fetch(`${API_BASE}/project-charters`, {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify(projectCharterPayloadFromBackendProject(backendProject, existingProjectTasks)),
-          }).catch(() => undefined);
-        }
         throw new Error(data.message || 'Failed to delete task');
       }
 
-      removeProjectTaskFromState(existing.projectId, existing.projectTaskId);
+      setTasks((prev) => prev.filter((task) => task.taskId !== normalizedTaskId));
+      if (existing?.projectId && existing?.projectTaskId) {
+        removeProjectTaskFromState(existing.projectId, existing.projectTaskId);
+        try {
+          const resProject = await fetch(`${API_BASE}/project-charters/${existing.projectId}`, {
+            headers: getAuthHeaders(),
+          });
+          if (resProject.ok) {
+            const backendProject = await resProject.json().catch(() => ({}));
+            const existingProjectTasks = Array.isArray(backendProject?.tasks) ? backendProject.tasks : [];
+            const updatedProjectTasks = existingProjectTasks.filter(
+              (projectTask: any) =>
+                String(projectTask?.id || '').trim() !== String(existing.projectTaskId || '').trim(),
+            );
+            await fetch(`${API_BASE}/project-charters`, {
+              method: 'POST',
+              headers: getAuthHeaders(),
+              body: JSON.stringify(
+                projectCharterPayloadFromBackendProject(backendProject, updatedProjectTasks),
+              ),
+            });
+          }
+        } catch (projectSyncError) {
+          console.error('Failed to sync project task deletion', projectSyncError);
+        }
+      }
+
       return true;
     } catch (e: any) {
       setError(e?.message || 'Failed to delete task');
-      loadSpaces();
+      if (!options?.bulk) {
+        await loadSpaces({ silent: true });
+      }
       return false;
     }
   };
@@ -1317,13 +1311,13 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const filteredTasks = useMemo(() => {
     let list = visibleTasks;
 
-    if (canUseAssigneeFilter && taskAssigneeFilterId) {
-      list = list.filter((t) => String(t.assigneeId || '').trim() === taskAssigneeFilterId);
-    } else if (taskFilterMode === 'me' && me.id) {
+    if (taskFilterMode === 'me' && me.id) {
       list = list.filter((t) => taskBelongsToMe(t));
     } else if (taskFilterMode === 'assigned' && me.id) {
       list = list.filter(
-        (t) => t.assigneeId === me.id && t.createdByEmpId !== me.id,
+        (t) =>
+          String(t.assigneeId || '').trim() === me.id &&
+          String(t.createdByEmpId || '').trim() !== me.id,
       );
     }
 
@@ -1339,7 +1333,9 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     if (!term) return list;
 
     return list.filter((t) => {
-      const assigneeName = t.assigneeId ? employeeNameById.get(t.assigneeId) || '' : '';
+      const assigneeName = t.assigneeId
+        ? employeeNameById.get(t.assigneeId) || t.assigneeName || ''
+        : '';
       const createdByName = t.createdByName || '';
       const createdById = t.createdByEmpId || '';
       const assigneeId = t.assigneeId || '';
@@ -1348,7 +1344,11 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
         assigneeId.toLowerCase().includes(term) ||
         assigneeName.toLowerCase().includes(term) ||
         createdById.toLowerCase().includes(term) ||
-        createdByName.toLowerCase().includes(term)
+        createdByName.toLowerCase().includes(term) ||
+        String(t.title || '').toLowerCase().includes(term) ||
+        String(t.description || '').toLowerCase().includes(term) ||
+        String(t.taskId || '').toLowerCase().includes(term) ||
+        String(t.projectId || '').toLowerCase().includes(term)
       );
     });
   }, [
@@ -1359,8 +1359,6 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     me.id,
     employeeNameById,
     taskBelongsToMe,
-    canUseAssigneeFilter,
-    taskAssigneeFilterId,
   ]);
 
   const monthGoalSourceTasks = useMemo(() => {
@@ -1391,46 +1389,18 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     return copy;
   }, [filteredTasks, mode]);
   const topPriorityTasks = useMemo(() => {
-    const activePriorityStatuses = new Set<TaskStatus>(['todo', 'doing', 'review', 'blocked']);
-    const today = new Date();
-    const todayValue = [
-      today.getFullYear(),
-      String(today.getMonth() + 1).padStart(2, '0'),
-      String(today.getDate()).padStart(2, '0'),
-    ].join('-');
-    const pending = visibleTasks.filter((task) => {
+    const assigneeTarget =
+      canUseAssigneeFilter && taskAssigneeFilterId ? taskAssigneeFilterId : me.id;
+    if (!assigneeTarget) return [];
+
+    const pool = visibleTasks.filter((task) => {
       if (canUseAssigneeFilter && taskAssigneeFilterId) {
-        if (String(task.assigneeId || '').trim() !== taskAssigneeFilterId) return false;
-      } else if (me.id && !taskBelongsToMe(task)) {
-        return false;
+        return String(task.assigneeId || '').trim() === taskAssigneeFilterId;
       }
-      if (!activePriorityStatuses.has(task.status)) return false;
-      if (!String(task.title || '').trim()) return false;
-      return true;
+      return taskBelongsToMe(task);
     });
-    const priorityRank: Record<TaskPriority, number> = {
-      high: 0,
-      medium: 1,
-      low: 2,
-    };
-    return [...pending]
-      .sort((a, b) => {
-        const aCompleted = a.status === 'review';
-        const bCompleted = b.status === 'review';
-        if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
-        const aDueDate = String(a.dueDate || '').trim();
-        const bDueDate = String(b.dueDate || '').trim();
-        const aIsToday = Boolean(todayValue && aDueDate === todayValue);
-        const bIsToday = Boolean(todayValue && bDueDate === todayValue);
-        if (aIsToday !== bIsToday) return aIsToday ? -1 : 1;
-        const priorityDiff = priorityRank[a.priority] - priorityRank[b.priority];
-        if (priorityDiff !== 0) return priorityDiff;
-        const aDue = parseDateValue(aDueDate)?.getTime() || Number.MAX_SAFE_INTEGER;
-        const bDue = parseDateValue(bDueDate)?.getTime() || Number.MAX_SAFE_INTEGER;
-        if (aDue !== bDue) return aDue - bDue;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      })
-      .slice(0, 6);
+
+    return buildTopPriorityTasksForAssignee(pool, assigneeTarget);
   }, [visibleTasks, me.id, taskBelongsToMe, canUseAssigneeFilter, taskAssigneeFilterId]);
 
   const weeklyTaskGroups = useMemo<WeeklyTaskGroup[]>(
@@ -2310,25 +2280,35 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
 
   const deleteSelectedTasks = async () => {
     if (!selectedTasks.length || bulkSaving) return;
-    const deletableTasks = selectedTasks.filter((task) => canSelectTask(task) && canDeleteTask(task));
+
+    const deletableTasks = selectedTasks.filter((task) => canDeleteTask(task));
     if (!deletableTasks.length) {
       setError('No selected tasks can be deleted.');
       return;
     }
 
+    setDeleteTaskModal(null);
     setBulkSaving(true);
     setError(null);
+
+    let failedCount = 0;
     try {
       for (const task of deletableTasks) {
-        const ok = await deleteTask(task.taskId);
-        if (!ok) {
-          throw new Error('One or more selected tasks could not be deleted.');
-        }
+        const ok = await deleteTask(task.taskId, { bulk: true });
+        if (!ok) failedCount += 1;
+      }
+      if (failedCount > 0) {
+        throw new Error(
+          failedCount === deletableTasks.length
+            ? 'Failed to delete selected tasks.'
+            : `Failed to delete ${failedCount} of ${deletableTasks.length} selected task(s).`,
+        );
       }
       clearSelectedTasks();
       setBulkDeleteTaskModalOpen(false);
     } catch (e: any) {
       setError(e?.message || 'Failed to delete selected tasks');
+      await loadSpaces({ silent: true });
     } finally {
       setBulkSaving(false);
     }

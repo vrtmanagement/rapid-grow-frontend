@@ -13,7 +13,7 @@ export const DEFAULT_POWERS: Record<string, string[]> = {
 export const DEFAULT_UI_CONFIG: UIConfig = {
   sidebarLogoName: 'Rapid Grow',
   dashboardTitle: 'Command Matrix',
-  dashboardSub: 'Elite Visibility And Operational Velocity Via Rapid Grow OS.',
+  dashboardSub: 'Your home for projects, tasks, attendance, and weekly performance.',
   operationsTitle: 'Project Charters',
   operationsSub: 'Enterprise Mission Control & Execution Hub',
   commsTitle: 'Communications Hub',
