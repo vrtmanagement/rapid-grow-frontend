@@ -299,8 +299,8 @@ export function MessageBubble({
   const bubbleBase = message.deleted
     ? 'bg-slate-100 text-slate-500 border-slate-200 shadow-none'
     : isOwn
-      ? 'bg-[#e7f0ff] text-slate-900 border-[#d4e2fb] shadow-[0_10px_22px_rgba(37,99,235,0.08)]'
-      : 'bg-white text-slate-900 border-slate-200 shadow-[0_10px_24px_rgba(15,23,42,0.05)]';
+      ? 'bg-[#f0f7ff] text-slate-900 border-[#dbeafe] shadow-none'
+      : 'bg-white text-slate-900 border-slate-200 shadow-none';
   const isFirstInGroup = groupPosition === 'single' || groupPosition === 'first';
   const isLastInGroup = groupPosition === 'single' || groupPosition === 'last';
   const showAvatar = isOwn ? isLastInGroup : isFirstInGroup;
@@ -426,15 +426,15 @@ export function MessageBubble({
           </button>
           <div className="relative min-w-0">
             <div
-              className={`absolute top-2 z-30 ${isOwn ? 'right-2' : 'left-full ml-2'}`}
+              className={`absolute top-2.5 z-30 ${isOwn ? 'right-2' : 'left-full ml-2'}`}
               ref={menuRef}
             >
               <button
                 type="button"
-                className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-all ${
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-full border shadow-sm transition-all ${
                   menuOpen
                     ? 'border-slate-200 bg-white text-slate-700 opacity-100 shadow-sm'
-                    : 'border-slate-200 bg-white/90 text-slate-600 opacity-0 group-hover:opacity-100 hover:bg-white'
+                    : 'invisible border-slate-200 bg-white text-slate-600 opacity-0 translate-y-1 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 hover:bg-white'
                 }`}
                 onClick={() => setMenuOpen((v) => !v)}
                 aria-label="Message actions"
@@ -588,7 +588,7 @@ export function MessageBubble({
                 <span
                   className={`communication-message-tail absolute h-3 w-3 border ${
                     isOwn
-                      ? 'communication-message-tail-own -right-[6px] bottom-3 rounded-br-[10px] border-y border-r border-l-0 border-[#d4e2fb] bg-[#e7f0ff]'
+                      ? 'communication-message-tail-own -right-[6px] bottom-3 rounded-br-[10px] border-y border-r border-l-0 border-[#dbeafe] bg-[#f0f7ff]'
                       : 'communication-message-tail-peer -left-[6px] top-3 rounded-bl-[10px] border-y border-l border-r-0 border-slate-200 bg-white'
                   }`}
                   aria-hidden
