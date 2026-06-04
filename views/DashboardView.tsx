@@ -3,6 +3,7 @@ import { PlanningState } from '../types';
 import { Target, TrendingUp, Award, Users, CheckCircle2, Zap, User, UserPlus, Shield, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
+import { fetchSpacesList, SPACES_PLANNER_FETCH_LIMIT } from '../services/spacesApi';
 import { AdminCardGridSkeleton, SkeletonBlock } from '../components/ui/Skeleton';
 import ExecutionMatrix from '../components/dashboard/ExecutionMatrix';
 import PageSectionSubnav from '../components/layout/PageSectionSubnav';
@@ -16,6 +17,7 @@ import {
   normalizeRole,
   resolveAssigneeLabel,
   TASKHUB_TOP_PRIORITY_LIMIT,
+  COMMAND_MATRIX_DISPLAY_LIMIT,
   type BackendRole,
   type EmployeeOption,
   type SpacesTask,
@@ -130,17 +132,17 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
       setTasksError(null);
     }
     try {
-      const [spacesRes, employeesRes] = await Promise.all([
-        fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() }),
+      const [spacesPayload, employeesRes] = await Promise.all([
+        fetchSpacesList({
+          scope: 'planner',
+          page: 1,
+          limit: SPACES_PLANNER_FETCH_LIMIT,
+          filter: 'all',
+          sync: '1',
+        }),
         fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() }),
       ]);
 
-      if (!spacesRes.ok) {
-        const payload = await spacesRes.json().catch(() => ({}));
-        throw new Error(payload.message || 'Failed to load TaskHub tasks');
-      }
-
-      const spacesPayload = await spacesRes.json().catch(() => ({}));
       const tasks = Array.isArray(spacesPayload?.tasks) ? (spacesPayload.tasks as SpacesTask[]) : [];
       setTaskHubTasks(tasks);
 
@@ -220,7 +222,7 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
     [taskHubTasks, employeeNameById],
   );
 
-  const priorityPanelTasks = useMemo(
+  const priorityPanelTasksAll = useMemo(
     () =>
       buildCommandMatrixTopPriorityTasks({
         tasks: taskHubTasksWithNames,
@@ -241,6 +243,13 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
       viewScope,
     ],
   );
+
+  const priorityPanelTasks = useMemo(
+    () => priorityPanelTasksAll.slice(0, COMMAND_MATRIX_DISPLAY_LIMIT),
+    [priorityPanelTasksAll],
+  );
+
+  const priorityPanelHasMore = priorityPanelTasksAll.length > COMMAND_MATRIX_DISPLAY_LIMIT;
 
   const priorityPanelSubtitle = useMemo(() => {
     const count = priorityPanelTasks.length;
@@ -629,6 +638,15 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
                          </Link>
                        );
                      })}
+                   {!showTaskHubSkeleton && priorityPanelHasMore ? (
+                     <p className="border-t border-white/10 pt-4 text-center text-sm text-slate-400">
+                       Many tasks in TaskHub.{' '}
+                       <Link to="/spaces" className="font-semibold text-brand-red hover:text-white">
+                         Open TaskHub
+                       </Link>{' '}
+                       to see the full list.
+                     </p>
+                   ) : null}
                    {!showTaskHubSkeleton && priorityPanelTasks.length === 0 && (
                     <div className="text-center py-10">
                       <p className="text-slate-400 text-md">No Top Priorities right now</p>

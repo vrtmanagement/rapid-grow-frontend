@@ -1,4 +1,4 @@
-import { API_BASE } from '../config/api';
+import { API_BASE, apiFetchJson, apiGetJson } from '../config/api';
 
 export type ContentType = 'general' | 'linkedin' | 'youtube' | 'website' | 'newsletter';
 export type ContentDraftMode = 'calendar' | 'follow-ee' | 'follow-ega' | 'auto-add' | 'blog';
@@ -101,15 +101,11 @@ function authHeadersMultipart(): Record<string, string> {
 }
 
 export async function apiListContent() {
-  const res = await fetch(`${API_BASE}/content`, { headers: authHeadersJson() });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load content');
-  return res.json() as Promise<{ items: ContentItem[] }>;
+  return apiGetJson<{ items: ContentItem[] }>('/content');
 }
 
 export async function apiGetContent(contentId: string) {
-  const res = await fetch(`${API_BASE}/content/${encodeURIComponent(contentId)}`, { headers: authHeadersJson() });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load content item');
-  return res.json() as Promise<{ item: ContentItem }>;
+  return apiGetJson<{ item: ContentItem }>(`/content/${encodeURIComponent(contentId)}`);
 }
 
 export async function apiUploadContentFile(file: File) {
@@ -134,35 +130,29 @@ export async function apiCreateContent(payload: {
   coverImage?: ContentAsset | null;
   attachments: ContentAsset[];
 }) {
-  const res = await fetch(`${API_BASE}/content`, {
+  return apiFetchJson<{ item: ContentItem }>('/content', {
     method: 'POST',
     headers: authHeadersJson(),
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to create content');
-  return res.json() as Promise<{ item: ContentItem }>;
 }
 
 export async function apiUpdateContent(
   contentId: string,
   payload: Partial<Pick<ContentItem, 'title' | 'description' | 'type' | 'contentDate' | 'channelKey' | 'attachments'>>
 ) {
-  const res = await fetch(`${API_BASE}/content/${encodeURIComponent(contentId)}`, {
+  return apiFetchJson<{ item: ContentItem }>(`/content/${encodeURIComponent(contentId)}`, {
     method: 'PATCH',
     headers: authHeadersJson(),
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to update content');
-  return res.json() as Promise<{ item: ContentItem }>;
 }
 
 export async function apiDeleteContent(contentId: string) {
-  const res = await fetch(`${API_BASE}/content/${encodeURIComponent(contentId)}`, {
+  return apiFetchJson<{ ok: boolean; contentId: string }>(`/content/${encodeURIComponent(contentId)}`, {
     method: 'DELETE',
     headers: authHeadersJson(),
   });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to delete content');
-  return res.json() as Promise<{ ok: boolean; contentId: string }>;
 }
 
 export async function apiAddContentComment(contentId: string, text: string, parentCommentId?: string) {
@@ -195,9 +185,7 @@ export async function apiDeleteContentComment(contentId: string, commentId: stri
 }
 
 export async function apiListChannels() {
-  const res = await fetch(`${API_BASE}/content/channels`, { headers: authHeadersJson() });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load channels');
-  return res.json() as Promise<{ channels: ContentChannel[] }>;
+  return apiGetJson<{ channels: ContentChannel[] }>('/content/channels');
 }
 
 export async function apiCreateChannel(payload: { title: string; subtitle?: string; type?: ContentType; channelKey?: string }) {
@@ -211,11 +199,7 @@ export async function apiCreateChannel(payload: { title: string; subtitle?: stri
 }
 
 export async function apiGetContentDraft(mode: ContentDraftMode) {
-  const res = await fetch(`${API_BASE}/content/drafts/${encodeURIComponent(mode)}`, {
-    headers: authHeadersJson(),
-  });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load content draft');
-  return res.json() as Promise<{ draft: ContentDraftRecord | null }>;
+  return apiGetJson<{ draft: ContentDraftRecord | null }>(`/content/drafts/${encodeURIComponent(mode)}`);
 }
 
 export async function apiUpsertContentDraft(mode: ContentDraftMode, payload: ContentDraftPayload) {

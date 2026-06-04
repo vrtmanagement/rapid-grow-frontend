@@ -1,18 +1,29 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
+  BadgeCheck,
   Bell,
   BriefcaseBusiness,
   Building2,
+  Calendar,
   Camera,
+  ChartLine,
   Check,
-  Globe,
+  Hash,
+  KeyRound,
+  Lock,
   Mail,
+  Network,
+  Palette,
   Phone,
+  ScrollText,
   Shield,
   User,
   X,
 } from 'lucide-react';
+import AuditLogsView from './AuditLogsView';
+import { usePermissions } from '../context/usePermissions';
+import AnalysisView from './AnalysisView';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { fetchOrgChart } from '../services/p3Api';
 import { PlanningState, TeamMember } from '../types';
@@ -23,15 +34,33 @@ import ThemeLanguagePanel from '../components/settings/ThemeLanguagePanel';
 import { getDisplayAvatarUrl, notifyProfileAvatarUpdated, persistSessionEmployeeAvatar } from '../utils/avatar';
 import type { AttendanceSummaryResponse, LeaveRequest } from '../components/attendance/attendanceUtils';
 import DataPrivacyView from './DataPrivacyView';
+import PermissionsView from './PermissionsView';
 
 interface Props {
   state: PlanningState;
   updateState: (updater: (prev: PlanningState) => PlanningState) => void;
 }
 
-type SettingsTab = 'profile' | 'notifications' | 'security' | 'appearance' | 'privacy';
+type SettingsTab =
+  | 'profile'
+  | 'notifications'
+  | 'security'
+  | 'appearance'
+  | 'analysis'
+  | 'privacy'
+  | 'permissions'
+  | 'audit-log';
 
-const SETTINGS_TABS: SettingsTab[] = ['profile', 'notifications', 'security', 'appearance', 'privacy'];
+const SETTINGS_TABS: SettingsTab[] = [
+  'profile',
+  'notifications',
+  'security',
+  'appearance',
+  'analysis',
+  'privacy',
+  'permissions',
+  'audit-log',
+];
 
 const isSettingsTab = (value: string | null): value is SettingsTab => (
   !!value && SETTINGS_TABS.includes(value as SettingsTab)
@@ -109,6 +138,7 @@ const buildAttendanceStats = (summary?: AttendanceSummaryResponse | null, employ
 const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { hasPermission } = usePermissions();
   const [employee, setEmployee] = useState<any>(null);
   const [profileName, setProfileName] = useState('');
   const [profileDesignation, setProfileDesignation] = useState('');
@@ -131,15 +161,22 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
   const [projectsInvolvedCount, setProjectsInvolvedCount] = useState<number | null>(null);
   const optimisticAvatarRef = useRef<{ url: string; expiresAt: number } | null>(null);
   const canAccessPrivacyTab = ['ADMIN', 'SUPER_ADMIN'].includes(String(employee?.role || '').toUpperCase());
+  const canAccessPermissionsTab = canAccessPrivacyTab;
+  const canAccessAuditLogTab = canAccessPrivacyTab;
+  const canAccessAnalysisTab = hasPermission('ANALYSIS_VIEW');
 
   useEffect(() => {
     const params = new URLSearchParams(location.search || '');
     const requestedTab = params.get('tab');
     const nextTab = isSettingsTab(requestedTab) ? requestedTab : 'profile';
-    const resolvedTab = nextTab === 'privacy' && !canAccessPrivacyTab ? 'profile' : nextTab;
+    let resolvedTab = nextTab;
+    if (resolvedTab === 'privacy' && !canAccessPrivacyTab) resolvedTab = 'profile';
+    if (resolvedTab === 'permissions' && !canAccessPermissionsTab) resolvedTab = 'profile';
+    if (resolvedTab === 'analysis' && !canAccessAnalysisTab) resolvedTab = 'profile';
+    if (resolvedTab === 'audit-log' && !canAccessAuditLogTab) resolvedTab = 'profile';
 
     setActiveSettingsTab((currentTab) => (currentTab === resolvedTab ? currentTab : resolvedTab));
-  }, [canAccessPrivacyTab, location.search]);
+  }, [canAccessAnalysisTab, canAccessAuditLogTab, canAccessPermissionsTab, canAccessPrivacyTab, location.search]);
 
   const handleSettingsTabChange = useCallback((nextTab: SettingsTab) => {
     setActiveSettingsTab(nextTab);
@@ -485,22 +522,25 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
     { key: 'profile' as SettingsTab, label: 'Profile', icon: User },
     { key: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell },
     { key: 'security' as SettingsTab, label: 'Security', icon: Shield },
-    { key: 'appearance' as SettingsTab, label: 'Appearance', icon: Globe },
-    ...(canAccessPrivacyTab ? [{ key: 'privacy' as SettingsTab, label: 'Data & privacy', icon: Shield }] : []),
+    { key: 'appearance' as SettingsTab, label: 'Appearance', icon: Palette },
+    ...(canAccessAnalysisTab ? [{ key: 'analysis' as SettingsTab, label: 'Analysis', icon: ChartLine }] : []),
+    ...(canAccessPrivacyTab ? [{ key: 'privacy' as SettingsTab, label: 'Data & privacy', icon: Lock }] : []),
+    ...(canAccessPermissionsTab ? [{ key: 'permissions' as SettingsTab, label: 'Permissions', icon: KeyRound }] : []),
+    ...(canAccessAuditLogTab ? [{ key: 'audit-log' as SettingsTab, label: 'Audit log', icon: ScrollText }] : []),
   ];
 
   const employmentCards = [
-    { label: 'Reports / Created By', value: reportsToName || '-', icon: User },
-    { label: 'Join Date', value: formatDateLabel(employee?.createdAt || employee?.joinDate), icon: BriefcaseBusiness },
-    { label: 'Projects Involved', value: String(projectsInvolvedCount ?? 0), icon: Building2 },
-    { label: 'Employee ID', value: employee?.empId || '-', icon: User },
+    { label: 'Reports / Created By', value: reportsToName || '-', icon: Network },
+    { label: 'Join Date', value: formatDateLabel(employee?.createdAt || employee?.joinDate), icon: Calendar },
+    { label: 'Projects Involved', value: String(projectsInvolvedCount ?? 0), icon: BriefcaseBusiness },
+    { label: 'Employee ID', value: employee?.empId || '-', icon: Hash },
   ];
 
   const overviewContacts = [
     { label: 'Email', value: employee?.email || '-', icon: Mail },
     { label: 'Phone', value: employee?.phone || '-', icon: Phone },
     { label: 'Department', value: employee?.department || '-', icon: Building2 },
-    { label: 'Role', value: titleCase(employee?.role), icon: Shield },
+    { label: 'Role', value: titleCase(employee?.role), icon: BadgeCheck },
   ];
 
   const activeSettingsTitle = {
@@ -508,7 +548,10 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
     notifications: 'Notifications',
     security: 'Security',
     appearance: 'Appearance',
+    analysis: 'Analysis',
     privacy: 'Data & privacy',
+    permissions: 'Permissions',
+    'audit-log': 'Audit log',
   }[activeSettingsTab];
 
   const activeSettingsSubtitle = {
@@ -516,7 +559,10 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
     notifications: '',
     security: '',
     appearance: '',
+    analysis: 'Upload Trimetrix reports and generate DISC-based communication guidance.',
     privacy: '',
+    permissions: 'Manage role-based feature access for your organization.',
+    'audit-log': 'Review account activity and record changes across your organization.',
   }[activeSettingsTab];
 
   const settingsSectionClassName =
@@ -525,7 +571,13 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
       : '-mt-2 rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)] lg:p-6';
 
   const settingsHeaderClassName =
-    activeSettingsTab === 'notifications' || activeSettingsTab === 'profile' || activeSettingsTab === 'security' || activeSettingsTab === 'appearance' || activeSettingsTab === 'privacy'
+    activeSettingsTab === 'notifications' ||
+    activeSettingsTab === 'profile' ||
+    activeSettingsTab === 'security' ||
+    activeSettingsTab === 'appearance' ||
+    activeSettingsTab === 'privacy' ||
+    activeSettingsTab === 'permissions' ||
+    activeSettingsTab === 'audit-log'
       ? 'pb-0'
       : 'border-b border-slate-100 pb-6';
 
@@ -534,35 +586,63 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
   return (
     <div className="mx-auto w-full max-w-none px-0 pb-12 lg:-ml-10 lg:-mr-88 xl:-ml-12 xl:-mr-[6.5rem]">
       <div className="-mt-8 space-y-2">
-        <div className="grid items-start gap-4 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]">
-          <div className="-mt-2 ">
-            <aside className="h-fit rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
-              <div className="space-y-2">
-                {settingsNavItems.map(({ key, label, icon: Icon }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => handleSettingsTabChange(key)}
-                    className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition ${
-                      activeSettingsTab === key
-                        ? 'bg-red-50 text-red-600'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                  >
-                    <Icon size={17} />
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </aside>
-          </div>
+        <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]">
+          <aside className="min-w-0">
+            <div className="-mt-2 lg:sticky lg:top-0 lg:z-10">
+              <nav
+                aria-label="Profile settings"
+                className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.06)]"
+              >
+                <div className="space-y-2">
+                  {settingsNavItems.map(({ key, label, icon: Icon }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => handleSettingsTabChange(key)}
+                      className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition ${
+                        activeSettingsTab === key
+                          ? 'bg-red-50 text-red-600'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <Icon size={17} />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </nav>
+            </div>
+          </aside>
 
-          <section className={settingsSectionClassName}>
+          <section className={`min-w-0 ${settingsSectionClassName}`}>
             <div className={settingsHeaderClassName}>
-              {activeSettingsTab !== 'profile' && activeSettingsTab !== 'security' && activeSettingsTab !== 'appearance' && activeSettingsTab !== 'privacy' ? (
+              {activeSettingsTab !== 'profile' &&
+              activeSettingsTab !== 'security' &&
+              activeSettingsTab !== 'appearance' &&
+              activeSettingsTab !== 'privacy' &&
+              activeSettingsTab !== 'permissions' &&
+              activeSettingsTab !== 'audit-log' ? (
                 <h3 className="text-2xl font-bold text-slate-900">{activeSettingsTitle}</h3>
               ) : null}
-              {activeSettingsSubtitle ? (
+              {activeSettingsTab === 'audit-log' && canAccessAuditLogTab ? (
+                <div>
+                  <h3 className="text-2xl font-bold text-slate-900">{activeSettingsTitle}</h3>
+                  {activeSettingsSubtitle ? (
+                    <p className="mt-1 text-sm text-slate-500">{activeSettingsSubtitle}</p>
+                  ) : null}
+                </div>
+              ) : null}
+              {activeSettingsTab === 'permissions' && canAccessPermissionsTab ? (
+                <div>
+                  <h3 className="text-2xl font-bold text-slate-900">{activeSettingsTitle}</h3>
+                  {activeSettingsSubtitle ? (
+                    <p className="mt-1 text-sm text-slate-500">{activeSettingsSubtitle}</p>
+                  ) : null}
+                </div>
+              ) : null}
+              {activeSettingsSubtitle &&
+              activeSettingsTab !== 'permissions' &&
+              activeSettingsTab !== 'audit-log' ? (
                 <p className="mt-1 text-sm text-slate-500">{activeSettingsSubtitle}</p>
               ) : null}
             </div>
@@ -601,9 +681,27 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
               </div>
             ) : null}
 
+            {activeSettingsTab === 'analysis' && canAccessAnalysisTab ? (
+              <div className="mt-3">
+                <AnalysisView embedded />
+              </div>
+            ) : null}
+
             {activeSettingsTab === 'privacy' && canAccessPrivacyTab ? (
               <div className="mt-3">
                 <DataPrivacyView />
+              </div>
+            ) : null}
+
+            {activeSettingsTab === 'permissions' && canAccessPermissionsTab ? (
+              <div className="mt-3">
+                <PermissionsView canEdit embedded />
+              </div>
+            ) : null}
+
+            {activeSettingsTab === 'audit-log' && canAccessAuditLogTab ? (
+              <div className="mt-3">
+                <AuditLogsView embedded />
               </div>
             ) : null}
 

@@ -1153,16 +1153,12 @@ const App: React.FC = () => {
     };
 
     loadNotifications();
-    const notificationsPoller = window.setInterval(() => {
-      loadNotifications();
-    }, 30000);
     socket.on('notification:created', onNotificationCreated);
     socket.on('notification:read', onNotificationRead);
     socket.on('notification:deleted', onNotificationDeleted);
 
     return () => {
       active = false;
-      window.clearInterval(notificationsPoller);
       socket.off('notification:created', onNotificationCreated);
       socket.off('notification:read', onNotificationRead);
       socket.off('notification:deleted', onNotificationDeleted);

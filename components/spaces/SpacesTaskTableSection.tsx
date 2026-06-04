@@ -94,6 +94,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
     canSelectTask,
     taskPage,
     TASKS_PER_PAGE,
+    taskListTotal = 0,
     setTaskPage,
     visibleTaskPages,
     totalTaskPages,
@@ -514,7 +515,7 @@ const SpacesTaskTableSection: React.FC<any> = (props) => {
       </div>
       {!spacesLoading && sortedTasks.length > 0 ? (
         <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-3">
-          <p className="text-[12px] text-slate-500">Showing {(taskPage - 1) * TASKS_PER_PAGE + 1}-{Math.min(taskPage * TASKS_PER_PAGE, sortedTasks.length)} of {sortedTasks.length}</p>
+          <p className="text-[12px] text-slate-500">Showing {(taskPage - 1) * TASKS_PER_PAGE + 1}-{Math.min(taskPage * TASKS_PER_PAGE, taskListTotal)} of {taskListTotal}</p>
           <div className="flex items-center gap-1.5">
             <button type="button" onClick={() => setTaskPage((prev: number) => Math.max(1, prev - 1))} disabled={taskPage === 1} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Prev</button>
             {visibleTaskPages.map((page: number) => (

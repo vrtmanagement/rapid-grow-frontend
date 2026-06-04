@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, BellRing, Bot, Calendar, CalendarDays, Check, ChevronLeft, ChevronRight, Download, FileText, Globe, Hash, Linkedin, Link2, Mail, MessageSquareText, Pencil, Plus, Sparkles, Trash2, X, Youtube } from 'lucide-react';
+import { API_BASE } from '../config/api';
+import { invalidateApiCache, peekApiCache } from '../services/apiCache';
 import { apiAddContentComment, apiCreateContent, apiDeleteContent, apiDeleteContentComment, apiDeleteContentDraft, apiGetContentDraft, apiListContent, apiUpdateContent, apiUpdateContentComment, apiUploadContentFile, ContentAsset, ContentComment, ContentDraftMode, ContentDraftRecord, ContentItem, ContentType } from '../services/contentApi';
 import { apiListUsers } from '../communication/api';
 import ContentCard from '../components/content/ContentCard';
@@ -107,10 +109,12 @@ const ContentView: React.FC = () => {
   const scheduleEditBaselineRef = useRef<ScheduleDraftRecord | null>(null);
   const currentUser = useMemo(() => getLoggedInUser(), []);
 
-  async function refresh() {
-    setLoading(true);
+  async function refresh(force = false) {
+    const hasCache = !force && !!peekApiCache(`${API_BASE}/content`);
+    if (!hasCache) setLoading(true);
     setError(null);
     try {
+      if (force) invalidateApiCache('/content');
       const contentRes = await apiListContent();
       setItems(Array.isArray(contentRes.items) ? contentRes.items : []);
     } catch (err: any) {

@@ -1,9 +1,7 @@
-import { API_BASE, getAuthHeaders } from '../config/api';
+import { API_BASE, apiGetJson, getAuthHeaders } from '../config/api';
 
 export async function fetchBillingStatus() {
-  const res = await fetch(`${API_BASE}/billing/status`, { headers: getAuthHeaders() });
-  if (!res.ok) throw new Error('Failed to load billing status');
-  return res.json();
+  return apiGetJson('/billing/status');
 }
 
 export async function startBillingCheckout(plan: 'starter' | 'growth' | 'business') {
@@ -25,22 +23,28 @@ export async function openBillingPortal() {
   return res.json();
 }
 
-export async function fetchAuditLogs(params?: {
+export type AuditLogsResponse = {
+  items?: Array<Record<string, unknown>>;
+  total?: number;
+  page?: number;
   limit?: number;
-  skip?: number;
+  totalPages?: number;
+  entityTypeOptions?: Array<{ value: string; label: string }>;
+  actionOptions?: Array<{ value: string; label: string }>;
+};
+
+export async function fetchAuditLogs(params?: {
+  page?: number;
+  limit?: number;
   entityType?: string;
-  actorEmpId?: string;
+  action?: string;
 }) {
   const q = new URLSearchParams();
+  if (params?.page) q.set('page', String(params.page));
   if (params?.limit) q.set('limit', String(params.limit));
-  if (params?.skip) q.set('skip', String(params.skip));
   if (params?.entityType) q.set('entityType', params.entityType);
-  if (params?.actorEmpId) q.set('actorEmpId', params.actorEmpId);
-  const res = await fetch(`${API_BASE}/audit-logs?${q.toString()}`, {
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) throw new Error('Failed to load audit logs');
-  return res.json();
+  if (params?.action) q.set('action', params.action);
+  return apiGetJson<AuditLogsResponse>(`/audit-logs?${q.toString()}`);
 }
 
 export async function sendEmployeeInvite(body: {

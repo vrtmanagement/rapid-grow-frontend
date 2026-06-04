@@ -42,7 +42,9 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
 
     {open ? (
       <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
-        <div className={`${maxHeightClass} overflow-y-auto py-2`}>
+        <div
+          className={`${maxHeightClass} overflow-y-auto py-2 [scrollbar-width:thin] [scrollbar-color:rgba(148,163,184,0.85)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300/90 [&::-webkit-scrollbar-track]:bg-transparent`}
+        >
           {options.map((option) => {
             const isSelected = option.value === value;
             return (

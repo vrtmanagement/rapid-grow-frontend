@@ -31,11 +31,11 @@ const StrengthsDashboardView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  const load = async (force = false) => {
     setLoading(true);
     setError(null);
     try {
-      setData(await fetchStrengthsDashboard());
+      setData(await fetchStrengthsDashboard({ force }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load strengths');
     } finally {
@@ -61,13 +61,13 @@ const StrengthsDashboardView: React.FC = () => {
           <p className="text-sm font-semibold uppercase tracking-wide text-brand-red">People intelligence</p>
           <h1 className="mt-1 text-3xl font-bold text-slate-950">Strengths and skill gaps</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-            Learned skills by person and project-readiness gaps in one place.
+            Skills learned from completed TaskHub work in your team, plus project-readiness gaps.
           </p>
         </div>
         {activePanel === 'strengths' && (
           <button
             type="button"
-            onClick={load}
+            onClick={() => void load(true)}
             disabled={loading}
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
           >
@@ -105,7 +105,7 @@ const StrengthsDashboardView: React.FC = () => {
           <ErrorAlert message={error} />
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <Stat icon={<Users size={18} />} label="People tracked" value={employees.length} />
+            <Stat icon={<Users size={18} />} label="People with skills" value={employees.length} />
             <Stat icon={<Sparkles size={18} />} label="Learned skills" value={learnedSkillCount} />
             <Stat icon={<BrainCircuit size={18} />} label="Team strengths" value={teamStrengths.length} />
           </div>
@@ -113,6 +113,9 @@ const StrengthsDashboardView: React.FC = () => {
           <div className="grid gap-6 xl:grid-cols-[0.9fr_1.4fr]">
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-950">Team top skills</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Real skills learned from completed tasks with skills tagged — not task titles or employee names.
+              </p>
               <div className="mt-4 space-y-3">
                 {loading ? (
                   <LoadingRows count={6} />
@@ -132,7 +135,10 @@ const StrengthsDashboardView: React.FC = () => {
                 ) : employees.length ? (
                   employees.map((employee) => <EmployeeCard key={employee.empId} employee={employee} />)
                 ) : (
-                  <EmptyState title="No active employees found" text="Add employees first, then completed TaskHub work can build strength profiles." />
+                  <EmptyState
+                    title="No learned skills in your team yet"
+                    text="Complete assigned tasks with skills tagged on them. Strength profiles appear here after work is done."
+                  />
                 )}
               </div>
             </section>

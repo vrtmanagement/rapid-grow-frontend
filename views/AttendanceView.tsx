@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BarChart3, Calendar, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
-import { API_BASE, getAuthHeaders } from '../config/api';
+import { API_BASE, apiGetJson, getAuthHeaders } from '../config/api';
+import { invalidateApiCache, peekApiCache } from '../services/apiCache';
 import AttendanceHeader from '../components/attendance/AttendanceHeader';
 import LeaveManagementPanel from '../components/attendance/LeaveManagementPanel';
 import AttendanceHistoryPage from '../components/attendance/AttendanceHistoryPage';
@@ -325,12 +326,9 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     if (leaves.every((leave) => leave.empName && leave.empName.trim())) return leaves;
 
     try {
-      const res = await fetch(`${API_BASE}/employees`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return leaves;
+      const data = await apiGetJson<unknown[]>('/employees').catch(() => null);
+      if (!data) return leaves;
 
-      const data = await res.json();
       const employees = Array.isArray(data) ? data : [];
       const nameByEmpId = new Map<string, string>();
 
@@ -426,12 +424,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     let mounted = true;
     const loadEmployees = async () => {
       try {
-        const res = await fetch(`${API_BASE}/attendance/members`, {
-          headers: getAuthHeaders(),
-        });
-        if (!res.ok) return;
-
-        const data = await res.json();
+        const data = await apiGetJson<unknown[]>('/attendance/members');
         if (!mounted) return;
 
         const options = (Array.isArray(data) ? data : [])
@@ -470,34 +463,32 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   const loadSummary = async (
     selectedRange: Range,
     monthValue?: string,
-    options?: { silent?: boolean },
+    options?: { silent?: boolean; force?: boolean },
   ) => {
     const silent = options?.silent === true;
-    if (!silent) {
+    const force = options?.force === true;
+    const params = new URLSearchParams();
+    params.set('range', selectedRange);
+    if (selectedRange === 'month' && monthValue) {
+      params.set('date', `${monthValue}-01`);
+    }
+    const summaryPath = `/attendance/me?${params.toString()}`;
+    const hasCache = !force && !!peekApiCache(`${API_BASE}${summaryPath}`);
+    if (!silent && !hasCache) {
       setLoading(true);
     }
     try {
-      const params = new URLSearchParams();
-      params.set('range', selectedRange);
-      if (selectedRange === 'month' && monthValue) {
-        params.set('date', `${monthValue}-01`);
-      }
-      const res = await fetch(`${API_BASE}/attendance/me?${params.toString()}`, {
-        headers: getAuthHeaders(),
+      const data = await apiGetJson<any>(summaryPath, {}, { force });
+      setSummary({
+        ...data,
+        start: data.start,
+        end: data.end,
+        lateLoginPolicy: data.lateLoginPolicy || null,
+        lateLoginRecords: Array.isArray(data.lateLoginRecords) ? data.lateLoginRecords : [],
       });
-      if (res.ok) {
-        const data = await res.json();
-        setSummary({
-          ...data,
-          start: data.start,
-          end: data.end,
-          lateLoginPolicy: data.lateLoginPolicy || null,
-          lateLoginRecords: Array.isArray(data.lateLoginRecords) ? data.lateLoginRecords : [],
-        });
-        const allSessions = (data.days || []).flatMap((d: any) => d.sessions || []);
-        const open = allSessions.find((s: AttendanceSession) => !s.logoutTime);
-        setActiveSession(open || null);
-      }
+      const allSessions = (data.days || []).flatMap((d: any) => d.sessions || []);
+      const open = allSessions.find((s: AttendanceSession) => !s.logoutTime);
+      setActiveSession(open || null);
     } catch (e) {
       console.error('Failed to load attendance summary', e);
     } finally {
@@ -558,24 +549,12 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
 
   const loadTeamAttendanceSummary = async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true;
-    if (!silent) {
+    const hasCache = !!peekApiCache(`${API_BASE}/attendance/team-summary`);
+    if (!silent && !hasCache) {
       setTeamAttendanceSummaryLoading(true);
     }
     try {
-      const res = await fetch(`${API_BASE}/attendance/team-summary`, {
-        headers: getAuthHeaders(),
-      });
-
-      if (!res.ok) {
-        if (silent) {
-          return;
-        }
-        setTeamAttendanceSummary(null);
-        setTeamAttendanceSummarySnapshotAt(null);
-        return;
-      }
-
-      const data = await res.json();
+      const data = await apiGetJson<any>('/attendance/team-summary');
       setTeamAttendanceSummary({
         total: Number(data.total || 0),
         present: Number(data.present || 0),
@@ -848,7 +827,8 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       }
       const session = await res.json();
       setActiveSession(session);
-      loadSummary(range);
+      invalidateApiCache('/attendance');
+      loadSummary(range, selectedMonth, { force: true });
     } catch (e) {
       console.error('Failed to start attendance session', e);
       setSessionError('Failed to start attendance session');
@@ -880,7 +860,8 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
         }));
         return { ...prev, days: updatedDays };
       });
-      loadSummary(range);
+      invalidateApiCache('/attendance');
+      loadSummary(range, selectedMonth, { force: true });
     } catch (e) {
       console.error('Failed to stop attendance session', e);
       setSessionError('Failed to stop attendance session');

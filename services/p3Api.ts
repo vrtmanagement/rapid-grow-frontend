@@ -1,9 +1,28 @@
-import { API_BASE, getAuthHeaders } from '../config/api';
+import { API_BASE, apiFetchJson, apiGetJson, getAuthHeaders } from '../config/api';
 
-export async function fetchStrengthsDashboard() {
-  const res = await fetch(`${API_BASE}/strengths/dashboard`, { headers: getAuthHeaders() });
-  if (!res.ok) throw new Error('Failed to load strengths');
-  return res.json();
+export type StrengthsDashboardData = {
+  byEmployee?: Array<{
+    empId: string;
+    empName?: string;
+    designation?: string;
+    department?: string;
+    role?: string;
+    avatar?: string;
+    topSkills?: Array<{ name: string; level?: number; count?: number; lastUsedAt?: string }>;
+  }>;
+  teamStrengths?: Array<{ name: string; avgLevel: number; people: number }>;
+};
+
+export async function fetchStrengthsDashboard(options?: { force?: boolean }) {
+  const raw = await apiGetJson<StrengthsDashboardData & { success?: boolean }>(
+    '/strengths/dashboard',
+    {},
+    options,
+  );
+  return {
+    byEmployee: Array.isArray(raw.byEmployee) ? raw.byEmployee : [],
+    teamStrengths: Array.isArray(raw.teamStrengths) ? raw.teamStrengths : [],
+  };
 }
 
 export async function analyzeSkillGaps(requiredSkills: string[]) {
@@ -41,11 +60,7 @@ export async function updateTaskRecurrence(taskId: string, recurrence: Record<st
 }
 
 export async function fetchTimeEntries(taskId: string) {
-  const res = await fetch(`${API_BASE}/spaces/tasks/${taskId}/time-entries`, {
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) throw new Error('Failed to load time entries');
-  return res.json();
+  return apiGetJson(`/spaces/tasks/${taskId}/time-entries`);
 }
 
 export async function addTimeEntry(taskId: string, hours: number, note = '') {
@@ -59,15 +74,11 @@ export async function addTimeEntry(taskId: string, hours: number, note = '') {
 }
 
 export async function fetchAiUsage(days = 30) {
-  const res = await fetch(`${API_BASE}/ai/usage?days=${days}`, { headers: getAuthHeaders() });
-  if (!res.ok) throw new Error('Failed to load AI usage');
-  return res.json();
+  return apiGetJson(`/ai/usage?days=${days}`);
 }
 
 export async function fetchAiSettings() {
-  const res = await fetch(`${API_BASE}/ai/settings`, { headers: getAuthHeaders() });
-  if (!res.ok) throw new Error('Failed to load AI settings');
-  return res.json();
+  return apiGetJson('/ai/settings');
 }
 
 export async function updateAiSettings(payload: Record<string, unknown>) {
@@ -81,9 +92,7 @@ export async function updateAiSettings(payload: Record<string, unknown>) {
 }
 
 export async function fetchOrgChart() {
-  const res = await fetch(`${API_BASE}/org-chart`, { headers: getAuthHeaders() });
-  if (!res.ok) throw new Error('Failed to load org chart');
-  return res.json();
+  return apiGetJson('/org-chart');
 }
 
 export async function convertLeadToProject(leadId: string, payload: Record<string, string> = {}) {
@@ -97,9 +106,5 @@ export async function convertLeadToProject(leadId: string, payload: Record<strin
 }
 
 export async function globalSearch(query: string) {
-  const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`, {
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) throw new Error('Search failed');
-  return res.json();
+  return apiGetJson(`/search?q=${encodeURIComponent(query)}`);
 }

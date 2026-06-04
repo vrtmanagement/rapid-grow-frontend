@@ -25,7 +25,6 @@ export type PermissionKey =
   | 'COMMUNICATION_VIEW'
   | 'CONTENT_VIEW'
   | 'ANALYSIS_VIEW'
-  | 'FEEDBACK_VIEW'
   | 'STAFF_VIEW'
   | 'PERMISSIONS_MANAGE'
   | 'CRM_VIEW'

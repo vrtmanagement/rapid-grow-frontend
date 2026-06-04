@@ -4,22 +4,17 @@ import {
   Target,
   Clock,
   LayoutDashboard,
-  BrainCircuit,
+  NotebookPen,
   Briefcase,
   Mail,
-  Settings,
-  ShieldAlert,
-  ShieldCheck,
-  Database,
+  Users,
+  ListTodo,
   FileText,
-  UsersRound,
+  Contact,
   Bot,
   Building2,
-  Shield,
   CreditCard,
-  ScrollText,
-  UserPlus2,
-  Network,
+  Sparkles,
 } from 'lucide-react';
 import { PlanningState } from '../../types';
 import Vision from '../../views/Vision';
@@ -28,7 +23,6 @@ import DashboardView from '../../views/DashboardView';
 import WorkspacesView from '../../views/WorkspacesView';
 import ProfileView from '../../views/ProfileView';
 import SpacesView from '../../views/SpacesView';
-import FeedbackView from '../../views/FeedbackView';
 import AttendanceView from '../../views/AttendanceView';
 import StaffView from '../../views/StaffView';
 import CommunicationView from '../../communication/views/CommunicationView';
@@ -36,8 +30,6 @@ import { GlobalCommunicationNotifications } from '../../communication/components
 import ContentView from '../../views/ContentView';
 import ContentCreateView from '../../views/ContentCreateView';
 import SpacesTaskDetailView from '../../views/SpacesTaskDetailView';
-import PermissionsView from '../../views/PermissionsView';
-import AnalysisView from '../../views/AnalysisView';
 import CRMPage from '../../views/CRMPage';
 import CRMLeadDetailPage from '../../views/CRMLeadDetailPage';
 import ExpenseTravelView from '../../views/ExpenseTravelView';
@@ -45,10 +37,8 @@ import AiAgentView from '../../views/AiAgentView';
 import TaskAnalyticsView from '../../views/TaskAnalyticsView';
 import StrengthsDashboardView from '../../views/StrengthsDashboardView';
 import AiUsageSettingsView from '../../views/AiUsageSettingsView';
-import OrgChartView from '../../views/OrgChartView';
 import SuperAdminView from '../../views/SuperAdminView';
 import BillingSettingsView from '../../views/BillingSettingsView';
-import AuditLogsView from '../../views/AuditLogsView';
 import PlanLimitsBanner from '../plan/PlanLimitsBanner';
 import { useI18n } from '../../context/I18nContext';
 import AccessDenied from '../AccessDenied';
@@ -119,10 +109,13 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
   const isAttendanceRoute = routePath.startsWith('/attendance');
   const isExpenseRoute = routePath.startsWith('/expense-travel');
   const isCommunicationRoute = routePath === '/communication';
+  const isReflectionRoute = routePath === '/reflection' || routePath === '/review';
   const isSharedSubnavRoute =
     routePath === '/' ||
     isCommunicationRoute ||
+    isReflectionRoute ||
     routePath === '/staff' ||
+    routePath.startsWith('/staff/') ||
     routePath.startsWith('/expense-travel') ||
     routePath.startsWith('/spaces') ||
     routePath.startsWith('/workspaces') ||
@@ -130,7 +123,9 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
   const isFlushSharedSubnavRoute =
     routePath === '/' ||
     isCommunicationRoute ||
+    isReflectionRoute ||
     routePath === '/staff' ||
+    routePath.startsWith('/staff/') ||
     routePath.startsWith('/expense-travel') ||
     routePath.startsWith('/spaces') ||
     routePath.startsWith('/workspaces') ||
@@ -179,7 +174,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                 {hasPower('SPACES_VIEW') && (
                   <SidebarLink
                     to="/spaces"
-                    icon={<Database size={20} />}
+                    icon={<ListTodo size={20} />}
                     label="TaskHub"
                     badgeCount={taskCount}
                     collapsed={!isSidebarOpen}
@@ -195,16 +190,13 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                 {hasPower('REFLECTION_VIEW') && (
                   <SidebarLink
                     to="/reflection"
-                    icon={<BrainCircuit size={20} />}
+                    icon={<NotebookPen size={20} />}
                     label={state.uiConfig.reflectionTitle}
                     collapsed={!isSidebarOpen}
                   />
                 )}
                 <div className="app-sidebar-divider h-px bg-white/5 mx-2.5 my-3.5"></div>
               </>
-            )}
-            {isAdmin && (
-              <SidebarLink to="/permissions" icon={<ShieldAlert size={20} />} label="Permissions" collapsed={!isSidebarOpen} />
             )}
             {hasPower('COMMUNICATION_VIEW') && (
               <SidebarLink
@@ -218,32 +210,20 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
             {hasPower('CONTENT_VIEW') && (
               <SidebarLink to="/content" icon={<FileText size={20} />} label="Content" collapsed={!isSidebarOpen} />
             )}
-            {isAdmin && hasPower('ANALYSIS_VIEW') && (
-              <SidebarLink to="/analysis" icon={<Settings size={20} />} label="Analysis" collapsed={!isSidebarOpen} />
-            )}
-            {isAdmin && hasPower('FEEDBACK_VIEW') && (
-              <SidebarLink to="/feedback" icon={<Mail size={20} />} label="Feedback" collapsed={!isSidebarOpen} />
+            {hasPower('STAFF_VIEW') && (
+              <SidebarLink to="/staff" icon={<Users size={20} />} label="Staff" collapsed={!isSidebarOpen} />
             )}
             {hasPower('STAFF_VIEW') && (
-              <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={!isSidebarOpen} />
-            )}
-            {hasPower('STAFF_VIEW') && (
-              <SidebarLink to="/strengths" icon={<BrainCircuit size={20} />} label="Strengths & skill gaps" collapsed={!isSidebarOpen} />
-            )}
-            {hasPower('STAFF_VIEW') && (
-              <SidebarLink to="/org-chart" icon={<Network size={20} />} label="Org chart" collapsed={!isSidebarOpen} />
+              <SidebarLink to="/strengths" icon={<Sparkles size={20} />} label="Strengths & skill gaps" collapsed={!isSidebarOpen} />
             )}
             {hasPower('CRM_VIEW') && (
-              <SidebarLink to="/crm" icon={<UsersRound size={20} />} label={t('crm')} collapsed={!isSidebarOpen} />
+              <SidebarLink to="/crm" icon={<Contact size={20} />} label={t('crm')} collapsed={!isSidebarOpen} />
             )}
             {isSuperAdmin && (
               <SidebarLink to="/super-admin" icon={<Building2 size={20} />} label={t('superAdmin')} collapsed={!isSidebarOpen} />
             )}
             {isAdmin && (
               <SidebarLink to="/settings/billing" icon={<CreditCard size={20} />} label="Billing" collapsed={!isSidebarOpen} />
-            )}
-            {isAdmin && (
-              <SidebarLink to="/settings/audit-logs" icon={<ScrollText size={20} />} label="Audit log" collapsed={!isSidebarOpen} />
             )}
             {isAdmin && (
               <SidebarLink to="/ai/usage" icon={<Bot size={20} />} label="AI usage & settings" collapsed={!isSidebarOpen} />
@@ -307,7 +287,9 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               <Route path="/strengths/gaps" element={<StrengthsDashboardView />} />
               <Route path="/ai/usage" element={<AiUsageSettingsView />} />
               <Route path="/ai/settings" element={<AiUsageSettingsView />} />
-              <Route path="/org-chart" element={<OrgChartView />} />
+              {hasPower('STAFF_VIEW') && (
+                <Route path="/org-chart" element={<Navigate to="/staff/org-chart" replace />} />
+              )}
               {hasPower('SPACES_VIEW') && (
                 <Route path="/spaces" element={<SpacesView mode="manager" state={state} updateState={updateState} />} />
               )}
@@ -372,16 +354,22 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                 <Route path="/content/day/:dayKey/type/:typeKey/item/:itemKey" element={<ContentView />} />
               )}
               {hasPower('CONTENT_VIEW') && <Route path="/content/new" element={<ContentCreateView />} />}
-              {isAdmin && hasPower('ANALYSIS_VIEW') && <Route path="/analysis" element={<AnalysisView />} />}
-              {isAdmin && hasPower('FEEDBACK_VIEW') && <Route path="/feedback" element={<FeedbackView />} />}
-              {isAdmin && <Route path="/permissions" element={<PermissionsView canEdit={true} />} />}
+              {hasPower('ANALYSIS_VIEW') && (
+                <Route path="/analysis" element={<Navigate to="/profile?tab=analysis" replace />} />
+              )}
+              {isAdmin && hasPower('PROFILE_VIEW') && (
+                <Route path="/permissions" element={<Navigate to="/profile?tab=permissions" replace />} />
+              )}
               {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView mode="manager" state={state} />} />}
+              {hasPower('STAFF_VIEW') && <Route path="/staff/org-chart" element={<StaffView mode="manager" state={state} />} />}
               {hasPower('CRM_VIEW') && <Route path="/crm" element={<CRMPage />} />}
               {hasPower('CRM_VIEW') && <Route path="/crm/lead/:leadId" element={<CRMLeadDetailPage />} />}
               {hasPower('EXPENSE_VIEW') && <Route path="/expense-travel" element={<ExpenseTravelView mode="manager" />} />}
               {isSuperAdmin && <Route path="/super-admin" element={<SuperAdminView />} />}
               {isAdmin && <Route path="/settings/billing" element={<BillingSettingsView />} />}
-              {isAdmin && <Route path="/settings/audit-logs" element={<AuditLogsView />} />}
+              {isAdmin && (
+                <Route path="/settings/audit-logs" element={<Navigate to="/profile?tab=audit-log" replace />} />
+              )}
               {isAdmin && hasPower('PROFILE_VIEW') && <Route path="/settings/privacy" element={<Navigate to="/profile?tab=privacy" replace />} />}
               <Route path="*" element={<AccessDenied />} />
             </Routes>

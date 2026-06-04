@@ -1,4 +1,4 @@
-import { API_BASE, getStoredAuthSession } from '../config/api';
+import { API_BASE, apiFetchJson, apiGetJson, getStoredAuthSession } from '../config/api';
 
 export type ChatRoleGroup = 'admin' | 'team_lead' | 'employees';
 
@@ -43,22 +43,18 @@ function getDownloadFilename(contentDisposition: string | null, fallback: string
 }
 
 export async function apiListUsers() {
-  const res = await fetch(`${API_BASE}/communication/users`, { headers: authHeadersJson() });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load users');
-  return res.json() as Promise<{ users: any[] }>;
+  return apiGetJson<{ users: any[] }>('/communication/users');
 }
 
 export async function apiListConversations() {
-  const res = await fetch(`${API_BASE}/communication/conversations`, { headers: authHeadersJson() });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load conversations');
-  return res.json() as Promise<{ conversations: any[] }>;
+  return apiGetJson<{ conversations: any[] }>('/communication/conversations');
 }
 
 export async function apiHistory(conversationKey: string, limit = 50) {
   const qs = new URLSearchParams({ conversationKey, limit: String(limit) });
-  const res = await fetch(`${API_BASE}/communication/history?${qs.toString()}`, { headers: authHeadersJson() });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to load history');
-  return res.json() as Promise<{ conversationKey: string; pinnedMessage?: any; messages: any[] }>;
+  return apiGetJson<{ conversationKey: string; pinnedMessage?: any; messages: any[] }>(
+    `/communication/history?${qs.toString()}`,
+  );
 }
 
 export async function apiPinMessage(conversationKey: string, messageId: string) {

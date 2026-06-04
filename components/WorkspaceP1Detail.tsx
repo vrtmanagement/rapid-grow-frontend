@@ -162,12 +162,7 @@ const WorkspaceP1Detail: React.FC<Props> = ({ state, updateState }) => {
       }
     };
 
-    // Initial sync on mount
     syncTasksFromBackend();
-
-    // Periodic refresh so status changes from employees are reflected
-    const interval = setInterval(syncTasksFromBackend, 15000);
-    return () => clearInterval(interval);
   }, [projectId, updateState]);
 
   const activeProject = useMemo(

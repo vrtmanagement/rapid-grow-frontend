@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDebounce } from '../hooks/useDebounce';
 import CRMStatsCards from './crm/CRMStatsCards';
 import CRMTable from './crm/CRMTable';
 import CRMLeadForm, { CRMLeadPayload } from './crm/CRMLeadForm';
 import CRMImportModal from './crm/CRMImportModal';
 import CRMExportButton from './crm/CRMExportButton';
 import { ArrowDownToLine, ArrowRightLeft, ChevronDown, FilterX, MoreVertical, Plus, Search, Trash2 } from 'lucide-react';
-import { getStoredAuthSession } from '../config/api';
+import { API_BASE, getStoredAuthSession } from '../config/api';
+import { peekApiCache } from '../services/apiCache';
 import { crmJson, crmUploadFile } from '../services/crmApi';
 
 const baseTabs = ['HOT', 'WARM', 'COLD'];
@@ -16,7 +18,13 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const CRM_ROLE_FILTER_STORAGE_KEY = 'crm_role_filter_selection_v1';
 const CRM_ACTIVE_TAB_STORAGE_KEY = 'crm_active_tab_selection_v1';
 
-type ConfirmAction = 'deleteOne' | 'deleteBulk' | 'deleteAll' | null;
+type ConfirmAction =
+  | 'deleteOne'
+  | 'deleteBulk'
+  | 'deleteAll'
+  | 'deleteTab'
+  | 'deleteHiddenCustom'
+  | null;
 type TabInfo = { id: string; name: string };
 type ToastTone = 'success' | 'error';
 type ToastItem = { id: number; tone: ToastTone; message: string };
@@ -72,6 +80,8 @@ const CRMPage: React.FC = () => {
   const [leads, setLeads] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 400);
+  const isSearchPending = search !== debouncedSearch;
   const [personFilterId, setPersonFilterId] = useState(storedRoleFilter?.personFilterId || '');
   const [personFilterInitialized, setPersonFilterInitialized] = useState(!!storedRoleFilter?.initialized);
   const [personDropdownOpen, setPersonDropdownOpen] = useState(false);
@@ -90,12 +100,10 @@ const CRMPage: React.FC = () => {
   const [moveDropdownOpen, setMoveDropdownOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const [confirmTargetLead, setConfirmTargetLead] = useState<any | null>(null);
+  const [confirmDeleteTab, setConfirmDeleteTab] = useState<TabInfo | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [deletingCustomCardName, setDeletingCustomCardName] = useState('');
-  const [deletingLeadsDataKey, setDeletingLeadsDataKey] = useState('');
   const [deletingHiddenCustomLeads, setDeletingHiddenCustomLeads] = useState(false);
   const [deletingId, setDeletingId] = useState('');
-  const [deletingTab, setDeletingTab] = useState<TabInfo | null>(null);
   const [renamingTab, setRenamingTab] = useState<TabInfo | null>(null);
   const [renamingTabName, setRenamingTabName] = useState('');
   const [openLeftTabMenu, setOpenLeftTabMenu] = useState('');
@@ -225,10 +233,7 @@ const CRMPage: React.FC = () => {
     return () => document.removeEventListener('mousedown', onDocumentClick);
   }, [openLeftTabMenu]);
 
-  const load = useCallback(async () => {
-    const requestId = latestLoadRequestRef.current + 1;
-    latestLoadRequestRef.current = requestId;
-    setPageLoading(true);
+  const buildListQuery = useCallback(() => {
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
@@ -248,7 +253,7 @@ const CRMPage: React.FC = () => {
     }
 
     const params = new URLSearchParams({
-      q: search,
+      q: debouncedSearch,
       page: String(page),
       limit: String(pageSize),
       ...(leadType ? { leadType } : {}),
@@ -256,33 +261,17 @@ const CRMPage: React.FC = () => {
       ...(cardFilter.type === 'thisMonth' ? { fromDate: monthStartIso } : {}),
       ...personParams,
     });
-    const tabsParams = new URLSearchParams(personParams);
-    try {
-      const [statsRes, tabsRes, listRes] = await Promise.all([
-        crmJson<any>(`/crm/stats${tabsParams.toString() ? `?${tabsParams.toString()}` : ''}`),
-        crmJson<any>(`/crm/custom-tabs${tabsParams.toString() ? `?${tabsParams.toString()}` : ''}`),
-        crmJson<any>(`/crm?${params.toString()}`),
-      ]);
-      const tabRows: TabInfo[] = Array.isArray(tabsRes.tabs) ? tabsRes.tabs : [];
+    return `/crm?${params.toString()}`;
+  }, [activeTab, cardFilter, debouncedSearch, page, pageSize, personParams]);
+
+  const syncActiveTabCount = useCallback(
+    (listTotal: number, tabRows: TabInfo[], statsRes: any) => {
       const normalizedCustomCounts = Array.isArray(statsRes?.customCounts)
         ? statsRes.customCounts.map((entry: any) => ({
             name: String(entry?.name || '').trim(),
             count: Number(entry?.count || 0),
           }))
         : [];
-      const authoritativeCustomCounts = await Promise.all(
-        tabRows.map(async (tab) => {
-          const scopedParams = new URLSearchParams({
-            page: '1',
-            limit: '1',
-            leadType: 'CUSTOM',
-            customTabName: String(tab.name || '').trim(),
-            ...personParams,
-          });
-          const response = await crmJson<any>(`/crm?${scopedParams.toString()}`);
-          return { name: String(tab.name || '').trim(), count: Number(response?.total || 0) };
-        }),
-      );
       const tabNamesByNormalized = new Map(
         tabRows
           .map((tab) => String(tab.name || '').trim())
@@ -290,53 +279,103 @@ const CRMPage: React.FC = () => {
           .map((name) => [name.toUpperCase(), name]),
       );
       const customCountByNormalized = new Map(
-        (authoritativeCustomCounts.length ? authoritativeCustomCounts : normalizedCustomCounts)
-          .map((entry) => [entry.name.toUpperCase(), entry.count] as const),
+        normalizedCustomCounts.map((entry) => [entry.name.toUpperCase(), entry.count] as const),
       );
       const filteredCustomCounts = Array.from(tabNamesByNormalized.entries()).map(([normalizedName, displayName]) => ({
         name: displayName,
         count: customCountByNormalized.get(normalizedName) || 0,
       }));
-      const listTotal = Number(listRes?.total || 0);
       const shouldSyncActiveCustomTabCount = !baseTabs.includes(activeTab);
-      const syncedCustomCounts = shouldSyncActiveCustomTabCount
-        ? (() => {
-            const activeTabNormalized = activeTab.trim().toUpperCase();
-            let found = false;
-            const next = filteredCustomCounts.map((entry) => {
-              if (entry.name.trim().toUpperCase() !== activeTabNormalized) return entry;
-              found = true;
-              return { ...entry, count: listTotal };
-            });
-            if (!found && activeTab.trim()) {
-              next.push({ name: activeTab.trim(), count: listTotal });
-            }
-            return next;
-          })()
-        : filteredCustomCounts;
-      if (requestId !== latestLoadRequestRef.current) return;
-
-      setStats({
-        ...statsRes,
-        customCounts: syncedCustomCounts,
+      if (!shouldSyncActiveCustomTabCount) return filteredCustomCounts;
+      const activeTabNormalized = activeTab.trim().toUpperCase();
+      let found = false;
+      const next = filteredCustomCounts.map((entry) => {
+        if (entry.name.trim().toUpperCase() !== activeTabNormalized) return entry;
+        found = true;
+        return { ...entry, count: listTotal };
       });
-      setCustomTabs(tabRows);
-      setTabsHydrated(true);
+      if (!found && activeTab.trim()) {
+        next.push({ name: activeTab.trim(), count: listTotal });
+      }
+      return next;
+    },
+    [activeTab],
+  );
+
+  const loadMeta = useCallback(async () => {
+    const tabsParams = new URLSearchParams(personParams);
+    const statsPath = `/crm/stats${tabsParams.toString() ? `?${tabsParams.toString()}` : ''}`;
+    const tabsPath = `/crm/custom-tabs${tabsParams.toString() ? `?${tabsParams.toString()}` : ''}`;
+    const [statsRes, tabsRes] = await Promise.all([crmJson<any>(statsPath), crmJson<any>(tabsPath)]);
+    const tabRows: TabInfo[] = Array.isArray(tabsRes.tabs) ? tabsRes.tabs : [];
+    const normalizedCustomCounts = Array.isArray(statsRes?.customCounts)
+      ? statsRes.customCounts.map((entry: any) => ({
+          name: String(entry?.name || '').trim(),
+          count: Number(entry?.count || 0),
+        }))
+      : [];
+    const tabNamesByNormalized = new Map(
+      tabRows
+        .map((tab) => String(tab.name || '').trim())
+        .filter(Boolean)
+        .map((name) => [name.toUpperCase(), name]),
+    );
+    const customCountByNormalized = new Map(
+      normalizedCustomCounts.map((entry) => [entry.name.toUpperCase(), entry.count] as const),
+    );
+    const filteredCustomCounts = Array.from(tabNamesByNormalized.entries()).map(([normalizedName, displayName]) => ({
+      name: displayName,
+      count: customCountByNormalized.get(normalizedName) || 0,
+    }));
+    setStats({
+      ...statsRes,
+      customCounts: filteredCustomCounts,
+    });
+    setCustomTabs(tabRows);
+    setTabsHydrated(true);
+  }, [personParams]);
+
+  const loadLeads = useCallback(async () => {
+    const requestId = latestLoadRequestRef.current + 1;
+    latestLoadRequestRef.current = requestId;
+    const listPath = buildListQuery();
+    const hasCachedList = !!peekApiCache(`${API_BASE}${listPath}`);
+    if (!hasCachedList) setPageLoading(true);
+    try {
+      const listRes = await crmJson<any>(listPath);
+      if (requestId !== latestLoadRequestRef.current) return;
+      const listTotal = Number(listRes?.total || 0);
       setLeads(listRes.items || []);
       setTotal(listTotal);
+      setStats((prev) => ({
+        ...prev,
+        customCounts: syncActiveTabCount(listTotal, customTabs, prev),
+      }));
     } finally {
       if (requestId === latestLoadRequestRef.current) {
         setPageLoading(false);
       }
     }
-  }, [activeTab, cardFilter, page, pageSize, personParams, search]);
+  }, [buildListQuery, customTabs, syncActiveTabCount]);
+
+  const loadAll = useCallback(async () => {
+    await loadMeta();
+    await loadLeads();
+  }, [loadLeads, loadMeta]);
 
   useEffect(() => {
-    load().catch((e) => {
+    loadMeta().catch((e) => {
       pushToast(e.message || 'Failed to load CRM data', 'error');
+    });
+  }, [loadMeta]);
+
+  useEffect(() => {
+    if (!tabsHydrated) return;
+    loadLeads().catch((e) => {
+      pushToast(e.message || 'Failed to load CRM leads', 'error');
       setPageLoading(false);
     });
-  }, [load]);
+  }, [loadLeads, tabsHydrated]);
 
   useEffect(() => {
     if (!tabsHydrated) return;
@@ -344,10 +383,6 @@ const CRMPage: React.FC = () => {
     const activeNormalized = activeTab.trim().toUpperCase();
     const matchedTab = customTabs.find((tab) => tab.name.trim().toUpperCase() === activeNormalized);
     if (matchedTab) {
-      // Normalize casing to the canonical tab name from server.
-      if (matchedTab.name !== activeTab) {
-        setActiveTab(matchedTab.name);
-      }
       return;
     }
     setActiveTab('HOT');
@@ -392,61 +427,11 @@ const CRMPage: React.FC = () => {
   const pageWindowStart = Math.max(1, page - 2);
   const pageWindowEnd = Math.min(totalPages, page + 2);
   const pageNumbers = Array.from({ length: Math.max(0, pageWindowEnd - pageWindowStart + 1) }, (_, idx) => pageWindowStart + idx);
-  const handleDeleteCustomCardTab = useCallback(
-    async (tabName: string) => {
-      const normalizedTarget = String(tabName || '').trim().toUpperCase();
-      if (!normalizedTarget) return;
-      const tabToDelete = customTabs.find((tab) => tab.name.trim().toUpperCase() === normalizedTarget);
-      if (!tabToDelete) {
-        pushToast('Tab not found.', 'error');
-        return;
-      }
-      setDeletingCustomCardName(tabToDelete.name);
-      try {
-        await crmJson(`/crm/custom-tabs/${tabToDelete.id}`, { method: 'DELETE' });
-        if (activeTab.trim().toUpperCase() === normalizedTarget) {
-          setActiveTab('HOT');
-          setCardFilter({ type: 'none' });
-        }
-        setSelectedIds([]);
-        setPage(1);
-        pushToast('Custom tab and all leads deleted.');
-        await load();
-      } catch (e: any) {
-        pushToast(e.message || 'Failed to delete custom tab', 'error');
-      } finally {
-        setDeletingCustomCardName('');
-      }
-    },
-    [activeTab, customTabs, load],
-  );
-  const handleDeleteLeadsDataInTab = useCallback(
-    async (tabName: string, sourceKey?: string) => {
-      const normalized = String(tabName || '').trim();
-      if (!normalized) return;
-      const leadType = baseTabs.includes(normalized.toUpperCase()) ? normalized.toUpperCase() : 'CUSTOM';
-      const customTabName = leadType === 'CUSTOM' ? normalized : '';
-      const normalizedSourceKey = String(sourceKey || '').trim();
-      if (normalizedSourceKey) setDeletingLeadsDataKey(normalizedSourceKey);
-      else setActionLoading(true);
-      try {
-        const response = await crmJson<{ deletedCount?: number }>('/crm/delete-all-in-tab', {
-          method: 'POST',
-          body: JSON.stringify({ leadType, customTabName }),
-        });
-        setSelectedIds([]);
-        setPage(1);
-        pushToast(`${Number(response?.deletedCount || 0)} leads deleted from ${normalized}.`);
-        await load();
-      } catch (e: any) {
-        pushToast(e.message || 'Failed to delete leads data', 'error');
-      } finally {
-        if (normalizedSourceKey) setDeletingLeadsDataKey('');
-        else setActionLoading(false);
-      }
-    },
-    [load],
-  );
+  const closeDeleteConfirm = useCallback(() => {
+    setConfirmAction(null);
+    setConfirmTargetLead(null);
+    setConfirmDeleteTab(null);
+  }, []);
 
   return (
     <div className="-mt-10 -ml-10 space-y-4 bg-slate-50/70 p-4 pr-5">
@@ -456,24 +441,6 @@ const CRMPage: React.FC = () => {
           <p className="mt-1 text-sm text-slate-600">Action-focused lead list with tabs, follow-ups, and quick communication.</p>
         </div>
       </div>
-      {leadFormOpen ? (
-        <CRMLeadForm
-          mode={editingLead ? 'edit' : 'create'}
-          initialData={editingLead || undefined}
-          activeTab={activeTab}
-          onCancel={() => { setLeadFormOpen(false); setEditingLead(null); }}
-          onSubmit={async (payload: CRMLeadPayload) => {
-            const method = editingLead ? 'PATCH' : 'POST';
-            const path = editingLead ? `/crm/${editingLead._id}` : '/crm';
-            await crmJson(path, { method, body: JSON.stringify(payload) });
-            setLeadFormOpen(false);
-            setEditingLead(null);
-            pushToast(editingLead ? 'Lead updated successfully.' : 'Lead created successfully.');
-            load();
-          }}
-          onError={(message) => pushToast(message, 'error')}
-        />
-      ) : (
       <>
       <div className="grid grid-cols-1 lg:grid-cols-[236px_1fr] gap-4 items-start">
       <div ref={leftTabsMenuRef} className="rounded-lg bg-white border border-slate-200 overflow-visible sticky top-4 z-20">
@@ -495,32 +462,22 @@ const CRMPage: React.FC = () => {
                 <button className="flex-1 px-3 py-2 text-left text-sm" onClick={() => { setPage(1); setCardFilter({ type: 'none' }); setActiveTab(tab); }}>
                   <span className="block truncate font-medium">{tab}</span>
                 </button>
-                <button
-                  className={`absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 inline-flex items-center justify-center rounded-md transition-all ${
-                    tab === activeTab
-                      ? 'opacity-100 text-white/90 hover:text-white hover:bg-white/15'
-                      : 'opacity-0 group-hover:opacity-100 text-slate-500 hover:text-slate-700 hover:bg-slate-100'
-                  }`}
-                  onClick={() => setOpenLeftTabMenu((prev) => (prev === tab ? '' : tab))}
-                  title="Tab actions"
-                >
-                  <MoreVertical size={15} />
-                </button>
-                {openLeftTabMenu === tab ? (
-                  <div className="absolute left-[calc(100%+8px)] top-1/2 -translate-y-1/2 z-[220] w-48 rounded-lg border border-slate-200 bg-white shadow-[0_20px_45px_rgba(15,23,42,0.20)] p-1">
-                    <div className="absolute -left-2 top-1/2 -translate-y-1/2 h-3 w-3 rotate-45 border-l border-b border-slate-200 bg-white" />
+                {!baseTabs.includes(tab) ? (
+                  <>
                     <button
-                      className="w-full text-left px-2 py-1.5 text-sm rounded-md hover:bg-red-50 text-red-600 disabled:opacity-60"
-                      disabled={actionLoading}
-                      onClick={async () => {
-                        setOpenLeftTabMenu('');
-                        await handleDeleteLeadsDataInTab(tab);
-                      }}
+                      className={`absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 inline-flex items-center justify-center rounded-md transition-all ${
+                        tab === activeTab
+                          ? 'opacity-100 text-white/90 hover:text-white hover:bg-white/15'
+                          : 'opacity-0 group-hover:opacity-100 text-slate-500 hover:text-slate-700 hover:bg-slate-100'
+                      }`}
+                      onClick={() => setOpenLeftTabMenu((prev) => (prev === tab ? '' : tab))}
+                      title="Tab actions"
                     >
-                      Delete Leads Data
+                      <MoreVertical size={15} />
                     </button>
-                    {!baseTabs.includes(tab) ? (
-                      <>
+                    {openLeftTabMenu === tab ? (
+                      <div className="absolute left-[calc(100%+8px)] top-1/2 -translate-y-1/2 z-[220] w-44 rounded-lg border border-slate-200 bg-white shadow-[0_20px_45px_rgba(15,23,42,0.20)] p-1">
+                        <div className="absolute -left-2 top-1/2 -translate-y-1/2 h-3 w-3 rotate-45 border-l border-b border-slate-200 bg-white" />
                         <button
                           className="w-full text-left px-2 py-1.5 text-sm rounded-md hover:bg-indigo-50 text-indigo-700 disabled:opacity-60"
                           disabled={actionLoading}
@@ -538,14 +495,17 @@ const CRMPage: React.FC = () => {
                           disabled={actionLoading}
                           onClick={() => {
                             setOpenLeftTabMenu('');
-                            setDeletingTab(customTabMap[tab] || null);
+                            const targetTab = customTabMap[tab] || null;
+                            if (!targetTab) return;
+                            setConfirmDeleteTab(targetTab);
+                            setConfirmAction('deleteTab');
                           }}
                         >
-                          Delete Tab + Data
+                          Delete Tab
                         </button>
-                      </>
+                      </div>
                     ) : null}
-                  </div>
+                  </>
                 ) : null}
               </div>
             ))}
@@ -553,7 +513,7 @@ const CRMPage: React.FC = () => {
         </aside>
       </div>
 
-      <div className="space-y-4">
+      <div className="min-w-0 w-full space-y-4">
       <div className="rounded-lg bg-white border border-slate-200 p-4 space-y-4">
         <CRMStatsCards
           stats={stats}
@@ -572,7 +532,20 @@ const CRMPage: React.FC = () => {
             <label className="text-xs text-slate-500 mb-1 block">Search Leads</label>
             <div className="relative">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm transition-all focus:border-brand-red/60 focus:ring-2 focus:ring-brand-red/20" placeholder="Search by name, email, company, position..." value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
+              <input
+                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-10 text-sm transition-all focus:border-brand-red/60 focus:ring-2 focus:ring-brand-red/20"
+                placeholder="Search by name, email, company, position..."
+                value={search}
+                onChange={(e) => {
+                  setPage(1);
+                  setSearch(e.target.value);
+                }}
+              />
+              {(isSearchPending || (pageLoading && debouncedSearch.trim())) && (
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">
+                  Searching...
+                </span>
+              )}
             </div>
           </div>
           <CRMExportButton leadType={activeTab} customTabName={currentCustomTab} />
@@ -691,23 +664,7 @@ const CRMPage: React.FC = () => {
                 {hiddenCustomLeadsCount > 0 ? (
                   <button
                     className="ml-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-600 transition-colors hover:bg-red-100 disabled:opacity-60"
-                    onClick={async () => {
-                      setDeletingHiddenCustomLeads(true);
-                      try {
-                        const result = await crmJson<{ deletedCount?: number }>('/crm/delete-all-custom', {
-                          method: 'POST',
-                          body: JSON.stringify(personParams),
-                        });
-                        setSelectedIds([]);
-                        setPage(1);
-                        pushToast(`${Number(result?.deletedCount || 0)} hidden custom leads deleted.`);
-                        await load();
-                      } catch (e: any) {
-                        pushToast(e.message || 'Failed to delete custom leads', 'error');
-                      } finally {
-                        setDeletingHiddenCustomLeads(false);
-                      }
-                    }}
+                    onClick={() => setConfirmAction('deleteHiddenCustom')}
                     disabled={deletingHiddenCustomLeads}
                   >
                     {deletingHiddenCustomLeads ? 'Deleting...' : `Delete Hidden Custom Data (${hiddenCustomLeadsCount})`}
@@ -755,22 +712,14 @@ const CRMPage: React.FC = () => {
       {pageLoading ? (
         <div className="rounded-lg bg-white border border-slate-200 p-8 text-center text-slate-500">Loading leads...</div>
       ) : (
-      <div className="rounded-lg bg-white border border-slate-200 overflow-visible">
-        <div className="p-3">
+      <div className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
           <CRMTable
             items={leads}
             rowStart={(page - 1) * pageSize}
             selectedIds={selectedIds}
-            deletingId={deletingId}
             onOpen={(item) => navigate(`/crm/lead/${item._id}`)}
             onToggleSelect={(id) => setSelectedIds(prev => (prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]))}
-            onEdit={(item) => { setEditingLead(item); setLeadFormOpen(true); }}
-            onDelete={(item) => {
-              setConfirmTargetLead(item);
-              setConfirmAction('deleteOne');
-            }}
           />
-        </div>
       </div>
       )}
 
@@ -824,7 +773,7 @@ const CRMPage: React.FC = () => {
           await crmUploadFile('/crm/import', form);
           setImportOpen(false);
           pushToast('Excel imported successfully.');
-          load();
+          loadAll();
         }}
       />
       {createTabOpen && (
@@ -925,7 +874,7 @@ const CRMPage: React.FC = () => {
                     });
                     setSelectedIds([]);
                     setMoveModalOpen(false);
-                    await load();
+                    await loadAll();
                   } catch (e: any) {
                     pushToast(e.message || 'Move failed', 'error');
                   } finally {
@@ -947,9 +896,23 @@ const CRMPage: React.FC = () => {
               {confirmAction === 'deleteOne' && 'Delete this lead permanently?'}
               {confirmAction === 'deleteBulk' && `Delete ${selectedIds.length} selected leads permanently?`}
               {confirmAction === 'deleteAll' && `Delete all leads in ${activeTab} tab?`}
+              {confirmAction === 'deleteHiddenCustom' &&
+                `Delete ${hiddenCustomLeadsCount} hidden custom leads permanently?`}
+              {confirmAction === 'deleteTab' && confirmDeleteTab ? (
+                <>
+                  Delete tab <span className="font-semibold">{confirmDeleteTab.name}</span> and all leads in it?
+                  This cannot be undone.
+                </>
+              ) : null}
             </div>
             <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-3">
-              <button className="px-4 py-2 rounded-lg border border-slate-300" onClick={() => { setConfirmAction(null); setConfirmTargetLead(null); }}>No</button>
+              <button
+                className="px-4 py-2 rounded-lg border border-slate-300"
+                onClick={closeDeleteConfirm}
+                disabled={actionLoading}
+              >
+                No
+              </button>
               <button
                 className="px-4 py-2 rounded-lg bg-red-600 text-white disabled:opacity-60"
                 disabled={actionLoading}
@@ -975,49 +938,36 @@ const CRMPage: React.FC = () => {
                       setSelectedIds([]);
                       pushToast(`All leads deleted from ${activeTab}.`);
                     }
-                    setConfirmAction(null);
-                    setConfirmTargetLead(null);
-                    await load();
+                    if (confirmAction === 'deleteHiddenCustom') {
+                      setDeletingHiddenCustomLeads(true);
+                      const result = await crmJson<{ deletedCount?: number }>('/crm/delete-all-custom', {
+                        method: 'POST',
+                        body: JSON.stringify(personParams),
+                      });
+                      setSelectedIds([]);
+                      setPage(1);
+                      pushToast(`${Number(result?.deletedCount || 0)} hidden custom leads deleted.`);
+                      setDeletingHiddenCustomLeads(false);
+                    }
+                    if (confirmAction === 'deleteTab' && confirmDeleteTab) {
+                      await crmJson(`/crm/custom-tabs/${confirmDeleteTab.id}`, { method: 'DELETE' });
+                      if (activeTab === confirmDeleteTab.name) setActiveTab('HOT');
+                      setSelectedIds([]);
+                      setPage(1);
+                      pushToast(`Tab "${confirmDeleteTab.name}" and all its leads were deleted.`);
+                    }
+                    closeDeleteConfirm();
+                    await loadAll();
                   } catch (e: any) {
                     pushToast(e.message || 'Delete failed', 'error');
                   } finally {
                     setDeletingId('');
+                    setDeletingHiddenCustomLeads(false);
                     setActionLoading(false);
                   }
                 }}
               >
                 {actionLoading ? 'Processing...' : 'Yes'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {deletingTab && (
-        <div className="fixed inset-0 z-[110] bg-black/35 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-200"><h3 className="text-lg font-semibold text-slate-800">Delete Custom Tab</h3></div>
-            <div className="p-6 text-slate-700">Delete tab <span className="font-semibold">{deletingTab.name}</span> and all leads inside it?</div>
-            <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-3">
-              <button className="px-4 py-2 rounded-lg border border-slate-300" onClick={() => setDeletingTab(null)}>Cancel</button>
-              <button
-                className="px-4 py-2 rounded-lg bg-red-600 text-white disabled:opacity-60"
-                disabled={actionLoading}
-                onClick={async () => {
-                  setActionLoading(true);
-                  try {
-                    await crmJson(`/crm/custom-tabs/${deletingTab.id}`, { method: 'DELETE' });
-                    if (activeTab === deletingTab.name) setActiveTab('HOT');
-                    setDeletingTab(null);
-                    pushToast('Custom tab deleted.');
-                    await load();
-                  } catch (e: any) {
-                    pushToast(e.message || 'Failed to delete custom tab', 'error');
-                  } finally {
-                    setActionLoading(false);
-                  }
-                }}
-              >
-                {actionLoading ? 'Deleting...' : 'Delete Tab'}
               </button>
             </div>
           </div>
@@ -1059,7 +1009,7 @@ const CRMPage: React.FC = () => {
                     pushToast('Custom tab renamed.');
                     setRenamingTab(null);
                     setRenamingTabName('');
-                    await load();
+                    await loadAll();
                   } catch (e: any) {
                     pushToast(e.message || 'Failed to rename tab', 'error');
                   } finally {
@@ -1094,8 +1044,29 @@ const CRMPage: React.FC = () => {
           </div>
         ))}
       </div>
-      </>
+      {leadFormOpen && (
+        <CRMLeadForm
+          variant="modal"
+          mode={editingLead ? 'edit' : 'create'}
+          initialData={editingLead || undefined}
+          activeTab={activeTab}
+          onCancel={() => {
+            setLeadFormOpen(false);
+            setEditingLead(null);
+          }}
+          onSubmit={async (payload: CRMLeadPayload) => {
+            const method = editingLead ? 'PATCH' : 'POST';
+            const path = editingLead ? `/crm/${editingLead._id}` : '/crm';
+            await crmJson(path, { method, body: JSON.stringify(payload) });
+            setLeadFormOpen(false);
+            setEditingLead(null);
+            pushToast(editingLead ? 'Lead updated successfully.' : 'Lead created successfully.');
+            loadAll();
+          }}
+          onError={(message) => pushToast(message, 'error')}
+        />
       )}
+      </>
     </div>
   );
 };

@@ -1,23 +1,15 @@
-import { API_BASE, getAuthHeaders } from '../config/api';
+import { API_BASE, apiGetJson, getAuthHeaders } from '../config/api';
 
 export async function fetchPlanUsage() {
-  const res = await fetch(`${API_BASE}/plan/usage`, { headers: getAuthHeaders() });
-  if (!res.ok) throw new Error('Failed to load plan usage');
-  return res.json();
+  return apiGetJson('/plan/usage');
 }
 
 export async function fetchSuperAdminTenants() {
-  const res = await fetch(`${API_BASE}/super-admin/tenants`, { headers: getAuthHeaders() });
-  if (!res.ok) throw new Error('Failed to load tenants');
-  return res.json();
+  return apiGetJson('/super-admin/tenants');
 }
 
 export async function fetchSuperAdminTenant(companyId: string) {
-  const res = await fetch(`${API_BASE}/super-admin/tenants/${companyId}`, {
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) throw new Error('Failed to load tenant');
-  return res.json();
+  return apiGetJson(`/super-admin/tenants/${companyId}`);
 }
 
 export async function updateTenantStatus(companyId: string, status: 'active' | 'suspended') {
@@ -40,9 +32,7 @@ export async function createDataExport() {
 }
 
 export async function listDataExports() {
-  const res = await fetch(`${API_BASE}/data-export`, { headers: getAuthHeaders() });
-  if (!res.ok) throw new Error('Failed to list exports');
-  return res.json();
+  return apiGetJson('/data-export');
 }
 
 export async function requestAccountClosure(reason: string, retentionDays = 30) {
@@ -56,9 +46,7 @@ export async function requestAccountClosure(reason: string, retentionDays = 30) 
 }
 
 export async function getAccountClosureStatus() {
-  const res = await fetch(`${API_BASE}/account/closure`, { headers: getAuthHeaders() });
-  if (!res.ok) throw new Error('Failed to load closure status');
-  return res.json();
+  return apiGetJson('/account/closure');
 }
 
 export async function updateProjectAdvanced(

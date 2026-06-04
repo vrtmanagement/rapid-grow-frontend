@@ -2,11 +2,26 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { PlanningState } from '../types';
 import { API_BASE, getAuthHeaders } from '../config/api';
-import { BrainCircuit, Zap, AlertCircle, Sparkles, Send, ShieldCheck } from 'lucide-react';
+import {
+  BrainCircuit,
+  Zap,
+  AlertCircle,
+  Sparkles,
+  Send,
+  ShieldCheck,
+  ScrollText,
+  CheckCircle2,
+  PenLine,
+  Target,
+} from 'lucide-react';
 import { getSocket } from '../realtime/socket';
 import { ReflectionLogSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 import ReflectionHabitsCard from '../components/reflection/ReflectionHabitsCard';
+import PageSectionSubnav from '../components/layout/PageSectionSubnav';
+import { ThemedDatePicker } from '../components/spaces/SpacesFormControls';
 import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } from '../utils/avatar';
+
+type ReflectionPanel = 'form' | 'logs';
 
 interface Props {
   state: PlanningState;
@@ -53,7 +68,10 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
   const [records, setRecords] = useState<ReflectionRecord[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activePanel, setActivePanel] = useState<ReflectionPanel>('form');
   const [scope, setScope] = useState<'me' | 'all' | 'team'>('me');
+  const [logsLoaded, setLogsLoaded] = useState(false);
+  const [myRecordsBootstrapped, setMyRecordsBootstrapped] = useState(false);
   const [logFilter, setLogFilter] = useState<'today' | 'yesterday' | 'all'>('all');
   const [selectedLogDate, setSelectedLogDate] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -130,6 +148,7 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
       }
       const data = await res.json();
       setRecords(Array.isArray(data) ? data : []);
+      setLogsLoaded(true);
     } catch (e: any) {
       console.error(e);
       setError(e.message || 'Failed to load reflections');
@@ -216,6 +235,7 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
         bigRocksTomorrow: record.bigRocksTomorrow || '',
       },
     }));
+    setActivePanel('form');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -242,9 +262,14 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
   };
 
   useEffect(() => {
+    if (activePanel === 'form' && !myRecordsBootstrapped) {
+      loadReflections('me').finally(() => setMyRecordsBootstrapped(true));
+      return;
+    }
+    if (activePanel !== 'logs') return;
     loadReflections();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activePanel, scope, myRecordsBootstrapped]);
 
   useEffect(() => {
     const loadEmployeeAvatars = async () => {
@@ -338,63 +363,38 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
           <Skeleton className="h-4 w-40 bg-white/10" />
         </div>
 
-        <div className="grid lg:grid-cols-12 gap-10">
-          <div className="lg:col-span-8 space-y-8">
-            <div className="bg-white p-16 rounded-[3rem] border border-slate-200 shadow-sm space-y-12 animate-pulse">
-              <div className="flex items-center gap-6">
-                <Skeleton className="h-10 w-56" />
-                <SkeletonBlock className="h-8 w-8 rounded-full" />
-              </div>
+        <div className="grid gap-8 lg:grid-cols-12">
+          <div className="lg:col-span-4">
+            <div className="animate-pulse space-y-4 rounded-[1.75rem] border border-slate-800/80 bg-slate-900 p-6">
+              <Skeleton className="h-5 w-40 bg-white/10" />
+              <Skeleton className="h-4 w-full bg-white/10" />
               {Array.from({ length: 4 }).map((_, index) => (
-                <div key={`reflection-field-${index}`} className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <SkeletonBlock className="h-12 w-12 rounded-xl" />
-                    <Skeleton className="h-5 w-64" />
-                  </div>
-                  <SkeletonBlock className="h-40 w-full rounded-2xl" />
-                </div>
+                <SkeletonBlock key={`habit-${index}`} className="h-16 w-full rounded-xl bg-white/10" />
               ))}
-              <div className="bg-red-50 p-10 rounded-[2.5rem] border-4 border-brand-red/10 space-y-6">
-                <Skeleton className="h-5 w-52" />
-                <SkeletonBlock className="h-48 w-full rounded-2xl bg-white" />
-              </div>
             </div>
           </div>
 
-          <div className="lg:col-span-4 space-y-8">
-            <div className="bg-slate-900 p-12 rounded-[2.5rem] shadow-2xl border border-white/5 animate-pulse space-y-8">
-              <Skeleton className="h-6 w-36 bg-white/10" />
-              <div className="flex items-center gap-8">
-                <SkeletonBlock className="h-24 w-24 rounded-2xl bg-white/10" />
+          <div className="min-w-0 space-y-6 lg:col-span-8">
+            <div className="animate-pulse space-y-5 overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white p-6 sm:p-8">
+              <div className="flex justify-between gap-4 border-b border-slate-100 pb-5">
                 <div className="space-y-2">
-                  <Skeleton className="h-4 w-24 bg-white/10" />
-                  <Skeleton className="h-4 w-20 bg-white/10" />
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-8 w-56" />
+                  <Skeleton className="h-4 w-40" />
                 </div>
+                <SkeletonBlock className="h-7 w-28 rounded-full" />
               </div>
-              <div className="h-px bg-white/10 w-full"></div>
-              <div className="flex items-center gap-8">
-                <SkeletonBlock className="h-24 w-24 rounded-2xl bg-white/10" />
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-24 bg-white/10" />
-                  <Skeleton className="h-4 w-20 bg-white/10" />
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={`reflection-field-${index}`} className="space-y-3 rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+                  <Skeleton className="h-5 w-64" />
+                  <SkeletonBlock className="h-28 w-full rounded-xl" />
                 </div>
+              ))}
+              <div className="space-y-3 rounded-2xl border border-brand-red/10 bg-red-50/50 p-4">
+                <Skeleton className="h-5 w-48" />
+                <SkeletonBlock className="h-36 w-full rounded-xl bg-white" />
               </div>
-            </div>
-
-            <div className="bg-white p-12 rounded-[2.5rem] border border-slate-200 shadow-sm space-y-10 animate-pulse">
-              <Skeleton className="h-6 w-48" />
-              <div className="space-y-8">
-                {Array.from({ length: 4 }).map((_, index) => (
-                  <div key={`habit-${index}`} className="flex gap-6">
-                    <SkeletonBlock className="w-2.5 h-2.5 rounded-full mt-2" />
-                    <div className="space-y-2 flex-1">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-5/6" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <SkeletonBlock className="h-14 w-full rounded-2xl bg-slate-100" />
+              <SkeletonBlock className="h-14 w-full rounded-xl" />
             </div>
           </div>
         </div>
@@ -413,189 +413,283 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
     );
   }
 
+  const pageTitle = state.uiConfig.reflectionTitle || 'Daily Reflection';
+  const subnavTabClass = (panel: ReflectionPanel) =>
+    `border-b-2 px-1 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors sm:text-[12px] ${
+      activePanel === panel
+        ? 'border-brand-red text-slate-900'
+        : 'border-transparent text-slate-500 hover:text-slate-900'
+    }`;
+
   return (
-    <div className="max-w-6xl mx-auto space-y-12 pb-24 animate-in fade-in duration-700">
-      {/* <div className="bg-slate-900 text-white p-8 rounded-2xl flex items-center justify-center gap-8 text-[12px] shadow-2xl border border-white/5 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-red"></div>
-        <span className="text-brand-red">Daily Reflection</span>
-        <div className="h-1 w-16 bg-brand-red/20 rounded-full"></div>
-        <span className="opacity-60">{state.uiConfig.reflectionSub}</span>
-      </div> */}
-      <div className="lg:col-span-4 space-y-8">
-          {/* <div className="bg-slate-900 p-12 rounded-[2.5rem] text-white space-y-12 shadow-2xl relative overflow-hidden border border-white/5 group">
-            <div className="absolute top-0 right-0 w-2 h-full bg-brand-red"></div>
-            <h3 className="text-2xl text-brand-red relative z-10">Standard Protocol</h3>
-            <div className="flex items-center gap-8 relative z-10">
-              <div className="w-24 h-24 rounded-2xl border-4 border-brand-red flex items-center justify-center text-3xl shadow-2xl bg-white/5">25m</div>
-              <p className="text-[15px] leading-loose text-slate-800">Tactical <br/> Daily Review</p>
-            </div>
-            <div className="h-px bg-white/10 w-full relative z-10"></div>
-            <h3 className="text-2xl text-slate-300 relative z-10">Deep Synthesis</h3>
-            <div className="flex items-center gap-8 relative z-10">
-              <div className="w-24 h-24 rounded-2xl border-4 border-slate-700 flex items-center justify-center text-3xl shadow-2xl bg-white/5">45m</div>
-              <p className="text-[15px] leading-loose text-slate-800">Advanced <br/> Architecture</p>
-            </div>
-          </div> */}
-
-          <ReflectionHabitsCard error={error} />
-        </div>
-
-      <div className="grid lg:grid-cols-12 gap-10">
-        <div className="lg:col-span-12 space-y-8">
-          <div className="bg-white p-16 rounded-[3rem] border border-slate-200 shadow-sm space-y-12 group hover:border-brand-red/30 transition-all">
-            <h2 className="text-4xl text-slate-900 flex items-center gap-6">
-              End of Day Report
-              <Sparkles className="text-brand-red" size={32} />
-            </h2>
-
-            <ReflectionField 
-              label="What did you accomplish today?"
-              helper="List the key tasks you completed or moved forward. Making progress is the single biggest motivator."
-              value={state.reflection.accomplishments}
-              onChange={(v) => handleChange('accomplishments', v)}
-              icon={<Zap className="text-brand-red" size={24} />}
-            />
-
-            <ReflectionField 
-              label="What didn’t go well? What did you learn?"
-              value={state.reflection.mistakes}
-              onChange={(v) => handleChange('mistakes', v)}
-              icon={<AlertCircle className="text-brand-red" size={24} />}
-            />
-
-            <ReflectionField 
-              label="What was left unfinished or deferred?"
-              value={state.reflection.forgotten}
-              onChange={(v) => handleChange('forgotten', v)}
-              icon={<ShieldCheck className="text-slate-800" size={24} />}
-            />
-
-            <ReflectionField 
-              label="When did you feel most energized?"
-              value={state.reflection.energyPeaks}
-              onChange={(v) => handleChange('energyPeaks', v)}
-              icon={<BrainCircuit className="text-brand-red" size={24} />}
-            />
-
-            <div className="bg-red-50 p-10 rounded-[2.5rem] border-4 border-brand-red/10">
-               <label className="flex items-center gap-3 text-md text-brand-red mb-6">
-                 <Send className="text-brand-red -rotate-45" size={20} />
-                 Top priorities for tomorrow
-               </label>
-               <textarea 
-                 value={state.reflection.bigRocksTomorrow}
-                 onChange={(e) => handleChange('bigRocksTomorrow', e.target.value)}
-                 className="w-full bg-white border-2 border-brand-red/10 rounded-2xl p-8 text-lg text-slate-800 focus:border-brand-red focus:ring-[16px] focus:ring-brand-red/5 outline-none h-48 transition-all shadow-sm"
-                 placeholder="List the most important tasks you will work on tomorrow so you can start the day with clarity."
-               />
-            </div>
-          <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving || (!!myTodayRecord && !editingId)}
-              className="w-full mt-6 flex items-center justify-center gap-4 bg-brand-red text-white py-6 rounded-2xl text-md shadow-2xl hover:bg-slate-900 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <Send size={24} className="-rotate-45" />
-              {saving ? 'Saving...' : editingId ? 'Save Updates' : 'Save Daily Report'}
+    <div className="w-full pb-24 animate-in fade-in duration-700">
+      <PageSectionSubnav
+        outerClassName="mb-8"
+        leading={
+          <>
+            <span className="h-1.5 w-8 shrink-0 rounded-full bg-brand-red" />
+            <span className="truncate text-sm font-medium text-slate-600 sm:text-[15px]">{pageTitle}</span>
+          </>
+        }
+        center={
+          <>
+            <button type="button" onClick={() => setActivePanel('form')} className={subnavTabClass('form')}>
+              Daily Report
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActivePanel('logs');
+                if (!logsLoaded) void loadReflections();
+              }}
+              className={subnavTabClass('logs')}
+            >
+              All Logs
+            </button>
+          </>
+        }
+      />
+
+      {activePanel === 'form' && (
+        <div className="mx-auto max-w-6xl scroll-mt-24 pt-2">
+          <div className="grid gap-8 lg:grid-cols-12">
+            <aside className="lg:col-span-4">
+              <div className="lg:sticky lg:top-[4.75rem] lg:z-10">
+                <ReflectionHabitsCard error={null} />
+              </div>
+            </aside>
+
+            <div className="min-w-0 lg:col-span-8">
+              <div className="overflow-hidden rounded-[1.75rem] border border-slate-200/90 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.08)]">
+                <div className="relative border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-red-50/40 px-6 py-5 sm:px-8">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-red">Daily report</p>
+                      <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">End of Day Report</h2>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {new Intl.DateTimeFormat('en-US', {
+                          weekday: 'long',
+                          month: 'long',
+                          day: 'numeric',
+                          timeZone: 'Asia/Kolkata',
+                        }).format(new Date(`${todayKey}T12:00:00`))}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {editingId ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+                          <PenLine size={14} />
+                          Editing entry
+                        </span>
+                      ) : myTodayRecord ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                          <CheckCircle2 size={14} />
+                          Submitted today
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                          <Sparkles size={14} className="text-brand-red" />
+                          Ready to submit
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-5 p-6 sm:p-8">
+                  <ReflectionField
+                    step={1}
+                    label="What did you accomplish today?"
+                    value={state.reflection.accomplishments}
+                    onChange={(v) => handleChange('accomplishments', v)}
+                    icon={<Zap className="text-brand-red" size={20} />}
+                    placeholder="Summarize wins, deliveries, and momentum you created today..."
+                  />
+
+                  <ReflectionField
+                    step={2}
+                    label="What didn’t go well? What did you learn?"
+                    value={state.reflection.mistakes}
+                    onChange={(v) => handleChange('mistakes', v)}
+                    icon={<AlertCircle className="text-brand-red" size={20} />}
+                    placeholder="Capture setbacks honestly and what you will do differently..."
+                  />
+
+                  <ReflectionField
+                    step={3}
+                    label="What was left unfinished or deferred?"
+                    value={state.reflection.forgotten}
+                    onChange={(v) => handleChange('forgotten', v)}
+                    icon={<ShieldCheck className="text-slate-700" size={20} />}
+                    placeholder="Note open loops so they do not get lost overnight..."
+                  />
+
+                  <ReflectionField
+                    step={4}
+                    label="When did you feel most energized?"
+                    value={state.reflection.energyPeaks}
+                    onChange={(v) => handleChange('energyPeaks', v)}
+                    icon={<BrainCircuit className="text-brand-red" size={20} />}
+                    placeholder="Morning focus block, collaboration, deep work — what gave you energy?"
+                  />
+
+                  <div className="relative overflow-hidden rounded-2xl border border-brand-red/20 bg-gradient-to-br from-red-50 via-white to-white p-5 sm:p-6">
+                    <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-brand-red/10 blur-2xl" />
+                    <div className="relative space-y-4">
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-red text-white shadow-md shadow-brand-red/25">
+                          <Target size={18} />
+                        </span>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-red">Tomorrow focus</p>
+                          <label className="text-base font-semibold text-slate-900">Top priorities for tomorrow</label>
+                        </div>
+                      </div>
+                      <textarea
+                        value={state.reflection.bigRocksTomorrow}
+                        onChange={(e) => handleChange('bigRocksTomorrow', e.target.value)}
+                        rows={4}
+                        className="w-full resize-none overflow-y-auto rounded-xl border border-brand-red/15 bg-white px-4 py-3 text-[15px] leading-relaxed text-slate-800 shadow-sm outline-none transition-all placeholder:text-slate-400 focus:border-brand-red focus:ring-4 focus:ring-brand-red/10"
+                        placeholder="List the 1–3 most important tasks to start tomorrow with clarity."
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 bg-slate-50/80 px-6 py-5 sm:px-8">
+                  {error ? (
+                    <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+                  ) : null}
+                  {!editingId && myTodayRecord ? (
+                    <p className="mb-4 text-sm text-slate-600">
+                      You already submitted today&apos;s report. Use <span className="font-semibold">All Logs</span> to edit if needed.
+                    </p>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving || (!!myTodayRecord && !editingId)}
+                    className="flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-brand-red to-[#c41e24] px-6 py-4 text-[15px] font-semibold text-white shadow-[0_14px_30px_rgba(230,28,33,0.28)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(230,28,33,0.32)] hover:from-brand-navy hover:to-slate-900 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                  >
+                    <Send size={20} className="-rotate-45" />
+                    {saving ? 'Saving...' : editingId ? 'Save updates' : 'Submit daily report'}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+      )}
 
-        
-      </div>
+      {activePanel === 'logs' && (
+        <div className="max-w-6xl mx-auto pt-2 bg-gradient-to-br from-white via-white to-red-50/30 rounded-[2.5rem] border border-slate-200 shadow-[0_24px_60px_rgba(15,23,42,0.08)] p-10 space-y-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <ScrollText className="text-brand-red" size={22} />
+              <div>
+                <h3 className="text-xl font-semibold text-slate-900 tracking-tight">Reflection Logs</h3>
+                <p className="text-sm text-slate-500 mt-0.5">Browse saved daily reports. Use the filters below to narrow results.</p>
+              </div>
+            </div>
+            {loadingList && <span className="text-xs text-slate-500">Loading...</span>}
+          </div>
 
-      <div className="mt-12 bg-gradient-to-br from-white via-white to-red-50/30 rounded-[2.5rem] border border-slate-200 shadow-[0_24px_60px_rgba(15,23,42,0.08)] p-10 space-y-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4 flex-wrap">
-            <h3 className="text-xl font-semibold text-slate-900 tracking-tight">
-              Daily Reflection Log
-            </h3>
-            <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1 text-xs">
-              <button
-                type="button"
-                onClick={() => setLogFilter('today')}
-                className={`px-3 py-1 rounded-full ${logFilter === 'today' ? 'bg-slate-900 text-white' : 'text-slate-700'}`}
-              >
-                Today
-              </button>
-              <button
-                type="button"
-                onClick={() => setLogFilter('yesterday')}
-                className={`px-3 py-1 rounded-full ${logFilter === 'yesterday' ? 'bg-slate-900 text-white' : 'text-slate-700'}`}
-              >
-                Yesterday
-              </button>
-              <button
-                type="button"
-                onClick={() => setLogFilter('all')}
-                className={`px-3 py-1 rounded-full ${logFilter === 'all' ? 'bg-slate-900 text-white' : 'text-slate-700'}`}
-              >
-                All logs
-              </button>
+          <div className={`grid gap-6 ${isAdmin || isLeader ? 'lg:grid-cols-2' : 'max-w-2xl'}`}>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-brand-red mb-1">Quick date filter</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex flex-wrap items-center rounded-full border border-slate-200 bg-slate-50 p-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogFilter('today');
+                      setSelectedLogDate('');
+                    }}
+                    className={`px-3 py-1 rounded-full ${logFilter === 'today' && !selectedLogDate ? 'bg-slate-900 text-white' : 'text-slate-700'}`}
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogFilter('yesterday');
+                      setSelectedLogDate('');
+                    }}
+                    className={`px-3 py-1 rounded-full ${logFilter === 'yesterday' && !selectedLogDate ? 'bg-slate-900 text-white' : 'text-slate-700'}`}
+                  >
+                    Yesterday
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogFilter('all');
+                      setSelectedLogDate('');
+                    }}
+                    className={`px-3 py-1 rounded-full ${logFilter === 'all' && !selectedLogDate ? 'bg-slate-900 text-white' : 'text-slate-700'}`}
+                  >
+                    All dates
+                  </button>
+                  <ThemedDatePicker
+                    pill
+                    active={!!selectedLogDate}
+                    forceOpenDown
+                    value={selectedLogDate}
+                    onChange={(value) => {
+                      setSelectedLogDate(value);
+                      if (value) {
+                        setLogFilter('all');
+                        return;
+                      }
+                      setLogFilter('all');
+                    }}
+                  />
+                </div>
+              </div>
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 shadow-sm">
-              <span className="text-[11px] font-medium text-slate-500">Date</span>
-              <input
-                type="date"
-                value={selectedLogDate}
-                onChange={(e) => setSelectedLogDate(e.target.value)}
-                className="bg-transparent text-xs text-slate-700 outline-none"
-              />
-              {selectedLogDate && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedLogDate('')}
-                  className="text-[11px] text-brand-red hover:text-slate-900"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
+
             {(isAdmin || isLeader) && (
-              <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1 text-xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScope('me');
-                    loadReflections('me');
-                  }}
-                  className={`px-3 py-1 rounded-full ${scope === 'me' ? 'bg-slate-900 text-white' : 'text-slate-700'}`}
-                >
-                  Me
-                </button>
-                {isAdmin ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 mb-1">Whose reports to show</p>
+                <p className="text-xs text-slate-500 mb-3">
+                  {isAdmin
+                    ? 'View only your entries or every employee’s daily reports.'
+                    : 'View your report or your team members’ reports.'}
+                </p>
+                <div className="inline-flex flex-wrap rounded-full border border-slate-200 bg-slate-50 p-1 text-xs">
                   <button
                     type="button"
-                    onClick={() => {
-                      setScope('all');
-                      loadReflections('all');
-                    }}
-                    className={`px-3 py-1 rounded-full ${scope === 'all' ? 'bg-brand-red text-white' : 'text-slate-700'}`}
+                    onClick={() => setScope('me')}
+                    className={`px-3 py-1 rounded-full ${scope === 'me' ? 'bg-slate-900 text-white' : 'text-slate-700'}`}
                   >
-                    All logs
+                    My reports only
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setScope('team');
-                      loadReflections('team');
-                    }}
-                    className={`px-3 py-1 rounded-full ${scope === 'team' ? 'bg-brand-red text-white' : 'text-slate-700'}`}
-                  >
-                    Employee logs
-                  </button>
-                )}
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      onClick={() => setScope('all')}
+                      className={`px-3 py-1 rounded-full ${scope === 'all' ? 'bg-brand-red text-white' : 'text-slate-700'}`}
+                    >
+                      Everyone (all staff)
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setScope('team')}
+                      className={`px-3 py-1 rounded-full ${scope === 'team' ? 'bg-brand-red text-white' : 'text-slate-700'}`}
+                    >
+                      My team only
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
-          {loadingList && (
-            <span className="text-xs text-slate-500">Loading...</span>
-          )}
-        </div>
+
         {displayedRecords.length === 0 && !loadingList && (
           <p className="text-sm text-slate-500">
-            No reflections logged yet. Save your first daily report above.
+            {logsLoaded
+              ? 'No reflections match these filters.'
+              : 'No reflections logged yet. Submit a daily report from the Daily Report tab.'}
           </p>
         )}
         <div className="space-y-4">
@@ -727,7 +821,8 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
             </div>
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
@@ -764,18 +859,49 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
   );
 };
 
-const ReflectionField = ({ label, helper, value, onChange, icon }: any) => (
-    <div className="space-y-6">
-    <label className="flex items-center gap-4 text-md text-slate-800">
-      <div className="p-3 bg-slate-50 rounded-xl text-brand-red">{icon}</div>
-      {label}
-    </label>
-    {helper && <p className="text-[15px] text-slate-800 ml-16 opacity-70">({helper})</p>}
-    <textarea 
+const reflectionTextareaClassName =
+  'w-full resize-none overflow-y-auto rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] leading-relaxed text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-brand-red focus:ring-4 focus:ring-brand-red/10';
+
+type ReflectionFieldProps = {
+  step: number;
+  label: string;
+  helper?: string;
+  value: string;
+  onChange: (value: string) => void;
+  icon: React.ReactNode;
+  placeholder?: string;
+};
+
+const ReflectionField: React.FC<ReflectionFieldProps> = ({
+  step,
+  label,
+  helper,
+  value,
+  onChange,
+  icon,
+  placeholder = 'Share your thoughts...',
+}) => (
+  <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 transition-colors focus-within:border-brand-red/30 focus-within:bg-white focus-within:shadow-[0_8px_24px_rgba(15,23,42,0.06)] sm:p-5">
+    <div className="mb-3 flex items-start gap-3">
+      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-xs font-bold text-brand-red shadow-sm ring-1 ring-slate-200/80">
+        {step}
+      </span>
+      <div className="min-w-0 flex-1">
+        <label className="flex items-center gap-2 text-[15px] font-semibold text-slate-900">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-brand-red ring-1 ring-slate-200/80">
+            {icon}
+          </span>
+          {label}
+        </label>
+        {helper ? <p className="mt-1 text-xs leading-relaxed text-slate-500">{helper}</p> : null}
+      </div>
+    </div>
+    <textarea
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-8 text-lg text-slate-700 focus:bg-white focus:border-brand-red focus:ring-[16px] focus:ring-red-50 transition-all outline-none h-40 resize-none shadow-inner"
-      placeholder="Execute deep thought process here..."
+      rows={4}
+      className={reflectionTextareaClassName}
+      placeholder={placeholder}
     />
   </div>
 );

@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PlanningState, Goal } from '../types';
 import { CheckCircle2, UserPlus2 } from 'lucide-react';
 import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
+import { getSocket } from '../realtime/socket';
 import { Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 import VisionFlowNav from '../components/planning/VisionFlowNav';
 import DailyTopPrioritiesCard from '../components/planning/DailyTopPrioritiesCard';
@@ -260,10 +261,11 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
 
     loadTasks();
     loadEmployees();
-    const timer = window.setInterval(loadTasks, 15000);
+    const socket = getSocket();
+    socket.on('spaces:changed', loadTasks);
     return () => {
       active = false;
-      window.clearInterval(timer);
+      socket.off('spaces:changed', loadTasks);
     };
   }, []);
   const toggleDaily = (id: string) => {
