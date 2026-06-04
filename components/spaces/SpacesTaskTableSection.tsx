@@ -2,10 +2,11 @@ import React from 'react';
 import { CheckSquare, Eye, MessageSquareText, MoreVertical, Octagon, Pencil, Plus, X } from 'lucide-react';
 import { TaskHubTableSkeleton, ThemedSelect } from './SpacesFormControls';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
+import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
+import type { SpacesTask } from '../../types/spaces';
 import {
   isRecurringSeriesActive,
   isRecurringSeriesTask,
-  type SpacesTask,
 } from '../../views/spacesViewHelpers';
 
 function getPriorityPillClass(priority?: string) {
@@ -42,7 +43,67 @@ const ROW_MENU_OFFSET = 8;
 const ROW_MENU_FALLBACK_HEIGHT = 192;
 const ROW_MENU_VIEWPORT_PADDING = 12;
 
-const SpacesTaskTableSection: React.FC<any> = (props) => {
+type SpacesTaskTableSectionProps = Pick<
+  SpacesViewController,
+  | 'columns'
+  | 'isRenamingColumnId'
+  | 'renameDraft'
+  | 'setRenameDraft'
+  | 'setIsRenamingColumnId'
+  | 'setActiveColumnMenuId'
+  | 'sortedTasks'
+  | 'tasks'
+  | 'setColumns'
+  | 'setError'
+  | 'activeColumnMenuId'
+  | 'setColumnToDelete'
+  | 'handleAddColumn'
+  | 'spacesLoading'
+  | 'paginatedTasks'
+  | 'canEditTask'
+  | 'isTaskLocked'
+  | 'getTaskRowClasses'
+  | 'patchTask'
+  | 'stopTaskRecurrence'
+  | 'stoppingRecurrenceTaskId'
+  | 'projectNameById'
+  | 'mode'
+  | 'me'
+  | 'assigneeOptionsForTask'
+  | 'employeesLoading'
+  | 'canEditDueDate'
+  | 'priorityOptions'
+  | 'canChangeStatus'
+  | 'statusOptions'
+  | 'forceDownloadDocument'
+  | 'canCommentOnTask'
+  | 'setCommentTaskId'
+  | 'setModalStatus'
+  | 'canValidateTask'
+  | 'canDeleteTask'
+  | 'handleApproveTask'
+  | 'handleRejectTask'
+  | 'navigate'
+  | 'setEditingTask'
+  | 'setEditingTaskMode'
+  | 'setEditingTaskDraft'
+  | 'setDeleteTaskModal'
+  | 'setBulkDeleteTaskModalOpen'
+  | 'selectedTaskIds'
+  | 'canBulkManageTasks'
+  | 'toggleTaskSelection'
+  | 'canSelectTask'
+  | 'taskPage'
+  | 'TASKS_PER_PAGE'
+  | 'taskListTotal'
+  | 'setTaskPage'
+  | 'visibleTaskPages'
+  | 'totalTaskPages'
+  | 'API_BASE'
+  | 'getAuthHeaders'
+>;
+
+const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) => {
   const {
     columns,
     isRenamingColumnId,

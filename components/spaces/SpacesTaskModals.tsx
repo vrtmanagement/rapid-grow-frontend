@@ -1,8 +1,58 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { ThemedDatePicker } from './SpacesFormControls';
+import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
 
-const SpacesTaskModals: React.FC<any> = (props) => {
+type SpacesTaskModalsProps = Pick<
+  SpacesViewController,
+  | 'activeCommentTask'
+  | 'setCommentTaskId'
+  | 'setCommentDraft'
+  | 'commentDraft'
+  | 'me'
+  | 'editingCommentId'
+  | 'setEditingCommentId'
+  | 'editCommentDraft'
+  | 'setEditCommentDraft'
+  | 'API_BASE'
+  | 'getAuthHeaders'
+  | 'setTasks'
+  | 'setError'
+  | 'mode'
+  | 'modalStatus'
+  | 'setModalStatus'
+  | 'handleAddComment'
+  | 'submittingComment'
+  | 'columnToDelete'
+  | 'setColumnToDelete'
+  | 'setColumns'
+  | 'sortedTasks'
+  | 'commentToDeleteId'
+  | 'setCommentToDeleteId'
+  | 'deleteTaskModal'
+  | 'setDeleteTaskModal'
+  | 'bulkDeleteTaskModalOpen'
+  | 'setBulkDeleteTaskModalOpen'
+  | 'selectedTaskCount'
+  | 'bulkSaving'
+  | 'deleteSelectedTasks'
+  | 'rejectTaskModal'
+  | 'rejectFeedbackDraft'
+  | 'setRejectFeedbackDraft'
+  | 'rejectingTask'
+  | 'confirmRejectTask'
+  | 'editingTask'
+  | 'editingTaskMode'
+  | 'editingTaskDraft'
+  | 'setEditingTaskDraft'
+  | 'assignableEmployees'
+  | 'forceDownloadDocument'
+  | 'patchTask'
+  | 'deleteTask'
+  | 'setEditingTask'
+>;
+
+const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
   const {
     activeCommentTask,
     setCommentTaskId,

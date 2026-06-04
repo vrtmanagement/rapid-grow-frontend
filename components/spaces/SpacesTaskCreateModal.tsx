@@ -3,10 +3,65 @@ import { createPortal } from 'react-dom';
 import { Paperclip, Plus, X } from 'lucide-react';
 import { FileDropZone } from '../ui/FileDropZone';
 import { CREATE_INPUT_CLASS, ThemedDatePicker, ThemedSelect } from './SpacesFormControls';
+import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
+import SpacesTaskPlannerFields from './SpacesTaskPlannerFields';
+import SpacesTaskRecurrenceFields from './SpacesTaskRecurrenceFields';
 
 const EVERYDAY_REPEAT_VALUE = 'everyday';
 
-const SpacesTaskCreateModal: React.FC<any> = (props) => {
+type SpacesTaskCreateModalProps = Pick<
+  SpacesViewController,
+  | 'title'
+  | 'setTitle'
+  | 'description'
+  | 'setDescription'
+  | 'assigneeId'
+  | 'setAssigneeId'
+  | 'createAssigneeOptions'
+  | 'employeesLoading'
+  | 'dueDate'
+  | 'setDueDate'
+  | 'priority'
+  | 'setPriority'
+  | 'priorityOptions'
+  | 'status'
+  | 'setStatus'
+  | 'emailChecklistEnabled'
+  | 'setEmailChecklistEnabled'
+  | 'additionalChecklistTitles'
+  | 'setAdditionalChecklistTitles'
+  | 'reminderIntervalHours'
+  | 'setReminderIntervalHours'
+  | 'taskRecurrence'
+  | 'setTaskRecurrence'
+  | 'statusOptions'
+  | 'selectedProjectId'
+  | 'setSelectedProjectId'
+  | 'projectSelectOptions'
+  | 'projectsLoading'
+  | 'taskDocumentFile'
+  | 'setTaskDocumentFile'
+  | 'saving'
+  | 'uploadingTaskDocument'
+  | 'error'
+  | 'plannerWeekOptions'
+  | 'plannerDayOptions'
+  | 'plannerSummary'
+> & {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+  canUseEmailChecklist: boolean;
+  addToWeeklyPlanner: boolean;
+  setAddToWeeklyPlanner: (value: boolean) => void;
+  plannerWeekId: string;
+  setPlannerWeekId: (value: string) => void;
+  plannerDayId: string;
+  setPlannerDayId: (value: string) => void;
+  hideWeeklyPlanner?: boolean;
+};
+
+const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
   const {
     open,
     onClose,
@@ -134,7 +189,7 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
 
   const normalizedPlannerWeekOptions = React.useMemo(() => {
     const unique = new Map<string, { value: string; label: string }>();
-    (plannerWeekOptions || []).forEach((option: any) => {
+    (plannerWeekOptions || []).forEach((option) => {
       const cleanLabel = String(option?.label || '').replace(/Â·/g, '·').trim();
       if (!cleanLabel || unique.has(cleanLabel)) return;
       unique.set(cleanLabel, { value: option.value, label: cleanLabel });
@@ -304,108 +359,26 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
               </div>
 
               <div className="space-y-3">
-                {!hideWeeklyPlanner ? (
-                <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="text-[13px] font-semibold uppercase tracking-[0.14em] text-slate-700">Weekly Planner</div>
-                      <p className="mt-1 text-[12px] leading-5 text-slate-500">Plan this task inside the selected quarter, month, week, and day.</p>
-                    </div>
-                    <label className="relative inline-flex cursor-pointer items-center">
-                      <input
-                        type="checkbox"
-                        checked={addToWeeklyPlanner}
-                        onChange={(e) => setAddToWeeklyPlanner(e.target.checked)}
-                        className="peer sr-only"
-                      />
-                      <span className="h-7 w-12 rounded-full bg-slate-200 transition peer-checked:bg-brand-red/90" />
-                      <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
-                    </label>
-                  </div>
-
-                  {addToWeeklyPlanner ? (
-                    <div className="mt-3.5 space-y-3 border-t border-slate-200 pt-3">
-                      <div className="rounded-2xl border border-red-100 bg-red-50/70 px-3 py-2.5">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-red">Planner Context</div>
-                        <div className="mt-1 text-[13px] font-semibold text-slate-900">{plannerSummary || 'Choose a week and day'}</div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Quarter</label>
-                          <ThemedSelect
-                            value={plannerQuarterLabel}
-                            onChange={(value) => {
-                              setPlannerQuarterLabel(value);
-                              const nextMonth = normalizedPlannerWeekOptions
-                                .map((option) => ({ option, parsed: parsePlannerLabel(option.label) }))
-                                .find(({ parsed }) => parsed.quarter === value)?.parsed.month || '';
-                              setPlannerMonthLabel(nextMonth);
-                              const nextWeek = normalizedPlannerWeekOptions.find((option) => {
-                                const parsed = parsePlannerLabel(option.label);
-                                return parsed.quarter === value && (!nextMonth || parsed.month === nextMonth);
-                              })?.value || '';
-                              setPlannerWeekId(nextWeek);
-                            }}
-                            options={plannerQuarterOptions}
-                            placeholder="Quarter"
-                            compact={true}
-                            fullWidthCompact={true}
-                            denseMenu={true}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Month</label>
-                          <ThemedSelect
-                            value={plannerMonthLabel}
-                            onChange={(value) => {
-                              setPlannerMonthLabel(value);
-                              const nextWeek = normalizedPlannerWeekOptions.find((option) => {
-                                const parsed = parsePlannerLabel(option.label);
-                                return (!plannerQuarterLabel || parsed.quarter === plannerQuarterLabel) && parsed.month === value;
-                              })?.value || '';
-                              setPlannerWeekId(nextWeek);
-                            }}
-                            options={plannerMonthOptions}
-                            placeholder="Month"
-                            compact={true}
-                            fullWidthCompact={true}
-                            denseMenu={true}
-                            disabled={!plannerQuarterOptions.length}
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Week</label>
-                          <ThemedSelect
-                            value={plannerWeekId}
-                            onChange={setPlannerWeekId}
-                            options={compactPlannerWeekOptions}
-                            placeholder="Week"
-                            compact={true}
-                            fullWidthCompact={true}
-                            denseMenu={true}
-                            disabled={!plannerMonthOptions.length}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Day</label>
-                          <ThemedSelect
-                            value={plannerDayId}
-                            onChange={setPlannerDayId}
-                            options={plannerDayOptions}
-                            placeholder="Day"
-                            compact={true}
-                            fullWidthCompact={true}
-                            denseMenu={true}
-                            disabled={!compactPlannerWeekOptions.length}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-                ) : null}
+                <SpacesTaskPlannerFields
+                  hideWeeklyPlanner={hideWeeklyPlanner}
+                  addToWeeklyPlanner={addToWeeklyPlanner}
+                  setAddToWeeklyPlanner={setAddToWeeklyPlanner}
+                  plannerSummary={plannerSummary}
+                  plannerQuarterLabel={plannerQuarterLabel}
+                  setPlannerQuarterLabel={setPlannerQuarterLabel}
+                  plannerMonthLabel={plannerMonthLabel}
+                  setPlannerMonthLabel={setPlannerMonthLabel}
+                  normalizedPlannerWeekOptions={normalizedPlannerWeekOptions}
+                  parsePlannerLabel={parsePlannerLabel}
+                  plannerQuarterOptions={plannerQuarterOptions}
+                  plannerMonthOptions={plannerMonthOptions}
+                  compactPlannerWeekOptions={compactPlannerWeekOptions}
+                  plannerWeekId={plannerWeekId}
+                  setPlannerWeekId={setPlannerWeekId}
+                  plannerDayOptions={plannerDayOptions}
+                  plannerDayId={plannerDayId}
+                  setPlannerDayId={setPlannerDayId}
+                />
 
                 <div>
                   <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Document / Attachments</label>
@@ -520,179 +493,16 @@ const SpacesTaskCreateModal: React.FC<any> = (props) => {
                   ) : null}
                 </div> : null}
 
-                <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-700">Repeating Task</div>
-                    </div>
-                    <label className="relative inline-flex cursor-pointer items-center">
-                      <input
-                        type="checkbox"
-                        checked={!!taskRecurrence?.enabled}
-                        onChange={(event) =>
-                          setTaskRecurrence((prev: any) => ({
-                            ...(prev || {}),
-                            enabled: event.target.checked,
-                          }))
-                        }
-                        className="peer sr-only"
-                      />
-                      <span className="h-7 w-12 rounded-full bg-slate-200 transition peer-checked:bg-brand-red/90" />
-                      <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
-                    </label>
-                  </div>
-
-                  <div className={`grid overflow-hidden transition-all duration-300 ease-out ${taskRecurrence?.enabled ? 'mt-3 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-                    <div className="min-h-0">
-                      <div className="space-y-3 border-t border-slate-200 pt-3">
-                        <div>
-                          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Repeat By</label>
-                          <div className="grid grid-cols-2 gap-2">
-                            {[
-                              { value: 'day', label: 'Day' },
-                              { value: 'date', label: 'Date' },
-                            ].map((option) => {
-                              const active = (taskRecurrence?.scheduleMode || 'day') === option.value;
-                              return (
-                                <button
-                                  key={option.value}
-                                  type="button"
-                                  onClick={() =>
-                                    setTaskRecurrence((prev: any) => ({
-                                      ...(prev || {}),
-                                      scheduleMode: option.value,
-                                    }))
-                                  }
-                                  className={`inline-flex h-9 items-center justify-center rounded-[18px] border px-4 text-[12px] font-semibold transition ${
-                                    active
-                                      ? 'border-brand-red bg-brand-red text-white'
-                                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                                  }`}
-                                >
-                                  {option.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {isDateMode ? (
-                          <>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">From</label>
-                                <ThemedSelect
-                                  value={taskRecurrence?.startMonth || '1'}
-                                  onChange={(value) =>
-                                    setTaskRecurrence((prev: any) => {
-                                      const nextStart = Number(value || 1);
-                                      const prevEnd = Number(prev?.endMonth || nextStart);
-                                      return {
-                                        ...(prev || {}),
-                                        startMonth: value,
-                                        endMonth: String(Math.max(nextStart, prevEnd)),
-                                      };
-                                    })
-                                  }
-                                  options={monthOptions}
-                                  compact={true}
-                                  fullWidthCompact={true}
-                                />
-                              </div>
-                              <div>
-                                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">To</label>
-                                <ThemedSelect
-                                  value={taskRecurrence?.endMonth || taskRecurrence?.startMonth || '12'}
-                                  onChange={(value) =>
-                                    setTaskRecurrence((prev: any) => ({
-                                      ...(prev || {}),
-                                      endMonth: String(Math.max(Number(prev?.startMonth || 1), Number(value || prev?.startMonth || 1))),
-                                    }))
-                                  }
-                                  options={monthOptions.filter((option) => Number(option.value) >= Number(taskRecurrence?.startMonth || 1))}
-                                  compact={true}
-                                  fullWidthCompact={true}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Date</label>
-                                <ThemedSelect
-                                  value={taskRecurrence?.dayOfMonth || '1'}
-                                  onChange={(value) =>
-                                    setTaskRecurrence((prev: any) => ({
-                                      ...(prev || {}),
-                                      dayOfMonth: value,
-                                    }))
-                                  }
-                                  options={dayOfMonthOptions}
-                                  compact={true}
-                                  fullWidthCompact={true}
-                                />
-                              </div>
-                              <div>
-                                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Time</label>
-                                <ThemedSelect
-                                  value={taskRecurrence?.time || '09:00'}
-                                  onChange={(value) =>
-                                    setTaskRecurrence((prev: any) => ({
-                                      ...(prev || {}),
-                                      time: value,
-                                    }))
-                                  }
-                                  options={timeOptions}
-                                  compact={true}
-                                  fullWidthCompact={true}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="rounded-2xl border border-red-100 bg-white px-3 py-2 text-[12px] text-slate-500">
-                              {dateFallbackNote}
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Day</label>
-                                <ThemedSelect
-                                  value={taskRecurrence?.dayOfWeek || '0'}
-                                  onChange={(value) =>
-                                    setTaskRecurrence((prev: any) => ({
-                                      ...(prev || {}),
-                                      dayOfWeek: value,
-                                    }))
-                                  }
-                                  options={weekdayOptions}
-                                  compact={true}
-                                  fullWidthCompact={true}
-                                />
-                              </div>
-                              <div>
-                                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Time</label>
-                                <ThemedSelect
-                                  value={taskRecurrence?.time || '09:00'}
-                                  onChange={(value) =>
-                                    setTaskRecurrence((prev: any) => ({
-                                      ...(prev || {}),
-                                      time: value,
-                                    }))
-                                  }
-                                  options={timeOptions}
-                                  compact={true}
-                                  fullWidthCompact={true}
-                                />
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <SpacesTaskRecurrenceFields
+                  taskRecurrence={taskRecurrence}
+                  setTaskRecurrence={setTaskRecurrence}
+                  isDateMode={isDateMode}
+                  dateFallbackNote={dateFallbackNote}
+                  monthOptions={monthOptions}
+                  dayOfMonthOptions={dayOfMonthOptions}
+                  timeOptions={timeOptions}
+                  weekdayOptions={weekdayOptions}
+                />
               </div>
             </div>
           </div>
