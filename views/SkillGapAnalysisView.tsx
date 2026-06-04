@@ -17,10 +17,8 @@ type GapRow = {
   } | null;
 };
 
-const DEFAULT_SKILLS = 'React, Node.js, Project management';
-
 const SkillGapAnalysisView: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
-  const [required, setRequired] = useState(DEFAULT_SKILLS);
+  const [required, setRequired] = useState('');
   const [gaps, setGaps] = useState<GapRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,12 +47,6 @@ const SkillGapAnalysisView: React.FC<{ embedded?: boolean }> = ({ embedded = fal
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    void run();
-    // Run once on first open so the page is never blank.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const covered = gaps.filter((gap) => gap.gap !== 'missing').length;
 
@@ -113,7 +105,11 @@ const SkillGapAnalysisView: React.FC<{ embedded?: boolean }> = ({ embedded = fal
             <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
               No result returned. Check that the backend is running and that required skills are filled in.
             </div>
-          ) : null}
+          ) : (
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
+              Enter the skills your project needs, then click Analyze gaps to compare them against your team&apos;s learned skills.
+            </div>
+          )}
         </div>
       </section>
     </div>

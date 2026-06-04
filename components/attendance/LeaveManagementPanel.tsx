@@ -602,11 +602,6 @@ const LeaveManagementPanel: React.FC<Props> = ({
   }, [loadLopSummary, myLeaves.length]);
 
   useEffect(() => {
-    if (!baseLeaves.length && !currentOverview && viewerRole !== 'employee') return;
-    void loadOverview({ silent: true });
-  }, [approverLeaves, baseLeaves.length, currentOverview, loadOverview, myLeaves, pendingLeaves, viewerRole]);
-
-  useEffect(() => {
     const socket = getSocket();
     const handleLeaveLiveRefresh = () => {
       void loadOverview({ silent: true });

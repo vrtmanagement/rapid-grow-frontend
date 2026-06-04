@@ -170,29 +170,6 @@ export const StaffTableSkeleton: React.FC<{ rows?: number }> = ({ rows = 6 }) =>
   </>
 );
 
-export const FeedbackListSkeleton: React.FC<{ count?: number }> = ({ count = 4 }) => (
-  <div className="space-y-4">
-    {Array.from({ length: count }).map((_, index) => (
-      <div key={`feedback-skeleton-${index}`} className="border border-slate-200 rounded-2xl p-4 bg-slate-50/60 animate-pulse">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 space-y-3">
-            <div className="h-3 w-40 rounded-full bg-slate-200" />
-            <div className="h-4 w-full rounded-full bg-slate-100" />
-            <div className="h-4 w-5/6 rounded-full bg-slate-100" />
-          </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="h-3 w-24 rounded-full bg-slate-100" />
-            <div className="flex gap-1">
-              <div className="h-8 w-8 rounded-full bg-white border border-slate-200" />
-              <div className="h-8 w-8 rounded-full bg-white border border-slate-200" />
-            </div>
-          </div>
-        </div>
-      </div>
-    ))}
-  </div>
-);
-
 export const ReflectionLogSkeleton: React.FC<{ count?: number }> = ({ count = 4 }) => (
   <div className="space-y-4">
     {Array.from({ length: count }).map((_, index) => (

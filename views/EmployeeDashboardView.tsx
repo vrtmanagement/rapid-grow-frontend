@@ -12,7 +12,12 @@ import {
   ListTodo,
   Minus,
 } from 'lucide-react';
-import { API_BASE, getAuthHeaders } from '../config/api';
+import { API_BASE, apiGetJson } from '../config/api';
+import {
+  COMMAND_MATRIX_TASK_LIMIT,
+  fetchCommandMatrixTasks,
+} from '../services/spacesApi';
+import { peekApiCache } from '../services/apiCache';
 import { PageHeaderSkeleton, ProjectCardGridSkeleton } from '../components/ui/Skeleton';
 import ExecutionMatrix from '../components/dashboard/ExecutionMatrix';
 import { usePermissions } from '../context/usePermissions';
@@ -316,14 +321,8 @@ function reconcileCompletedTaskSnapshots(
 }
 
 async function fetchAssignedProjects(empId: string): Promise<Project[]> {
-  const res = await fetch(`${API_BASE}/project-charters/assigned/${empId}`, {
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) {
-    throw new Error('Failed to load assigned projects');
-  }
-  const data = await res.json().catch(() => []);
-  return Array.isArray(data) ? data : [];
+  const data = await apiGetJson<unknown[]>(`/project-charters/assigned/${empId}`);
+  return Array.isArray(data) ? (data as Project[]) : [];
 }
 
 async function fetchDashboardInsights(empId: string): Promise<{
@@ -332,27 +331,19 @@ async function fetchDashboardInsights(empId: string): Promise<{
   todoTasks: TaskHubTask[];
 }> {
   const [attendanceResult, performanceResult, spacesResult] = await Promise.allSettled([
-    fetch(`${API_BASE}/attendance/me?range=week`, {
-      headers: getAuthHeaders(),
-    }),
-    fetch(`${API_BASE}/performance/weekly`, {
-      headers: getAuthHeaders(),
-    }),
-    fetch(`${API_BASE}/spaces`, {
-      headers: getAuthHeaders(),
-    }),
+    apiGetJson<AttendanceSummaryResponse | null>('/attendance/me?range=week'),
+    apiGetJson<unknown[]>('/performance/weekly'),
+    fetchCommandMatrixTasks(COMMAND_MATRIX_TASK_LIMIT),
   ]);
 
   let attendanceDays = buildRecentAttendanceDays(null);
-  if (attendanceResult.status === 'fulfilled' && attendanceResult.value.ok) {
-    const payload = (await attendanceResult.value.json().catch(() => null)) as AttendanceSummaryResponse | null;
-    attendanceDays = buildRecentAttendanceDays(payload);
+  if (attendanceResult.status === 'fulfilled') {
+    attendanceDays = buildRecentAttendanceDays(attendanceResult.value);
   }
 
   let performance: PerformanceSnapshot | null = null;
-  if (performanceResult.status === 'fulfilled' && performanceResult.value.ok) {
-    const payload = await performanceResult.value.json().catch(() => []);
-    const rows = Array.isArray(payload) ? payload : [];
+  if (performanceResult.status === 'fulfilled') {
+    const rows = Array.isArray(performanceResult.value) ? performanceResult.value : [];
     const matched = rows.find(
       (row: any) => String(row?.employeeId || '').trim() === String(empId).trim(),
     );
@@ -376,16 +367,21 @@ async function fetchDashboardInsights(empId: string): Promise<{
   }
 
   let todoTasks: TaskHubTask[] = [];
-  if (spacesResult.status === 'fulfilled' && spacesResult.value.ok) {
-    const payload = await spacesResult.value.json().catch(() => ({}));
-    const tasks = Array.isArray(payload?.tasks) ? (payload.tasks as TaskHubTask[]) : [];
+  let hasMore = false;
+  let totalActive = 0;
+  if (spacesResult.status === 'fulfilled') {
+    const tasks = Array.isArray(spacesResult.value?.tasks) ? (spacesResult.value.tasks as TaskHubTask[]) : [];
     todoTasks = sortTodoTasks(tasks.filter((task) => isActiveTodoTask(task, empId)));
+    hasMore = Boolean(spacesResult.value?.hasMore);
+    totalActive = Number(spacesResult.value?.totalActive || todoTasks.length);
   }
 
   return {
     attendanceDays,
     performance,
     todoTasks,
+    hasMore,
+    totalActive,
   };
 }
 
@@ -429,6 +425,8 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
   const [hoveredAttendanceDay, setHoveredAttendanceDay] = useState<string | null>(null);
   const [performance, setPerformance] = useState<PerformanceSnapshot | null>(null);
   const [todoTasks, setTodoTasks] = useState<TaskHubTask[]>([]);
+  const [todoTasksHasMore, setTodoTasksHasMore] = useState(false);
+  const [todoTasksTotalActive, setTodoTasksTotalActive] = useState(0);
   const [completedTodayTasks, setCompletedTodayTasks] = useState<CompletedTaskSnapshot[]>([]);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [currentDayKey, setCurrentDayKey] = useState(() => formatLocalDateKey(new Date()));
@@ -479,8 +477,15 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
     let active = true;
 
     const load = async () => {
-      setLoading(true);
-      setWidgetsLoading(true);
+      const hasCachedDashboard =
+        !!peekApiCache(`${API_BASE}/project-charters/assigned/${empId}`) &&
+        !!peekApiCache(`${API_BASE}/attendance/me?range=week`) &&
+        !!peekApiCache(`${API_BASE}/performance/weekly`) &&
+        !!peekApiCache(`${API_BASE}/spaces?scope=command-matrix&limit=${COMMAND_MATRIX_TASK_LIMIT}&sync=0`);
+      if (!hasCachedDashboard) {
+        setLoading(true);
+        setWidgetsLoading(true);
+      }
       try {
         const [assignedProjects, insights] = await Promise.all([
           fetchAssignedProjects(empId).catch(() => []),
@@ -492,6 +497,8 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
         setAttendanceDays(insights.attendanceDays);
         setPerformance(insights.performance);
         setTodoTasks(insights.todoTasks);
+        setTodoTasksHasMore(insights.hasMore);
+        setTodoTasksTotalActive(insights.totalActive);
         setCompletedTodayTasks(
           reconcileCompletedTaskSnapshots(
             readCompletedTaskSnapshots(empId, currentDayKey),
@@ -533,18 +540,25 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
     if (!empId) return;
 
     const socket = getSocket();
-    const refresh = async () => {
-      try {
-        const insights = await fetchDashboardInsights(empId);
-        setAttendanceDays(insights.attendanceDays);
-        setPerformance(insights.performance);
-        setTodoTasks(insights.todoTasks);
-        setCompletedTodayTasks((prev) =>
-          reconcileCompletedTaskSnapshots(prev, insights.todoTasks, currentDayKey),
-        );
-      } catch (error) {
-        console.error('Failed to refresh command matrix insights', error);
-      }
+    let refreshTimer: number | null = null;
+    const refresh = () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(async () => {
+        refreshTimer = null;
+        try {
+          const insights = await fetchDashboardInsights(empId);
+          setAttendanceDays(insights.attendanceDays);
+          setPerformance(insights.performance);
+          setTodoTasks(insights.todoTasks);
+          setTodoTasksHasMore(insights.hasMore);
+          setTodoTasksTotalActive(insights.totalActive);
+          setCompletedTodayTasks((prev) =>
+            reconcileCompletedTaskSnapshots(prev, insights.todoTasks, currentDayKey),
+          );
+        } catch (error) {
+          console.error('Failed to refresh command matrix insights', error);
+        }
+      }, 400);
     };
 
     socket.on('spaces:changed', refresh);
@@ -553,6 +567,7 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
     socket.on('taskAssigned', refresh);
 
     return () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       socket.off('spaces:changed', refresh);
       socket.off('performance:update', refresh);
       socket.off('task:validation', refresh);
@@ -589,6 +604,8 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
       setAttendanceDays(insights.attendanceDays);
       setPerformance(insights.performance);
       setTodoTasks(insights.todoTasks);
+      setTodoTasksHasMore(insights.hasMore);
+      setTodoTasksTotalActive(insights.totalActive);
       setCompletedTodayTasks((prev) =>
         reconcileCompletedTaskSnapshots(prev, insights.todoTasks, currentDayKey),
       );
@@ -804,6 +821,15 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
                     </label>
                     );
                   })}
+                  {todoTasksHasMore ? (
+                    <p className="mt-4 w-full text-center text-sm text-slate-500">
+                      You have {todoTasksTotalActive} active tasks. Showing the first {COMMAND_MATRIX_TASK_LIMIT}.{' '}
+                      <Link to="/spaces" className="font-semibold text-brand-red hover:underline">
+                        Open TaskHub
+                      </Link>{' '}
+                      to see everything.
+                    </p>
+                  ) : null}
                 </div>
               )}
             </div>

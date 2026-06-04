@@ -229,6 +229,9 @@ export function normalizeTaskStatus(status?: string): TaskStatus {
 /** Matches TaskHub sidebar "Top Priorities" (up to 6 active items per assignee). */
 export const TASKHUB_TOP_PRIORITY_LIMIT = 6;
 
+/** Command matrix / dashboard task strips — avoid loading unbounded lists. */
+export const COMMAND_MATRIX_DISPLAY_LIMIT = 25;
+
 const TOP_PRIORITY_ACTIVE_STATUSES = new Set<TaskStatus>(['todo', 'doing', 'review', 'blocked']);
 
 const TOP_PRIORITY_RANK: Record<TaskPriority, number> = {

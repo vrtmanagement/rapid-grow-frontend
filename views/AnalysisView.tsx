@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { apiAnalyzeTrimetrix, TrimetrixAnalysisResult } from '../services/analysisApi';
 
-const AnalysisView: React.FC = () => {
+const AnalysisView: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -26,13 +26,15 @@ const AnalysisView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className={`max-w-4xl space-y-6 ${embedded ? 'w-full' : ''}`}>
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-900">Analysis</h1>
-        <p className="mt-2 text-sm text-slate-600">
+        {!embedded ? (
+          <h1 className="text-2xl font-semibold text-slate-900">Analysis</h1>
+        ) : null}
+        <p className={`text-sm text-slate-600 ${embedded ? '' : 'mt-2'}`}>
           Upload a Trimetrix report to detect DISC type and generate communication guidance.
         </p>
-        <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className={`flex flex-col gap-4 sm:flex-row sm:items-center ${embedded ? 'mt-4' : 'mt-5'}`}>
           <input
             type="file"
             accept="application/pdf,.pdf"

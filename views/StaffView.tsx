@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { BellRing, ChevronDown, Clock3, Eye, Mail, MoreVertical, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import Toast from '../components/ui/Toast';
 import AccessDenied from '../components/AccessDenied';
 import { StaffTableSkeleton } from '../components/ui/Skeleton';
 import { usePermissions } from '../context/usePermissions';
-import { API_BASE, getAuthHeaders } from '../config/api';
+import { API_BASE, apiGetJson, getAuthHeaders } from '../config/api';
+import { invalidateApiCache, peekApiCache } from '../services/apiCache';
 import {
   DailyReviewReminderSettings,
   fetchDailyReviewReminderSettings,
@@ -17,6 +19,9 @@ import AddEmployeeView from './AddEmployeeView';
 import InviteEmployeeView from './InviteEmployeeView';
 import PageSectionSubnav from '../components/layout/PageSectionSubnav';
 import WeeklyPerformanceEmailControls from '../components/staff/WeeklyPerformanceEmailControls';
+import OrgChartView from './OrgChartView';
+
+type StaffPanel = 'directory' | 'org-chart';
 
 type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | string;
 
@@ -119,6 +124,9 @@ function formatReminderTimeLabel(timeValue?: string) {
 const DEFAULT_REMINDER_SETTINGS = getDefaultDailyReviewReminderSettings();
 
 const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeStaffPanel: StaffPanel = location.pathname.includes('/staff/org-chart') ? 'org-chart' : 'directory';
   const { hasPermission } = usePermissions();
   const backendInfo = useMemo(() => getBackendInfo(), []);
   const backendRole = backendInfo.role;
@@ -237,16 +245,12 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
 
   const load = async () => {
     if (!hasPermission('STAFF_VIEW')) return;
-    setLoading(true);
+    const hasCache = !!peekApiCache(`${API_BASE}/employees`);
+    if (!hasCache) setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to load staff');
-      }
-      const data = await res.json();
-      setRows(Array.isArray(data) ? data : []);
+      const data = await apiGetJson<unknown[]>('/employees');
+      setRows(Array.isArray(data) ? (data as EmployeeRow[]) : []);
     } catch (e: any) {
       setError(e?.message || 'Failed to load staff');
     } finally {
@@ -452,6 +456,7 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
         throw new Error(data.message || 'Failed to update staff');
       }
 
+      invalidateApiCache('/employees');
       setRows((prev) => prev.map((row) => (row._id === data._id ? data : row)));
       setToast({ type: 'success', message: 'User details updated successfully.' });
       setEditing(null);
@@ -474,6 +479,7 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
         throw new Error(data.message || 'Failed to delete staff');
       }
 
+      invalidateApiCache('/employees');
       setRows((prev) => prev.filter((row) => row._id !== deleting._id));
       setToast({ type: 'success', message: 'Employee deleted successfully.' });
       setDeleting(null);
@@ -554,6 +560,17 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   const reminderScheduleLabel = formatReminderTimeLabel(reminderSettings.time);
   const reminderDraftScheduleLabel = formatReminderTimeLabel(reminderDraft.time);
 
+  const staffSubnavTabClass = (panel: StaffPanel) =>
+    `border-b-2 px-1 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors sm:text-[12px] ${
+      activeStaffPanel === panel
+        ? 'border-brand-red text-slate-900'
+        : 'border-transparent text-slate-500 hover:text-slate-900'
+    }`;
+
+  const handleStaffPanelChange = (panel: StaffPanel) => {
+    navigate(panel === 'org-chart' ? '/staff/org-chart' : '/staff');
+  };
+
   return (
     <div className="w-full space-y-10 animate-in fade-in duration-700">
       <PageSectionSubnav
@@ -566,50 +583,68 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
               Staff
             </span>
             <div className="truncate text-[18px] font-semibold tracking-[-0.02em] text-slate-900">
-              Employee Directory
+              {activeStaffPanel === 'org-chart' ? 'Org chart' : 'Employee Directory'}
             </div>
           </div>
         }
-        trailing={
+        center={
           <>
-            {canInviteEmployee ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowInviteEmployeeForm((prev) => !prev);
-                  setShowAddEmployeeForm(false);
-                }}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-[8px] border px-4 py-2 text-[12px] font-semibold shadow-sm transition-all ${
-                  showInviteEmployeeForm
-                    ? 'border-brand-red bg-brand-red text-white'
-                    : 'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-brand-red/35 hover:bg-red-50/80 hover:text-brand-red hover:shadow-md'
-                }`}
-              >
-                <Mail size={14} />
-                {showInviteEmployeeForm ? 'Hide Invite' : 'Invite Employee'}
-              </button>
-            ) : null}
-
-            {canCreateEmployee ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAddEmployeeForm((prev) => !prev);
-                  setShowInviteEmployeeForm(false);
-                }}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-[8px] border px-4 py-2 text-[12px] font-semibold shadow-sm transition-all ${
-                  showAddEmployeeForm
-                    ? 'border-brand-red bg-brand-red text-white'
-                    : 'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-brand-red/35 hover:bg-red-50/80 hover:text-brand-red hover:shadow-md'
-                }`}
-              >
-                <Plus size={14} />
-                {showAddEmployeeForm ? 'Hide Form' : 'Add Employee'}
-              </button>
-            ) : null}
+            <button type="button" onClick={() => handleStaffPanelChange('directory')} className={staffSubnavTabClass('directory')}>
+              Directory
+            </button>
+            <button type="button" onClick={() => handleStaffPanelChange('org-chart')} className={staffSubnavTabClass('org-chart')}>
+              Org chart
+            </button>
           </>
         }
       />
+
+      {activeStaffPanel === 'directory' && (canInviteEmployee || canCreateEmployee) ? (
+        <div className="-mt-4 mb-6 flex flex-wrap items-center justify-end gap-3 px-6 sm:px-8 lg:px-10">
+          {canInviteEmployee ? (
+            <button
+              type="button"
+              onClick={() => {
+                setShowInviteEmployeeForm((prev) => !prev);
+                setShowAddEmployeeForm(false);
+              }}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-[8px] border px-4 py-2 text-[12px] font-semibold shadow-sm transition-all ${
+                showInviteEmployeeForm
+                  ? 'border-brand-red bg-brand-red text-white'
+                  : 'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-brand-red/35 hover:bg-red-50/80 hover:text-brand-red hover:shadow-md'
+              }`}
+            >
+              <Mail size={14} />
+              {showInviteEmployeeForm ? 'Hide Invite' : 'Invite Employee'}
+            </button>
+          ) : null}
+
+          {canCreateEmployee ? (
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddEmployeeForm((prev) => !prev);
+                setShowInviteEmployeeForm(false);
+              }}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-[8px] border px-4 py-2 text-[12px] font-semibold shadow-sm transition-all ${
+                showAddEmployeeForm
+                  ? 'border-brand-red bg-brand-red text-white'
+                  : 'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-brand-red/35 hover:bg-red-50/80 hover:text-brand-red hover:shadow-md'
+              }`}
+            >
+              <Plus size={14} />
+              {showAddEmployeeForm ? 'Hide Form' : 'Add Employee'}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {activeStaffPanel === 'org-chart' ? (
+        <OrgChartView embedded />
+      ) : null}
+
+      {activeStaffPanel === 'directory' ? (
+      <>
       {toast && <Toast type={toast.type} message={toast.message} />}
 
       {canCreateEmployee && showAddEmployeeForm && state ? (
@@ -1469,6 +1504,8 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
           </div>
         </div>
       )}
+      </>
+      ) : null}
     </div>
   );
 };

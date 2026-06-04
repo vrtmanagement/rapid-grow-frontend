@@ -29,7 +29,6 @@ export type UserPower =
   | 'REFLECTION_VIEW'
   | 'PROFILE_VIEW'
   | 'COMMUNICATION_VIEW'
-  | 'FEEDBACK_VIEW'
   | 'STAFF_VIEW'
   | 'PERMISSIONS_MANAGE';
 

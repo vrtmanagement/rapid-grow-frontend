@@ -50,18 +50,25 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, []);
 
   useEffect(() => {
+    const PERMISSIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+    let usedCache = false;
     try {
       const cachedRaw = localStorage.getItem(CACHE_KEY);
       if (cachedRaw) {
         const cached = JSON.parse(cachedRaw);
+        const cachedAt = Number(cached?.at || 0);
+        const isFresh = cachedAt > 0 && Date.now() - cachedAt < PERMISSIONS_CACHE_TTL_MS;
         if (cached?.role === role && Array.isArray(cached?.permissions)) {
           setPermissions(cached.permissions);
+          usedCache = isFresh;
         }
       }
     } catch {
       // Ignore cache parse errors.
     }
-    refreshPermissions();
+    if (!usedCache) {
+      refreshPermissions();
+    }
   }, [refreshPermissions, role]);
 
   useEffect(() => {

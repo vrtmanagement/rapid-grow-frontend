@@ -29,7 +29,11 @@ type Employee = {
 
 type Relationship = 'Champion' | 'Supporter' | 'Neutral' | 'Blocker';
 
-const OrgChartView: React.FC = () => {
+interface OrgChartViewProps {
+  embedded?: boolean;
+}
+
+const OrgChartView: React.FC<OrgChartViewProps> = ({ embedded = false }) => {
   const [data, setData] = useState<{ employees?: Employee[] } | null>(null);
   const [selectedId, setSelectedId] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -62,25 +66,39 @@ const OrgChartView: React.FC = () => {
   const chartScale = employees.length > 14 ? 0.64 : employees.length > 9 ? 0.72 : 0.82;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-brand-red">People map</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">Relationship mapping</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-            Select any person to view details and the people created under them.
-          </p>
+    <div className={`mx-auto max-w-7xl space-y-4 ${embedded ? 'px-6 pb-8 sm:px-8 lg:px-10' : ''}`}>
+      {embedded ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={load}
-          disabled={loading}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
-        >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
-      </div>
+      ) : (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-brand-red">People map</p>
+            <h1 className="mt-1 text-3xl font-bold text-slate-950">Relationship mapping</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              Select any person to view details and the people created under them.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
+      )}
 
       <ErrorAlert message={error} />
 

@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { crmJson } from '../services/crmApi';
 import { getStoredAuthSession } from '../config/api';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import CRMLeadForm, { CRMLeadPayload } from './crm/CRMLeadForm';
 
 type ToastTone = 'success' | 'error';
 type ToastItem = { id: number; tone: ToastTone; message: string };
@@ -64,6 +65,9 @@ const CRMLeadDetailPage: React.FC = () => {
   const [actionTitle, setActionTitle] = useState('');
   const [actionDescription, setActionDescription] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<LeadActionItem | null>(null);
+  const [leadFormOpen, setLeadFormOpen] = useState(false);
+  const [deleteLeadConfirmOpen, setDeleteLeadConfirmOpen] = useState(false);
+  const [deletingLead, setDeletingLead] = useState(false);
   const sessionEmployee = getStoredAuthSession()?.employee || {};
   const actorName = String(sessionEmployee?.empName || sessionEmployee?.name || 'User');
   const actorInitials =
@@ -445,10 +449,18 @@ const CRMLeadDetailPage: React.FC = () => {
     String(lead.status || '').toUpperCase() === 'CONVERTED'
       ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
       : 'bg-slate-100 text-slate-700 border-slate-200';
+  const formActiveTab =
+    String(lead.leadType || '').toUpperCase() === 'CUSTOM'
+      ? String(lead.customTabName || 'HOT').trim() || 'HOT'
+      : String(lead.leadType || 'HOT');
+  const openLeadFormModal = () => {
+    setEditingSection('none');
+    setLeadFormOpen(true);
+  };
 
   return (
     <div className="space-y-5">
-      <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <button
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-brand-red/20 bg-rose-50 text-brand-red hover:bg-rose-100 hover:-translate-y-0.5 transition-all duration-200 text-sm font-semibold shadow-sm"
           onClick={() => navigate('/crm')}
@@ -456,6 +468,25 @@ const CRMLeadDetailPage: React.FC = () => {
           <ArrowLeft size={15} />
           Back to Leads
         </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50"
+            onClick={openLeadFormModal}
+          >
+            <Pencil size={15} />
+            Edit lead
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm font-semibold hover:bg-red-100 disabled:opacity-60"
+            disabled={deletingLead}
+            onClick={() => setDeleteLeadConfirmOpen(true)}
+          >
+            <Trash2 size={15} />
+            {deletingLead ? 'Deleting...' : 'Delete lead'}
+          </button>
+        </div>
       </div>
       <div className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-slate-50 to-indigo-50/60 shadow-[0_20px_55px_rgba(15,23,42,0.10)] p-5 md:p-6">
         <div className="flex flex-wrap items-center justify-end gap-3 mb-4">
@@ -503,10 +534,7 @@ const CRMLeadDetailPage: React.FC = () => {
                 ) : (
                   <button
                     className="px-3 py-1.5 rounded-lg border border-brand-red/20 bg-rose-50 text-brand-red text-sm font-semibold hover:bg-rose-100"
-                    onClick={() => {
-                      initializeEditForm(lead);
-                      setEditingSection('lead');
-                    }}
+                    onClick={openLeadFormModal}
                   >
                     Edit
                   </button>
@@ -660,10 +688,7 @@ const CRMLeadDetailPage: React.FC = () => {
                 ) : (
                   <button
                     className="px-3 py-1.5 rounded-lg border border-brand-red/20 bg-rose-50 text-brand-red text-sm font-semibold hover:bg-rose-100"
-                    onClick={() => {
-                      initializeEditForm(lead);
-                      setEditingSection('company');
-                    }}
+                    onClick={openLeadFormModal}
                   >
                     Edit
                   </button>
@@ -1093,6 +1118,68 @@ const CRMLeadDetailPage: React.FC = () => {
                 }}
               >
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {leadFormOpen && (
+        <CRMLeadForm
+          variant="modal"
+          mode="edit"
+          initialData={lead}
+          activeTab={formActiveTab}
+          onCancel={() => setLeadFormOpen(false)}
+          onSubmit={async (payload: CRMLeadPayload) => {
+            const updated = await crmJson<any>(`/crm/${lead._id}`, {
+              method: 'PATCH',
+              body: JSON.stringify(payload),
+            });
+            setLead(updated);
+            initializeEditForm(updated);
+            setLeadFormOpen(false);
+            pushToast('Lead updated successfully.');
+          }}
+          onError={(message) => pushToast(message, 'error')}
+        />
+      )}
+
+      {deleteLeadConfirmOpen && (
+        <div className="fixed inset-0 z-[110] bg-black/35 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+            <div className="px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-800">Delete lead</h3>
+            </div>
+            <div className="p-6 text-slate-700">
+              Delete <span className="font-semibold">{fullName}</span> permanently? This cannot be undone.
+            </div>
+            <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-3">
+              <button
+                className="px-4 py-2 rounded-lg border border-slate-300"
+                onClick={() => setDeleteLeadConfirmOpen(false)}
+                disabled={deletingLead}
+              >
+                No
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg bg-red-600 text-white disabled:opacity-60"
+                disabled={deletingLead}
+                onClick={async () => {
+                  setDeletingLead(true);
+                  try {
+                    await crmJson(`/crm/${lead._id}`, { method: 'DELETE' });
+                    pushToast('Lead deleted.');
+                    navigate('/crm');
+                  } catch (e: any) {
+                    pushToast(e.message || 'Failed to delete lead', 'error');
+                  } finally {
+                    setDeletingLead(false);
+                    setDeleteLeadConfirmOpen(false);
+                  }
+                }}
+              >
+                {deletingLead ? 'Deleting...' : 'Yes'}
               </button>
             </div>
           </div>

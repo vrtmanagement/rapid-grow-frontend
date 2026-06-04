@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
+import { API_BASE, apiGetJson, getAuthHeaders, getStoredAuthSession } from '../config/api';
+import { peekApiCache } from '../services/apiCache';
+import {
+  fetchSpacesList,
+  SPACES_PLANNER_FETCH_LIMIT,
+  SPACES_TASKS_PAGE_SIZE,
+} from '../services/spacesApi';
 import { QUARTER_LABELS } from '../appSeedConstants';
 import { Goal, PlanningState, WorkspaceTask } from '../types';
 import { saveGoal } from '../services/goalApi';
@@ -50,7 +56,6 @@ import {
   shouldHideAdminTaskFromViewer,
   isTaskAssignedToViewer,
   isSubmittedStatus,
-  getTaskHubStatusSortRank,
   normalizeRole,
   normalizeTaskForUi,
   isRecurringSeriesActive,
@@ -254,6 +259,9 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | ''>('');
   const [taskSearch, setTaskSearch] = useState('');
   const [taskPage, setTaskPage] = useState(1);
+  const [taskListTotal, setTaskListTotal] = useState(0);
+  const [taskListTotalPages, setTaskListTotalPages] = useState(1);
+  const [plannerTasks, setPlannerTasks] = useState<SpacesTask[]>([]);
   const [editingTask, setEditingTask] = useState<SpacesTask | null>(null);
   const [editingTaskMode, setEditingTaskMode] = useState<'view' | 'edit'>('view');
   const [editingTaskDraft, setEditingTaskDraft] = useState<Partial<SpacesTask>>({});
@@ -514,22 +522,42 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     [updateState],
   );
 
-  const loadSpaces = async (options: { silent?: boolean } = {}) => {
-    if (!options.silent) setSpacesLoading(true);
+  const buildSpacesListQuery = useCallback(
+    (page: number) => ({
+      page,
+      limit: SPACES_TASKS_PAGE_SIZE,
+      filter: taskFilterMode,
+      status: taskStatusFilter || undefined,
+      search: taskSearch.trim() || undefined,
+      assigneeId:
+        mode === 'manager' && canManageWeeklyRows && taskAssigneeFilterId
+          ? taskAssigneeFilterId
+          : undefined,
+      mode,
+      scope: 'list' as const,
+      sync: page === 1 ? ('1' as const) : ('0' as const),
+    }),
+    [taskFilterMode, taskStatusFilter, taskSearch, taskAssigneeFilterId, canManageWeeklyRows, mode],
+  );
+
+  const loadSpaces = async (options: { silent?: boolean; force?: boolean; page?: number } = {}) => {
+    const force = options.force === true;
+    const page = options.page ?? taskPage;
+    const query = buildSpacesListQuery(page);
+    const cacheKey = `${API_BASE}/spaces?page=${query.page}&limit=${query.limit}&filter=${query.filter || ''}&status=${query.status || ''}&search=${query.search || ''}&assigneeId=${query.assigneeId || ''}&mode=${query.mode}&scope=list`;
+    const hasCache = !force && !!peekApiCache(cacheKey);
+    if (!options.silent && !hasCache) setSpacesLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to load spaces');
-      }
-      const data = await res.json();
+      const data = await fetchSpacesList(query, { force });
       setColumns(Array.isArray(data?.columns) ? data.columns : []);
       setTasks(
         Array.isArray(data?.tasks)
           ? data.tasks.map((task: SpacesTask) => normalizeTaskForUi(task))
           : [],
       );
+      setTaskListTotal(Number(data?.total || 0));
+      setTaskListTotalPages(Math.max(1, Number(data?.totalPages || 1)));
     } catch (e: any) {
       if (!options.silent) setError(e?.message || 'Failed to load spaces');
     } finally {
@@ -537,22 +565,42 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     }
   };
 
-  useEffect(() => {
-    loadSpaces();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const loadPlannerTasks = async (options: { force?: boolean } = {}) => {
+    try {
+      const data = await fetchSpacesList(
+        {
+          page: 1,
+          limit: SPACES_PLANNER_FETCH_LIMIT,
+          scope: 'planner',
+          mode,
+          sync: '0',
+        },
+        { force: options.force },
+      );
+      setPlannerTasks(
+        Array.isArray(data?.tasks)
+          ? data.tasks.map((task: SpacesTask) => normalizeTaskForUi(task))
+          : [],
+      );
+    } catch {
+      setPlannerTasks([]);
+    }
+  };
 
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      void loadSpaces({ silent: true });
-    }, 10000);
-    return () => window.clearInterval(interval);
+    void loadPlannerTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [mode]);
+
+  useEffect(() => {
+    void loadSpaces({ page: taskPage });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskPage, taskFilterMode, taskStatusFilter, taskSearch, taskAssigneeFilterId, mode]);
 
   useEffect(() => {
     const onRefresh = () => {
-      void loadSpaces();
+      void loadSpaces({ force: true });
+      void loadPlannerTasks({ force: true });
     };
     const onAiTasksCreated = (event: Event) => {
       const detail = (event as CustomEvent).detail;
@@ -706,14 +754,11 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
             setProjects([]);
             return;
           }
-          const res = await fetch(`${API_BASE}/project-charters/assigned/${me.id}`, {
-            headers: getAuthHeaders(),
-          });
-          if (!res.ok) {
+          const data = await apiGetJson<unknown[]>(`/project-charters/assigned/${me.id}`).catch(() => []);
+          if (!data) {
             setProjects([]);
             return;
           }
-          const data = await res.json().catch(() => []);
           const list = Array.isArray(data) ? data : [];
           setProjects(
             list
@@ -725,14 +770,11 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
               .filter((p: ProjectOption) => p.id && p.name),
           );
         } else {
-          const res = await fetch(`${API_BASE}/project-charters`, {
-            headers: getAuthHeaders(),
-          });
-          if (!res.ok) {
+          const data = await apiGetJson<unknown[]>('/project-charters').catch(() => []);
+          if (!data) {
             setProjects([]);
             return;
           }
-          const data = await res.json().catch(() => []);
           const list = Array.isArray(data) ? data : [];
           setProjects(
             list
@@ -759,12 +801,11 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     const loadEmployees = async () => {
       setEmployeesLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() });
-        if (!res.ok) {
+        const data = await apiGetJson<unknown[]>('/employees').catch(() => []);
+        if (!data) {
           setEmployees([]);
           return;
         }
-        const data = await res.json().catch(() => []);
         const list = Array.isArray(data) ? data : [];
         setEmployees(
           list
@@ -907,7 +948,8 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       return true;
     } catch (e: any) {
       setError(e?.message || 'Failed to stop repeating task');
-      await loadSpaces({ silent: true });
+      await loadSpaces({ silent: true, page: taskPage });
+      void loadPlannerTasks();
       return false;
     } finally {
       setStoppingRecurrenceTaskId(null);
@@ -962,7 +1004,8 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     } catch (e: any) {
       setError(e?.message || 'Failed to delete task');
       if (!options?.bulk) {
-        await loadSpaces({ silent: true });
+        await loadSpaces({ silent: true, page: taskPage });
+      void loadPlannerTasks();
       }
       return false;
     }
@@ -1285,6 +1328,11 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
   );
 
   const visibleTasks = useMemo(
+    () => plannerTasks.filter((t) => !shouldHideAdminTaskFromViewer(t, me, employeeById, teamMemberIds)),
+    [plannerTasks, me, employeeById, teamMemberIds],
+  );
+
+  const visibleListTasks = useMemo(
     () => tasks.filter((t) => !shouldHideAdminTaskFromViewer(t, me, employeeById, teamMemberIds)),
     [tasks, me, employeeById, teamMemberIds],
   );
@@ -1308,58 +1356,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     setTaskAssigneeFilterId((current) => (current ? current : me.id));
   }, [canUseAssigneeFilter, me.id]);
 
-  const filteredTasks = useMemo(() => {
-    let list = visibleTasks;
-
-    if (taskFilterMode === 'me' && me.id) {
-      list = list.filter((t) => taskBelongsToMe(t));
-    } else if (taskFilterMode === 'assigned' && me.id) {
-      list = list.filter(
-        (t) =>
-          String(t.assigneeId || '').trim() === me.id &&
-          String(t.createdByEmpId || '').trim() !== me.id,
-      );
-    }
-
-    if (taskFilterMode === 'all' && !taskStatusFilter) {
-      list = list.filter((t) => t.status !== 'done');
-    }
-
-    if (taskStatusFilter) {
-      list = list.filter((t) => t.status === taskStatusFilter);
-    }
-
-    const term = taskSearch.trim().toLowerCase();
-    if (!term) return list;
-
-    return list.filter((t) => {
-      const assigneeName = t.assigneeId
-        ? employeeNameById.get(t.assigneeId) || t.assigneeName || ''
-        : '';
-      const createdByName = t.createdByName || '';
-      const createdById = t.createdByEmpId || '';
-      const assigneeId = t.assigneeId || '';
-
-      return (
-        assigneeId.toLowerCase().includes(term) ||
-        assigneeName.toLowerCase().includes(term) ||
-        createdById.toLowerCase().includes(term) ||
-        createdByName.toLowerCase().includes(term) ||
-        String(t.title || '').toLowerCase().includes(term) ||
-        String(t.description || '').toLowerCase().includes(term) ||
-        String(t.taskId || '').toLowerCase().includes(term) ||
-        String(t.projectId || '').toLowerCase().includes(term)
-      );
-    });
-  }, [
-    visibleTasks,
-    taskFilterMode,
-    taskStatusFilter,
-    taskSearch,
-    me.id,
-    employeeNameById,
-    taskBelongsToMe,
-  ]);
+  const filteredTasks = visibleListTasks;
 
   const monthGoalSourceTasks = useMemo(() => {
     let list = visibleTasks;
@@ -1371,23 +1368,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     return list;
   }, [visibleTasks, mode, me.id, canUseAssigneeFilter, taskAssigneeFilterId]);
 
-  const sortedTasks = useMemo(() => {
-    if (filteredTasks.length === 0) return filteredTasks;
-    const copy = [...filteredTasks];
-    const managerRoles = new Set<BackendRole>(['SUPER_ADMIN', 'ADMIN', 'TEAM_LEAD']);
-    copy.sort((a, b) => {
-      const statusDiff = getTaskHubStatusSortRank(a.status) - getTaskHubStatusSortRank(b.status);
-      if (statusDiff !== 0) return statusDiff;
-
-      if (mode === 'employee') {
-        const aManager = managerRoles.has((a.createdByRole || '').toUpperCase());
-        const bManager = managerRoles.has((b.createdByRole || '').toUpperCase());
-        if (aManager !== bManager) return aManager ? -1 : 1;
-      }
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-    return copy;
-  }, [filteredTasks, mode]);
+  const sortedTasks = filteredTasks;
   const topPriorityTasks = useMemo(() => {
     const assigneeTarget =
       canUseAssigneeFilter && taskAssigneeFilterId ? taskAssigneeFilterId : me.id;
@@ -2093,12 +2074,9 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       setSaving(false);
     }
   };
-  const TASKS_PER_PAGE = 15;
-  const totalTaskPages = Math.max(1, Math.ceil(sortedTasks.length / TASKS_PER_PAGE));
-  const paginatedTasks = useMemo(() => {
-    const start = (taskPage - 1) * TASKS_PER_PAGE;
-    return sortedTasks.slice(start, start + TASKS_PER_PAGE);
-  }, [sortedTasks, taskPage]);
+  const TASKS_PER_PAGE = SPACES_TASKS_PAGE_SIZE;
+  const totalTaskPages = taskListTotalPages;
+  const paginatedTasks = sortedTasks;
   const visibleTaskPages = useMemo(() => {
     const radius = 2;
     const start = Math.max(1, taskPage - radius);
@@ -2308,7 +2286,8 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
       setBulkDeleteTaskModalOpen(false);
     } catch (e: any) {
       setError(e?.message || 'Failed to delete selected tasks');
-      await loadSpaces({ silent: true });
+      await loadSpaces({ silent: true, page: taskPage });
+      void loadPlannerTasks();
     } finally {
       setBulkSaving(false);
     }
@@ -2567,6 +2546,7 @@ const SpacesView: React.FC<Props> = ({ mode, state, updateState }) => {
     canSelectTask,
     taskPage,
     TASKS_PER_PAGE,
+    taskListTotal,
     setTaskPage,
     visibleTaskPages,
     totalTaskPages,

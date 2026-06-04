@@ -23,8 +23,9 @@ export interface CRMLeadPayload {
 
 interface CRMLeadFormProps {
   mode: 'create' | 'edit';
-  initialData?: Partial<CRMLeadPayload>;
+  initialData?: Partial<CRMLeadPayload> & Record<string, unknown>;
   activeTab: string;
+  variant?: 'inline' | 'modal';
   onCancel: () => void;
   onSubmit: (payload: CRMLeadPayload) => Promise<void>;
   onError: (message: string) => void;
@@ -61,7 +62,69 @@ const customFieldTypes = [
   { key: 'textarea', label: 'Textarea' },
 ];
 
-const CRMLeadForm: React.FC<CRMLeadFormProps> = ({ mode, initialData, activeTab, onCancel, onSubmit, onError }) => {
+function normalizeLeadInitialData(
+  activeTab: string,
+  initialData?: Partial<CRMLeadPayload> & Record<string, unknown>,
+): CRMLeadPayload {
+  const next = { ...defaultLead(activeTab), ...(initialData || {}) } as CRMLeadPayload;
+  const raw = initialData || {};
+  const persistedCustomFields =
+    raw.customFields && typeof raw.customFields === 'object' ? raw.customFields : {};
+  const readCustomValue = (key: string) => {
+    const value = (persistedCustomFields as Record<string, unknown>)?.[key];
+    if (value && typeof value === 'object' && 'value' in (value as object)) {
+      return String((value as { value?: unknown }).value ?? '');
+    }
+    return String(value ?? '');
+  };
+
+  const leadType = String(raw.leadType || next.leadType || '').toUpperCase();
+  const customTabName = String(raw.customTabName || next.customTabName || '').trim();
+  if (leadType === 'CUSTOM' && customTabName) {
+    next.leadType = 'CUSTOM';
+    next.customTabName = customTabName;
+  } else if (['HOT', 'WARM', 'COLD'].includes(leadType)) {
+    next.leadType = leadType;
+    next.customTabName = '';
+  }
+
+  next.firstName = String(raw.firstName ?? next.firstName ?? '');
+  next.lastName = String(raw.lastName ?? next.lastName ?? '');
+  next.email = String(raw.email ?? next.email ?? '');
+  next.company = String(raw.company ?? next.company ?? '');
+  next.position = String(raw.position ?? next.position ?? '');
+  next.url = String(raw.url ?? next.url ?? '');
+  next.notes = String(raw.notes ?? next.notes ?? '');
+  next.status = String(raw.status ?? next.status ?? 'ACTIVE').toUpperCase();
+  next.phoneNumber = String(raw.phoneNumber ?? readCustomValue('phone_number') ?? '');
+  next.linkedinProfile = String(raw.linkedinProfile ?? readCustomValue('linkedin_profile') ?? '');
+  next.leadSource = String(raw.leadSource ?? readCustomValue('lead_source') ?? '');
+  next.birthday = String(raw.birthday ?? readCustomValue('birthday') ?? '');
+  next.industry = String(raw.industry ?? readCustomValue('industry') ?? '');
+  if (raw.employeeCount !== null && raw.employeeCount !== undefined && raw.employeeCount !== '') {
+    next.employeeCount = String(raw.employeeCount);
+  }
+  if (raw.connectedOn) {
+    const parsed = new Date(String(raw.connectedOn));
+    if (!Number.isNaN(parsed.getTime())) {
+      next.connectedOn = parsed.toISOString().slice(0, 10);
+    }
+  }
+  if (raw.customFields && typeof raw.customFields === 'object') {
+    next.customFields = raw.customFields as CRMLeadPayload['customFields'];
+  }
+  return next;
+}
+
+const CRMLeadForm: React.FC<CRMLeadFormProps> = ({
+  mode,
+  initialData,
+  activeTab,
+  variant = 'inline',
+  onCancel,
+  onSubmit,
+  onError,
+}) => {
   const [form, setForm] = useState<CRMLeadPayload>(defaultLead(activeTab));
   const [customFieldKey, setCustomFieldKey] = useState('');
   const [customFieldType, setCustomFieldType] = useState('input');
@@ -70,34 +133,29 @@ const CRMLeadForm: React.FC<CRMLeadFormProps> = ({ mode, initialData, activeTab,
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const next = { ...defaultLead(activeTab), ...(initialData || {}) } as CRMLeadPayload;
-    const persistedCustomFields = next.customFields && typeof next.customFields === 'object' ? next.customFields : {};
-    const readCustomValue = (key: string) => {
-      const value = (persistedCustomFields as any)?.[key];
-      if (value && typeof value === 'object' && 'value' in value) return String((value as any).value ?? '');
-      return String(value ?? '');
-    };
-    next.phoneNumber = next.phoneNumber || readCustomValue('phone_number');
-    next.linkedinProfile = next.linkedinProfile || readCustomValue('linkedin_profile');
-    next.leadSource = next.leadSource || readCustomValue('lead_source');
-    next.birthday = next.birthday || readCustomValue('birthday');
-    next.industry = next.industry || readCustomValue('industry');
+    const next = normalizeLeadInitialData(activeTab, initialData);
     setForm(next);
-    const initialCustom = next.customFields && typeof next.customFields === 'object'
-      ? Object.entries(next.customFields).map(([key, value]) => {
-          if (value && typeof value === 'object' && 'value' in value) {
-            return {
-              key,
-              type: String((value as any).type || 'input'),
-              value: String((value as any).value ?? ''),
-            };
-          }
-          return { key, type: 'input', value: String(value ?? '') };
-        })
-      : [];
-    setCustomFields(initialCustom.filter((item) => !['phone_number', 'linkedin_profile', 'lead_source', 'birthday', 'industry'].includes(item.key)));
+    const initialCustom =
+      next.customFields && typeof next.customFields === 'object'
+        ? Object.entries(next.customFields).map(([key, value]) => {
+            if (value && typeof value === 'object' && 'value' in value) {
+              return {
+                key,
+                type: String((value as { type?: string }).type || 'input'),
+                value: String((value as { value?: unknown }).value ?? ''),
+              };
+            }
+            return { key, type: 'input', value: String(value ?? '') };
+          })
+        : [];
+    setCustomFields(
+      initialCustom.filter(
+        (item) =>
+          !['phone_number', 'linkedin_profile', 'lead_source', 'birthday', 'industry'].includes(item.key),
+      ),
+    );
     setErrors({});
-  }, [activeTab, initialData?.leadType, initialData?.firstName, initialData?.lastName, initialData?.email, initialData?.company, initialData?.position, initialData?.url, initialData?.connectedOn, initialData?.employeeCount, initialData?.status, initialData?.notes, initialData?.customFields]);
+  }, [activeTab, initialData, mode]);
 
   const setFieldError = (key: string, value: string) => {
     setErrors((prev) => {
@@ -191,14 +249,20 @@ const CRMLeadForm: React.FC<CRMLeadFormProps> = ({ mode, initialData, activeTab,
     </label>
   );
 
-  return (
+  const formPanel = (
     <div className="rounded-2xl bg-white shadow-lg border border-slate-200 overflow-hidden">
-      <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 flex items-center justify-between">
+      <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 flex items-center justify-between sticky top-0 z-10">
         <div>
-          <h3 className="text-lg font-semibold text-slate-800">{mode === 'create' ? 'Add Lead' : 'Edit Lead'}</h3>
+          <h3 id="crm-lead-form-title" className="text-lg font-semibold text-slate-800">{mode === 'create' ? 'Add Lead' : 'Edit Lead'}</h3>
           <p className="text-xs text-slate-500 mt-0.5">Fill lead details carefully. Required fields are marked in red.</p>
         </div>
-        <button onClick={onCancel} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">Back</button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+        >
+          {variant === 'modal' ? 'Close' : 'Back'}
+        </button>
       </div>
       <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
@@ -423,7 +487,28 @@ const CRMLeadForm: React.FC<CRMLeadFormProps> = ({ mode, initialData, activeTab,
         </button>
       </div>
     </div>
-);
+  );
+
+  if (variant === 'modal') {
+    return (
+      <div
+        className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="crm-lead-form-title"
+        onClick={onCancel}
+      >
+        <div
+          className="my-auto w-full max-w-5xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {formPanel}
+        </div>
+      </div>
+    );
+  }
+
+  return formPanel;
 };
 
 export default CRMLeadForm;

@@ -4,12 +4,12 @@ import {
   Target,
   Clock,
   LayoutDashboard,
-  BrainCircuit,
+  NotebookPen,
   Mail,
-  ShieldCheck,
-  Database,
+  Users,
+  ListTodo,
   FileText,
-  UsersRound,
+  Contact,
 } from 'lucide-react';
 import { PlanningState } from '../../types';
 import Vision from '../../views/Vision';
@@ -92,10 +92,14 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
   const isAttendanceRoute = routePath.startsWith('/attendance');
   const isExpenseRoute = routePath.startsWith('/expense-travel');
   const isCommunicationRoute = routePath === '/communication';
+  const isReflectionRoute = routePath === '/reflection' || routePath === '/review';
   const isFlushSharedSubnavRoute =
     routePath === '/' ||
     isCommunicationRoute ||
+    isReflectionRoute ||
     routePath === '/staff' ||
+    routePath.startsWith('/staff/') ||
+    routePath.startsWith('/expense-travel') ||
     routePath.startsWith('/spaces') ||
     routePath.startsWith('/workspaces') ||
     ['/yearly', '/quarterly', '/monthly', '/weekly', '/daily'].includes(routePath);
@@ -132,7 +136,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
             {hasPower('SPACES_VIEW') && (
               <SidebarLink
                 to="/spaces"
-                icon={<Database size={20} />}
+                icon={<ListTodo size={20} />}
                 label="TaskHub"
                 badgeCount={taskCount}
                 collapsed={!isSidebarOpen}
@@ -149,7 +153,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
             {hasPower('REFLECTION_VIEW') && (
               <SidebarLink
                 to="/reflection"
-                icon={<BrainCircuit size={20} />}
+                icon={<NotebookPen size={20} />}
                 label={state.uiConfig.reflectionTitle}
                 collapsed={!isSidebarOpen}
               />
@@ -168,10 +172,10 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
               <SidebarLink to="/content" icon={<FileText size={20} />} label="Content" collapsed={!isSidebarOpen} />
             )}
             {hasPower('STAFF_VIEW') && (
-              <SidebarLink to="/staff" icon={<ShieldCheck size={20} />} label="Staff" collapsed={!isSidebarOpen} />
+              <SidebarLink to="/staff" icon={<Users size={20} />} label="Staff" collapsed={!isSidebarOpen} />
             )}
             {hasPower('CRM_VIEW') && (
-              <SidebarLink to="/crm" icon={<UsersRound size={20} />} label="CRM" collapsed={!isSidebarOpen} />
+              <SidebarLink to="/crm" icon={<Contact size={20} />} label="CRM" collapsed={!isSidebarOpen} />
             )}
           </nav>
         </aside>
@@ -263,6 +267,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
               )}
               {hasPower('CONTENT_VIEW') && <Route path="/content/new" element={<ContentCreateView />} />}
               {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView mode="employee" />} />}
+              {hasPower('STAFF_VIEW') && <Route path="/staff/org-chart" element={<StaffView mode="employee" />} />}
               {hasPower('CRM_VIEW') && <Route path="/crm" element={<CRMPage />} />}
               {hasPower('CRM_VIEW') && <Route path="/crm/lead/:leadId" element={<CRMLeadDetailPage />} />}
               {hasPower('EXPENSE_VIEW') && <Route path="/expense-travel" element={<ExpenseTravelView mode="employee" />} />}

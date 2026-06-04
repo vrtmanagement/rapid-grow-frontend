@@ -1,8 +1,42 @@
+import { cachedFetchJson, clearApiCache, invalidateApiCacheForMutation } from '../services/apiCache';
+
 /**
  * API config - points to Gateway (http://localhost:5000/api)
  * Set VITE_API_URL in .env for different environments
  */
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+export async function apiGetJson<T>(
+  path: string,
+  init: RequestInit = {},
+  options?: { force?: boolean },
+): Promise<T> {
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
+  return cachedFetchJson<T>(
+    url,
+    { ...init, headers: { ...getAuthHeaders(), ...(init.headers || {}) } },
+    options,
+  );
+}
+
+export async function apiFetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
+  const method = String(init.method || 'GET').toUpperCase();
+  if (method === 'GET' || !init.method) {
+    return apiGetJson<T>(path, init);
+  }
+  const response = await fetch(url, { ...init, headers: { ...getAuthHeaders(), ...(init.headers || {}) } });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message =
+      (payload as { message?: string; error?: string })?.message ||
+      (payload as { message?: string; error?: string })?.error ||
+      `Request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+  invalidateApiCacheForMutation(url, init);
+  return payload as T;
+}
 export const AUTH_STORAGE_KEY = 'rapidgrow-admin';
 export const AUTH_EXPIRED_EVENT = 'rapidgrow-auth-expired';
 
@@ -27,6 +61,7 @@ function isTokenExpired(token: string): boolean {
 }
 
 export function clearStoredSession() {
+  clearApiCache();
   try {
     localStorage.removeItem(AUTH_STORAGE_KEY);
   } catch {

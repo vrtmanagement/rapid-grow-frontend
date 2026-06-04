@@ -12,6 +12,8 @@ interface PermissionMeta {
 
 interface PermissionsViewProps {
   canEdit: boolean;
+  /** When rendered inside profile settings, hide the standalone page heading. */
+  embedded?: boolean;
 }
 
 const EMPTY_MATRIX: Matrix = {
@@ -31,7 +33,7 @@ function toPermissionArray(value: unknown): PermissionKey[] {
   return [];
 }
 
-const PermissionsView: React.FC<PermissionsViewProps> = ({ canEdit }) => {
+const PermissionsView: React.FC<PermissionsViewProps> = ({ canEdit, embedded = false }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,10 +141,12 @@ const PermissionsView: React.FC<PermissionsViewProps> = ({ canEdit }) => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl text-slate-900">Permissions</h2>
-        <p className="text-slate-500 mt-2">Manage role-based feature access for the system.</p>
-      </div>
+      {!embedded ? (
+        <div>
+          <h2 className="text-3xl text-slate-900">Permissions</h2>
+          <p className="text-slate-500 mt-2">Manage role-based feature access for the system.</p>
+        </div>
+      ) : null}
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 px-4 py-3">{error}</div>}
       {success && <div className="rounded-xl border border-green-200 bg-green-50 text-green-700 px-4 py-3">{success}</div>}
