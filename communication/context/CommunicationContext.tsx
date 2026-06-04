@@ -159,6 +159,49 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   const lastMessageIdByConversationKeyRef = useRef<Record<string, string>>({});
   const seenSocketMessageIdsRef = useRef<Record<string, true>>({});
   const notificationTimersRef = useRef<Record<string, number>>({});
+  const markSeenTimerRef = useRef<Record<string, number>>({});
+
+  const markConversationSeen = useCallback(
+    (conversationKey: string, options?: { immediate?: boolean }): Promise<void> => {
+      const key = String(conversationKey || '').trim();
+      if (!key) return Promise.resolve();
+
+      return new Promise((resolve) => {
+        const run = () => {
+          socket.emit('comm:seen:open', { conversationKey: key }, (ack: any) => {
+            if (ack?.ok) {
+              const unreadCount =
+                typeof ack?.unreadCount === 'number' && Number.isFinite(ack.unreadCount)
+                  ? Math.max(0, ack.unreadCount)
+                  : 0;
+              setConversations((prev) =>
+                prev.map((c) => (c.conversationKey === key ? { ...c, unreadCount } : c)),
+              );
+            }
+            resolve();
+          });
+        };
+
+        if (options?.immediate) {
+          if (markSeenTimerRef.current[key]) {
+            window.clearTimeout(markSeenTimerRef.current[key]);
+            delete markSeenTimerRef.current[key];
+          }
+          run();
+          return;
+        }
+
+        if (markSeenTimerRef.current[key]) {
+          window.clearTimeout(markSeenTimerRef.current[key]);
+        }
+        markSeenTimerRef.current[key] = window.setTimeout(() => {
+          delete markSeenTimerRef.current[key];
+          run();
+        }, 250);
+      });
+    },
+    [socket],
+  );
 
   useEffect(() => {
     const stored = getStoredAuth();
@@ -309,6 +352,12 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     loadConversations();
   }, [loadUsers, loadConversations]);
 
+  // Keep server read-state aligned while a conversation stays open on screen.
+  useEffect(() => {
+    if (!selectedConversationKey) return;
+    void markConversationSeen(selectedConversationKey, { immediate: true });
+  }, [selectedConversationKey, markConversationSeen]);
+
   useEffect(() => {
     const handleProfileAvatarUpdated = (event: Event) => {
       const detail = (event as CustomEvent<{ avatar?: string; empId?: string; userId?: string }>).detail || {};
@@ -343,15 +392,20 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     };
   }, []);
 
+  const visibleUserIds = useMemo(() => new Set(users.map((user) => user.id)), [users]);
+
   useEffect(() => {
     window.dispatchEvent(
       new CustomEvent('rapidgrow:communication-unread-sync', {
         detail: {
-          unreadSourceCount: getUnreadDirectMessageSourceCount(conversations),
+          unreadSourceCount: getUnreadDirectMessageSourceCount(conversations, {
+            currentUserId: currentUser?.id,
+            visibleUserIds,
+          }),
         },
       })
     );
-  }, [conversations]);
+  }, [conversations, currentUser?.id, visibleUserIds]);
 
   const dismissNotification = useCallback((notificationId: string) => {
     const timer = notificationTimersRef.current[notificationId];
@@ -512,7 +566,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
 
           // If this conversation isn't open and the message isn't mine, mark unread.
           const isOpen = selectedConversationKeyRef.current === conversationKey;
-          const shouldIncrementUnread = !isOpen && mapped.senderId !== currentUser?.id;
+          const shouldIncrementUnread = !isOpen && mapped.senderId !== currentUserRef.current?.id;
           const unreadCount = shouldIncrementUnread ? (c.unreadCount || 0) + 1 : c.unreadCount || 0;
 
           return {
@@ -530,6 +584,10 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
           return atB - atA;
         });
       });
+
+      if (isCurrentConversationOpen && isIncoming) {
+        void markConversationSeen(conversationKey);
+      }
     };
 
     const handleMessageCreated = (payload: any) => {
@@ -653,7 +711,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       setConversations((prev) =>
         prev.map((c) =>
           c.conversationKey === conversationKey
-            ? { ...c, lastMessagePreview: 'Message deleted' }
+            ? { ...c, lastMessagePreview: 'Message deleted', unreadCount: 0 }
             : c
         )
       );
@@ -685,7 +743,13 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     const handleUnreadCleared = (payload: any) => {
       const conversationKey = String(payload?.conversationKey || '');
       if (!conversationKey) return;
-      setConversations((prev) => prev.map((c) => (c.conversationKey === conversationKey ? { ...c, unreadCount: 0 } : c)));
+      const unreadCount =
+        typeof payload?.unreadCount === 'number' && Number.isFinite(payload.unreadCount)
+          ? Math.max(0, payload.unreadCount)
+          : 0;
+      setConversations((prev) =>
+        prev.map((c) => (c.conversationKey === conversationKey ? { ...c, unreadCount } : c)),
+      );
     };
 
     socket.on('presence:update', handlePresence);
@@ -714,6 +778,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   }, [
     notificationPreferences.communicationMessages,
     notificationPreferences.toastPreviews,
+    markConversationSeen,
     scheduleNotificationAutoDismiss,
     socket,
   ]);
@@ -786,13 +851,11 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
                 await loadMessages(conversationKey);
                 // Mark messages as seen (updates unread baseline + DM seen ticks)
                 setConversations((prev) => prev.map((c) => (c.conversationKey === conversationKey ? { ...c, unreadCount: 0 } : c)));
-                socket.emit('comm:seen:open', { conversationKey });
+                await markConversationSeen(conversationKey, { immediate: true });
 
-                // Also mark as read in the backend API for aggregated unread count tracking.
                 try {
                   await apiMarkAsRead({ conversationKey });
                 } catch (err) {
-                  // non-fatal: do not block conversation open
                   console.warn('apiMarkAsRead failed', err);
                 }
 
@@ -809,7 +872,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
           });
       });
     },
-    [conversations, loadMessages, socket]
+    [conversations, loadMessages, markConversationSeen, socket]
   );
 
   const openNotificationConversation = useCallback(
@@ -859,7 +922,12 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
               setConversations((prev) =>
                 prev.map((c) => (c.conversationKey === conversationKey ? { ...c, unreadCount: 0 } : c))
               );
-              socket.emit('comm:seen:open', { conversationKey });
+              await markConversationSeen(conversationKey, { immediate: true });
+              try {
+                await apiMarkAsRead({ conversationKey });
+              } catch (err) {
+                console.warn('apiMarkAsRead failed', err);
+              }
               resolve();
             } catch (e: any) {
               reject(e);
@@ -868,7 +936,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
         );
       });
     },
-    [conversations, loadMessages, socket]
+    [conversations, loadMessages, markConversationSeen, socket]
   );
 
   const startDmWithUser = useCallback(
@@ -934,7 +1002,12 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
                 setConversations((prev) =>
                   prev.map((c) => (c.conversationKey === conversationKey ? { ...c, unreadCount: 0 } : c))
                 );
-                socket.emit('comm:seen:open', { conversationKey });
+                await markConversationSeen(conversationKey, { immediate: true });
+                try {
+                  await apiMarkAsRead({ conversationKey });
+                } catch (err) {
+                  console.warn('apiMarkAsRead failed', err);
+                }
                 resolve();
               } catch (e: any) {
                 setError(e?.message || 'Failed to open chat');
@@ -948,7 +1021,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
           });
       });
     },
-    [conversations, joinByConversationKey, loadMessages, socket]
+    [conversations, joinByConversationKey, loadMessages, markConversationSeen, socket]
   );
 
   const createTeam = useCallback(

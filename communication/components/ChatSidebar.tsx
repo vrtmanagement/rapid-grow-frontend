@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChatConversationSummary, ChatUser } from '../types';
 import { Camera, Mail, MoreVertical, Plus, Trash2, UserPlus } from 'lucide-react';
 import { MessageActionModal } from './MessageActionModal';
@@ -6,10 +6,18 @@ import { apiUploadFile } from '../api';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
 import AvatarCropModal from '../../components/profile/AvatarCropModal';
 
-function roleLabel(roleGroup: string) {
-  if (roleGroup === 'admin') return 'Admin';
-  if (roleGroup === 'team_lead') return 'Team Lead';
-  return 'Employee';
+function formatMessageTimestamp(value?: string | null) {
+  if (!value) return '';
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return '';
+  const diffMs = Math.max(0, Date.now() - timestamp);
+  const diffMinutes = Math.max(1, Math.floor(diffMs / 60000));
+  if (diffMinutes < 60) return `${diffMinutes} Min ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} Hr ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays} Day ago`;
+  return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export function ChatSidebar({
@@ -45,6 +53,7 @@ export function ChatSidebar({
   onPreviewUser: (user: ChatUser) => void;
   onPreviewTeamAvatar: (team: ChatConversationSummary) => void;
 }) {
+  const [peopleFilter, setPeopleFilter] = useState<'all' | 'unread'>('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [teamName, setTeamName] = useState('');
@@ -59,6 +68,7 @@ export function ChatSidebar({
   const [teamActionLoading, setTeamActionLoading] = useState<null | 'create' | 'save' | 'delete'>(null);
   const createAvatarInputRef = useRef<HTMLInputElement | null>(null);
   const manageAvatarInputRef = useRef<HTMLInputElement | null>(null);
+  const teamMenuRef = useRef<HTMLDivElement | null>(null);
 
   const canManageTeams = currentUserRole === 'SUPER_ADMIN' || currentUserRole === 'ADMIN' || currentUserRole === 'TEAM_LEAD';
 
@@ -102,6 +112,20 @@ export function ChatSidebar({
 
   const selfDm = useMemo(() => dmByUserId.get(currentUserId) || null, [dmByUserId, currentUserId]);
   const currentUser = useMemo(() => users.find((u) => u.id === currentUserId) || null, [users, currentUserId]);
+  const unreadPeopleCount = useMemo(() => {
+    let count = 0;
+    if ((selfDm?.unreadCount || 0) > 0) count += 1;
+    people.forEach((user) => {
+      const dm = dmByUserId.get(user.id);
+      if ((dm?.unreadCount || 0) > 0) count += 1;
+    });
+    return count;
+  }, [dmByUserId, people, selfDm]);
+  const showSelfDm = !!selfDm && (peopleFilter === 'all' || (selfDm.unreadCount || 0) > 0);
+  const filteredPeople = useMemo(() => {
+    if (peopleFilter === 'all') return people;
+    return people.filter((user) => (dmByUserId.get(user.id)?.unreadCount || 0) > 0);
+  }, [dmByUserId, people, peopleFilter]);
   const resetTeamForm = () => {
     setTeamName('');
     setMemberIds([]);
@@ -129,6 +153,31 @@ export function ChatSidebar({
     setManageOpen(true);
   };
 
+  useEffect(() => {
+    if (!teamMenuOpenKey) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (teamMenuRef.current?.contains(target)) return;
+      setTeamMenuOpenKey(null);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setTeamMenuOpenKey(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [teamMenuOpenKey]);
+
   return (
     <div className="communication-sidebar w-80 hidden lg:flex flex-col border-r border-slate-200 bg-white">
       <div className="communication-sidebar-header flex h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white px-6">
@@ -141,8 +190,8 @@ export function ChatSidebar({
         <Mail size={16} className="text-slate-400" />
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-4 pt-4 pb-2">
+      <div className="flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="px-4 pt-3 pb-1.5">
           <div className="flex items-center justify-between gap-2">
             <div>
               <div className="communication-sidebar-section-label text-xs font-semibold text-slate-500 uppercase tracking-wide">Teams</div>
@@ -162,16 +211,16 @@ export function ChatSidebar({
             ) : null}
           </div>
         </div>
-        <div className="px-2 pb-4">
+        <div className="pb-2.5">
           {loading ? (
             Array.from({ length: 3 }).map((_, index) => (
               <div
                 key={`team-skeleton-${index}`}
-                className="w-full px-3 py-2.5 rounded-xl border border-transparent animate-pulse"
+                className="w-full px-4 py-1.5 rounded-xl border border-transparent animate-pulse"
               >
                 <div className="space-y-2">
                   <div className="h-4 w-32 rounded-full bg-slate-200" />
-                  <div className="h-3 w-44 rounded-full bg-slate-100" />
+                  <div className="h-3.5 w-44 rounded-full bg-slate-100" />
                 </div>
               </div>
             ))
@@ -180,17 +229,22 @@ export function ChatSidebar({
             return (
               <div
                 key={c.conversationKey}
-                className={`communication-sidebar-item w-full text-left px-3 py-2.5 rounded-xl transition-all border ${
-                  active ? 'communication-sidebar-item-active bg-[#eef4ff] border-[#d7e5fb] ring-1 ring-[#d7e5fb]' : 'border-transparent hover:bg-slate-50'
+                className={`communication-sidebar-item relative w-full text-left px-0 py-2 transition-all border-y ${
+                  teamMenuOpenKey === c.conversationKey ? 'z-30 overflow-visible ' : 'overflow-hidden '
+                }${
+                  active ? 'communication-sidebar-item-active border-brand-red/10 bg-[#fff1f1] shadow-none' : 'border-transparent hover:bg-slate-50'
                 }`}
               >
-                <div className="flex w-full items-center justify-between gap-3">
+                {active ? (
+                  <span className="absolute inset-y-0 left-0 w-1 bg-brand-red" aria-hidden />
+                ) : null}
+                <div className="flex w-full items-center justify-between gap-2.5 px-4">
                   <button
                     type="button"
                     onClick={() => onSelectTeam(c.conversationKey)}
                     className="min-w-0 flex flex-1 items-center gap-2 text-left"
                   >
-                    <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
                       {c.avatar ? (
                         <img
                           src={getDisplayAvatarUrl(c.avatar, c.title)}
@@ -202,22 +256,25 @@ export function ChatSidebar({
                           }}
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase text-slate-500">
+                        <div className="flex h-full w-full items-center justify-center text-[9px] font-bold uppercase text-slate-500">
                           {(c.title || 'T').slice(0, 1)}
                         </div>
                       )}
                     </div>
                     <div className="min-w-0">
-                      <div className="communication-sidebar-title text-sm font-semibold text-slate-900 truncate">{c.title}</div>
-                      <div className="communication-sidebar-preview mt-0.5 text-xs text-slate-500 truncate">{c.lastMessagePreview || 'No messages yet'}</div>
+                      <div className="communication-sidebar-title truncate text-[12px] font-semibold text-slate-900">{c.title}</div>
+                      <div className="communication-sidebar-preview mt-0.5 truncate text-[9px] text-slate-500">{c.lastMessagePreview || 'No messages yet'}</div>
                     </div>
                   </button>
                   <div className="shrink-0 flex items-center gap-2">
                     {canManageTeams ? (
-                      <div className="relative flex items-center gap-1">
+                      <div
+                        ref={teamMenuOpenKey === c.conversationKey ? teamMenuRef : null}
+                        className="relative flex items-center gap-1"
+                      >
                         <button
                           type="button"
-                          className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                          className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-50"
                           onClick={(e) => {
                             e.stopPropagation();
                             setTeamMenuOpenKey((prev) => prev === c.conversationKey ? null : c.conversationKey);
@@ -226,7 +283,7 @@ export function ChatSidebar({
                           <MoreVertical size={14} />
                         </button>
                         {teamMenuOpenKey === c.conversationKey ? (
-                          <div className="absolute right-0 top-8 z-40 w-36 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
+                          <div className="absolute right-0 top-8 z-50 w-36 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -263,7 +320,9 @@ export function ChatSidebar({
                       </div>
                     ) : null}
                     {typeof c.unreadCount === 'number' && c.unreadCount > 0 ? (
-                      <div className="w-2.5 h-2.5 rounded-full bg-blue-600" aria-hidden />
+                      <span className="inline-flex h-6.5 min-w-[1.65rem] items-center justify-center rounded-full bg-brand-red px-1.5 text-[10px] font-bold text-white">
+                        {c.unreadCount}
+                      </span>
                     ) : null}
                   </div>
                 </div>
@@ -277,15 +336,37 @@ export function ChatSidebar({
           ) : null}
         </div>
 
-        <div className="px-4 pt-4 pb-2 border-t border-slate-200">
-          <div className="communication-sidebar-section-label text-xs font-semibold text-slate-500 uppercase tracking-wide">People</div>
+        <div className="px-4 pt-3 pb-1.5 border-t border-slate-200">
+          <div className="flex items-center justify-between gap-2">
+            <div className="communication-sidebar-section-label text-xs font-semibold text-slate-500 uppercase tracking-wide">People</div>
+            <div className="inline-flex items-center gap-1 rounded-full bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setPeopleFilter('all')}
+                className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition ${
+                  peopleFilter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setPeopleFilter('unread')}
+                className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition ${
+                  peopleFilter === 'unread' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {unreadPeopleCount > 0 ? `Unread (${unreadPeopleCount})` : 'Unread'}
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="px-2 pb-10">
+        <div className="pb-6">
           {loading ? (
             Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={`people-skeleton-${index}`}
-                className="w-full px-3 py-2 rounded-xl border border-transparent animate-pulse"
+                className="w-full px-4 py-2 rounded-xl border border-transparent animate-pulse"
               >
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-full bg-slate-200 shrink-0" />
@@ -299,38 +380,53 @@ export function ChatSidebar({
                 </div>
               </div>
             ))
-          ) : selfDm ? (
+          ) : showSelfDm ? (
             <button
               key="self-chat"
               type="button"
               onClick={() => onStartDmWithUser(currentUserId)}
-              className={`communication-sidebar-item w-full text-left px-3 py-2 rounded-xl transition-all border ${
-                selectedConversationKey === selfDm.conversationKey ? 'communication-sidebar-item-active bg-[#eef4ff] border-[#d7e5fb]' : 'border-transparent hover:bg-slate-50'
+              className={`communication-sidebar-item relative w-full overflow-hidden text-left px-0 py-2 transition-all border-y ${
+                selectedConversationKey === selfDm.conversationKey
+                  ? 'communication-sidebar-item-active border-brand-red/10 bg-[#fff1f1] shadow-none'
+                  : 'border-transparent hover:bg-slate-50'
               }`}
             >
-              <div className="flex items-center gap-3">
+              {selectedConversationKey === selfDm.conversationKey ? (
+                <span className="absolute inset-y-0 left-0 w-1 bg-brand-red" aria-hidden />
+              ) : null}
+              <div className="flex items-start gap-2 px-4">
                 <div className="relative shrink-0">
                   <img
                     src={
                       getDisplayAvatarUrl(currentUser?.avatar, currentUser?.name || 'you')
                     }
                     alt=""
-                    className="w-9 h-9 rounded-full border border-slate-200 bg-slate-50 object-cover cursor-pointer"
+                    className="h-10 w-10 rounded-full border border-slate-200 bg-slate-50 object-cover cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation();
                       if (currentUser) onPreviewUser(currentUser);
                     }}
                   />
-                  <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white bg-emerald-500" aria-hidden />
+                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" aria-hidden />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="communication-sidebar-title text-sm font-semibold text-slate-900 truncate">{currentUser?.name || 'You'} (You)</div>
-                  <div className="communication-sidebar-preview text-xs text-slate-500 truncate">{selfDm.lastMessagePreview || 'Message yourself'}</div>
+                <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="communication-sidebar-title truncate text-[12px] font-semibold text-slate-900">{currentUser?.name || 'You'} (You)</div>
+                    <div className="communication-sidebar-preview mt-0.5 truncate text-[9px] text-slate-500">{selfDm.lastMessagePreview || 'Message yourself'}</div>
+                  </div>
+                  <div className="flex shrink-0 min-w-[64px] flex-col items-end gap-2 pt-0.5">
+                    <span className="text-[9px] font-medium text-slate-700">{formatMessageTimestamp(selfDm.lastMessageAt)}</span>
+                    {typeof selfDm.unreadCount === 'number' && selfDm.unreadCount > 0 ? (
+                      <span className="inline-flex h-6.5 min-w-[1.65rem] items-center justify-center rounded-full bg-brand-red px-1.5 text-[10px] font-bold text-white">
+                        {selfDm.unreadCount}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </button>
           ) : null}
-          {!loading && people.map((u) => {
+          {!loading && filteredPeople.map((u) => {
             const active =
               selectedConversationKey &&
               dmByUserId.get(u.id)?.conversationKey === selectedConversationKey;
@@ -342,50 +438,57 @@ export function ChatSidebar({
                 key={u.id}
                 type="button"
                 onClick={() => onStartDmWithUser(u.id)}
-                className={`communication-sidebar-item w-full text-left px-3 py-2 rounded-xl transition-all border ${
-                  active ? 'communication-sidebar-item-active bg-[#eef4ff] border-[#d7e5fb]' : 'border-transparent hover:bg-slate-50'
+              className={`communication-sidebar-item relative w-full overflow-hidden text-left px-0 py-2 transition-all border-y ${
+                  active ? 'communication-sidebar-item-active border-brand-red/10 bg-[#fff1f1] shadow-none' : 'border-transparent hover:bg-slate-50'
                 }`}
               >
-                <div className="flex items-center gap-3">
+                {active ? (
+                  <span className="absolute inset-y-0 left-0 w-1 bg-brand-red" aria-hidden />
+                ) : null}
+                <div className="flex items-start gap-2 px-4">
                   <div className="relative shrink-0">
                     <img
                       src={
                         getDisplayAvatarUrl(u.avatar, u.name)
                       }
                       alt=""
-                      className="w-9 h-9 rounded-full border border-slate-200 bg-slate-50 object-cover cursor-pointer"
+                      className="h-10 w-10 rounded-full border border-slate-200 bg-slate-50 object-cover cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
                         onPreviewUser(u);
                       }}
                     />
                     <span
-                      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
-                        u.online ? 'bg-emerald-500' : 'bg-slate-300'
+                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${
+                        u.online ? 'bg-emerald-400' : 'bg-slate-300'
                       }`}
                       aria-hidden
                     />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="communication-sidebar-title text-sm font-semibold text-slate-900 truncate">{u.name}</div>
-                      <div className="communication-sidebar-meta text-[11px] text-slate-500 shrink-0">{roleLabel(u.roleGroup)}</div>
+                  <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="communication-sidebar-title truncate text-[12px] font-semibold text-slate-900">{u.name}</div>
+                      <div className={`communication-sidebar-preview mt-0.5 truncate text-[9px] ${showTypingStatus ? 'font-medium text-emerald-600' : 'text-slate-500'}`}>
+                        {showTypingStatus ? 'Typing...' : (dm?.lastMessagePreview || 'Start chat')}
+                      </div>
                     </div>
-                    <div className={`communication-sidebar-preview text-xs truncate ${showTypingStatus ? 'font-medium text-emerald-600' : 'text-slate-500'}`}>
-                      {showTypingStatus ? 'Typing...' : (dm?.lastMessagePreview || 'Start chat')}
+                    <div className="flex shrink-0 min-w-[64px] flex-col items-end gap-2 pt-0.5">
+                      <span className="text-[9px] font-medium text-slate-700">{formatMessageTimestamp(dm?.lastMessageAt)}</span>
+                      {dm && typeof dm.unreadCount === 'number' && dm.unreadCount > 0 ? (
+                        <span className="inline-flex h-6.5 min-w-[1.65rem] items-center justify-center rounded-full bg-brand-red px-1.5 text-[10px] font-bold text-white">
+                          {dm.unreadCount}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
-                  {dm && typeof dm.unreadCount === 'number' && dm.unreadCount > 0 ? (
-                    <span className="inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-full bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white">
-                      {dm.unreadCount}
-                    </span>
-                  ) : null}
                 </div>
               </button>
             );
           })}
-          {!loading && people.length === 0 && (
-            <div className="communication-sidebar-preview px-3 py-5 text-sm text-slate-500">No users found.</div>
+          {!loading && !showSelfDm && filteredPeople.length === 0 && (
+            <div className="communication-sidebar-preview px-3 py-5 text-sm text-slate-500">
+              {peopleFilter === 'unread' ? 'No unread chats.' : 'No users found.'}
+            </div>
           )}
         </div>
       </div>

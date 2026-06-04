@@ -299,8 +299,8 @@ export function MessageBubble({
   const bubbleBase = message.deleted
     ? 'bg-slate-100 text-slate-500 border-slate-200 shadow-none'
     : isOwn
-      ? 'bg-[#e7f0ff] text-slate-900 border-[#d4e2fb] shadow-[0_10px_22px_rgba(37,99,235,0.08)]'
-      : 'bg-white text-slate-900 border-slate-200 shadow-[0_10px_24px_rgba(15,23,42,0.05)]';
+      ? 'bg-[#fff1f1] text-slate-900 border-brand-red/10 shadow-none'
+      : 'bg-white text-slate-900 border-slate-200 shadow-none';
   const isFirstInGroup = groupPosition === 'single' || groupPosition === 'first';
   const isLastInGroup = groupPosition === 'single' || groupPosition === 'last';
   const showAvatar = isOwn ? isLastInGroup : isFirstInGroup;
@@ -588,7 +588,7 @@ export function MessageBubble({
                 <span
                   className={`communication-message-tail absolute h-3 w-3 border ${
                     isOwn
-                      ? 'communication-message-tail-own -right-[6px] bottom-3 rounded-br-[10px] border-y border-r border-l-0 border-[#d4e2fb] bg-[#e7f0ff]'
+                      ? 'communication-message-tail-own -right-[6px] bottom-3 rounded-br-[10px] border-y border-r border-l-0 border-brand-red/10 bg-[#fff1f1]'
                       : 'communication-message-tail-peer -left-[6px] top-3 rounded-bl-[10px] border-y border-l border-r-0 border-slate-200 bg-white'
                   }`}
                   aria-hidden
