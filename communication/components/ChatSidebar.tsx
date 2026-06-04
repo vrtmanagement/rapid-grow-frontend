@@ -232,12 +232,9 @@ export function ChatSidebar({
                 className={`communication-sidebar-item relative w-full text-left px-0 py-2 transition-all border-y ${
                   teamMenuOpenKey === c.conversationKey ? 'z-30 overflow-visible ' : 'overflow-hidden '
                 }${
-                  active ? 'communication-sidebar-item-active border-brand-red/10 bg-[#fff1f1] shadow-none' : 'border-transparent hover:bg-slate-50'
+                  active ? 'communication-sidebar-item-active border-[#d7e5fb] bg-[#eef4ff] shadow-none' : 'border-transparent hover:bg-slate-50'
                 }`}
               >
-                {active ? (
-                  <span className="absolute inset-y-0 left-0 w-1 bg-brand-red" aria-hidden />
-                ) : null}
                 <div className="flex w-full items-center justify-between gap-2.5 px-4">
                   <button
                     type="button"
@@ -387,13 +384,10 @@ export function ChatSidebar({
               onClick={() => onStartDmWithUser(currentUserId)}
               className={`communication-sidebar-item relative w-full overflow-hidden text-left px-0 py-2 transition-all border-y ${
                 selectedConversationKey === selfDm.conversationKey
-                  ? 'communication-sidebar-item-active border-brand-red/10 bg-[#fff1f1] shadow-none'
+                  ? 'communication-sidebar-item-active border-[#d7e5fb] bg-[#eef4ff] shadow-none'
                   : 'border-transparent hover:bg-slate-50'
               }`}
             >
-              {selectedConversationKey === selfDm.conversationKey ? (
-                <span className="absolute inset-y-0 left-0 w-1 bg-brand-red" aria-hidden />
-              ) : null}
               <div className="flex items-start gap-2 px-4">
                 <div className="relative shrink-0">
                   <img
@@ -439,12 +433,9 @@ export function ChatSidebar({
                 type="button"
                 onClick={() => onStartDmWithUser(u.id)}
               className={`communication-sidebar-item relative w-full overflow-hidden text-left px-0 py-2 transition-all border-y ${
-                  active ? 'communication-sidebar-item-active border-brand-red/10 bg-[#fff1f1] shadow-none' : 'border-transparent hover:bg-slate-50'
+                  active ? 'communication-sidebar-item-active border-[#d7e5fb] bg-[#eef4ff] shadow-none' : 'border-transparent hover:bg-slate-50'
                 }`}
               >
-                {active ? (
-                  <span className="absolute inset-y-0 left-0 w-1 bg-brand-red" aria-hidden />
-                ) : null}
                 <div className="flex items-start gap-2 px-4">
                   <div className="relative shrink-0">
                     <img
