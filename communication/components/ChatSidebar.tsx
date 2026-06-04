@@ -259,8 +259,8 @@ export function ChatSidebar({
                       )}
                     </div>
                     <div className="min-w-0">
-                      <div className="communication-sidebar-title truncate text-[12px] font-semibold text-slate-900">{c.title}</div>
-                      <div className="communication-sidebar-preview mt-0.5 truncate text-[9px] text-slate-500">{c.lastMessagePreview || 'No messages yet'}</div>
+                      <div className="communication-sidebar-title truncate text-[13px] font-semibold text-slate-900">{c.title}</div>
+                      <div className="communication-sidebar-preview mt-0.5 truncate text-[10px] text-slate-500">{c.lastMessagePreview || 'No messages yet'}</div>
                     </div>
                   </button>
                   <div className="shrink-0 flex items-center gap-2">
@@ -405,11 +405,11 @@ export function ChatSidebar({
                 </div>
                 <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="communication-sidebar-title truncate text-[12px] font-semibold text-slate-900">{currentUser?.name || 'You'} (You)</div>
-                    <div className="communication-sidebar-preview mt-0.5 truncate text-[9px] text-slate-500">{selfDm.lastMessagePreview || 'Message yourself'}</div>
+                    <div className="communication-sidebar-title truncate text-[13px] font-semibold text-slate-900">{currentUser?.name || 'You'} (You)</div>
+                    <div className="communication-sidebar-preview mt-0.5 truncate text-[10px] text-slate-500">{selfDm.lastMessagePreview || 'Message yourself'}</div>
                   </div>
                   <div className="flex shrink-0 min-w-[64px] flex-col items-end gap-2 pt-0.5">
-                    <span className="text-[9px] font-medium text-slate-700">{formatMessageTimestamp(selfDm.lastMessageAt)}</span>
+                    <span className="text-[10px] font-medium text-slate-700">{formatMessageTimestamp(selfDm.lastMessageAt)}</span>
                     {typeof selfDm.unreadCount === 'number' && selfDm.unreadCount > 0 ? (
                       <span className="inline-flex h-6.5 min-w-[1.65rem] items-center justify-center rounded-full bg-brand-red px-1.5 text-[10px] font-bold text-white">
                         {selfDm.unreadCount}
@@ -458,13 +458,13 @@ export function ChatSidebar({
                   </div>
                   <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="communication-sidebar-title truncate text-[12px] font-semibold text-slate-900">{u.name}</div>
-                      <div className={`communication-sidebar-preview mt-0.5 truncate text-[9px] ${showTypingStatus ? 'font-medium text-emerald-600' : 'text-slate-500'}`}>
+                      <div className="communication-sidebar-title truncate text-[13px] font-semibold text-slate-900">{u.name}</div>
+                      <div className={`communication-sidebar-preview mt-0.5 truncate text-[10px] ${showTypingStatus ? 'font-medium text-emerald-600' : 'text-slate-500'}`}>
                         {showTypingStatus ? 'Typing...' : (dm?.lastMessagePreview || 'Start chat')}
                       </div>
                     </div>
                     <div className="flex shrink-0 min-w-[64px] flex-col items-end gap-2 pt-0.5">
-                      <span className="text-[9px] font-medium text-slate-700">{formatMessageTimestamp(dm?.lastMessageAt)}</span>
+                      <span className="text-[10px] font-medium text-slate-700">{formatMessageTimestamp(dm?.lastMessageAt)}</span>
                       {dm && typeof dm.unreadCount === 'number' && dm.unreadCount > 0 ? (
                         <span className="inline-flex h-6.5 min-w-[1.65rem] items-center justify-center rounded-full bg-brand-red px-1.5 text-[10px] font-bold text-white">
                           {dm.unreadCount}
