@@ -11,12 +11,12 @@ type SpacesHeaderProps = {
 
 const SpacesHeader: React.FC<SpacesHeaderProps> = ({ mode, onCreateTask, onNavigateAiAgent }) => (
   <PageSectionSubnav
-    outerClassName="px-6 sm:px-10 lg:px-14"
-    innerClassName="gap-2 py-1.5 lg:min-h-[50px] lg:gap-3.5"
+    leadingClassName="pl-3 sm:pl-4"
+    trailingClassName="pr-3 sm:pr-4 lg:pr-5"
     leading={
       <>
         <div className="h-1.5 w-8 rounded-full bg-brand-red" />
-        <span className="text-[14px] font-medium text-slate-900">Task Hub</span>
+        <span className="truncate text-sm font-medium text-slate-600 sm:text-[15px]">Task Hub</span>
       </>
     }
     center={
@@ -24,14 +24,14 @@ const SpacesHeader: React.FC<SpacesHeaderProps> = ({ mode, onCreateTask, onNavig
         <>
           <button
             type="button"
-            className="border-b-2 border-brand-red px-1 py-1.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-900"
+            className="border-b-2 border-brand-red px-1 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-900 sm:text-[12px]"
           >
             Overview
           </button>
           <button
             type="button"
             onClick={onNavigateAiAgent}
-            className="border-b-2 border-transparent px-1 py-1.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-500 transition-colors hover:text-slate-900"
+            className="border-b-2 border-transparent px-1 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 transition-colors hover:text-slate-900 sm:text-[12px]"
           >
             AI Agent
           </button>
