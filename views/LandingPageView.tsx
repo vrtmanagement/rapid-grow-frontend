@@ -41,7 +41,7 @@ const LandingPageView: React.FC = () => {
         <div className="absolute bottom-0 left-1/3 h-80 w-80 rounded-full bg-brand-cyan/10 blur-3xl" />
       </div>
 
-      <header className="relative z-20 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-gradient shadow-lg shadow-brand-red/20">
