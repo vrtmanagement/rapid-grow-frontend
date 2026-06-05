@@ -121,14 +121,14 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             {message && <p className="text-sm text-emerald-700">{message}</p>}
             {!lockedFields && (
               <section>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Employee ID</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Email or Employee ID</label>
                 <input
                   type="text"
                   value={empId}
                   onChange={(e) => setEmpId(e.target.value)}
                   required
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
-                  placeholder="e.g. SUPER_ADMIN_1"
+                  placeholder="owner@company.com or SUPER_ADMIN_1"
                 />
               </section>
             )}
@@ -209,6 +209,10 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 New company?{' '}
                 <a href="#/signup" className="text-brand-red font-medium hover:underline">
                   Create workspace
+                </a>
+                {' · '}
+                <a href="#/" className="text-brand-red font-medium hover:underline">
+                  Back to home
                 </a>
               </p>
             )}

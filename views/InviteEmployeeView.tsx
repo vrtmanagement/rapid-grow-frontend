@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Send } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import ErrorAlert from '../components/ui/ErrorAlert';
+import { apiGetJson } from '../config/api';
 import { sendEmployeeInvite } from '../services/platformApi';
 
 interface InviteEmployeeViewProps {
@@ -42,6 +43,8 @@ const InviteEmployeeView: React.FC<InviteEmployeeViewProps> = ({
   const [designation, setDesignation] = useState('');
   const [department, setDepartment] = useState('IT DEPARTMENT');
   const [error, setError] = useState('');
+  const [empIdError, setEmpIdError] = useState('');
+  const [existingEmpIds, setExistingEmpIds] = useState<string[]>([]);
   const [message, setMessage] = useState('');
   const [inviteUrl, setInviteUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -70,6 +73,44 @@ const InviteEmployeeView: React.FC<InviteEmployeeViewProps> = ({
   const updateDepartmentDirection = React.useCallback(() => {
     setDepartmentDirection(getDropdownDirection(departmentTriggerRef.current, DEPARTMENT_OPTIONS.length));
   }, [getDropdownDirection]);
+
+  const normalizedExistingEmpIds = useMemo(
+    () => new Set(existingEmpIds.map((id) => id.trim().toLowerCase()).filter(Boolean)),
+    [existingEmpIds],
+  );
+
+  const validateEmpId = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return 'Employee ID is required.';
+    }
+    if (normalizedExistingEmpIds.has(trimmed.toLowerCase())) {
+      return 'This employee ID already exists.';
+    }
+    return '';
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    apiGetJson<Array<{ empId?: string }>>('/employees')
+      .then((employees) => {
+        if (!active) return;
+        setExistingEmpIds(
+          (Array.isArray(employees) ? employees : [])
+            .map((employee) => String(employee.empId || '').trim())
+            .filter(Boolean),
+        );
+      })
+      .catch(() => {
+        if (!active) return;
+        setExistingEmpIds([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!roleOpen && !departmentOpen) return;
@@ -113,27 +154,47 @@ const InviteEmployeeView: React.FC<InviteEmployeeViewProps> = ({
     setError('');
     setMessage('');
     setInviteUrl('');
+
+    const nextEmpIdError = validateEmpId(empId);
+    setEmpIdError(nextEmpIdError);
+    if (nextEmpIdError) return;
+
     setLoading(true);
     try {
       const res = await sendEmployeeInvite({
         email: email.trim(),
         role,
-        empId: empId.trim() || undefined,
+        empId: empId.trim(),
         designation: designation.trim() || undefined,
         department: department.trim() || undefined,
       });
       setEmail('');
       setEmpId('');
+      setEmpIdError('');
       setRole('EMPLOYEE');
       setDesignation('');
       setDepartment('IT DEPARTMENT');
       setRoleOpen(false);
       setDepartmentOpen(false);
+      setExistingEmpIds((prev) => [...prev, empId.trim()]);
       setMessage(res.message || 'Invite sent.');
       if (res.invite?.inviteUrl) setInviteUrl(res.invite.inviteUrl);
       onSuccess?.();
     } catch (err: any) {
-      setError(err.message);
+      const message = String(err?.message || 'Failed to send invite');
+      const normalized = message.toLowerCase();
+      if (normalized.includes('employee id') || normalized.includes('empid') || normalized.includes('already exists')) {
+        setEmpIdError(
+          normalized.includes('email')
+            ? ''
+            : 'This employee ID already exists.',
+        );
+        if (normalized.includes('email')) {
+          setError(message);
+        }
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -228,12 +289,24 @@ const InviteEmployeeView: React.FC<InviteEmployeeViewProps> = ({
           </div>
 
           <div>
-            <label className={labelClassName}>Employee ID (optional)</label>
+            <label className={labelClassName}>Employee ID *</label>
             <input
-              className={fieldClassName}
+              required
+              className={`${fieldClassName} ${empIdError ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : ''}`}
               value={empId}
-              onChange={(event) => setEmpId(event.target.value)}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                setEmpId(nextValue);
+                if (empIdError) {
+                  setEmpIdError(validateEmpId(nextValue));
+                }
+              }}
+              onBlur={() => setEmpIdError(validateEmpId(empId))}
+              placeholder="e.g. EMP001"
             />
+            {empIdError ? (
+              <p className="mt-2 text-[13px] font-medium text-red-600">{empIdError}</p>
+            ) : null}
           </div>
 
           <div>

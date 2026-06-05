@@ -14,6 +14,7 @@ import {
   createDefaultPlanningStateInput,
 } from './appSeedConstants';
 import LoginView from './views/LoginView';
+import LandingPageView from './views/LandingPageView';
 import InviteAcceptView from './views/InviteAcceptView';
 import WorkspaceSignupView from './views/WorkspaceSignupView';
 import ForgotPasswordView from './views/ForgotPasswordView';
@@ -427,6 +428,7 @@ const App: React.FC = () => {
   const handleLogout = useCallback(() => {
     clearStoredSession();
     setIsAuthenticated(false);
+    window.location.hash = '#/';
   }, []);
 
   const [state, setState] = useState<PlanningState>(normalizeGoalHierarchy(createDefaultPlanningStateInput()));
@@ -1358,8 +1360,11 @@ const App: React.FC = () => {
   }
 
   if (!isAuthenticated) {
-    if (publicHashPath === 'signup' || publicHashPath === 'workspaces/signup') {
+    if (publicHashPath === 'signup' || publicHashPath.startsWith('signup') || publicHashPath === 'workspaces/signup') {
       return <WorkspaceSignupView onSignupSuccess={handleLoginSuccess} />;
+    }
+    if (publicHashPath === 'login') {
+      return <LoginView onLoginSuccess={handleLoginSuccess} />;
     }
     if (publicHashPath === 'password/forgot' || publicHashPath === 'password/reset') {
       if (publicHashPath === 'password/reset') {
@@ -1369,6 +1374,9 @@ const App: React.FC = () => {
     }
     if (publicHashPath.startsWith('client-portal/')) {
       return <ClientPortalView />;
+    }
+    if (publicHashPath === '' || publicHashPath === 'home' || publicHashPath === 'landing') {
+      return <LandingPageView />;
     }
     return <LoginView onLoginSuccess={handleLoginSuccess} />;
   }
