@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BellRing, ChevronDown, Clock3, Eye, Mail, MoreVertical, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { BellRing, ChevronDown, Clock3, Eye, Mail, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import StaffEmployeeActionMenu from '../components/staff/StaffEmployeeActionMenu';
 import Toast from '../components/ui/Toast';
 import AccessDenied from '../components/AccessDenied';
 import { StaffTableSkeleton } from '../components/ui/Skeleton';
@@ -152,7 +153,6 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   const [departmentMenuOpen, setDepartmentMenuOpen] = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [openActionMenuRowId, setOpenActionMenuRowId] = useState<string | null>(null);
-  const [actionMenuPosition, setActionMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [reminderSettings, setReminderSettings] = useState<DailyReviewReminderSettings>(DEFAULT_REMINDER_SETTINGS);
   const [reminderDraft, setReminderDraft] = useState<{ enabled: boolean; time: string }>({
     enabled: DEFAULT_REMINDER_SETTINGS.enabled,
@@ -165,8 +165,6 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   const [checkInControlsTab, setCheckInControlsTab] = useState<'daily' | 'weekly'>('daily');
   const departmentMenuRef = useRef<HTMLDivElement | null>(null);
   const statusMenuRef = useRef<HTMLDivElement | null>(null);
-  const actionMenuRef = useRef<HTMLDivElement | null>(null);
-  const actionMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const staffTableCardRef = useRef<HTMLDivElement | null>(null);
   const timePickerRef = useRef<HTMLDivElement | null>(null);
 
@@ -322,41 +320,6 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
     const timer = window.setTimeout(() => setToast(null), 2000);
     return () => window.clearTimeout(timer);
   }, [toast]);
-
-  useEffect(() => {
-    if (!openActionMenuRowId) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      const clickedMenu = !!(actionMenuRef.current && target && actionMenuRef.current.contains(target));
-      const clickedTrigger = !!(
-        actionMenuTriggerRef.current &&
-        target &&
-        actionMenuTriggerRef.current.contains(target)
-      );
-      if (!clickedMenu && !clickedTrigger) {
-        setOpenActionMenuRowId(null);
-        setActionMenuPosition(null);
-        actionMenuTriggerRef.current = null;
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpenActionMenuRowId(null);
-        setActionMenuPosition(null);
-        actionMenuTriggerRef.current = null;
-      }
-    };
-
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleEscape);
-
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [openActionMenuRowId]);
 
   useEffect(() => {
     if (!timePickerOpen) return;
@@ -525,37 +488,6 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
     }));
   };
 
-  const handleActionMenuToggle = (rowId: string, event: React.MouseEvent<HTMLButtonElement>) => {
-    const tableCardRect = staffTableCardRef.current?.getBoundingClientRect();
-    const triggerRect = event.currentTarget.getBoundingClientRect();
-    const estimatedMenuHeight = canViewProfile ? 144 : 108;
-    const estimatedMenuWidth = 148;
-    const menuOffset = 8;
-    const spaceBelow = window.innerHeight - triggerRect.bottom;
-    const shouldOpenAbove = spaceBelow < estimatedMenuHeight + menuOffset;
-    const containerTop = tableCardRect?.top ?? 0;
-    const containerLeft = tableCardRect?.left ?? 0;
-    const top = shouldOpenAbove
-      ? Math.max(12, triggerRect.top - containerTop - estimatedMenuHeight - menuOffset)
-      : triggerRect.bottom - containerTop + menuOffset;
-    const left = Math.max(12, triggerRect.right - containerLeft - estimatedMenuWidth);
-
-    setOpenActionMenuRowId((current) => {
-      if (current === rowId) {
-        setActionMenuPosition(null);
-        actionMenuTriggerRef.current = null;
-        return null;
-      }
-
-      actionMenuTriggerRef.current = event.currentTarget;
-      setActionMenuPosition({ top, left });
-      return rowId;
-    });
-  };
-
-  const activeActionRow = openActionMenuRowId
-    ? rows.find((row) => row._id === openActionMenuRowId) || null
-    : null;
   const reminderStatusChipLabel = reminderDraft.enabled ? 'ACTIVE' : 'PAUSED';
   const reminderScheduleLabel = formatReminderTimeLabel(reminderSettings.time);
   const reminderDraftScheduleLabel = formatReminderTimeLabel(reminderDraft.time);
@@ -851,12 +783,23 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
                 filteredRows.map((row) => {
                   const editable = canEditRow(row);
                   const deletable = canDeleteRow(row);
-                  const canOpenActions = editable || deletable || canViewProfile;
+                  const canOpenActions = editable || deletable;
                   const avatarSrc = getDisplayAvatarUrl(row.avatar, row.empName);
                   const isCurrentUser = isCurrentUserRow(row);
 
                   return (
-                    <tr key={row._id} className="border-b border-slate-100 transition hover:bg-slate-50/40">
+                    <tr
+                      key={row._id}
+                      className={`border-b border-slate-100 transition hover:bg-slate-50/40 ${
+                        canViewProfile ? 'cursor-pointer' : ''
+                      }`}
+                      onClick={() => {
+                        if (canViewProfile) {
+                          setOpenActionMenuRowId(null);
+                          setViewingProfile(row);
+                        }
+                      }}
+                    >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="h-11 w-11 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
@@ -895,18 +838,19 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
                           {row.status || '--'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-6 py-4 text-center" onClick={(event) => event.stopPropagation()}>
                         {canOpenActions ? (
-                          <div className="relative inline-flex">
-                            <button
-                              type="button"
-                              onClick={(event) => handleActionMenuToggle(row._id, event)}
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-100"
-                              title="Actions"
-                            >
-                              <MoreVertical size={18} />
-                            </button>
-                          </div>
+                          <StaffEmployeeActionMenu
+                            isOpen={openActionMenuRowId === row._id}
+                            showEdit={editable}
+                            showDelete={deletable}
+                            onToggle={() =>
+                              setOpenActionMenuRowId((current) => (current === row._id ? null : row._id))
+                            }
+                            onClose={() => setOpenActionMenuRowId(null)}
+                            onEdit={() => handleStartEdit(row)}
+                            onDelete={() => setDeleting(row)}
+                          />
                         ) : (
                           <span className="text-[12px] text-slate-300">-</span>
                         )}
@@ -919,62 +863,6 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
           </table>
         </div>
 
-        {activeActionRow && actionMenuPosition ? (
-          <div
-            ref={actionMenuRef}
-            className="absolute z-[80] min-w-[148px] rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg"
-            style={{
-              top: actionMenuPosition.top,
-              left: actionMenuPosition.left,
-            }}
-          >
-            {canViewProfile ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenActionMenuRowId(null);
-                  setActionMenuPosition(null);
-                  actionMenuTriggerRef.current = null;
-                  setViewingProfile(activeActionRow);
-                }}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] text-slate-700 transition hover:bg-slate-50"
-              >
-                <Eye size={14} />
-                View Profile
-              </button>
-            ) : null}
-            {canEditRow(activeActionRow) ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenActionMenuRowId(null);
-                  setActionMenuPosition(null);
-                  actionMenuTriggerRef.current = null;
-                  handleStartEdit(activeActionRow);
-                }}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] text-slate-700 transition hover:bg-slate-50"
-              >
-                <Pencil size={14} />
-                Edit
-              </button>
-            ) : null}
-            {canDeleteRow(activeActionRow) ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenActionMenuRowId(null);
-                  setActionMenuPosition(null);
-                  actionMenuTriggerRef.current = null;
-                  setDeleting(activeActionRow);
-                }}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] text-red-600 transition hover:bg-red-50"
-              >
-                <Trash2 size={14} />
-                Delete
-              </button>
-            ) : null}
-          </div>
-        ) : null}
       </div>
 
       {canShowReminderControls ? (

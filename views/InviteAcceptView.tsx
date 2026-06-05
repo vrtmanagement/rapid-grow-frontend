@@ -29,6 +29,12 @@ function getInviteTokenFromHash() {
   return params.get('token') || hash.split('/').pop() || '';
 }
 
+const readOnlyFieldClassName =
+  'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[15px] text-slate-600 outline-none';
+
+const editableFieldClassName =
+  'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20';
+
 const InviteAcceptView: React.FC<InviteAcceptViewProps> = ({ onAcceptSuccess }) => {
   const token = useMemo(() => getInviteTokenFromHash().trim(), []);
   const existingSession = useMemo(() => getStoredAuthSession(), []);
@@ -152,18 +158,18 @@ const InviteAcceptView: React.FC<InviteAcceptViewProps> = ({ onAcceptSuccess }) 
                       Invitation found
                     </div>
                     <p className="mt-1 text-emerald-700/80">
-                      {invite.email} will join as {invite.role.replace('_', ' ')}.
+                      Your invite details are pre-filled below. Enter your full name and password to join.
                     </p>
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="space-y-2">
-                      <span className="text-sm font-semibold text-slate-700">Full name</span>
+                    <label className="space-y-2 sm:col-span-2">
+                      <span className="text-sm font-semibold text-slate-700">Email</span>
                       <input
-                        value={empName}
-                        onChange={(event) => setEmpName(event.target.value)}
-                        required
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
+                        value={invite.email}
+                        readOnly
+                        tabIndex={-1}
+                        className={readOnlyFieldClassName}
                       />
                     </label>
 
@@ -171,39 +177,65 @@ const InviteAcceptView: React.FC<InviteAcceptViewProps> = ({ onAcceptSuccess }) 
                       <span className="text-sm font-semibold text-slate-700">Employee ID</span>
                       <input
                         value={empId}
-                        onChange={(event) => setEmpId(event.target.value)}
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
+                        readOnly
+                        tabIndex={-1}
+                        className={readOnlyFieldClassName}
+                      />
+                    </label>
+
+                    <label className="space-y-2">
+                      <span className="text-sm font-semibold text-slate-700">Role</span>
+                      <input
+                        value={invite.role.replace(/_/g, ' ')}
+                        readOnly
+                        tabIndex={-1}
+                        className={readOnlyFieldClassName}
                       />
                     </label>
 
                     <label className="space-y-2">
                       <span className="text-sm font-semibold text-slate-700">Designation</span>
                       <input
-                        value={designation}
-                        onChange={(event) => setDesignation(event.target.value)}
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
+                        value={designation || '—'}
+                        readOnly
+                        tabIndex={-1}
+                        className={readOnlyFieldClassName}
                       />
                     </label>
 
                     <label className="space-y-2">
                       <span className="text-sm font-semibold text-slate-700">Department</span>
                       <input
-                        value={department}
-                        onChange={(event) => setDepartment(event.target.value)}
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
+                        value={department || '—'}
+                        readOnly
+                        tabIndex={-1}
+                        className={readOnlyFieldClassName}
+                      />
+                    </label>
+
+                    <label className="space-y-2 sm:col-span-2">
+                      <span className="text-sm font-semibold text-slate-700">Full name *</span>
+                      <input
+                        value={empName}
+                        onChange={(event) => setEmpName(event.target.value)}
+                        required
+                        autoFocus
+                        placeholder="Enter your full name"
+                        className={editableFieldClassName}
                       />
                     </label>
                   </div>
 
                   <label className="block space-y-2">
-                    <span className="text-sm font-semibold text-slate-700">Password</span>
+                    <span className="text-sm font-semibold text-slate-700">Password *</span>
                     <div className="relative">
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(event) => setPassword(event.target.value)}
                         required
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-11 text-[15px] outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
+                        placeholder="Create your password"
+                        className={`${editableFieldClassName} pr-11`}
                       />
                       <button
                         type="button"
