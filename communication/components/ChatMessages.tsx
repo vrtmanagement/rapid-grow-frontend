@@ -105,6 +105,7 @@ function formatDateDivider(iso: string) {
 
 export function ChatMessages({
   currentUserId,
+  currentUserRole,
   messages,
   messagesLoading,
   typingUserNames,
@@ -121,8 +122,12 @@ export function ChatMessages({
   onEditMessage,
   onDeleteMessage,
   onReplyMessage,
+  onVotePoll,
+  onClosePoll,
+  onDeletePoll,
 }: {
   currentUserId: string;
+  currentUserRole: string;
   messages: ChatMessage[];
   messagesLoading: boolean;
   typingUserNames: string[];
@@ -139,6 +144,9 @@ export function ChatMessages({
   onEditMessage: (message: ChatMessage) => void;
   onDeleteMessage: (messageId: string, conversationKey: string) => void;
   onReplyMessage: (message: ChatMessage) => void;
+  onVotePoll: (pollId: string, optionIds: string[]) => Promise<void>;
+  onClosePoll: (pollId: string) => Promise<void>;
+  onDeletePoll: (pollId: string) => Promise<void>;
 }) {
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -206,6 +214,10 @@ export function ChatMessages({
                     onEdit={() => onEditMessage(m)}
                     onDelete={() => onDeleteMessage(m.id, m.conversationKey)}
                     onReply={() => onReplyMessage(m)}
+                    onVotePoll={(optionIds) => (m.poll ? onVotePoll(m.poll.id, optionIds) : Promise.resolve())}
+                    onClosePoll={() => (m.poll ? onClosePoll(m.poll.id) : Promise.resolve())}
+                    onDeletePoll={() => (m.poll ? onDeletePoll(m.poll.id) : Promise.resolve())}
+                    currentUserRole={currentUserRole}
                     resolveUserName={(userId) => usersById.get(userId)?.name || 'User'}
                   />
                   </div>

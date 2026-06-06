@@ -1,5 +1,5 @@
 export type ChatConversationType = 'dm' | 'channel';
-export type ChatMessageType = 'text' | 'image' | 'file' | 'attachment';
+export type ChatMessageType = 'text' | 'image' | 'file' | 'attachment' | 'poll';
 export type ChatRoleGroup = 'admin' | 'team_lead' | 'employees';
 
 export type ChatTickState = 'sent' | 'delivered' | 'seen';
@@ -68,6 +68,44 @@ export type ChatForwardedMeta = {
   forwardedAt: string | null;
 };
 
+export type ChatPollVoter = {
+  id: string;
+  empId: string;
+  name: string;
+  avatar?: string;
+  role?: string;
+};
+
+export type ChatPollOption = {
+  id: string;
+  text: string;
+  order: number;
+  voteCount: number;
+  percentage: number;
+  selectedByMe: boolean;
+  voters: ChatPollVoter[];
+};
+
+export type ChatPollStatus = 'active' | 'closed' | 'expired';
+
+export type ChatPoll = {
+  id: string;
+  question: string;
+  allowsMultipleAnswers: boolean;
+  anonymous: boolean;
+  expiresAt: string | null;
+  createdAt: string;
+  createdBy: string;
+  closedAt: string | null;
+  closedBy: string | null;
+  totalVotes: number;
+  totalVoters: number;
+  status: ChatPollStatus;
+  isActive: boolean;
+  myVoteOptionIds: string[];
+  options: ChatPollOption[];
+};
+
 export type ChatPinnedMessage = {
   message: ChatMessage;
   pinnedBy: string | null;
@@ -90,6 +128,7 @@ export type ChatMessage = {
   tick?: { state: ChatTickState; deliveredAt?: string; seenAt?: string } | null;
   replyTo?: ChatReplyRef | null;
   forwarded?: ChatForwardedMeta | null;
+  poll?: ChatPoll | null;
 };
 
 export type ChatNotification = {

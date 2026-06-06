@@ -27,6 +27,19 @@ export type CommunicationContextValue = {
 
   sendText: (conversationKey: string, content: string, replyToMessageId?: string | null) => Promise<void>;
   sendFile: (conversationKey: string, file: File, content?: string, replyToMessageId?: string | null) => Promise<void>;
+  createPoll: (
+    conversationKey: string,
+    payload: {
+      question: string;
+      options: string[];
+      allowsMultipleAnswers: boolean;
+      anonymous: boolean;
+      expiresAt?: string | null;
+    }
+  ) => Promise<void>;
+  votePoll: (pollId: string, optionIds: string[]) => Promise<void>;
+  closePoll: (pollId: string) => Promise<void>;
+  deletePoll: (pollId: string) => Promise<void>;
   forwardMessages: (messageIds: string[], recipientIds: string[], note?: string) => Promise<void>;
   notifyTyping: (conversationKey: string) => void;
 

@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Check, CheckCheck, CheckSquare, Copy, CornerUpLeft, Download, ExternalLink, Eye, FileText, Forward, Loader2, MoreVertical, PencilLine, Pin, PinOff, Trash2, X } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
 import { MessageActionModal } from './MessageActionModal';
-import { apiDownloadCommunicationFile } from '../api';
+import { apiDownloadCommunicationFile, apiExportPollResults } from '../api';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
 import { MessageSelectionCheckbox } from './forward/MessageSelectionCheckbox';
+import { PollMessage } from './PollMessage';
+import { usePollStore } from '../stores/usePollStore';
 
 function formatTime(iso: string) {
   const d = new Date(iso);
@@ -237,8 +239,12 @@ export function MessageBubble({
   onForward,
   onSelect,
   onPin,
+  onVotePoll,
+  onClosePoll,
+  onDeletePoll,
   isPinned = false,
   resolveUserName,
+  currentUserRole,
   groupPosition = 'single',
 }: {
   message: ChatMessage;
@@ -254,8 +260,12 @@ export function MessageBubble({
   onForward?: () => void;
   onSelect?: () => void;
   onPin?: () => void;
+  onVotePoll?: (optionIds: string[]) => Promise<void>;
+  onClosePoll?: () => Promise<void>;
+  onDeletePoll?: () => Promise<void>;
   isPinned?: boolean;
   resolveUserName?: (userId: string) => string;
+  currentUserRole?: string;
   groupPosition?: 'single' | 'first' | 'middle' | 'last';
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -265,6 +275,8 @@ export function MessageBubble({
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [actionLoading, setActionLoading] = useState<null | 'download'>(null);
+  const pendingVotePollIds = usePollStore((state) => state.pendingVotePollIds);
+  const setPendingVote = usePollStore((state) => state.setPendingVote);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const bubbleRef = useRef<HTMLDivElement | null>(null);
 
@@ -322,6 +334,10 @@ export function MessageBubble({
   const canOpenAttachment = directFileUrl !== '#';
   const copyableText = getCopyableMessageText(message);
   const canCopyMessage = !message.deleted && copyableText.length > 0;
+  const canManagePollActions =
+    !!message.poll &&
+    (isOwn || ['ADMIN', 'SUPER_ADMIN', 'TEAM_LEAD'].includes(String(currentUserRole || '')));
+  const pendingVote = message.poll ? !!pendingVotePollIds[message.poll.id] : false;
 
   const handleCopyMessage = async () => {
     setMenuOpen(false);
@@ -483,7 +499,7 @@ export function MessageBubble({
                       setMenuOpen(false);
                       onForward?.();
                     }}
-                    disabled={!!message.deleted}
+                    disabled={!!message.deleted || message.type === 'poll'}
                     className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Forward size={13} />
@@ -512,6 +528,32 @@ export function MessageBubble({
                     {isPinned ? <PinOff size={13} /> : <Pin size={13} />}
                     {isPinned ? 'Unpin' : 'Pin'}
                   </button>
+                  {message.poll && canManagePollActions && message.poll.isActive ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        void onClosePoll?.();
+                      }}
+                      className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-amber-700 hover:bg-amber-50"
+                    >
+                      <PinOff size={13} />
+                      Close poll
+                    </button>
+                  ) : null}
+                  {message.poll && canManagePollActions ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        void apiExportPollResults(message.poll!.id);
+                      }}
+                      className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      <Download size={13} />
+                      Export
+                    </button>
+                  ) : null}
                   {isImageAttachment && canOpenAttachment ? (
                     <button
                       type="button"
@@ -540,6 +582,19 @@ export function MessageBubble({
                     </button>
                   ) : null}
                   {isOwn ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setDeleteOpen(true);
+                      }}
+                      disabled={!!message.deleted || (message.type === 'poll' && !canManagePollActions)}
+                      className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Trash2 size={13} />
+                      Delete
+                    </button>
+                  ) : message.poll && canManagePollActions ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -636,6 +691,27 @@ export function MessageBubble({
                   </div>
                 </>
               )}
+
+              {!message.deleted && message.type === 'poll' && message.poll ? (
+                <div className="space-y-2">
+                  {showSenderName && !isOwn && sender?.name ? (
+                    <div className="text-[11px] font-semibold text-slate-600">{sender.name}</div>
+                  ) : null}
+                  <PollMessage
+                    message={message}
+                    pendingVote={pendingVote}
+                    onVote={async (optionIds) => {
+                      if (!message.poll) return;
+                      setPendingVote(message.poll.id, true);
+                      try {
+                        await onVotePoll?.(optionIds);
+                      } finally {
+                        setPendingVote(message.poll.id, false);
+                      }
+                    }}
+                  />
+                </div>
+              ) : null}
 
               {!message.deleted && (message.type === 'image' || message.type === 'file' || message.type === 'attachment') && (message.attachment || message.fileUrl) ? (
                 <div className="space-y-2">
@@ -840,8 +916,8 @@ export function MessageBubble({
 
       <MessageActionModal
         open={deleteOpen}
-        title="Delete message"
-        description="Are you sure you want to delete this message?"
+        title={message.type === 'poll' ? 'Delete poll' : 'Delete message'}
+        description={message.type === 'poll' ? 'Are you sure you want to delete this poll?' : 'Are you sure you want to delete this message?'}
         onClose={() => setDeleteOpen(false)}
       >
         <div className="flex items-center justify-end gap-2">
@@ -855,7 +931,11 @@ export function MessageBubble({
           <button
             type="button"
             onClick={() => {
-              onDelete?.();
+              if (message.type === 'poll') {
+                void onDeletePoll?.();
+              } else {
+                onDelete?.();
+              }
               setDeleteOpen(false);
             }}
             className="rounded-xl border border-red-300 bg-red-300 px-4 py-2 text-sm font-semibold text-red-900 hover:bg-red-400"
@@ -929,7 +1009,7 @@ export function MessageBubble({
               setContextMenu(null);
               onForward?.();
             }}
-            disabled={!!message.deleted}
+            disabled={!!message.deleted || message.type === 'poll'}
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Forward size={15} />
@@ -967,12 +1047,51 @@ export function MessageBubble({
                 setContextMenu(null);
                 setDeleteOpen(true);
               }}
-              disabled={!!message.deleted}
+              disabled={!!message.deleted || (message.type === 'poll' && !canManagePollActions)}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Trash2 size={15} />
               Delete
             </button>
+          ) : message.poll && canManagePollActions ? (
+            <>
+              {message.poll.isActive ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContextMenu(null);
+                    void onClosePoll?.();
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-amber-700 hover:bg-amber-50"
+                >
+                  <PinOff size={15} />
+                  Close poll
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => {
+                  setContextMenu(null);
+                  void apiExportPollResults(message.poll!.id);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+              >
+                <Download size={15} />
+                Export
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setContextMenu(null);
+                  setDeleteOpen(true);
+                }}
+                disabled={!!message.deleted}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 size={15} />
+                Delete
+              </button>
+            </>
           ) : null}
         </div>
       ) : null}

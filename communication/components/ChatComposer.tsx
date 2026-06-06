@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FileUp, Image as ImageIcon, Loader2, Paperclip, Send, X } from 'lucide-react';
+import { FileText, FileUp, Image as ImageIcon, ListChecks, Loader2, Plus, Send, X } from 'lucide-react';
 import { ChatMessage } from '../types';
+import { CreatePollModal } from './CreatePollModal';
+import { usePollStore } from '../stores/usePollStore';
 
 const MAX_MESSAGE_WORDS = 800;
 
@@ -82,10 +84,18 @@ export function ChatComposer({
   onSaveEdit,
   incomingFiles,
   onIncomingFilesConsumed,
+  onCreatePoll,
 }: {
   conversationKey: string;
   onSendText: (content: string, replyToMessageId?: string | null) => Promise<void>;
   onSendFile: (file: File, content?: string, replyToMessageId?: string | null) => Promise<void>;
+  onCreatePoll: (payload: {
+    question: string;
+    options: string[];
+    allowsMultipleAnswers: boolean;
+    anonymous: boolean;
+    expiresAt?: string | null;
+  }) => Promise<void>;
   notifyTyping: () => void;
   disabled: boolean;
   replyToMessage: ChatMessage | null;
@@ -98,6 +108,7 @@ export function ChatComposer({
   onIncomingFilesConsumed?: () => void;
 }) {
   const MAX_TEXTAREA_HEIGHT = 200;
+  const MIN_TEXTAREA_HEIGHT = 56;
   const [content, setContent] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
@@ -105,17 +116,21 @@ export function ChatComposer({
   const [sending, setSending] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
+  const { createPollOpen, setCreatePollOpen } = usePollStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const imageFileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const baseTextareaHeightRef = useRef(0);
+  const attachmentMenuRef = useRef<HTMLDivElement | null>(null);
 
   const resizeComposerTextarea = (target: HTMLTextAreaElement) => {
     if (!baseTextareaHeightRef.current) {
-      baseTextareaHeightRef.current = target.offsetHeight;
+      baseTextareaHeightRef.current = MIN_TEXTAREA_HEIGHT;
     }
     target.style.height = 'auto';
     const nextHeight = Math.min(
-      Math.max(target.scrollHeight, baseTextareaHeightRef.current),
+      Math.max(target.scrollHeight, baseTextareaHeightRef.current, MIN_TEXTAREA_HEIGHT),
       MAX_TEXTAREA_HEIGHT,
     );
     target.style.height = `${nextHeight}px`;
@@ -135,6 +150,17 @@ export function ChatComposer({
     if (!textareaRef.current) return;
     resizeComposerTextarea(textareaRef.current);
   }, [content]);
+
+  useEffect(() => {
+    if (!attachmentMenuOpen) return;
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!attachmentMenuRef.current?.contains(event.target as Node)) {
+        setAttachmentMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [attachmentMenuOpen]);
 
   const addComposerFiles = (nextFiles: File[]) => {
     if (!nextFiles.length) return;
@@ -188,6 +214,21 @@ export function ChatComposer({
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
+  };
+
+  const openFilePicker = () => {
+    setAttachmentMenuOpen(false);
+    fileInputRef.current?.click();
+  };
+
+  const openImagePicker = () => {
+    setAttachmentMenuOpen(false);
+    imageFileInputRef.current?.click();
+  };
+
+  const openPollModal = () => {
+    setAttachmentMenuOpen(false);
+    setCreatePollOpen(true);
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -381,17 +422,64 @@ export function ChatComposer({
               }}
               onPaste={handlePaste}
               disabled={disabled || sending}
-              rows={2}
+              rows={1}
               placeholder="Write a message..."
-              className={`w-full resize-none rounded-2xl border bg-[#f8fafc] px-4 py-3 text-[14px] leading-relaxed outline-none focus:ring-2 ${
+              className={`w-full resize-none rounded-[22px] border bg-[#f8fafc] pb-3 pt-[1.45rem] text-[14px] leading-6 outline-none focus:ring-2 ${
                 contentExceedsWordLimit
                   ? 'border-red-300 focus:border-red-300 focus:ring-red-100'
                   : 'border-slate-200 focus:border-blue-300 focus:ring-blue-100'
               } ${
-                editingMessage ? 'pr-12' : 'pr-24'
+                editingMessage ? 'pl-16 pr-14' : 'pl-16 pr-16'
               }`}
               aria-invalid={contentExceedsWordLimit}
             />
+            {!editingMessage ? (
+              <div ref={attachmentMenuRef} className="absolute bottom-3 left-3">
+                <button
+                  type="button"
+                  onClick={() => setAttachmentMenuOpen((current) => !current)}
+                  disabled={disabled || sending}
+                  className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition ${
+                    disabled || sending
+                      ? 'text-slate-300'
+                      : 'text-slate-800 hover:bg-slate-100'
+                  }`}
+                  aria-label="Open attachment menu"
+                  title="More actions"
+                >
+                  <Plus size={24} />
+                </button>
+
+                {attachmentMenuOpen ? (
+                  <div className="absolute bottom-full left-0 mb-3 w-56 overflow-hidden rounded-3xl border border-slate-200 bg-white py-2 shadow-[0_24px_48px_rgba(15,23,42,0.18)]">
+                    <button
+                      type="button"
+                      onClick={openFilePicker}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+                    >
+                      <FileText size={18} className="text-indigo-500" />
+                      Attach file
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openImagePicker}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+                    >
+                      <ImageIcon size={18} className="text-sky-500" />
+                      Photos & images
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openPollModal}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+                    >
+                      <ListChecks size={18} className="text-amber-500" />
+                      Poll
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {showClearButton ? (
               <div className="group absolute right-3 top-3">
                 <button
@@ -409,26 +497,7 @@ export function ChatComposer({
               </div>
             ) : null}
             {!editingMessage ? (
-              <div className="absolute bottom-2 right-2 flex items-center gap-2">
-                <label
-                  className={`inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border ${
-                    disabled || sending || editingMessage ? 'border-slate-200 bg-slate-50 opacity-50' : 'border-slate-200 bg-white hover:bg-slate-50'
-                  }`}
-                  title="Attach image, video, audio, or file"
-                >
-                  <Paperclip size={16} className="text-slate-700" />
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    className="hidden"
-                    disabled={disabled || sending || !!editingMessage}
-                    multiple
-                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.rtf,.html,.htm,.css,.js,.json,.xml,.zip,.rar,.7z,.svg,.odt,.odp,.ods"
-                    onChange={(e) => {
-                      addComposerFiles(Array.from(e.target.files || []));
-                    }}
-                  />
-                </label>
+              <div className="absolute bottom-3 right-3 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => void handleSend()}
@@ -444,14 +513,14 @@ export function ChatComposer({
               </div>
             ) : null}
           </div>
-          <div className="mt-2 flex items-center justify-between gap-3 px-1">
-            <div className={`text-xs ${contentExceedsWordLimit ? 'text-red-600' : 'text-slate-500'}`}>
-              {wordLimitMessage}
+          {contentExceedsWordLimit ? (
+            <div className="mt-2 flex items-center justify-between gap-3 px-1">
+              <div className="text-xs text-red-600">{wordLimitMessage}</div>
+              <div className="text-xs font-medium text-red-600">
+                {contentWordCount}/{MAX_MESSAGE_WORDS} words
+              </div>
             </div>
-            <div className={`text-xs font-medium ${contentExceedsWordLimit ? 'text-red-600' : 'text-slate-400'}`}>
-              {contentWordCount}/{MAX_MESSAGE_WORDS} words
-            </div>
-          </div>
+          ) : null}
           {editingMessage ? (
             <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
               <button
@@ -479,6 +548,37 @@ export function ChatComposer({
           ) : null}
         </div>
       </div>
+
+      <CreatePollModal
+        open={createPollOpen}
+        onClose={() => setCreatePollOpen(false)}
+        onSubmit={async (payload) => {
+          await onCreatePoll(payload);
+        }}
+      />
+
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        disabled={disabled || sending || !!editingMessage}
+        multiple
+        accept="video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.rtf,.html,.htm,.css,.js,.json,.xml,.zip,.rar,.7z,.svg,.odt,.odp,.ods"
+        onChange={(e) => {
+          addComposerFiles(Array.from(e.target.files || []));
+        }}
+      />
+      <input
+        type="file"
+        ref={imageFileInputRef}
+        className="hidden"
+        disabled={disabled || sending || !!editingMessage}
+        multiple
+        accept="image/*"
+        onChange={(e) => {
+          addComposerFiles(Array.from(e.target.files || []));
+        }}
+      />
     </div>
   );
 }

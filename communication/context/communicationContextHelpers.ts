@@ -2,6 +2,8 @@ import { resolveAvatarUrl as resolveSharedAvatarUrl } from '../../utils/avatar';
 import {
   ChatAttachment,
   ChatForwardedMeta,
+  ChatPoll,
+  ChatPollOption,
   ChatReplyRef,
   ChatMessage,
   ChatPinnedMessage,
@@ -57,6 +59,7 @@ export function ensureSocketConnected(socket: any, timeoutMs = 5000): Promise<vo
 export function messagePreviewFromPayload(type: string, content: string, attachment?: ChatAttachment | null): string {
   if (type === 'text') return content.trim() || 'New message';
   if (type === 'image') return 'Image';
+  if (type === 'poll') return `Poll: ${content.trim() || 'Untitled poll'}`;
   return attachment?.fileName ? `Attachment: ${attachment.fileName}` : 'New attachment';
 }
 
@@ -104,6 +107,48 @@ export function toChatForwardedMeta(forwarded: any): ChatForwardedMeta | null {
         originalCreatedAt: forwarded.originalCreatedAt ? String(forwarded.originalCreatedAt) : null,
         forwardedAt: forwarded.forwardedAt ? String(forwarded.forwardedAt) : null,
       } satisfies ChatForwardedMeta)
+    : null;
+}
+
+export function toChatPollOption(option: any): ChatPollOption {
+  return {
+    id: String(option.id || ''),
+    text: String(option.text || ''),
+    order: Number(option.order || 0),
+    voteCount: Number(option.voteCount || 0),
+    percentage: Number(option.percentage || 0),
+    selectedByMe: !!option.selectedByMe,
+    voters: Array.isArray(option.voters)
+      ? option.voters.map((voter: any) => ({
+          id: String(voter.id || ''),
+          empId: String(voter.empId || ''),
+          name: String(voter.name || 'User'),
+          avatar: resolveAvatarUrl(voter.avatar),
+          role: typeof voter.role === 'string' ? voter.role : undefined,
+        }))
+      : [],
+  };
+}
+
+export function toChatPoll(poll: any): ChatPoll | null {
+  return poll
+    ? ({
+        id: String(poll.id || ''),
+        question: String(poll.question || ''),
+        allowsMultipleAnswers: !!poll.allowsMultipleAnswers,
+        anonymous: !!poll.anonymous,
+        expiresAt: poll.expiresAt ? String(poll.expiresAt) : null,
+        createdAt: String(poll.createdAt || ''),
+        createdBy: String(poll.createdBy || ''),
+        closedAt: poll.closedAt ? String(poll.closedAt) : null,
+        closedBy: poll.closedBy ? String(poll.closedBy) : null,
+        totalVotes: Number(poll.totalVotes || 0),
+        totalVoters: Number(poll.totalVoters || 0),
+        status: (poll.status as ChatPoll['status']) || 'active',
+        isActive: !!poll.isActive,
+        myVoteOptionIds: Array.isArray(poll.myVoteOptionIds) ? poll.myVoteOptionIds.map((id: any) => String(id)) : [],
+        options: Array.isArray(poll.options) ? poll.options.map(toChatPollOption) : [],
+      } satisfies ChatPoll)
     : null;
 }
 
@@ -182,5 +227,6 @@ export function mapApiHistoryMessage(m: any): ChatMessage {
       : null,
     replyTo: toChatReplyRef(m.replyTo),
     forwarded: toChatForwardedMeta(m.forwarded),
+    poll: toChatPoll(m.poll),
   };
 }
