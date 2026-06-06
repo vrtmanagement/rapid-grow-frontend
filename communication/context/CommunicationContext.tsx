@@ -1054,8 +1054,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
 
   const sendText = useCallback(
     async (conversationKey: string, content: string, replyToMessageId?: string | null) => {
-      const trimmed = content.trim();
-      if (!trimmed) return;
+      if (!/\S/.test(content)) return;
       if (!conversationKey) return;
 
       const clientMessageId =
@@ -1070,7 +1069,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
           {
             conversationKey,
             type: 'text',
-            content: trimmed,
+            content,
             clientMessageId,
             replyToMessageId: replyToMessageId || undefined,
           },
@@ -1136,14 +1135,23 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
 
   const editMessage = useCallback(
     async (messageId: string, conversationKey: string, newContent: string) => {
-      const trimmed = newContent.trim();
-      if (!trimmed) return;
+      if (!/\S/.test(newContent)) return;
       if (!messageId || !conversationKey) return;
-      socket.emit(
-        'comm:message:edit',
-        { messageId, conversationKey, content: trimmed },
-        () => {}
-      );
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => reject(new Error('Message edit timeout')), 8000);
+        socket.emit(
+          'comm:message:edit',
+          { messageId, conversationKey, content: newContent },
+          (ack: any) => {
+            window.clearTimeout(timeout);
+            if (!ack?.ok) {
+              reject(new Error(String(ack?.error || 'Failed to edit message')));
+              return;
+            }
+            resolve();
+          }
+        );
+      });
     },
     [socket]
   );

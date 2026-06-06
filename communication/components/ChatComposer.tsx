@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FileUp, Image as ImageIcon, Loader2, Paperclip, Send, X } from 'lucide-react';
 import { ChatMessage } from '../types';
 
+const MAX_MESSAGE_WORDS = 800;
+
 function getFileExtension(fileName: string) {
   const normalizedName = String(fileName || '').trim();
   if (!normalizedName.includes('.')) return '';
@@ -55,6 +57,15 @@ function getImageFilesFromClipboard(data: DataTransfer | null) {
 
 function canAcceptComposerFiles(disabled: boolean, sending: boolean, editingMessage?: ChatMessage | null) {
   return !disabled && !sending && !editingMessage;
+}
+
+function countWords(value: string) {
+  const matches = String(value || '').trim().match(/\S+/g);
+  return matches ? matches.length : 0;
+}
+
+function hasVisibleText(value: string) {
+  return /\S/.test(String(value || ''));
 }
 
 export function ChatComposer({
@@ -154,12 +165,20 @@ export function ChatComposer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files]);
 
+  const contentWordCount = useMemo(() => countWords(content), [content]);
+  const contentExceedsWordLimit = contentWordCount > MAX_MESSAGE_WORDS;
+  const wordLimitMessage = contentExceedsWordLimit ? `Message cannot exceed ${MAX_MESSAGE_WORDS} words.` : null;
   const canSend = useMemo(() => {
-    return (content.trim().length > 0 || files.length > 0) && !disabled && !sending;
-  }, [content, files, disabled, sending]);
-  const trimmedEditingContent = content.trim();
-  const originalEditingContent = String(editingMessage?.content || '').trim();
-  const canSaveEdit = !!editingMessage && trimmedEditingContent.length > 0 && trimmedEditingContent !== originalEditingContent && !disabled && !sending;
+    return (hasVisibleText(content) || files.length > 0) && !contentExceedsWordLimit && !disabled && !sending;
+  }, [content, files, contentExceedsWordLimit, disabled, sending]);
+  const originalEditingContent = String(editingMessage?.content || '');
+  const canSaveEdit =
+    !!editingMessage &&
+    hasVisibleText(content) &&
+    content !== originalEditingContent &&
+    !contentExceedsWordLimit &&
+    !disabled &&
+    !sending;
   const canSubmitComposer = editingMessage ? canSaveEdit : canSend;
   const showClearButton = content.length > 0;
 
@@ -181,12 +200,17 @@ export function ChatComposer({
 
   const handleSend = async () => {
     if (!canSubmitComposer) return;
+    if (contentExceedsWordLimit) {
+      setSendError(`Message cannot exceed ${MAX_MESSAGE_WORDS} words.`);
+      return;
+    }
     try {
       setSending(true);
       setSendError(null);
-      const trimmed = content.trim();
+      const rawContent = content;
+      const contentToSend = hasVisibleText(rawContent) ? rawContent : '';
       if (editingMessage && onSaveEdit) {
-        await onSaveEdit(editingMessage, trimmed);
+        await onSaveEdit(editingMessage, contentToSend);
         setContent('');
         onCancelEdit?.();
         return;
@@ -196,10 +220,10 @@ export function ChatComposer({
         setUploadingFile(true);
         for (let i = 0; i < files.length; i += 1) {
           const file = files[i];
-          await onSendFile(file, i === 0 ? trimmed || undefined : undefined, replyToMessageId);
+          await onSendFile(file, i === 0 && contentToSend ? contentToSend : undefined, replyToMessageId);
         }
       } else {
-        await onSendText(trimmed, replyToMessageId);
+        await onSendText(contentToSend, replyToMessageId);
       }
       setContent('');
       setFiles([]);
@@ -343,6 +367,9 @@ export function ChatComposer({
               ref={textareaRef}
               value={content}
               onChange={(e) => {
+                if (sendError) {
+                  setSendError(null);
+                }
                 setContent(e.target.value);
                 notifyTyping();
               }}
@@ -356,9 +383,14 @@ export function ChatComposer({
               disabled={disabled || sending}
               rows={2}
               placeholder="Write a message..."
-              className={`w-full resize-none rounded-2xl border border-slate-200 bg-[#f8fafc] px-4 py-3 text-[14px] leading-relaxed outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 ${
+              className={`w-full resize-none rounded-2xl border bg-[#f8fafc] px-4 py-3 text-[14px] leading-relaxed outline-none focus:ring-2 ${
+                contentExceedsWordLimit
+                  ? 'border-red-300 focus:border-red-300 focus:ring-red-100'
+                  : 'border-slate-200 focus:border-blue-300 focus:ring-blue-100'
+              } ${
                 editingMessage ? 'pr-12' : 'pr-24'
               }`}
+              aria-invalid={contentExceedsWordLimit}
             />
             {showClearButton ? (
               <div className="group absolute right-3 top-3">
@@ -411,6 +443,14 @@ export function ChatComposer({
                 </button>
               </div>
             ) : null}
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-3 px-1">
+            <div className={`text-xs ${contentExceedsWordLimit ? 'text-red-600' : 'text-slate-500'}`}>
+              {wordLimitMessage}
+            </div>
+            <div className={`text-xs font-medium ${contentExceedsWordLimit ? 'text-red-600' : 'text-slate-400'}`}>
+              {contentWordCount}/{MAX_MESSAGE_WORDS} words
+            </div>
           </div>
           {editingMessage ? (
             <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
