@@ -13,6 +13,7 @@ import { ForwardActionBar } from '../components/forward/ForwardActionBar';
 import { ForwardModal } from '../components/forward/ForwardModal';
 import { ForwardRecipientOption } from '../components/forward/types';
 import { PinnedMessageBar } from '../components/PinnedMessageBar';
+import { useChatStore } from '../stores/useChatStore';
 
 function CommunicationHeaderSkeleton() {
   return (
@@ -111,28 +112,33 @@ function CommunicationLayout() {
   const canCompose = !!currentUser && !!selectedConversationKey;
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
-  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
-  const [forwardSelectionMode, setForwardSelectionMode] = useState(false);
-  const [forwardModalMessageIds, setForwardModalMessageIds] = useState<string[]>([]);
   const [forwardModalOpen, setForwardModalOpen] = useState(false);
   const [previewEntity, setPreviewEntity] = useState<AvatarPreviewEntity | null>(null);
   const [isClearingChat, setIsClearingChat] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [incomingComposerFiles, setIncomingComposerFiles] = useState<File[] | null>(null);
   const [isChatDragOver, setIsChatDragOver] = useState(false);
+  const {
+    forwardSelectionMode,
+    selectedMessageIds,
+    forwardModalMessageIds,
+    setForwardSelectionMode,
+    setSelectedMessageIds,
+    toggleSelectedMessage,
+    setForwardModalMessageIds,
+    resetSelection,
+  } = useChatStore();
   const chatDragDepthRef = useRef(0);
   const canDropFilesOnChat = canCompose && !messagesLoading && !editingMessage && !forwardModalOpen;
 
   useEffect(() => {
     setReplyToMessage(null);
     setEditingMessage(null);
-    setSelectedMessageIds([]);
-    setForwardSelectionMode(false);
-    setForwardModalMessageIds([]);
+    resetSelection();
     setIncomingComposerFiles(null);
     setIsChatDragOver(false);
     chatDragDepthRef.current = 0;
-  }, [selectedConversationKey]);
+  }, [resetSelection, selectedConversationKey]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -213,12 +219,6 @@ function CommunicationLayout() {
   }, [conversations, currentUser?.id, users]);
 
   const canDeleteSelected = selectedMessages.some((message) => message.senderId === currentUser?.id);
-
-  const toggleSelectedMessage = (messageId: string) => {
-    setSelectedMessageIds((prev) =>
-      prev.includes(messageId) ? prev.filter((currentId) => currentId !== messageId) : [...prev, messageId]
-    );
-  };
 
   const enterForwardSelection = (messageIds: string[]) => {
     const nextIds = Array.from(new Set(messageIds));
@@ -549,7 +549,8 @@ function CommunicationLayout() {
                     try {
                       const ownMessages = selectedMessages.filter((message) => message.senderId === currentUser.id);
                       for (const message of ownMessages) {
-                        await ctx.deleteMessage(message.id, message.conversationKey);
+                        if (message.poll?.id) await ctx.deletePoll(message.poll.id);
+                        else await ctx.deleteMessage(message.id, message.conversationKey);
                       }
                       setSelectedMessageIds([]);
                       setForwardSelectionMode(false);
@@ -567,6 +568,7 @@ function CommunicationLayout() {
 
               <ChatMessages
                 currentUserId={currentUser.id}
+                currentUserRole={currentUser.role}
                 messages={messages}
                 messagesLoading={messagesLoading}
                 typingUserNames={typingUserNames}
@@ -586,6 +588,9 @@ function CommunicationLayout() {
                 }}
                 onDeleteMessage={(messageId, conversationKey) => ctx.deleteMessage(messageId, conversationKey)}
                 onReplyMessage={(message) => setReplyToMessage(message)}
+                onVotePoll={(pollId, optionIds) => ctx.votePoll(pollId, optionIds)}
+                onClosePoll={(pollId) => ctx.closePoll(pollId)}
+                onDeletePoll={(pollId) => ctx.deletePoll(pollId)}
               />
 
               <ChatComposer
@@ -594,6 +599,7 @@ function CommunicationLayout() {
                 notifyTyping={() => ctx.notifyTyping(selectedConversationKey!)}
                 onSendText={(content, replyId) => ctx.sendText(selectedConversationKey!, content, replyId)}
                 onSendFile={(file, content, replyId) => ctx.sendFile(selectedConversationKey!, file, content, replyId)}
+                onCreatePoll={(payload) => ctx.createPoll(selectedConversationKey!, payload)}
                 replyToMessage={replyToMessage}
                 onCancelReply={() => setReplyToMessage(null)}
                 resolveUserName={resolveUserName}

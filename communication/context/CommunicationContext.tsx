@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { apiCreateTeam, apiDeleteTeam, apiForwardMessages, apiHistory, apiListConversations, apiListUsers, apiMarkAsRead, apiPinMessage, apiUpdateTeam, apiUploadFile, apiClearChat } from '../api';
+import { apiClearChat, apiClosePoll, apiCreatePoll, apiCreateTeam, apiDeletePoll, apiDeleteTeam, apiForwardMessages, apiHistory, apiListConversations, apiListUsers, apiMarkAsRead, apiPinMessage, apiUpdateTeam, apiUploadFile, apiVotePoll } from '../api';
 import { API_BASE, getAuthHeaders } from '../../config/api';
 import { ChatConversationSummary, ChatMessage, ChatPinnedMessage, ChatUser, ChatNotification } from '../types';
 import { getUnreadDirectMessageSourceCount } from '../unread';
@@ -23,6 +23,7 @@ import {
   mapApiPinnedMessage,
   mapListUsersApiRowToChatUser,
   mapListConversationsApiRowToSummary,
+  toChatPoll,
 } from './communicationContextHelpers';
 
 type EmployeeAvatarDirectory = {
@@ -160,6 +161,23 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   const seenSocketMessageIdsRef = useRef<Record<string, true>>({});
   const notificationTimersRef = useRef<Record<string, number>>({});
   const markSeenTimerRef = useRef<Record<string, number>>({});
+
+  const mergePollIntoMessages = useCallback((conversationKey: string, poll: any) => {
+    if (!poll) return;
+    setMessages((prev) =>
+      selectedConversationKeyRef.current !== conversationKey
+        ? prev
+        : prev.map((message) =>
+            message.poll?.id === String(poll.id)
+              ? {
+                  ...message,
+                  content: poll.question || message.content,
+                  poll,
+                }
+              : message
+          )
+    );
+  }, []);
 
   const markConversationSeen = useCallback(
     (conversationKey: string, options?: { immediate?: boolean }): Promise<void> => {
@@ -681,6 +699,44 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       );
     };
 
+    const handlePollCreated = (payload: any) => {
+      const conversationKey = String(payload?.conversationKey || payload?.message?.conversationKey || '');
+      const msg = payload?.message;
+      if (!conversationKey || !msg) return;
+      appendIncomingMessage(mapApiHistoryMessage(msg), conversationKey);
+    };
+
+    const handlePollVoted = (payload: any) => {
+      const conversationKey = String(payload?.conversationKey || '');
+      const poll = toChatPoll(payload?.poll);
+      if (!conversationKey || !poll) return;
+      mergePollIntoMessages(conversationKey, poll);
+    };
+
+    const handlePollClosed = (payload: any) => {
+      const conversationKey = String(payload?.conversationKey || '');
+      const poll = toChatPoll(payload?.poll);
+      if (!conversationKey || !poll) return;
+      mergePollIntoMessages(conversationKey, poll);
+    };
+
+    const handlePollDeleted = (payload: any) => {
+      const pollId = String(payload?.pollId || '');
+      if (!pollId) return;
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.poll?.id === pollId
+            ? {
+                ...message,
+                deleted: true,
+                content: 'Poll deleted',
+                poll: null,
+              }
+            : message
+        )
+      );
+    };
+
     const handleMessagePinned = (payload: any) => {
       const conversationKey = String(payload?.conversationKey || '');
       if (!conversationKey) return;
@@ -762,6 +818,10 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     socket.on('comm:message:deleted', handleMessageDeleted);
     socket.on('comm:message:pinned', handleMessagePinned);
     socket.on('comm:unread:cleared', handleUnreadCleared);
+    socket.on('poll_created', handlePollCreated);
+    socket.on('poll_voted', handlePollVoted);
+    socket.on('poll_closed', handlePollClosed);
+    socket.on('poll_deleted', handlePollDeleted);
 
     return () => {
       socket.off('presence:update', handlePresence);
@@ -774,8 +834,13 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       socket.off('comm:message:deleted', handleMessageDeleted);
       socket.off('comm:message:pinned', handleMessagePinned);
       socket.off('comm:unread:cleared', handleUnreadCleared);
+      socket.off('poll_created', handlePollCreated);
+      socket.off('poll_voted', handlePollVoted);
+      socket.off('poll_closed', handlePollClosed);
+      socket.off('poll_deleted', handlePollDeleted);
     };
   }, [
+    mergePollIntoMessages,
     notificationPreferences.communicationMessages,
     notificationPreferences.toastPreviews,
     markConversationSeen,
@@ -1054,8 +1119,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
 
   const sendText = useCallback(
     async (conversationKey: string, content: string, replyToMessageId?: string | null) => {
-      const trimmed = content.trim();
-      if (!trimmed) return;
+      if (!/\S/.test(content)) return;
       if (!conversationKey) return;
 
       const clientMessageId =
@@ -1070,7 +1134,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
           {
             conversationKey,
             type: 'text',
-            content: trimmed,
+            content,
             clientMessageId,
             replyToMessageId: replyToMessageId || undefined,
           },
@@ -1134,16 +1198,86 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     [socket]
   );
 
+  const createPoll = useCallback(
+    async (
+      conversationKey: string,
+      payload: {
+        question: string;
+        options: string[];
+        allowsMultipleAnswers: boolean;
+        anonymous: boolean;
+        expiresAt?: string | null;
+      }
+    ) => {
+      if (!conversationKey) return;
+      await apiCreatePoll({
+        conversationKey,
+        question: payload.question,
+        options: payload.options,
+        allowsMultipleAnswers: payload.allowsMultipleAnswers,
+        anonymous: payload.anonymous,
+        expiresAt: payload.expiresAt || null,
+      });
+    },
+    []
+  );
+
+  const votePoll = useCallback(async (pollId: string, optionIds: string[]) => {
+    const result = await apiVotePoll({ pollId, optionIds });
+    if (result?.conversationKey && result?.poll) {
+      const mapped = toChatPoll(result.poll);
+      if (mapped) {
+        mergePollIntoMessages(result.conversationKey, mapped);
+      }
+    }
+  }, [mergePollIntoMessages]);
+
+  const closePoll = useCallback(async (pollId: string) => {
+    const result = await apiClosePoll(pollId);
+    if (result?.conversationKey && result?.poll) {
+      const mapped = toChatPoll(result.poll);
+      if (mapped) {
+        mergePollIntoMessages(result.conversationKey, mapped);
+      }
+    }
+  }, [mergePollIntoMessages]);
+
+  const deletePoll = useCallback(async (pollId: string) => {
+    const result = await apiDeletePoll(pollId);
+    const deletedPollId = String(result?.pollId || pollId);
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.poll?.id === deletedPollId
+          ? {
+              ...message,
+              deleted: true,
+              content: 'Poll deleted',
+              poll: null,
+            }
+          : message
+      )
+    );
+  }, []);
+
   const editMessage = useCallback(
     async (messageId: string, conversationKey: string, newContent: string) => {
-      const trimmed = newContent.trim();
-      if (!trimmed) return;
+      if (!/\S/.test(newContent)) return;
       if (!messageId || !conversationKey) return;
-      socket.emit(
-        'comm:message:edit',
-        { messageId, conversationKey, content: trimmed },
-        () => {}
-      );
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => reject(new Error('Message edit timeout')), 8000);
+        socket.emit(
+          'comm:message:edit',
+          { messageId, conversationKey, content: newContent },
+          (ack: any) => {
+            window.clearTimeout(timeout);
+            if (!ack?.ok) {
+              reject(new Error(String(ack?.error || 'Failed to edit message')));
+              return;
+            }
+            resolve();
+          }
+        );
+      });
     },
     [socket]
   );
@@ -1259,6 +1393,10 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     deleteTeam,
     sendText,
     sendFile,
+    createPoll,
+    votePoll,
+    closePoll,
+    deletePoll,
     forwardMessages,
     notifyTyping,
     editMessage,

@@ -33,7 +33,7 @@ export function MessageActionModal({
       aria-label={title}
     >
       <div
-        className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl transform transition-all duration-200 scale-100 opacity-100"
+        className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl transform transition-all duration-200 scale-100 opacity-100"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-base font-semibold text-slate-900">{title}</h3>

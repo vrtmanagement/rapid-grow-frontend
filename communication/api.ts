@@ -208,3 +208,68 @@ export async function apiForwardMessages(payload: {
   }>;
 }
 
+export async function apiCreatePoll(payload: {
+  conversationKey: string;
+  question: string;
+  options: string[];
+  allowsMultipleAnswers: boolean;
+  anonymous: boolean;
+  expiresAt?: string | null;
+}) {
+  return apiFetchJson('/communication/polls/create', {
+    method: 'POST',
+    headers: authHeadersJson(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiVotePoll(payload: { pollId: string; optionIds: string[] }) {
+  return apiFetchJson('/communication/polls/vote', {
+    method: 'POST',
+    headers: authHeadersJson(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiPollResults(pollId: string) {
+  return apiGetJson(`/communication/polls/results/${encodeURIComponent(pollId)}`);
+}
+
+export async function apiClosePoll(pollId: string) {
+  return apiFetchJson(`/communication/polls/close/${encodeURIComponent(pollId)}`, {
+    method: 'POST',
+    headers: authHeadersJson(),
+  });
+}
+
+export async function apiDeletePoll(pollId: string) {
+  return apiFetchJson(`/communication/polls/delete/${encodeURIComponent(pollId)}`, {
+    method: 'DELETE',
+    headers: authHeadersJson(),
+  });
+}
+
+export async function apiExportPollResults(pollId: string, fallbackFileName = 'poll-results.xlsx') {
+  const res = await fetch(`${API_BASE}/communication/polls/export/${encodeURIComponent(pollId)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Failed to export poll results');
+
+  const blob = await res.blob();
+  const objectUrl = window.URL.createObjectURL(blob);
+  const downloadName = getDownloadFilename(res.headers.get('content-disposition'), fallbackFileName);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = downloadName || fallbackFileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(objectUrl);
+}
+
+export async function apiPollAnalytics(conversationKey?: string) {
+  const qs = new URLSearchParams();
+  if (conversationKey) qs.set('conversationKey', conversationKey);
+  return apiGetJson(`/communication/polls/analytics${qs.toString() ? `?${qs.toString()}` : ''}`);
+}
+
