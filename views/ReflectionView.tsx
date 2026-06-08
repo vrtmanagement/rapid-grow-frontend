@@ -20,6 +20,7 @@ import ReflectionHabitsCard from '../components/reflection/ReflectionHabitsCard'
 import PageSectionSubnav from '../components/layout/PageSectionSubnav';
 import { ThemedDatePicker } from '../components/spaces/SpacesFormControls';
 import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } from '../utils/avatar';
+import { extractReviewMatrixPreviewTasks } from '../services/reviewMatrixTaskPreview';
 
 type ReflectionPanel = 'form' | 'logs';
 
@@ -78,6 +79,7 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
   const [employeeAvatarById, setEmployeeAvatarById] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ReflectionRecord | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const todayKey = getIndiaDateKey();
   const yesterdayKey = getIndiaDateKey(-1);
@@ -114,6 +116,10 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
     const start = (safePage - 1) * LOGS_PER_PAGE;
     return displayedRecords.slice(start, start + LOGS_PER_PAGE);
   }, [displayedRecords, currentPage, totalPages, LOGS_PER_PAGE]);
+  const tomorrowPreviewTasks = useMemo(
+    () => extractReviewMatrixPreviewTasks(state.reflection.bigRocksTomorrow),
+    [state.reflection.bigRocksTomorrow],
+  );
 
   useEffect(() => {
     setCurrentPage(1);
@@ -124,6 +130,12 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    if (!successMessage) return undefined;
+    const timer = window.setTimeout(() => setSuccessMessage(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [successMessage]);
 
   const handleChange = (key: keyof typeof state.reflection, val: string) => {
     updateState(prev => ({
@@ -161,6 +173,7 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
     try {
       setSaving(true);
       setError(null);
+      setSuccessMessage(null);
       if (!editingId && myTodayRecord) {
         setError('You already submitted today’s report. Use Edit to update it.');
         return;
@@ -185,6 +198,9 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
         const data = await res.json().catch(() => ({}));
         throw new Error(data.message || 'Failed to save reflection');
       }
+      const data = await res.json().catch(() => ({}));
+      const carryForwardMessage = String(data?.taskCarryForward?.message || '').trim();
+      setSuccessMessage(carryForwardMessage || 'Daily report saved successfully.');
       // Clear form after save and reload list
       updateState(prev => ({
         ...prev,
@@ -543,6 +559,9 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
                         <div>
                           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-red">Tomorrow focus</p>
                           <label className="text-base font-semibold text-slate-900">Top priorities for tomorrow</label>
+                          <p className="mt-1 text-sm text-slate-500">
+                            Tasks added here will automatically appear in your TaskHub for tomorrow.
+                          </p>
                         </div>
                       </div>
                       <textarea
@@ -552,6 +571,25 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
                         className="w-full resize-none overflow-y-auto rounded-xl border border-brand-red/15 bg-white px-4 py-3 text-[15px] leading-relaxed text-slate-800 shadow-sm outline-none transition-all placeholder:text-slate-400 focus:border-brand-red focus:ring-4 focus:ring-brand-red/10"
                         placeholder="List the 1–3 most important tasks to start tomorrow with clarity."
                       />
+                      <div className="rounded-xl border border-brand-red/10 bg-white/80 px-4 py-3">
+                        <p className="text-sm font-medium text-slate-700">
+                          {tomorrowPreviewTasks.length
+                            ? `${tomorrowPreviewTasks.length} task${tomorrowPreviewTasks.length === 1 ? '' : 's'} will be created in TaskHub.`
+                            : 'Add tomorrow priorities to preview the tasks that will be created in TaskHub.'}
+                        </p>
+                        {tomorrowPreviewTasks.length ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {tomorrowPreviewTasks.slice(0, 6).map((task) => (
+                              <span
+                                key={task}
+                                className="inline-flex rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-brand-red"
+                              >
+                                {task}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -559,6 +597,11 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
                 <div className="border-t border-slate-100 bg-slate-50/80 px-6 py-5 sm:px-8">
                   {error ? (
                     <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+                  ) : null}
+                  {successMessage ? (
+                    <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      {successMessage}
+                    </p>
                   ) : null}
                   {!editingId && myTodayRecord ? (
                     <p className="mb-4 text-sm text-slate-600">
