@@ -103,6 +103,7 @@ export function invalidateApiCacheForMutation(url: string, init?: RequestInit): 
     if (path.includes('/goals')) invalidateApiCache('/goals');
     if (path.includes('/expense')) invalidateApiCache('/expense');
     if (path.includes('/communication')) invalidateApiCache('/communication');
+    if (path.includes('/drive')) invalidateApiCache('/drive');
     if (path.includes('/permissions')) invalidateApiCache('/permissions');
     if (path.includes('/billing')) invalidateApiCache('/billing');
     if (path.includes('/audit-logs')) invalidateApiCache('/audit-logs');

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChatConversationSummary, ChatUser } from '../types';
-import { Camera, Mail, MoreVertical, Plus, Trash2, UserPlus } from 'lucide-react';
+import { Camera, FolderOpen, MoreVertical, Plus, Trash2, UserPlus } from 'lucide-react';
 import { MessageActionModal } from './MessageActionModal';
 import { apiUploadFile } from '../api';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
@@ -187,7 +187,23 @@ export function ChatSidebar({
             <div className="text-xs text-slate-500 mt-0.5">Teams and direct messaging</div>
           </div>
         </div>
-        <Mail size={16} className="text-slate-400" />
+        <div className="group relative">
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.location.hash = '#/drive';
+              }
+            }}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-red-200 hover:text-brand-red"
+            aria-label="Open Drive"
+          >
+            <FolderOpen size={16} />
+          </button>
+          <div className="pointer-events-none absolute right-0 top-full z-20 mt-2 whitespace-nowrap rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-none transition duration-150 group-hover:opacity-100">
+            Open Drive
+          </div>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

@@ -7,6 +7,7 @@ import {
   NotebookPen,
   Briefcase,
   Mail,
+  FolderOpen,
   Users,
   ListTodo,
   FileText,
@@ -25,6 +26,7 @@ import SpacesView from '../../views/SpacesView';
 import AttendanceView from '../../views/AttendanceView';
 import StaffView from '../../views/StaffView';
 import CommunicationView from '../../communication/views/CommunicationView';
+import DriveView from '../../drive/views/DriveView';
 import { GlobalCommunicationNotifications } from '../../communication/components/GlobalCommunicationNotifications';
 import ContentView from '../../views/ContentView';
 import ContentCreateView from '../../views/ContentCreateView';
@@ -220,6 +222,9 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                 collapsed={!isSidebarOpen}
               />
             )}
+            {hasPower('DRIVE_VIEW') && (
+              <SidebarLink to="/drive" icon={<FolderOpen size={20} />} label="Drive" collapsed={!isSidebarOpen} />
+            )}
             {hasPower('CONTENT_VIEW') && (
               <SidebarLink to="/content" icon={<FileText size={20} />} label="Content" collapsed={!isSidebarOpen} />
             )}
@@ -370,6 +375,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                 <Route path="/review" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />
               )}
               {hasPower('COMMUNICATION_VIEW') && <Route path="/communication" element={<CommunicationView />} />}
+              {hasPower('DRIVE_VIEW') && <Route path="/drive" element={<DriveView />} />}
               {hasPower('CONTENT_VIEW') && <Route path="/content" element={<ContentView />} />}
               {hasPower('CONTENT_VIEW') && <Route path="/content/day/:dayKey" element={<ContentView />} />}
               {hasPower('CONTENT_VIEW') && <Route path="/content/day/:dayKey/type/:typeKey" element={<ContentView />} />}
