@@ -1,5 +1,5 @@
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PlanningState } from '../types';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import {
@@ -21,6 +21,12 @@ import PageSectionSubnav from '../components/layout/PageSectionSubnav';
 import { ThemedDatePicker } from '../components/spaces/SpacesFormControls';
 import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } from '../utils/avatar';
 import { extractReviewMatrixPreviewTasks } from '../services/reviewMatrixTaskPreview';
+import {
+  DailyCompletedTaskSyncItem,
+  getDismissedTaskIdsFromText,
+  getImportedTaskIdsFromText,
+  mergeAccomplishmentText,
+} from '../services/reviewMatrixAccomplishmentSync';
 
 type ReflectionPanel = 'form' | 'logs';
 
@@ -46,6 +52,18 @@ interface ReflectionRecord {
   lastEditedByName?: string;
   lastEditedByEmpId?: string;
   avatar?: string;
+}
+
+interface DailyReflectionSyncResponse {
+  date: string;
+  reviewMatrixId: string;
+  syncSource: string;
+  lastSyncedAt?: string | null;
+  importedTaskIds?: string[];
+  dismissedTaskIds?: string[];
+  importedTaskCount?: number;
+  totalCompletedTaskCount?: number;
+  tasks?: DailyCompletedTaskSyncItem[];
 }
 
 function getIndiaDateKey(offsetDays = 0): string {
@@ -80,6 +98,14 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ReflectionRecord | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [taskHubCompletedTasks, setTaskHubCompletedTasks] = useState<DailyCompletedTaskSyncItem[]>([]);
+  const [dismissedSyncedTaskIds, setDismissedSyncedTaskIds] = useState<string[]>([]);
+  const [importedTaskIds, setImportedTaskIds] = useState<string[]>([]);
+  const [taskSyncHint, setTaskSyncHint] = useState<string>('Submitted and completed tasks from TaskHub are automatically added here.');
+  const syncRequestIdRef = useRef(0);
+  const latestEditingIdRef = useRef<string | null>(null);
+  const latestDismissedTaskIdsRef = useRef<string[]>([]);
 
   const todayKey = getIndiaDateKey();
   const yesterdayKey = getIndiaDateKey(-1);
@@ -120,6 +146,15 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
     () => extractReviewMatrixPreviewTasks(state.reflection.bigRocksTomorrow),
     [state.reflection.bigRocksTomorrow],
   );
+  const importedTaskCount = importedTaskIds.length;
+
+  useEffect(() => {
+    latestEditingIdRef.current = editingId;
+  }, [editingId]);
+
+  useEffect(() => {
+    latestDismissedTaskIdsRef.current = dismissedSyncedTaskIds;
+  }, [dismissedSyncedTaskIds]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -142,6 +177,87 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
       ...prev,
       reflection: { ...prev.reflection, [key]: val }
     }));
+  };
+
+  const applyAccomplishmentSync = (
+    tasks: DailyCompletedTaskSyncItem[],
+    nextDismissedTaskIds: string[],
+    baseText = state.reflection.accomplishments,
+  ) => {
+    const mergedText = mergeAccomplishmentText({
+      currentText: baseText,
+      tasks,
+      dismissedTaskIds: nextDismissedTaskIds,
+    });
+
+    if (mergedText !== baseText) {
+      handleChange('accomplishments', mergedText);
+    }
+
+    setImportedTaskIds(getImportedTaskIdsFromText(mergedText, tasks, nextDismissedTaskIds));
+  };
+
+  const loadDailyTaskSync = async (options?: { reflectionId?: string | null; preserveDismissed?: boolean; baseText?: string }) => {
+    if (!currentEmpId) return;
+
+    try {
+      syncRequestIdRef.current += 1;
+      const requestId = syncRequestIdRef.current;
+      setSyncLoading(true);
+
+      const params = new URLSearchParams();
+      const targetReflectionId = String(options?.reflectionId || '').trim();
+      if (targetReflectionId) {
+        params.set('reflectionId', targetReflectionId);
+      }
+
+      const res = await fetch(`${API_BASE}/reflections/daily-sync?${params.toString()}`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to load TaskHub sync');
+      }
+
+      const data: DailyReflectionSyncResponse = await res.json();
+      if (requestId !== syncRequestIdRef.current) return;
+
+      const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+      const serverDismissedTaskIds = Array.isArray(data?.dismissedTaskIds) ? data.dismissedTaskIds : [];
+      const mergedDismissedTaskIds = Array.from(
+        new Set(
+          options?.preserveDismissed === false
+            ? serverDismissedTaskIds
+            : [...latestDismissedTaskIdsRef.current, ...serverDismissedTaskIds],
+        ),
+      );
+
+      setTaskHubCompletedTasks(tasks);
+      setDismissedSyncedTaskIds(mergedDismissedTaskIds);
+      applyAccomplishmentSync(tasks, mergedDismissedTaskIds, options?.baseText ?? state.reflection.accomplishments);
+      setTaskSyncHint(
+        tasks.length
+          ? 'Submitted and completed tasks from TaskHub are automatically added here.'
+          : 'Submitted and completed tasks from TaskHub are automatically added here when you update work today.',
+      );
+    } catch (e) {
+      console.error(e);
+      setTaskSyncHint('Submitted and completed tasks from TaskHub are automatically added here.');
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  const handleAccomplishmentsChange = (value: string) => {
+    const nextDismissedTaskIds = getDismissedTaskIdsFromText(
+      value,
+      taskHubCompletedTasks,
+      latestDismissedTaskIdsRef.current,
+    );
+    setDismissedSyncedTaskIds(nextDismissedTaskIds);
+    setImportedTaskIds(getImportedTaskIdsFromText(value, taskHubCompletedTasks, nextDismissedTaskIds));
+    handleChange('accomplishments', value);
   };
 
   const loadReflections = async (scopeOverride?: 'me' | 'all' | 'team') => {
@@ -184,6 +300,10 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
         forgotten: state.reflection.forgotten,
         energyPeaks: state.reflection.energyPeaks,
         bigRocksTomorrow: state.reflection.bigRocksTomorrow,
+        taskSync: {
+          importedTaskIds,
+          dismissedTaskIds: dismissedSyncedTaskIds,
+        },
       };
       const url = editingId
         ? `${API_BASE}/reflections/${editingId}`
@@ -213,6 +333,8 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
           bigRocksTomorrow: '',
         },
       }));
+      setDismissedSyncedTaskIds([]);
+      setImportedTaskIds([]);
       setEditingId(null);
       await loadReflections();
     } catch (e: any) {
@@ -239,6 +361,8 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
 
   const handleEditClick = (record: ReflectionRecord) => {
     if (!canEditOrDelete(record)) return;
+    setDismissedSyncedTaskIds([]);
+    setImportedTaskIds([]);
     setEditingId(record._id);
     updateState(prev => ({
       ...prev,
@@ -253,6 +377,11 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
     }));
     setActivePanel('form');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    void loadDailyTaskSync({
+      reflectionId: record._id,
+      preserveDismissed: false,
+      baseText: record.accomplishments || '',
+    });
   };
 
   const handleDeleteClick = async (record: ReflectionRecord) => {
@@ -286,6 +415,31 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
     loadReflections();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePanel, scope, myRecordsBootstrapped]);
+
+  useEffect(() => {
+    if (activePanel !== 'form') return;
+    if (myTodayRecord && !editingId) return;
+    void loadDailyTaskSync({ reflectionId: editingId, preserveDismissed: !!editingId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePanel, editingId, myTodayRecord?._id]);
+
+  useEffect(() => {
+    if (activePanel !== 'form') return;
+
+    const handleFocus = () => {
+      if (myTodayRecord && !latestEditingIdRef.current) return;
+      void loadDailyTaskSync({
+        reflectionId: latestEditingIdRef.current,
+        preserveDismissed: true,
+      });
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePanel, myTodayRecord?._id]);
 
   useEffect(() => {
     const loadEmployeeAvatars = async () => {
@@ -328,6 +482,26 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
 
   useEffect(() => {
     const socket = getSocket();
+    const onSpacesChanged = (payload: any) => {
+      if (activePanel !== 'form') return;
+      if (!currentEmpId) return;
+      if (myTodayRecord && !latestEditingIdRef.current) return;
+
+      const task = payload?.task;
+      const taskAssigneeId = String(task?.assigneeId || '').trim();
+      const payloadTaskId = String(task?.taskId || payload?.taskId || '').trim();
+      const belongsToCurrentUser =
+        taskAssigneeId === currentEmpId ||
+        taskHubCompletedTasks.some((item) => item.taskId === payloadTaskId);
+
+      if (!belongsToCurrentUser) return;
+
+      void loadDailyTaskSync({
+        reflectionId: latestEditingIdRef.current,
+        preserveDismissed: true,
+      });
+    };
+
     const onChanged = (payload: any) => {
       const action = payload?.action;
       const reflection = payload?.reflection as ReflectionRecord | undefined;
@@ -362,12 +536,14 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
       });
     };
 
+    socket.on('spaces:changed', onSpacesChanged);
     socket.on('reflections:changed', onChanged);
     return () => {
+      socket.off('spaces:changed', onSpacesChanged);
       socket.off('reflections:changed', onChanged);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activePanel, currentEmpId, myTodayRecord?._id, taskHubCompletedTasks]);
 
   if (loading) {
     return (
@@ -517,9 +693,21 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
                     step={1}
                     label="What did you accomplish today?"
                     value={state.reflection.accomplishments}
-                    onChange={(v) => handleChange('accomplishments', v)}
+                    onChange={handleAccomplishmentsChange}
                     icon={<Zap className="text-brand-red" size={20} />}
                     placeholder="Summarize wins, deliveries, and momentum you created today..."
+                    helper={taskSyncHint}
+                    footer={
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700">
+                          ✓ Synced from TaskHub
+                        </span>
+                        <span className="text-slate-500">
+                          {importedTaskCount} TaskHub task{importedTaskCount === 1 ? '' : 's'} imported
+                        </span>
+                        {syncLoading ? <span className="text-slate-400">Refreshing...</span> : null}
+                      </div>
+                    }
                   />
 
                   <ReflectionField
@@ -557,7 +745,6 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
                           <Target size={18} />
                         </span>
                         <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-red">Tomorrow focus</p>
                           <label className="text-base font-semibold text-slate-900">Top priorities for tomorrow</label>
                           <p className="mt-1 text-sm text-slate-500">
                             Tasks added here will automatically appear in your TaskHub for tomorrow.
@@ -909,6 +1096,7 @@ type ReflectionFieldProps = {
   step: number;
   label: string;
   helper?: string;
+  footer?: React.ReactNode;
   value: string;
   onChange: (value: string) => void;
   icon: React.ReactNode;
@@ -919,6 +1107,7 @@ const ReflectionField: React.FC<ReflectionFieldProps> = ({
   step,
   label,
   helper,
+  footer,
   value,
   onChange,
   icon,
@@ -946,6 +1135,7 @@ const ReflectionField: React.FC<ReflectionFieldProps> = ({
       className={reflectionTextareaClassName}
       placeholder={placeholder}
     />
+    {footer ? <div className="mt-3">{footer}</div> : null}
   </div>
 );
 

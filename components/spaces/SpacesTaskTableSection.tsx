@@ -261,7 +261,7 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
   }, [activeRowMenuId]);
 
   return (
-    <div ref={tableCardRef} className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
+    <div ref={tableCardRef} className="overflow-visible rounded-3xl border border-slate-200 bg-white">
       <div className="overflow-x-visible overflow-y-visible border-b border-slate-100 [transform:rotateX(180deg)]">
         <table className="w-full table-fixed border-collapse text-left [transform:rotateX(180deg)]">
           <thead className="border-b border-slate-200 bg-slate-50">
@@ -487,7 +487,7 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                             {activeRowMenuId === t.taskId ? (
                               <div
                                 ref={activeRowMenuRef}
-                                className={`absolute right-0 z-20 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2 shadow-lg ${
+                                className={`absolute right-0 z-[80] w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2 shadow-lg ${
                                   activeRowMenuPlacement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'
                                 }`}
                               >
