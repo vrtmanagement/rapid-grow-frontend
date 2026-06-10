@@ -745,7 +745,6 @@ const ReflectionView: React.FC<Props> = ({ state, updateState, loading = false }
                           <Target size={18} />
                         </span>
                         <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-red">Tomorrow focus</p>
                           <label className="text-base font-semibold text-slate-900">Top priorities for tomorrow</label>
                           <p className="mt-1 text-sm text-slate-500">
                             Tasks added here will automatically appear in your TaskHub for tomorrow.
