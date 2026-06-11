@@ -4,7 +4,8 @@ import { PermissionKey } from '../config/permissions';
 import { getSocket } from '../realtime/socket';
 import { BackendRole, PermissionContext } from './PermissionContextCore';
 
-const CACHE_KEY = 'rapidgrow-permissions-cache-v2';
+const CACHE_KEY = 'rapidgrow-permissions-cache-v3';
+const LEGACY_CACHE_KEYS = ['rapidgrow-permissions-cache-v2', 'rapidgrow-permissions-cache-v1'];
 const PERMISSIONS_UPDATE_KEY = 'rapidgrow-permissions-updated-at';
 const BROADCAST_CHANNEL = 'rapidgrow-permissions';
 
@@ -50,25 +51,21 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, []);
 
   useEffect(() => {
-    const PERMISSIONS_CACHE_TTL_MS = 5 * 60 * 1000;
-    let usedCache = false;
+    for (const legacyKey of LEGACY_CACHE_KEYS) {
+      localStorage.removeItem(legacyKey);
+    }
     try {
       const cachedRaw = localStorage.getItem(CACHE_KEY);
       if (cachedRaw) {
         const cached = JSON.parse(cachedRaw);
-        const cachedAt = Number(cached?.at || 0);
-        const isFresh = cachedAt > 0 && Date.now() - cachedAt < PERMISSIONS_CACHE_TTL_MS;
         if (cached?.role === role && Array.isArray(cached?.permissions)) {
           setPermissions(cached.permissions);
-          usedCache = isFresh;
         }
       }
     } catch {
       // Ignore cache parse errors.
     }
-    if (!usedCache) {
-      refreshPermissions();
-    }
+    refreshPermissions();
   }, [refreshPermissions, role]);
 
   useEffect(() => {

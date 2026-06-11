@@ -228,7 +228,7 @@ function clearPlanningGoals(prev: PlanningState): PlanningState {
 }
 
 const App: React.FC = () => {
-  const { permissions, hasPermission, loading: permissionsLoading } = usePermissions();
+  const { permissions, hasPermission, loading: permissionsLoading, role: permissionRole } = usePermissions();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [publicHashPath, setPublicHashPath] = useState(getPublicHashPath);
@@ -1347,7 +1347,16 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const hasPower = (power: string) => hasPermission(power);
+  const hasPower = useCallback(
+    (power: string) => {
+      if (hasPermission(power)) return true;
+      const backendRole =
+        permissionRole || String(getStoredAuthSession()?.employee?.role || '').trim();
+      if (!backendRole) return false;
+      return (DEFAULT_POWERS[backendRole] || []).includes(power);
+    },
+    [hasPermission, permissionRole]
+  );
   const isSuperAdmin = state.currentUser.email === SUPER_ADMIN_EMAIL;
   const isAdmin = state.currentUser.role === 'Admin';
 
