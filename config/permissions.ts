@@ -33,7 +33,8 @@ export type PermissionKey =
   | 'EXPENSE_MANAGE'
   | 'EXPENSE_APPROVE'
   | 'EXPENSE_BUDGET_MANAGE'
-  | 'EXPENSE_REIMBURSE';
+  | 'EXPENSE_REIMBURSE'
+  | 'STRATEGY_EXECUTION_VIEW';
 
 export const ROLE_LABELS: Record<BackendRole, string> = {
   SUPER_ADMIN: 'Super Admin',

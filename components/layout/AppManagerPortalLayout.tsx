@@ -15,6 +15,7 @@ import {
   Building2,
   CreditCard,
   Sparkles,
+  CalendarRange,
 } from 'lucide-react';
 import { PlanningState } from '../../types';
 import Vision from '../../views/Vision';
@@ -33,6 +34,7 @@ import ContentCreateView from '../../views/ContentCreateView';
 import SpacesTaskDetailView from '../../views/SpacesTaskDetailView';
 import CRMPage from '../../views/CRMPage';
 import CRMLeadDetailPage from '../../views/CRMLeadDetailPage';
+import StrategyExecutionView from '../../views/StrategyExecutionView';
 import ExpenseTravelView from '../../views/ExpenseTravelView';
 import AiAgentView from '../../views/AiAgentView';
 import TaskAnalyticsView from '../../views/TaskAnalyticsView';
@@ -133,7 +135,8 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
     routePath.startsWith('/expense-travel') ||
     routePath.startsWith('/spaces') ||
     routePath.startsWith('/workspaces') ||
-    ['/yearly', '/quarterly', '/monthly', '/weekly', '/daily'].includes(routePath);
+    ['/yearly', '/quarterly', '/monthly', '/weekly', '/daily'].includes(routePath) ||
+    routePath.startsWith('/strategy-execution');
   const isFlushSharedSubnavRoute =
     routePath === '/' ||
     isCommunicationRoute ||
@@ -144,7 +147,8 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
     routePath.startsWith('/expense-travel') ||
     routePath.startsWith('/spaces') ||
     routePath.startsWith('/workspaces') ||
-    ['/yearly', '/quarterly', '/monthly', '/weekly', '/daily'].includes(routePath);
+    ['/yearly', '/quarterly', '/monthly', '/weekly', '/daily'].includes(routePath) ||
+    routePath.startsWith('/strategy-execution');
 
   return (
     <>
@@ -201,6 +205,14 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                 <div className="app-sidebar-divider h-px bg-white/5 mx-2.5 my-3.5"></div>
                 {hasVisionAccess && (
                   <SidebarLink to="/yearly" icon={<Target size={20} />} label="Vision" collapsed={!isSidebarOpen} />
+                )}
+                {hasPower('STRATEGY_EXECUTION_VIEW') && (
+                  <SidebarLink
+                    to="/strategy-execution"
+                    icon={<CalendarRange size={20} />}
+                    label="Strategy Calendar"
+                    collapsed={!isSidebarOpen}
+                  />
                 )}
                 {hasPower('REFLECTION_VIEW') && (
                   <SidebarLink
@@ -391,6 +403,9 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               )}
               {hasPower('STAFF_VIEW') && <Route path="/staff" element={<StaffView mode="manager" state={state} />} />}
               {hasPower('STAFF_VIEW') && <Route path="/staff/org-chart" element={<StaffView mode="manager" state={state} />} />}
+              {hasPower('STRATEGY_EXECUTION_VIEW') && (
+                <Route path="/strategy-execution" element={<StrategyExecutionView />} />
+              )}
               {hasPower('CRM_VIEW') && <Route path="/crm" element={<CRMPage />} />}
               {hasPower('CRM_VIEW') && <Route path="/crm/lead/:leadId" element={<CRMLeadDetailPage />} />}
               {hasPower('EXPENSE_VIEW') && <Route path="/expense-travel" element={<ExpenseTravelView mode="manager" />} />}
