@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, CalendarRange, CheckCheck, MoreVertical, Pencil, Plus, Trash2, UsersRound, X } from 'lucide-react';
+import { ArrowLeft, BarChart3, CalendarRange, Check, CheckCheck, Clock3, FileText, MoreVertical, Pencil, Plus, Target, Trash2, UsersRound, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ProjectTeamMember, WorkspaceProject, WorkspaceTask } from '../../types';
 import { API_BASE, getAuthHeaders } from '../../config/api';
@@ -12,10 +12,8 @@ import {
   countProjectMembers,
   formatProjectDate,
   formatProjectDateTime,
-  formatProjectTimeline,
-  getProjectPriorityClasses,
+  PROJECT_REVIEW_PHASES,
   getProjectPriorityLabel,
-  getProjectStatusClasses,
   getProjectStatusLabel,
 } from './projectCharterUtils';
 import { CREATE_INPUT_CLASS, ThemedDatePicker } from '../spaces/SpacesFormControls';
@@ -91,6 +89,18 @@ interface ProjectDetailsProps {
   onEditProject: () => void;
   onDeleteProject: () => Promise<void> | void;
   onCreateTask?: (draft: ProjectTaskDraft) => Promise<void> | void;
+}
+
+interface ProjectTeamTableRow {
+  role: string;
+  name: string;
+}
+
+function parseTextLines(value?: string): string[] {
+  return String(value || '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[\s\-*•\u2022]+/, '').trim())
+    .filter(Boolean);
 }
 
 const ProjectDetails: React.FC<ProjectDetailsProps> = ({
@@ -676,6 +686,55 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
   }
 
   const projectMembers = countProjectMembers(project);
+  const latestUpdatedAt = project.activity?.[0]?.createdAt || `${project.dateCreated}T00:00:00.000Z`;
+  const problemLines = parseTextLines(project.problemStatement || project.description);
+  const objectiveLines = parseTextLines(project.goalStatement);
+  const keyResultLines = parseTextLines(project.businessCase);
+  const inScopeLines = parseTextLines(project.inScope);
+  const outOfScopeLines = parseTextLines(project.outOfScope);
+  const benefitLines = parseTextLines(project.benefits);
+  const timelineRows = (() => {
+    const defaultKeys = new Set(PROJECT_REVIEW_PHASES.map((phase) => phase.key));
+    const defaultRows = PROJECT_REVIEW_PHASES.filter((phase) => String(project.phases?.[phase.key] || '').trim()).map((phase) => ({
+      label: phase.label,
+      value: String(project.phases?.[phase.key] || '').trim(),
+    }));
+    const extraRows = Object.entries(project.phases || {})
+      .filter(([key, value]) => !defaultKeys.has(key) && String(value || '').trim())
+      .sort(([leftKey], [rightKey]) => {
+        const leftNumber = Number.parseInt(leftKey.replace('phase', ''), 10);
+        const rightNumber = Number.parseInt(rightKey.replace('phase', ''), 10);
+        return leftNumber - rightNumber;
+      })
+      .map(([key, value]) => ({
+        label: `Phase ${Number.parseInt(key.replace('phase', ''), 10)}`,
+        value: String(value || '').trim(),
+      }));
+
+    return [...defaultRows, ...extraRows];
+  })();
+  const projectLeadName = project.lead || project.team?.projectManager?.name || 'Unassigned';
+  const orderedTeamRows: ProjectTeamTableRow[] = [];
+  const seenTeamMembers = new Set<string>();
+
+  const pushTeamRow = (role: string, name?: string) => {
+    const cleanName = String(name || '').trim();
+    if (!cleanName) return;
+    const key = cleanName.toLowerCase();
+    if (seenTeamMembers.has(key)) return;
+    seenTeamMembers.add(key);
+    orderedTeamRows.push({ role, name: cleanName });
+  };
+
+  pushTeamRow(project.championRole || 'Project Champion', project.champion);
+  pushTeamRow(project.leadRole || 'Project Lead', projectLeadName);
+  (project.smeList || []).forEach((member) => pushTeamRow(member.role || 'Project Team Member (SME)', member.name));
+  (project.projectTeam || []).forEach((member) => pushTeamRow(member.role || 'Project Team Member', member.name));
+
+  const displayedTeamMemberCount = orderedTeamRows.filter((member) => {
+    const role = member.role.toLowerCase();
+    return !role.includes('champion') && !role.includes('project lead');
+  }).length;
 
   return (
     <div className="space-y-6">
@@ -988,82 +1047,234 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
         </div>
       </div>
 
-      <section className="overflow-hidden rounded-[2.15rem] border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-brand-red">
-              <CalendarRange size={20} />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-slate-950">Project Overview</h2>
-            </div>
+      <div className="space-y-5">
+        <div className="flex items-center gap-3 px-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-brand-red">
+            <CalendarRange size={20} />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold text-slate-950">Project Overview</h2>
           </div>
         </div>
 
-        <div className="grid gap-3 px-5 py-4 xl:grid-cols-[minmax(0,1.2fr)_320px]">
-          <div className="rounded-[1.5rem] border border-slate-800 bg-gradient-to-br from-slate-950 via-blue-950 to-slate-800 p-4 text-white shadow-sm">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getProjectStatusClasses(project.status)}`}>
-                {getProjectStatusLabel(project.status)}
-              </span>
-              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getProjectPriorityClasses(project.priority)}`}>
-                {getProjectPriorityLabel(project.priority)}
-              </span>
+        <div className="space-y-5 px-5">
+          <div className="rounded-[1.55rem] border border-slate-200 bg-white px-6 py-5 shadow-[0_12px_28px_rgba(15,23,42,0.045)]">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_290px] xl:items-center">
+              <div className="flex items-center gap-4">
+                <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-slate-950 via-[#162554] to-[#1f2e68] text-white shadow-[0_10px_24px_rgba(15,23,42,0.16)]">
+                  <FileText size={26} />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-[1.65rem] font-semibold tracking-[-0.02em] text-slate-950">{project.name}</h1>
+                  <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[15px] text-slate-600">
+                    <span>
+                      <span className="font-medium text-slate-500">Project Lead:</span>{' '}
+                      <span className="font-semibold text-slate-900">{projectLeadName}</span>
+                    </span>
+                    <span>
+                      <span className="font-medium text-slate-500">Created:</span>{' '}
+                      <span className="text-slate-900">{formatProjectDate(project.dateCreated)}</span>
+                    </span>
+                    <span>
+                      <span className="font-medium text-slate-500">Last updated:</span>{' '}
+                      <span className="text-slate-900">{formatProjectDateTime(latestUpdatedAt)}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[1.05rem] border border-slate-200 bg-slate-50/65 px-4 py-3">
+                  <p className="whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400">Project Lead</p>
+                  <p className="mt-2 whitespace-nowrap text-[0.95rem] font-semibold text-slate-950">{projectLeadName}</p>
+                </div>
+                <div className="rounded-[1.05rem] border border-slate-200 bg-slate-50/65 px-4 py-3">
+                  <p className="whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400">Team Members</p>
+                  <p className="mt-2 whitespace-nowrap text-[0.95rem] font-semibold text-slate-950">{displayedTeamMemberCount || projectMembers}</p>
+                </div>
+              </div>
             </div>
-            <h1 className="mt-3 text-3xl font-semibold leading-tight tracking-[-0.02em] xl:text-[2rem]">{project.name}</h1>
-            <p className="mt-2.5 max-w-2xl text-sm leading-6 text-slate-200">
-              {project.description || 'This project charter is ready to coordinate delivery, align ownership, and track execution.'}
-            </p>
           </div>
 
-          <div className="rounded-[1.5rem] border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50/40 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Timeline</p>
-            <p className="mt-2.5 text-base font-semibold leading-7 text-slate-950">{formatProjectTimeline(project)}</p>
-            <div className="mt-3 space-y-2 text-sm text-slate-600">
-              <p>Start: {formatProjectDate(project.startDate)}</p>
-              <p>End: {formatProjectDate(project.endDate)}</p>
-              <p>Created: {formatProjectDate(project.dateCreated)}</p>
-            </div>
-            <p className="mt-3 text-xs leading-5 text-slate-500">
-              Last updated {formatProjectDateTime(project.activity?.[0]?.createdAt || `${project.dateCreated}T00:00:00.000Z`)}
-            </p>
-          </div>
-        </div>
+          <div className="grid gap-5 xl:grid-cols-2">
+            <section className="rounded-[1.55rem] border border-slate-200 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
+                  <FileText size={18} />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-950">Business Case</h3>
+              </div>
 
-        <div className="grid gap-3 px-5 pb-5 md:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-[1.35rem] border border-slate-200 bg-slate-50/80 p-3.5">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm text-slate-500">Progress</p>
-                  {isTaskDataLoading ? (
-                    <div className="h-7 w-16 animate-pulse rounded-full bg-slate-200" />
+              <div className="mt-5 border-t border-slate-100">
+                <div className="pt-6">
+                  <p className="text-sm font-semibold text-slate-950">Problem / Opportunity Statement</p>
+                  <div className="mt-3 space-y-2 text-sm leading-7 text-slate-600">
+                    {problemLines.length > 0 ? problemLines.map((line, index) => <p key={`problem-${index}`}>{line}</p>) : <p>Not provided.</p>}
+                  </div>
+                </div>
+
+                <div className="mt-8 border-t border-slate-100 pt-6">
+                  <p className="text-sm font-semibold text-slate-950">Objective</p>
+                  <div className="mt-3 space-y-2 text-sm leading-7 text-slate-600">
+                    {objectiveLines.length > 0 ? objectiveLines.map((line, index) => <p key={`objective-${index}`}>{line}</p>) : <p>Not provided.</p>}
+                  </div>
+                </div>
+
+                <div className="mt-8 border-t border-slate-100 pt-6">
+                  <p className="text-sm font-semibold text-slate-950">Key Results</p>
+                  {keyResultLines.length > 0 ? (
+                    <ul className="mt-3 space-y-2.5 text-sm leading-7 text-slate-600">
+                      {keyResultLines.map((line, index) => (
+                        <li key={`key-result-${index}`} className="flex items-start gap-2.5">
+                          <span className="mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                            <Check size={12} />
+                          </span>
+                          <span>{line}</span>
+                        </li>
+                      ))}
+                    </ul>
                   ) : (
-                    <p className="text-lg font-semibold text-slate-950">{taskMetrics.progress}%</p>
+                    <p className="mt-3 text-sm leading-7 text-slate-600">Not provided.</p>
                   )}
                 </div>
-                {isTaskDataLoading ? (
-                  <>
-                    <div className="mt-4 h-2.5 animate-pulse rounded-full bg-slate-200" />
-                    <div className="mt-3 h-4 w-40 animate-pulse rounded-full bg-slate-200" />
-                  </>
+              </div>
+            </section>
+
+            <section className="flex h-full min-h-[420px] flex-col rounded-[1.55rem] border border-slate-200 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
+                  <UsersRound size={18} />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-950">Project Team</h3>
+              </div>
+
+              <div className="mt-5 min-h-0 flex-1">
+                <div className="grid grid-cols-[1.25fr_0.95fr] gap-4 rounded-t-[1rem] bg-slate-50 px-6 py-4 text-[0.92rem] font-semibold text-slate-600">
+                  <span>Role</span>
+                  <span>Name</span>
+                </div>
+                <div className="min-h-0 max-h-[292px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  {orderedTeamRows.length > 0 ? (
+                    orderedTeamRows.map((member, index) => (
+                      <div
+                        key={`team-row-${member.role}-${member.name}-${index}`}
+                        className={`grid grid-cols-[1.25fr_0.95fr] gap-4 px-6 py-4 text-[0.95rem] text-slate-700 ${index === 0 ? 'border-t border-slate-200' : 'border-t border-slate-100'}`}
+                      >
+                        <span className="font-semibold text-slate-800">{member.role}</span>
+                        <span className="font-medium text-slate-900">{member.name}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="border-t border-slate-200 px-6 py-5 text-sm text-slate-500">No team members added yet.</div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <div className="space-y-5">
+              <section className="rounded-[1.55rem] border border-slate-200 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
+                    <Target size={18} />
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-950">Project Scope</h3>
+                </div>
+
+                <div className="mt-5 border-t border-slate-100">
+                  <div className="pt-6">
+                    <p className="text-sm font-semibold text-slate-950">In Scope</p>
+                    {inScopeLines.length > 0 ? (
+                      <ul className="mt-3 space-y-2.5 text-sm leading-7 text-slate-600">
+                        {inScopeLines.map((line, index) => (
+                          <li key={`in-scope-${index}`} className="flex items-start gap-2.5">
+                            <span className="mt-2.5 h-2 w-2 rounded-full bg-emerald-400" />
+                            <span>{line}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-3 text-sm leading-7 text-slate-600">Not provided.</p>
+                    )}
+                  </div>
+
+                  <div className="mt-8 border-t border-slate-100 pt-6">
+                    <p className="text-sm font-semibold text-slate-950">Out of Scope</p>
+                    {outOfScopeLines.length > 0 ? (
+                      <ul className="mt-3 space-y-2.5 text-sm leading-7 text-slate-600">
+                        {outOfScopeLines.map((line, index) => (
+                          <li key={`out-scope-${index}`} className="flex items-start gap-2.5">
+                            <span className="mt-2.5 h-2 w-2 rounded-full bg-rose-400" />
+                            <span>{line}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-3 text-sm leading-7 text-slate-600">Not provided.</p>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-[1.55rem] border border-slate-200 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
+                    <BarChart3 size={18} />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-950">Project Benefits / Revenue</h3>
+              </div>
+
+                <div className="mt-6">
+                  {benefitLines.length > 0 ? (
+                    <div className="space-y-2 text-sm leading-7 text-slate-600">
+                      {benefitLines.map((line, index) => (
+                        <p key={`benefit-${index}`}>{line}</p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm leading-7 text-slate-600">Not provided.</p>
+                  )}
+                </div>
+              </section>
+            </div>
+
+            <section className="rounded-[1.55rem] border border-slate-200 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
+                  <Clock3 size={18} />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-950">Project Review Timeline</h3>
+              </div>
+
+              <div
+                className="relative mt-5 max-h-[350px] overflow-y-auto border-t border-slate-100 pt-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {timelineRows.length > 0 ? (
+                  <div className="relative">
+                    <div className="absolute bottom-[28px] left-[13px] top-[28px] w-px bg-rose-100" />
+                    {timelineRows.map((phase, index) => (
+                      <div
+                        key={`${phase.label}-${index}`}
+                        className={`relative flex items-start gap-4 py-3 ${index === timelineRows.length - 1 ? '' : 'border-b border-slate-100/90'}`}
+                      >
+                        <div className="relative z-[1] w-8 shrink-0">
+                          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-rose-200 bg-white text-[11px] font-semibold text-brand-red shadow-[0_2px_6px_rgba(255,255,255,0.95)]">
+                            {index}
+                          </span>
+                        </div>
+                        <div className="min-w-0 flex-1 text-sm leading-7 text-slate-600">
+                          <span className="font-semibold text-slate-950">{phase.label}:</span> {phase.value}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  <>
-                    <ProgressBar value={taskMetrics.progress} className="mt-4" />
-                    <p className="mt-3 text-xs text-slate-500">
-                      {taskMetrics.completed} of {taskMetrics.total} tasks completed
-                    </p>
-                  </>
+                  <div className="px-4 py-5 text-sm text-slate-500">No review timeline saved yet.</div>
                 )}
               </div>
-          <div className="rounded-[1.35rem] border border-slate-200 bg-slate-50/80 p-3.5">
-            <p className="text-sm text-slate-500">Team members</p>
-            <p className="mt-2 text-[2rem] font-semibold leading-none text-slate-950">{projectMembers}</p>
-          </div>
-          <div className="rounded-[1.35rem] border border-slate-200 bg-slate-50/80 p-3.5">
-            <p className="text-sm text-slate-500">Project manager</p>
-            <p className="mt-2 text-xl font-semibold text-slate-950">{project.team?.projectManager?.name || 'Unassigned'}</p>
+            </section>
           </div>
         </div>
-      </section>
+      </div>
 
       <div className="grid gap-6 2xl:grid-cols-[1.28fr_0.72fr]">
         <div className="space-y-6">

@@ -49,7 +49,6 @@ const TeamHierarchy: React.FC<TeamHierarchyProps> = ({ team }) => {
         </div>
         <div>
           <h3 className="text-xl font-semibold text-slate-900">Team Hierarchy</h3>
-          <p className="text-sm text-slate-500">Project manager at the top, lead pods beneath, and contributors attached by stream.</p>
         </div>
       </div>
 

@@ -1,8 +1,27 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, UserRound, UsersRound, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { BarChart3, Clock3, FileText, Plus, Target, Trash2, Users, X } from 'lucide-react';
 import { ProjectTeamMember } from '../../types';
-import { PROJECT_PRIORITY_OPTIONS, PROJECT_STATUS_OPTIONS, ProjectFormState } from './projectCharterUtils';
-import { getDisplayAvatarUrl } from '../../utils/avatar';
+import {
+  PROJECT_REVIEW_PHASES,
+  PROJECT_TEAM_ROLE_OPTIONS,
+  ProjectFormState,
+} from './projectCharterUtils';
+
+function getPhaseNumberFromKey(key: string): number {
+  return Number.parseInt(key.replace('phase', ''), 10);
+}
+
+function deriveVisiblePhaseKeys(phases: ProjectFormState['phases'], mode: 'create' | 'edit'): string[] {
+  const defaultKeys = PROJECT_REVIEW_PHASES.map((phase) => phase.key);
+  const savedKeys = Object.keys(phases || {}).sort((left, right) => getPhaseNumberFromKey(left) - getPhaseNumberFromKey(right));
+
+  if (mode === 'create') {
+    const extraKeys = savedKeys.filter((key) => !defaultKeys.includes(key));
+    return [...defaultKeys, ...extraKeys];
+  }
+
+  return savedKeys;
+}
 
 interface ProjectCharterFormModalProps {
   isOpen: boolean;
@@ -12,8 +31,6 @@ interface ProjectCharterFormModalProps {
   onClose: () => void;
   onSubmit: (form: ProjectFormState) => Promise<void> | void;
 }
-
-const DEFAULT_LEAD_ROLE = 'Team Lead';
 
 const ProjectCharterFormModal: React.FC<ProjectCharterFormModalProps> = ({
   isOpen,
@@ -26,26 +43,56 @@ const ProjectCharterFormModal: React.FC<ProjectCharterFormModalProps> = ({
   const [form, setForm] = useState<ProjectFormState>(initialState);
   const [submitting, setSubmitting] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
-  const [nextLeadId, setNextLeadId] = useState('');
+  const [visiblePhaseKeys, setVisiblePhaseKeys] = useState<string[]>(() => deriveVisiblePhaseKeys(initialState.phases, mode));
+  const timelineTextareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
   useEffect(() => {
     if (isOpen) {
       setForm(initialState);
       setValidationMessage('');
-      setNextLeadId('');
+      setVisiblePhaseKeys(deriveVisiblePhaseKeys(initialState.phases, mode));
     }
-  }, [isOpen]);
+  }, [initialState, isOpen, mode]);
 
-  const selectedLeadIds = useMemo(() => new Set(form.teamLeads.map((lead) => lead.leadId)), [form.teamLeads]);
-
-  const leadPickerOptions = employees.filter(
-    (employee) => employee.id !== form.projectManagerId && !selectedLeadIds.has(employee.id),
+  const employeeOptions = useMemo(
+    () =>
+      employees
+        .map((employee) => ({
+          id: employee.id,
+          name: employee.name,
+        }))
+        .sort((left, right) => left.name.localeCompare(right.name)),
+    [employees],
   );
 
+  const phaseRows = useMemo(() => {
+    return visiblePhaseKeys.map((key) => {
+      const defaultPhase = PROJECT_REVIEW_PHASES.find((phase) => phase.key === key);
+      if (defaultPhase) return defaultPhase;
+
+      return {
+        key,
+        label: `Phase ${getPhaseNumberFromKey(key)}`,
+        defaultValue: '',
+      };
+    });
+  }, [visiblePhaseKeys]);
+
+  const resizeTimelineTextarea = (phaseKey: string) => {
+    const textarea = timelineTextareaRefs.current[phaseKey];
+    if (!textarea) return;
+    textarea.style.height = '0px';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  };
+
+  useEffect(() => {
+    phaseRows.forEach((phase) => resizeTimelineTextarea(phase.key));
+  }, [form.phases, phaseRows]);
+
   const validate = () => {
-    if (!form.name.trim()) return 'Project name is required.';
-    if (!form.description.trim()) return 'Project description is required.';
-    if (!form.projectManagerId) return 'Assign one project manager before saving.';
+    if (!form.teamMembers.some((member) => member.role === 'Project Lead' && member.name.trim())) {
+      return 'Add a Project Lead before saving.';
+    }
     if (form.startDate && form.endDate && form.startDate > form.endDate) {
       return 'End date must be after the start date.';
     }
@@ -66,324 +113,366 @@ const ProjectCharterFormModal: React.FC<ProjectCharterFormModalProps> = ({
     }
   };
 
+  const updateTeamMember = (
+    rowId: string,
+    updater: (member: ProjectFormState['teamMembers'][number]) => ProjectFormState['teamMembers'][number],
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      teamMembers: prev.teamMembers.map((member) => (member.rowId === rowId ? updater(member) : member)),
+    }));
+  };
+
+  const handleMemberNameChange = (rowId: string, value: string) => {
+    const matchedEmployee = employeeOptions.find(
+      (employee) => employee.name.trim().toLowerCase() === value.trim().toLowerCase(),
+    );
+
+    updateTeamMember(rowId, (member) => ({
+      ...member,
+      name: value,
+      memberId: matchedEmployee?.id || '',
+    }));
+  };
+
+  const addTeamMember = () => {
+    setForm((prev) => ({
+      ...prev,
+      teamMembers: [
+        ...prev.teamMembers,
+        {
+          rowId:
+            typeof crypto !== 'undefined' && 'randomUUID' in crypto
+              ? crypto.randomUUID()
+              : `team-row-${Date.now()}`,
+          role: 'Team Member',
+          memberId: '',
+          name: '',
+        },
+      ],
+    }));
+  };
+
+  const removeTeamMember = (rowId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      teamMembers: prev.teamMembers.filter((member) => member.rowId !== rowId),
+    }));
+  };
+
+  const addTimelinePhase = () => {
+    const nextPhaseNumber = Math.max(
+      ...visiblePhaseKeys.map((key) => getPhaseNumberFromKey(key)).filter((value) => Number.isFinite(value)),
+      -1,
+    ) + 1;
+    const nextKey = `phase${nextPhaseNumber}`;
+
+    setVisiblePhaseKeys((prev) => [...prev, nextKey]);
+    setForm((prev) => ({
+      ...prev,
+      phases: {
+        ...prev.phases,
+        [nextKey]: '',
+      },
+    }));
+  };
+
+  const removeTimelinePhase = (phaseKey: string) => {
+    setVisiblePhaseKeys((prev) => prev.filter((key) => key !== phaseKey));
+    setForm((prev) => {
+      const nextPhases = { ...(prev.phases || {}) };
+      delete nextPhases[phaseKey];
+      return {
+        ...prev,
+        phases: nextPhases,
+      };
+    });
+    delete timelineTextareaRefs.current[phaseKey];
+  };
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
-      <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm">
+      <div className="max-h-[94vh] w-full max-w-[1520px] overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
+        <div className="flex items-start justify-between border-b border-slate-200 px-7 py-5">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-red">
-              {mode === 'create' ? 'New Charter' : 'Edit Charter'}
+            <p className="text-[0.8rem] font-semibold uppercase tracking-[0.28em] text-brand-red">
+              {mode === 'create' ? 'New Project Charter' : 'Project Charter'}
             </p>
-            <h2 className="mt-1 text-2xl font-semibold text-slate-950">
-              {mode === 'create' ? 'Create project charter' : 'Update project charter'}
+            <h2 className="mt-2 text-[2.2rem] font-semibold leading-none text-slate-950">
+              {mode === 'create' ? 'Create Project Charter' : 'Update Project Charter'}
             </h2>
           </div>
+
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-100"
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50"
+            aria-label="Close"
           >
-            <X size={18} />
+            <X size={22} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="max-h-[calc(92vh-81px)] overflow-y-auto p-6">
-          <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-            <section className="space-y-6">
-              <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50/80 p-6">
-                <h3 className="text-lg font-semibold text-slate-950">Project Overview</h3>
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <label className="md:col-span-2">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">Project Name</span>
-                    <input
-                      value={form.name}
-                      onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
-                      placeholder="Launch website replatform"
-                    />
-                  </label>
-
-                  <label className="md:col-span-2">
-                    <span className="mb-2 block text-sm font-medium text-slate-700">Description</span>
-                    <textarea
-                      value={form.description}
-                      onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-                      className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
-                      placeholder="What is this project solving, who owns it, and how will success be measured?"
-                    />
-                  </label>
-
-                  <label>
-                    <span className="mb-2 block text-sm font-medium text-slate-700">Start Date</span>
-                    <input
-                      type="date"
-                      value={form.startDate}
-                      onChange={(event) => setForm((prev) => ({ ...prev, startDate: event.target.value }))}
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
-                    />
-                  </label>
-
-                  <label>
-                    <span className="mb-2 block text-sm font-medium text-slate-700">End Date</span>
-                    <input
-                      type="date"
-                      value={form.endDate}
-                      onChange={(event) => setForm((prev) => ({ ...prev, endDate: event.target.value }))}
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
-                    />
-                  </label>
-
-                  <label>
-                    <span className="mb-2 block text-sm font-medium text-slate-700">Status</span>
-                    <select
-                      value={form.status}
-                      onChange={(event) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          status: event.target.value as ProjectFormState['status'],
-                        }))
-                      }
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
-                    >
-                      {PROJECT_STATUS_OPTIONS.map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label>
-                    <span className="mb-2 block text-sm font-medium text-slate-700">Priority</span>
-                    <select
-                      value={form.priority}
-                      onChange={(event) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          priority: event.target.value as ProjectFormState['priority'],
-                        }))
-                      }
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
-                    >
-                      {PROJECT_PRIORITY_OPTIONS.map((priority) => (
-                        <option key={priority} value={priority}>
-                          {priority}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              </div>
-            </section>
-
-            <section className="space-y-6">
-              <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50/80 p-6">
+        <form onSubmit={handleSubmit} className="max-h-[calc(94vh-104px)] overflow-y-auto px-7 py-6">
+          <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+            <div className="space-y-4">
+              <section className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-[0_8px_28px_rgba(15,23,42,0.04)]">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
-                    <UserRound size={20} />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
+                    <FileText size={18} />
                   </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-950">Project Manager</h3>
-                    <p className="text-sm text-slate-500">Assign one accountable owner for this charter.</p>
-                  </div>
-                </div>
-
-                <select
-                  value={form.projectManagerId}
-                  onChange={(event) => setForm((prev) => ({ ...prev, projectManagerId: event.target.value }))}
-                  className="mt-5 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
-                >
-                  <option value="">Select a project manager</option>
-                  {employees.map((employee) => (
-                    <option key={`pm-${employee.id}`} value={employee.id}>
-                      {employee.name} - {employee.role}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50/80 p-6">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-white">
-                      <UsersRound size={20} />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-950">Lead Pods</h3>
-                      <p className="text-sm text-slate-500">Team leads own workstreams and members roll up beneath them.</p>
-                    </div>
-                  </div>
-
-                  {leadPickerOptions.length > 0 ? (
-                    <div className="flex items-center gap-3">
-                      <select
-                        value={nextLeadId}
-                        onChange={(event) => setNextLeadId(event.target.value)}
-                        className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-all focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
-                      >
-                        <option value="">Select lead</option>
-                        {leadPickerOptions.map((employee) => (
-                          <option key={`lead-option-${employee.id}`} value={employee.id}>
-                            {employee.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!nextLeadId) return;
-                          setForm((prev) => ({
-                            ...prev,
-                            teamLeads: [
-                              ...prev.teamLeads,
-                              { leadId: nextLeadId, leadRole: DEFAULT_LEAD_ROLE, memberIds: [] },
-                            ],
-                          }));
-                          setNextLeadId('');
-                        }}
-                        className="inline-flex items-center gap-2 rounded-2xl bg-brand-red px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-950"
-                      >
-                        <Plus size={15} />
-                        Add lead
-                      </button>
-                    </div>
-                  ) : null}
+                  <h3 className="text-[1.15rem] font-semibold text-slate-950">Business Case</h3>
                 </div>
 
                 <div className="mt-5 space-y-4">
-                  {form.teamLeads.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-                      No team leads added yet. Add a lead to build the member hierarchy.
-                    </div>
-                  ) : null}
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-600">Project Name</span>
+                    <input
+                      value={form.name}
+                      onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                      placeholder="Enter project name..."
+                      className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
+                    />
+                  </label>
 
-                  {form.teamLeads.map((lead, index) => {
-                    const leadMember = employees.find((employee) => employee.id === lead.leadId);
-                    const reservedLeadIds = new Set(form.teamLeads.map((item) => item.leadId));
-                    const availableMemberOptions = employees.filter(
-                      (employee) =>
-                        employee.id !== form.projectManagerId &&
-                        (!reservedLeadIds.has(employee.id) || lead.memberIds.includes(employee.id)),
-                    );
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-600">Problem / Opportunity Statement</span>
+                    <textarea
+                      value={form.problemStatement}
+                      onChange={(event) => setForm((prev) => ({ ...prev, problemStatement: event.target.value }))}
+                      placeholder="Enter problem or opportunity statement..."
+                      className="min-h-[84px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
+                    />
+                  </label>
 
-                    return (
-                      <div key={`lead-card-${lead.leadId}-${index}`} className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className="flex flex-wrap items-start justify-between gap-4">
-                          <div>
-                            <p className="text-base font-semibold text-slate-950">{leadMember?.name || 'Lead'}</p>
-                            <p className="text-sm text-slate-500">{leadMember?.role || 'Team Lead'}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setForm((prev) => ({
-                                ...prev,
-                                teamLeads: prev.teamLeads.filter((_, leadIndex) => leadIndex !== index),
-                              }))
-                            }
-                            className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100"
-                          >
-                            Remove
-                          </button>
-                        </div>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-600">Objective</span>
+                    <textarea
+                      value={form.goalStatement}
+                      onChange={(event) => setForm((prev) => ({ ...prev, goalStatement: event.target.value }))}
+                      placeholder="Enter objective..."
+                      className="min-h-[84px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
+                    />
+                  </label>
 
-                        <label className="mt-4 block">
-                          <span className="mb-2 block text-sm font-medium text-slate-700">Lead Role Label</span>
-                          <input
-                            value={lead.leadRole}
-                            onChange={(event) =>
-                              setForm((prev) => ({
-                                ...prev,
-                                teamLeads: prev.teamLeads.map((item, leadIndex) =>
-                                  leadIndex === index ? { ...item, leadRole: event.target.value } : item,
-                                ),
-                              }))
-                            }
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all focus:border-brand-red focus:bg-white focus:ring-2 focus:ring-brand-red/10"
-                          />
-                        </label>
-
-                        <div className="mt-4">
-                          <p className="mb-3 text-sm font-medium text-slate-700">Team Members</p>
-                          {availableMemberOptions.length === 0 ? (
-                            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center text-sm text-slate-500">
-                              No members available for this lead yet.
-                            </div>
-                          ) : (
-                            <div className="grid gap-3 md:grid-cols-2">
-                              {availableMemberOptions.map((employee) => {
-                                const checked = lead.memberIds.includes(employee.id);
-                                return (
-                                  <label
-                                    key={`lead-${lead.leadId}-member-${employee.id}`}
-                                    className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 transition-all ${
-                                      checked
-                                        ? 'border-brand-red/30 bg-brand-red/5'
-                                        : 'border-slate-200 bg-slate-50 hover:border-slate-300'
-                                    }`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      onChange={() =>
-                                        setForm((prev) => ({
-                                          ...prev,
-                                          teamLeads: prev.teamLeads.map((item, leadIndex) => {
-                                            if (leadIndex !== index) return item;
-                                            const memberIds = checked
-                                              ? item.memberIds.filter((memberId) => memberId !== employee.id)
-                                              : [...item.memberIds, employee.id];
-                                            return { ...item, memberIds };
-                                          }),
-                                        }))
-                                      }
-                                      className="h-4 w-4 rounded border-slate-300 text-brand-red focus:ring-brand-red"
-                                    />
-                                    <img
-                                      src={getDisplayAvatarUrl(employee.avatar, employee.name)}
-                                      alt={employee.name}
-                                      className="h-10 w-10 rounded-2xl border border-slate-200 object-cover"
-                                    />
-                                    <div className="min-w-0">
-                                      <p className="truncate text-sm font-semibold text-slate-900">{employee.name}</p>
-                                      <p className="truncate text-xs text-slate-500">{employee.role}</p>
-                                    </div>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-600">Key Results</span>
+                    <textarea
+                      value={form.keyResults}
+                      onChange={(event) => setForm((prev) => ({ ...prev, keyResults: event.target.value }))}
+                      placeholder="Enter key results..."
+                      className="min-h-[84px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
+                    />
+                  </label>
                 </div>
-              </div>
-            </section>
+              </section>
+
+              <section className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-[0_8px_28px_rgba(15,23,42,0.04)]">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
+                    <Target size={18} />
+                  </div>
+                  <h3 className="text-[1.15rem] font-semibold text-slate-950">Project Scope</h3>
+                </div>
+
+                <div className="mt-5 space-y-4">
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-600">In Scope</span>
+                    <textarea
+                      value={form.inScope}
+                      onChange={(event) => setForm((prev) => ({ ...prev, inScope: event.target.value }))}
+                      placeholder="Enter in scope items..."
+                      className="min-h-[70px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-slate-600">Out of Scope</span>
+                    <textarea
+                      value={form.outOfScope}
+                      onChange={(event) => setForm((prev) => ({ ...prev, outOfScope: event.target.value }))}
+                      placeholder="Enter out of scope items..."
+                      className="min-h-[70px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-[0_8px_28px_rgba(15,23,42,0.04)]">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
+                    <BarChart3 size={18} />
+                  </div>
+                  <h3 className="text-[1.15rem] font-semibold text-slate-950">Project Benefits / Revenue</h3>
+                </div>
+
+                <label className="mt-5 block">
+                  <textarea
+                    value={form.benefits}
+                    onChange={(event) => setForm((prev) => ({ ...prev, benefits: event.target.value }))}
+                    placeholder="Enter project benefits or revenue..."
+                    className="min-h-[74px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
+                  />
+                </label>
+              </section>
+            </div>
+
+            <div className="space-y-4">
+              <section className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-[0_8px_28px_rgba(15,23,42,0.04)]">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
+                    <Users size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-[1.15rem] font-semibold text-slate-950">Project Team</h3>
+                    <p className="text-sm text-slate-500">Add key team members and their roles</p>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid grid-cols-[1fr_1fr_32px] items-center gap-3 px-1 text-sm font-medium text-slate-700">
+                  <span>Role</span>
+                  <span>Name</span>
+                  <span />
+                </div>
+
+                <div className="mt-3 space-y-2.5">
+                  {form.teamMembers.map((member) => (
+                    <div key={member.rowId} className="grid grid-cols-[1fr_1fr_32px] items-center gap-3">
+                      <select
+                        value={member.role}
+                        onChange={(event) =>
+                          updateTeamMember(member.rowId, (current) => ({
+                            ...current,
+                            role: event.target.value,
+                          }))
+                        }
+                        className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition-all focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
+                      >
+                        {PROJECT_TEAM_ROLE_OPTIONS.map((role) => (
+                          <option key={role} value={role}>
+                            {role}
+                          </option>
+                        ))}
+                      </select>
+
+                      <input
+                        value={member.name}
+                        onChange={(event) => handleMemberNameChange(member.rowId, event.target.value)}
+                        placeholder="Enter team member name"
+                        list="project-charter-employee-options"
+                        className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => removeTeamMember(member.rowId)}
+                        className="flex h-9 w-9 items-center justify-center rounded-xl text-brand-red transition-colors hover:bg-brand-red/10"
+                        aria-label="Remove team member"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addTeamMember}
+                  className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-brand-red transition-colors hover:text-red-700"
+                >
+                  <Plus size={16} />
+                  Add team member
+                </button>
+              </section>
+
+              <section className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-[0_8px_28px_rgba(15,23,42,0.04)]">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
+                    <Clock3 size={18} />
+                  </div>
+                  <h3 className="text-[1.15rem] font-semibold text-slate-950">Project Review Timeline</h3>
+                </div>
+
+                <div className="mt-5 overflow-hidden rounded-[1.3rem] border border-slate-200">
+                  {phaseRows.map((phase, index) => (
+                    <div
+                      key={phase.key}
+                      className={`grid grid-cols-[88px_minmax(0,1fr)_32px] items-start gap-3 bg-white px-4 py-2 ${
+                        index === phaseRows.length - 1 ? '' : 'border-b border-slate-200'
+                      }`}
+                    >
+                      <span className="pt-1.5 text-sm font-semibold text-brand-red">{phase.label}:</span>
+                      <textarea
+                        ref={(element) => {
+                          timelineTextareaRefs.current[phase.key] = element;
+                        }}
+                        value={form.phases[phase.key] || ''}
+                        placeholder={phase.defaultValue}
+                        onChange={(event) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            phases: {
+                              ...prev.phases,
+                              [phase.key]: event.target.value,
+                            },
+                          }))
+                        }
+                        onInput={() => resizeTimelineTextarea(phase.key)}
+                        rows={1}
+                        className="min-h-[32px] w-full resize-none overflow-hidden border-none bg-transparent px-0 py-0.5 text-sm leading-5 text-slate-700 outline-none placeholder:text-slate-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeTimelinePhase(phase.key)}
+                        className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl text-brand-red transition-colors hover:bg-brand-red/10"
+                        aria-label={`Remove ${phase.label}`}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addTimelinePhase}
+                  className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-brand-red transition-colors hover:text-red-700"
+                >
+                  <Plus size={16} />
+                  Add phase
+                </button>
+              </section>
+            </div>
           </div>
 
+          <datalist id="project-charter-employee-options">
+            {employeeOptions.map((employee) => (
+              <option key={employee.id} value={employee.name} />
+            ))}
+          </datalist>
+
           {validationMessage ? (
-            <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {validationMessage}
             </div>
           ) : null}
 
-          <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-end">
+          <div className="mt-6 flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+              className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-2xl bg-brand-red px-5 py-3 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-slate-950 disabled:cursor-not-allowed disabled:opacity-70"
+              className="rounded-xl bg-brand-red px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(239,68,68,0.2)] transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {submitting ? 'Saving...' : mode === 'create' ? 'Create Project' : 'Save Changes'}
+              {submitting ? 'Saving...' : 'Save Charter'}
             </button>
           </div>
         </form>

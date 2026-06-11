@@ -396,11 +396,6 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                           {t.projectId ? <span>Project: {projectNameById.get(t.projectId) || t.projectId}</span> : null}
                           {planningVisionLabel ? <span>Vision: {planningVisionLabel}</span> : null}
                           {planningTag ? <span className="rounded-full border border-red-100 bg-red-50 px-2 py-0.5 text-brand-red">{planningTag}</span> : null}
-                          {showAutoCarryForwardBadge ? (
-                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
-                              Auto Carried Forward
-                            </span>
-                          ) : null}
                         </div>
                         {showAutoCarryForwardBadge ? (
                           <div>
