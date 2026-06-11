@@ -37,12 +37,19 @@ export interface ProjectFormState {
   endDate: string;
   status: Extract<ProjectStatus, 'Planning' | 'Active' | 'Completed'>;
   priority: Extract<ProjectPriority, 'Low' | 'Medium' | 'High' | 'Critical'>;
-  projectManagerId: string;
-  teamLeads: Array<{
-    leadId: string;
-    leadRole: string;
-    memberIds: string[];
+  problemStatement: string;
+  goalStatement: string;
+  keyResults: string;
+  inScope: string;
+  outOfScope: string;
+  benefits: string;
+  teamMembers: Array<{
+    rowId: string;
+    role: string;
+    memberId: string;
+    name: string;
   }>;
+  phases: ProjectPhases;
 }
 
 export const PROJECT_STATUS_OPTIONS: Array<Extract<ProjectStatus, 'Planning' | 'Active' | 'Completed'>> = [
@@ -58,6 +65,29 @@ export const PROJECT_PRIORITY_OPTIONS: Array<Extract<ProjectPriority, 'Low' | 'M
   'Critical',
 ];
 
+export const PROJECT_TEAM_ROLE_OPTIONS = [
+  'Project Champion',
+  'Project Lead',
+  'Project Team Members (SMEs)',
+  'Team Member',
+] as const;
+
+export const PROJECT_REVIEW_PHASES = [
+  { key: 'phase0', label: 'Phase 0', defaultValue: 'Communication plan & GAP/Tool' },
+  { key: 'phase1', label: 'Phase 1', defaultValue: 'Review current SOPs and process maps, Gemba walk' },
+  { key: 'phase2', label: 'Phase 2', defaultValue: 'Evaluate current space utilization and inventory staging stations' },
+  { key: 'phase3', label: 'Phase 3', defaultValue: 'Identify GAPs and update processes and SOPs' },
+  { key: 'phase4', label: 'Phase 4', defaultValue: 'Test, validate and finalize improvement' },
+  { key: 'phase5', label: 'Phase 5', defaultValue: 'Train team members in the new SOPs and procedures' },
+  { key: 'phase6', label: 'Phase 6', defaultValue: 'Implement start date' },
+  { key: 'phase7', label: 'Phase 7', defaultValue: 'Collect data, monitor performance to ensure benefits are realized' },
+] as const;
+
+export const DEFAULT_PROJECT_PHASES: ProjectPhases = PROJECT_REVIEW_PHASES.reduce<ProjectPhases>((acc, phase) => {
+  acc[phase.key] = phase.defaultValue;
+  return acc;
+}, {});
+
 function sanitizeText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -65,6 +95,124 @@ function sanitizeText(value: unknown): string {
 function titleCase(value: string): string {
   if (!value) return '';
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+}
+
+function createTeamRowId(role: string, name?: string, memberId?: string, index = 0): string {
+  const raw = `${role}-${memberId || name || index + 1}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return raw ? `team-row-${raw}` : `team-row-${index + 1}`;
+}
+
+function createTeamMemberRow(
+  role: string,
+  member?: Partial<ProjectTeamMember> | null,
+  index = 0,
+): ProjectFormState['teamMembers'][number] {
+  const name = sanitizeText(member?.name);
+  const memberId = sanitizeText(member?.id);
+  return {
+    rowId: createTeamRowId(role, name, memberId, index),
+    role,
+    memberId,
+    name,
+  };
+}
+
+function createDefaultTeamMembers(): ProjectFormState['teamMembers'] {
+  return [
+    createTeamMemberRow('Project Champion', null, 0),
+    createTeamMemberRow('Project Lead', null, 1),
+    createTeamMemberRow('Project Team Members (SMEs)', null, 2),
+    createTeamMemberRow('Team Member', null, 3),
+  ];
+}
+
+function createManualMember(name: string, role: string, memberId?: string): ProjectTeamMember {
+  const cleanName = sanitizeText(name) || 'Team Member';
+  const cleanRole = sanitizeText(role) || 'Team Member';
+  const cleanId =
+    sanitizeText(memberId) ||
+    `manual-${cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || Date.now()}`;
+
+  return {
+    id: cleanId,
+    name: cleanName,
+    role: cleanRole,
+    avatar: createMemberAvatar(cleanName),
+    email: '',
+    designation: '',
+    department: '',
+  };
+}
+
+function resolveFormTeamMember(
+  row: ProjectFormState['teamMembers'][number],
+  directory: Map<string, ProjectTeamMember>,
+): ProjectTeamMember | null {
+  const name = sanitizeText(row.name);
+  if (!name) return null;
+
+  const byId = sanitizeText(row.memberId) ? directory.get(sanitizeText(row.memberId)) : null;
+  if (byId) {
+    return {
+      ...byId,
+      role: sanitizeText(row.role) || byId.role || 'Team Member',
+    };
+  }
+
+  const byName = Array.from(directory.values()).find(
+    (member) => sanitizeText(member.name).toLowerCase() === name.toLowerCase(),
+  );
+  if (byName) {
+    return {
+      ...byName,
+      role: sanitizeText(row.role) || byName.role || 'Team Member',
+    };
+  }
+
+  return createManualMember(name, row.role, row.memberId);
+}
+
+function buildFormTeamMembers(project?: WorkspaceProject): ProjectFormState['teamMembers'] {
+  const rows: ProjectFormState['teamMembers'] = [];
+  const seen = new Set<string>();
+
+  const pushRow = (role: string, member?: Partial<ProjectTeamMember> | null) => {
+    const name = sanitizeText(member?.name);
+    const memberId = sanitizeText(member?.id);
+    const key = `${role.toLowerCase()}::${(memberId || name).toLowerCase()}`;
+    if ((memberId || name) && seen.has(key)) return;
+    if (memberId || name) seen.add(key);
+    rows.push(createTeamMemberRow(role, member, rows.length));
+  };
+
+  if (project?.champion) {
+    pushRow(project.championRole || 'Project Champion', {
+      id: project.champion,
+      name: project.champion,
+      role: project.championRole || 'Project Champion',
+    });
+  }
+
+  const projectLead =
+    project?.team?.projectManager ||
+    (project?.lead
+      ? {
+          id: project.lead,
+          name: project.lead,
+          role: project.leadRole || 'Project Lead',
+        }
+      : null);
+  if (projectLead) {
+    pushRow(project.leadRole || 'Project Lead', projectLead);
+  }
+
+  (project?.smeList || []).forEach((member) => pushRow(member.role || 'Project Team Members (SMEs)', member));
+  (project?.projectTeam || []).forEach((member) => pushRow(member.role || 'Team Member', member));
+
+  return rows.length > 0 ? rows : createDefaultTeamMembers();
 }
 
 export function normalizeProjectStatus(status: unknown): Extract<ProjectStatus, 'Planning' | 'Active' | 'Completed'> {
@@ -345,22 +493,22 @@ export function normalizeProjectRecord(project: any, directory?: Map<string, Pro
 }
 
 export function createInitialProjectFormState(project?: WorkspaceProject): ProjectFormState {
-  const team = project?.team;
   return {
     id: project?.id,
     name: project?.name || '',
-    description: project?.description || project?.problemStatement || '',
+    description: project?.description || '',
     startDate: project?.startDate || '',
     endDate: project?.endDate || '',
     status: normalizeProjectStatus(project?.status),
     priority: normalizeProjectPriority(project?.priority),
-    projectManagerId: team?.projectManager?.id || '',
-    teamLeads:
-      team?.teamLeads.map((group) => ({
-        leadId: group.lead.id,
-        leadRole: group.lead.role || 'Team Lead',
-        memberIds: group.members.map((member) => member.id),
-      })) || [],
+    problemStatement: project?.problemStatement || project?.description || '',
+    goalStatement: project?.goalStatement || '',
+    keyResults: project?.businessCase || '',
+    inScope: project?.inScope || '',
+    outOfScope: project?.outOfScope || '',
+    benefits: project?.benefits || '',
+    teamMembers: buildFormTeamMembers(project),
+    phases: project?.phases || {},
   };
 }
 
@@ -368,40 +516,30 @@ export function buildProjectTeamFromForm(
   form: ProjectFormState,
   directory: Map<string, ProjectTeamMember>,
 ): ProjectTeamHierarchy {
-  const projectManager = form.projectManagerId ? directory.get(form.projectManagerId) || null : null;
+  const populatedRows = form.teamMembers
+    .map((row) => ({
+      row,
+      member: resolveFormTeamMember(row, directory),
+    }))
+    .filter((entry) => entry.member) as Array<{
+    row: ProjectFormState['teamMembers'][number];
+    member: ProjectTeamMember;
+  }>;
 
-  const teamLeads = form.teamLeads
-    .map((leadConfig, index) => {
-      const leadMember = directory.get(leadConfig.leadId);
-      if (!leadMember) return null;
-      return {
-        id: `team-lead-${index + 1}-${leadMember.id}`,
-        lead: {
-          ...leadMember,
-          role: sanitizeText(leadConfig.leadRole) || leadMember.role || 'Team Lead',
-        },
-        members: dedupeMembers(
-          leadConfig.memberIds
-            .map((memberId) => directory.get(memberId))
-            .filter(Boolean) as ProjectTeamMember[],
-        ),
-      };
-    })
-    .filter(Boolean) as ProjectTeamLeadGroup[];
+  const leadEntry =
+    populatedRows.find((entry) => sanitizeText(entry.row.role).toLowerCase() === 'project lead') || null;
 
-  const assignedMemberIds = new Set<string>();
-  if (projectManager?.id) assignedMemberIds.add(projectManager.id);
-  teamLeads.forEach((group) => {
-    assignedMemberIds.add(group.lead.id);
-    group.members.forEach((member) => assignedMemberIds.add(member.id));
-  });
-
-  const unassignedMembers = Array.from(directory.values()).filter((member) => !assignedMemberIds.has(member.id));
+  const projectManager = leadEntry?.member || null;
+  const unassignedMembers = dedupeMembers(
+    populatedRows
+      .filter((entry) => entry.row.rowId !== leadEntry?.row.rowId)
+      .map((entry) => entry.member),
+  );
 
   return {
     projectManager,
-    teamLeads,
-    unassignedMembers: [],
+    teamLeads: [],
+    unassignedMembers,
   };
 }
 
@@ -441,40 +579,69 @@ export function buildProjectPayload(
 ): Partial<WorkspaceProject> {
   const team = buildProjectTeamFromForm(form, directory);
   const allMembers = flattenProjectMembers(team).filter((member) => member.id !== team.projectManager?.id);
-  const leadMembers = team.teamLeads.map((group) => group.lead);
+  const populatedRows = form.teamMembers
+    .map((row) => ({
+      row,
+      member: resolveFormTeamMember(row, directory),
+    }))
+    .filter((entry) => entry.member) as Array<{
+    row: ProjectFormState['teamMembers'][number];
+    member: ProjectTeamMember;
+  }>;
+  const championEntry =
+    populatedRows.find((entry) => sanitizeText(entry.row.role).toLowerCase() === 'project champion') || null;
+  const leadMembers = dedupeMembers(
+    populatedRows
+      .filter((entry) => sanitizeText(entry.row.role).toLowerCase().includes('sme'))
+      .map((entry) => entry.member),
+  );
+  const summaryText = [form.problemStatement, form.goalStatement, form.keyResults]
+    .map((value) => sanitizeText(value))
+    .filter(Boolean)
+    .join('\n\n');
+  const cleanedPhases = Object.fromEntries(
+    Object.entries(form.phases || {}).filter(([, value]) => sanitizeText(value)),
+  );
+  const derivedName =
+    sanitizeText(form.name) ||
+    sanitizeText(form.goalStatement) ||
+    sanitizeText(form.problemStatement) ||
+    sanitizeText(form.keyResults) ||
+    existingProject?.name ||
+    'Untitled Project Charter';
   const activityEntry = createActivityEntry(
     existingProject ? 'Project charter updated' : 'Project charter created',
     existingProject
-      ? `${form.name} details and team assignments were refreshed.`
-      : `${form.name} was created and ready for delivery planning.`,
+      ? `${derivedName} details and team assignments were refreshed.`
+      : `${derivedName} was created and ready for delivery planning.`,
     actorName,
     existingProject ? 'project_updated' : 'project_created',
   );
 
   return {
     id: existingProject?.id || form.id || '',
-    name: form.name.trim(),
+    name: derivedName,
     status: form.status,
-    description: form.description.trim(),
+    description: summaryText || sanitizeText(form.description),
     startDate: form.startDate,
     endDate: form.endDate,
     priority: form.priority,
     dateCreated: existingProject?.dateCreated || new Date().toISOString().split('T')[0],
-    businessCase: form.description.trim(),
-    problemStatement: form.description.trim(),
-    goalStatement: existingProject?.goalStatement || '',
-    inScope: existingProject?.inScope || '',
-    outOfScope: existingProject?.outOfScope || '',
-    benefits: existingProject?.benefits || '',
-    champion: team.projectManager?.name || '',
-    championRole: 'Project Manager',
-    lead: team.projectManager?.name || '',
-    leadRole: team.projectManager?.role || 'Project Manager',
+    businessCase: sanitizeText(form.keyResults) || summaryText || sanitizeText(form.problemStatement),
+    problemStatement: sanitizeText(form.problemStatement),
+    goalStatement: sanitizeText(form.goalStatement),
+    inScope: sanitizeText(form.inScope),
+    outOfScope: sanitizeText(form.outOfScope),
+    benefits: sanitizeText(form.benefits),
+    champion: championEntry?.member.name || existingProject?.champion || '',
+    championRole: championEntry?.member.role || existingProject?.championRole || 'Project Champion',
+    lead: team.projectManager?.name || existingProject?.lead || '',
+    leadRole: team.projectManager?.role || existingProject?.leadRole || 'Project Lead',
     smeList: leadMembers,
     projectTeam: allMembers,
     team,
     activity: appendActivity(existingProject?.activity, activityEntry),
-    phases: existingProject?.phases || {},
+    phases: cleanedPhases,
     tasks: existingProject?.tasks || [],
   };
 }

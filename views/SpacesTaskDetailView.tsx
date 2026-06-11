@@ -242,7 +242,6 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
   const createdLabel = formatDateTime(task?.createdAt);
   const updatedLabel = formatDateTime(task?.updatedAt);
   const isHighPriority = priority === 'high';
-  const autoCarriedForward = isAutoCarriedForwardTask(task);
   const taskSourceLabel = getTaskSourceLabel(task);
   const assigneeLabel = task
     ? resolveAssigneeLabel(task.assigneeId, task.assigneeName, employeeNameById)
@@ -422,14 +421,6 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
                 >
                   {priority} priority
                 </span>
-                {autoCarriedForward ? (
-                  <>
-                    <span className="h-1 w-1 rounded-full bg-slate-300" />
-                    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                      Auto Carried Forward
-                    </span>
-                  </>
-                ) : null}
                 {showRecurringBadge ? (
                   <>
                     <span className="h-1 w-1 rounded-full bg-slate-300" />

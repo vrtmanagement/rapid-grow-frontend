@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BarChart3, CheckCircle2, ChevronDown, Clock3, Filter, ListChecks, Plus, Search } from 'lucide-react';
-import { Link, Route, Routes, useLocation, useParams } from 'react-router-dom';
+import { Link, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PlanningState, ProjectTeamMember, WorkspaceProject, WorkspaceTask } from '../types';
 import ProjectCharterFormModal from '../components/project-charter/ProjectCharterFormModal';
 import ProjectDetails, { ProjectTaskDraft } from '../components/project-charter/ProjectDetails';
 import ProjectList from '../components/project-charter/ProjectList';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import PageSectionSubnav from '../components/layout/PageSectionSubnav';
 import { TaskAnalyticsPanel } from './TaskAnalyticsView';
 import {
@@ -333,6 +334,7 @@ function GeneralMetric({ icon, label, value }: { icon: React.ReactNode; label: s
 
 const WorkspacesView: React.FC<Props> = ({ state, updateState, loading = false }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [projectLoading, setProjectLoading] = useState(loading);
   const [employees, setEmployees] = useState<ProjectTeamMember[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -341,6 +343,8 @@ const WorkspacesView: React.FC<Props> = ({ state, updateState, loading = false }
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const [selectedProject, setSelectedProject] = useState<WorkspaceProject | undefined>(undefined);
+  const [deleteTargetProject, setDeleteTargetProject] = useState<WorkspaceProject | null>(null);
+  const [deletingProject, setDeletingProject] = useState(false);
   const [liveTasksByProject, setLiveTasksByProject] = useState<Record<string, WorkspaceProject['tasks']>>({});
   const [generalTasks, setGeneralTasks] = useState<WorkspaceProject['tasks']>([]);
   const [taskHubLoading, setTaskHubLoading] = useState(true);
@@ -625,6 +629,30 @@ const WorkspacesView: React.FC<Props> = ({ state, updateState, loading = false }
     );
   };
 
+  const requestDeleteProject = (projectId: string) => {
+    const targetProject = projects.find((project) => project.id === projectId);
+    if (!targetProject) return;
+    setDeleteTargetProject(targetProject);
+  };
+
+  const confirmDeleteProject = async () => {
+    if (!deleteTargetProject) return;
+
+    setDeletingProject(true);
+    try {
+      await handleDeleteProject(deleteTargetProject.id);
+      if (selectedProject?.id === deleteTargetProject.id) {
+        setSelectedProject(undefined);
+      }
+      if (location.pathname.endsWith(`/${deleteTargetProject.id}`)) {
+        navigate('/workspaces');
+      }
+      setDeleteTargetProject(null);
+    } finally {
+      setDeletingProject(false);
+    }
+  };
+
   const handleSubmitForm = async (form: ReturnType<typeof createInitialProjectFormState>) => {
     const nextId =
       selectedProject?.id ||
@@ -808,6 +836,19 @@ const WorkspacesView: React.FC<Props> = ({ state, updateState, loading = false }
         onClose={() => setIsFormOpen(false)}
         onSubmit={handleSubmitForm}
       />
+      {deleteTargetProject ? (
+        <ConfirmDialog
+          title="Delete Project Charter"
+          description={`Delete ${deleteTargetProject.name} permanently? This action cannot be undone.`}
+          confirmLabel={deletingProject ? 'Deleting...' : 'Delete Project'}
+          disabled={deletingProject}
+          onCancel={() => {
+            if (deletingProject) return;
+            setDeleteTargetProject(null);
+          }}
+          onConfirm={() => void confirmDeleteProject()}
+        />
+      ) : null}
 
       <Routes>
         <Route
@@ -826,7 +867,7 @@ const WorkspacesView: React.FC<Props> = ({ state, updateState, loading = false }
               canCreate={canManageProject}
               canDelete={canDeleteProject}
               onCreate={openCreateModal}
-              onDelete={(projectId) => void handleDeleteProject(projectId).catch((error) => console.error(error))}
+              onDelete={requestDeleteProject}
               onSearchChange={setSearchTerm}
               onStatusFilterChange={setStatusFilter}
               onPriorityFilterChange={setPriorityFilter}
@@ -844,7 +885,9 @@ const WorkspacesView: React.FC<Props> = ({ state, updateState, loading = false }
               canDeleteProject={canDeleteProject}
               canCreateTask={canCreateTask}
               onEditProject={openEditModal}
-              onDeleteProject={handleDeleteProject}
+              onDeleteProject={async (projectId) => {
+                requestDeleteProject(projectId);
+              }}
               onFetchProject={fetchProjectById}
               onCreateTask={handleCreateProjectTask}
             />
