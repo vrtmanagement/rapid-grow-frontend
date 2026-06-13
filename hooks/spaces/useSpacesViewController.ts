@@ -735,6 +735,11 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
         t.taskId === taskId ? ({ ...t, ...optimisticUpdates } as SpacesTask) : t,
       ),
     );
+    setPlannerTasks((prev) =>
+      prev.map((t) =>
+        t.taskId === taskId ? ({ ...t, ...optimisticUpdates } as SpacesTask) : t,
+      ),
+    );
     try {
       const res = await fetch(`${API_BASE}/spaces/tasks/${taskId}`, {
         method: 'PATCH',
@@ -748,6 +753,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       const updated = await res.json();
       const normalizedUpdated = normalizeTaskForUi(updated as SpacesTask);
       setTasks((prev) => prev.map((t) => (t.taskId === taskId ? normalizedUpdated : t)));
+      setPlannerTasks((prev) => prev.map((t) => (t.taskId === taskId ? normalizedUpdated : t)));
 
       // If this task is linked to a project task, sync updates into the project charter as well
       if (existing?.projectId && existing?.projectTaskId) {
@@ -799,6 +805,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     } catch (e: any) {
       setError(e?.message || 'Failed to update task');
       loadSpaces();
+      void loadPlannerTasks({ force: true });
       return false;
     }
   };
@@ -1269,13 +1276,16 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       canUseAssigneeFilter && taskAssigneeFilterId ? taskAssigneeFilterId : me.id;
     if (!assigneeTarget) return [];
 
-    const seenTaskIds = new Set<string>();
-    const mergedTasks: SpacesTask[] = [];
-    for (const task of [...visibleTasks, ...visibleListTasks]) {
-      if (!task?.taskId || seenTaskIds.has(task.taskId)) continue;
-      seenTaskIds.add(task.taskId);
-      mergedTasks.push(task);
+    const mergedTasksById = new Map<string, SpacesTask>();
+    for (const task of visibleTasks) {
+      if (!task?.taskId) continue;
+      mergedTasksById.set(task.taskId, task);
     }
+    for (const task of visibleListTasks) {
+      if (!task?.taskId) continue;
+      mergedTasksById.set(task.taskId, task);
+    }
+    const mergedTasks = Array.from(mergedTasksById.values());
 
     const pool = mergedTasks.filter((task) => {
       if (canUseAssigneeFilter && taskAssigneeFilterId) {

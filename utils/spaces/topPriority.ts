@@ -35,6 +35,9 @@ export function getTopPriorityPillClasses(type: 'priority' | 'status' | 'date', 
 }
 
 export function formatTopPriorityLabel(value: string) {
+  const normalizedValue = String(value || '').trim().toLowerCase();
+  if (normalizedValue === 'review') return 'Submitted';
+  if (normalizedValue === 'todo') return 'Todo';
   return String(value || '').trim().replace(/^./, (char: string) => char.toUpperCase());
 }
 
