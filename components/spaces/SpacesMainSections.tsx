@@ -157,6 +157,7 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
             navigate={navigate}
             canChangeStatus={canChangeStatus}
             patchTask={patchTask}
+            mode={mode}
           />
 
           <div className="order-2 flex flex-col rounded-3xl border border-slate-200 bg-white p-5">

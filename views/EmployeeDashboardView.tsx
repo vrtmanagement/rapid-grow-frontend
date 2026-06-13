@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Activity,
   ArrowDownRight,
   ArrowUpRight,
+  Check,
   CheckCheck,
   ChevronRight,
   Clock3,
@@ -226,6 +227,16 @@ function getTaskPriorityBadgeClass(value?: string) {
   return 'bg-amber-50 text-amber-700';
 }
 
+function getCommandMatrixTodoCardClasses(isCompleted: boolean, index: number) {
+  if (isCompleted) {
+    return 'border border-emerald-200 border-l-[3px] border-l-emerald-500 bg-emerald-50/80';
+  }
+  if (index % 2 === 0) {
+    return 'border border-slate-200 border-l-[3px] border-l-brand-red bg-white hover:bg-[#f7faff]';
+  }
+  return 'border border-slate-300 border-l-[3px] border-l-slate-400 bg-white hover:bg-[#f7faff]';
+}
+
 function roundMetric(value: number) {
   return Math.round(value * 10) / 10;
 }
@@ -428,10 +439,21 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
   const [todoTasksHasMore, setTodoTasksHasMore] = useState(false);
   const [todoTasksTotalActive, setTodoTasksTotalActive] = useState(0);
   const [completedTodayTasks, setCompletedTodayTasks] = useState<CompletedTaskSnapshot[]>([]);
+  const [pendingCompletedTasks, setPendingCompletedTasks] = useState<
+    Record<string, { task: CompletedTaskSnapshot; index: number }>
+  >({});
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [currentDayKey, setCurrentDayKey] = useState(() => formatLocalDateKey(new Date()));
+  const completionTimeoutsRef = useRef<Record<string, number>>({});
   const { hasPermission } = usePermissions();
   const canViewExecutionMatrix = hasPermission('EXECUTION_MATRIX_VIEW');
+
+  useEffect(() => {
+    return () => {
+      Object.values(completionTimeoutsRef.current).forEach((timeoutId) => window.clearTimeout(timeoutId));
+      completionTimeoutsRef.current = {};
+    };
+  }, []);
 
   useEffect(() => {
     const scheduleNextDayBoundary = () => {
@@ -575,16 +597,28 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
     };
   }, [currentDayKey, empId]);
 
-  const handleCompleteTask = async (taskId: string) => {
+  const handleCompleteTask = async (taskId: string, index: number) => {
     if (!empId || completingTaskId) return;
 
     const taskToComplete = todoTasks.find((task) => task.taskId === taskId);
     if (!taskToComplete) return;
 
     setCompletingTaskId(taskId);
+    if (completionTimeoutsRef.current[taskId]) {
+      window.clearTimeout(completionTimeoutsRef.current[taskId]);
+      delete completionTimeoutsRef.current[taskId];
+    }
+    const pendingCompletedTask = { ...taskToComplete, status: 'review', completedOn: currentDayKey };
+    setPendingCompletedTasks((prev) => ({
+      ...prev,
+      [taskId]: {
+        task: pendingCompletedTask,
+        index,
+      },
+    }));
     setCompletedTodayTasks((prev) => {
       const next = prev.filter((task) => task.taskId !== taskId);
-      return [...next, { ...taskToComplete, status: 'done', completedOn: currentDayKey }];
+      return [...next, pendingCompletedTask];
     });
     setTodoTasks((prev) => prev.filter((task) => task.taskId !== taskId));
 
@@ -600,6 +634,16 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
         throw new Error(payload.message || 'Failed to update task');
       }
 
+      completionTimeoutsRef.current[taskId] = window.setTimeout(() => {
+        setPendingCompletedTasks((prev) => {
+          if (!prev[taskId]) return prev;
+          const next = { ...prev };
+          delete next[taskId];
+          return next;
+        });
+        delete completionTimeoutsRef.current[taskId];
+      }, 1000);
+
       const insights = await fetchDashboardInsights(empId);
       setAttendanceDays(insights.attendanceDays);
       setPerformance(insights.performance);
@@ -611,6 +655,12 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
       );
     } catch (error) {
       console.error('Failed to complete task from command matrix', error);
+      setPendingCompletedTasks((prev) => {
+        if (!prev[taskId]) return prev;
+        const next = { ...prev };
+        delete next[taskId];
+        return next;
+      });
       setCompletedTodayTasks((prev) => prev.filter((task) => task.taskId !== taskId));
       setTodoTasks((prev) => sortTodoTasks([...prev, taskToComplete]));
     } finally {
@@ -645,10 +695,25 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
     () => new Set(completedTodayTasks.map((task) => task.taskId)),
     [completedTodayTasks],
   );
+  const pendingCompletedIds = useMemo(
+    () => new Set(Object.keys(pendingCompletedTasks)),
+    [pendingCompletedTasks],
+  );
   const todoListTasks = useMemo(() => {
-    const activeTasks = todoTasks.filter((task) => !completedTodayIds.has(task.taskId));
-    return [...activeTasks, ...completedTodayTasks];
-  }, [completedTodayIds, completedTodayTasks, todoTasks]);
+    const activeTasks = todoTasks.filter(
+      (task) => !completedTodayIds.has(task.taskId) && !pendingCompletedIds.has(task.taskId),
+    );
+    const mergedTasks = [...activeTasks];
+    const activeTaskIds = new Set(activeTasks.map((task) => task.taskId));
+
+    Object.values(pendingCompletedTasks).forEach(({ task, index }) => {
+      if (activeTaskIds.has(task.taskId)) return;
+      const insertAt = Math.min(Math.max(index, 0), mergedTasks.length);
+      mergedTasks.splice(insertAt, 0, task);
+    });
+
+    return mergedTasks;
+  }, [completedTodayIds, pendingCompletedIds, pendingCompletedTasks, todoTasks]);
 
   if (!empId && !loading) return null;
 
@@ -724,116 +789,6 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
           )}
 
           <div className="space-y-8">
-            <div className="self-start bg-white rounded-[2rem] border border-slate-200 p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-50 text-brand-red">
-                      <ListTodo size={18} />
-                    </div>
-                    <div>
-                      <h3 className="text-[20px] leading-none text-slate-900">To do List</h3>
-                      <p className="mt-1 text-[13px] text-slate-500">All active TaskHub items sorted by nearest due date</p>
-                    </div>
-                  </div>
-                </div>
-                <Link
-                  to="/spaces"
-                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-[12px] font-semibold text-slate-600 transition hover:border-brand-red/20 hover:text-brand-red"
-                >
-                  Open TaskHub
-                  <ChevronRight size={14} />
-                </Link>
-              </div>
-
-              {widgetsLoading ? (
-                <div className="mt-5 space-y-2.5 animate-pulse">
-                  {Array.from({ length: 4 }).map((_, index) => (
-                    <div
-                      key={`todo-skeleton-${index}`}
-                      className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-3.5 py-3.5"
-                    >
-                      <div className="h-5 w-5 rounded-md bg-slate-200" />
-                      <div className="min-w-0 flex-1">
-                        <div className="h-4 w-40 rounded-full bg-slate-200" />
-                        <div className="mt-2 h-3 w-24 rounded-full bg-slate-100" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : todoListTasks.length === 0 ? (
-                <div className="mt-5 rounded-[24px] border border-slate-100 bg-slate-50 px-5 py-10 text-center">
-                  <CheckCheck className="mx-auto h-10 w-10 text-emerald-500" />
-                  <p className="mt-4 text-base font-semibold text-slate-700">No active tasks</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Your TaskHub to-do list is clear right now.
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-5 flex flex-wrap gap-2.5">
-                  {todoListTasks.map((task) => {
-                    const isCompletedToday = completedTodayIds.has(task.taskId);
-                    return (
-                    <label
-                      key={task.taskId}
-                      className={`inline-flex max-w-full items-start gap-3 rounded-2xl border px-3.5 py-3 transition ${
-                        isCompletedToday
-                          ? 'border-emerald-100 bg-emerald-50/60'
-                          : 'cursor-pointer border-slate-100 bg-slate-50/80 hover:border-brand-red/20 hover:bg-white'
-                      }`}
-                      style={{ width: 'fit-content' }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isCompletedToday}
-                        disabled={isCompletedToday || completingTaskId === task.taskId}
-                        onChange={() => void handleCompleteTask(task.taskId)}
-                        className="mt-1 h-5 w-5 rounded border-slate-300 text-brand-red focus:ring-brand-red"
-                      />
-                      <div className="min-w-0 max-w-[min(100%,34rem)]">
-                        <div className="flex items-start justify-between gap-3">
-                          <p
-                            className={`line-clamp-2 text-[14px] font-semibold ${
-                              isCompletedToday
-                                ? 'text-slate-500 underline decoration-slate-400 decoration-2 underline-offset-4'
-                                : 'text-slate-900'
-                            }`}
-                          >
-                            {task.title}
-                          </p>
-                          <span
-                            className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
-                              isCompletedToday
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : getTaskPriorityBadgeClass(task.priority)
-                            }`}
-                          >
-                            {isCompletedToday ? 'Done' : formatTaskPriority(task.priority)}
-                          </span>
-                        </div>
-                        <div className="mt-1.5 flex items-center gap-2 text-[12px] text-slate-500">
-                          <Clock3 size={13} />
-                          <span>
-                            {isCompletedToday ? 'Completed for today' : formatTaskDueDate(task.dueDate)}
-                          </span>
-                        </div>
-                      </div>
-                    </label>
-                    );
-                  })}
-                  {todoTasksHasMore ? (
-                    <p className="mt-4 w-full text-center text-sm text-slate-500">
-                      You have {todoTasksTotalActive} active tasks. Showing the first {COMMAND_MATRIX_TASK_LIMIT}.{' '}
-                      <Link to="/spaces" className="font-semibold text-brand-red hover:underline">
-                        Open TaskHub
-                      </Link>{' '}
-                      to see everything.
-                    </p>
-                  ) : null}
-                </div>
-              )}
-            </div>
-
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
             <div className="bg-white rounded-[2rem] border border-slate-200 p-5 shadow-sm">
               <div className="flex items-start justify-between gap-3">

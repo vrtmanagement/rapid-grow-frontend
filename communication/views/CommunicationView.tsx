@@ -567,6 +567,7 @@ function CommunicationLayout() {
               </div>
 
               <ChatMessages
+                conversationKey={selectedConversationKey!}
                 currentUserId={currentUser.id}
                 currentUserRole={currentUser.role}
                 messages={messages}

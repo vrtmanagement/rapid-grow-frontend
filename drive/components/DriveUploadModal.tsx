@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { FilePlus2, RotateCcw, UploadCloud, X } from 'lucide-react';
 import { FileDropZone } from '../../components/ui/FileDropZone';
 import { createDriveUploadRequest } from '../services/driveApi';
@@ -37,6 +37,25 @@ function isImageFile(file: File) {
   return file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name);
 }
 
+function filterFilesForStorageMode(files: File[], storageMode: DriveFolderStorageMode) {
+  if (storageMode !== 'images') {
+    return { acceptedFiles: files, rejectedCount: 0 };
+  }
+
+  const acceptedFiles = files.filter(isImageFile);
+  return {
+    acceptedFiles,
+    rejectedCount: Math.max(0, files.length - acceptedFiles.length),
+  };
+}
+
+function buildSeedSignature(files: File[], storageMode: DriveFolderStorageMode) {
+  const fileSignature = files
+    .map((file) => `${file.name}:${file.size}:${file.lastModified}:${file.type}`)
+    .join('|');
+  return `${storageMode}::${fileSignature}`;
+}
+
 export default function DriveUploadModal({
   folderId,
   folderName,
@@ -46,21 +65,34 @@ export default function DriveUploadModal({
   onUploaded,
   onNotice,
 }: DriveUploadModalProps) {
-  const [queue, setQueue] = useState<DriveUploadItem[]>(() => createUploadQueueItems(initialFiles));
+  const initialSeed = filterFilesForStorageMode(initialFiles, storageMode);
+  const [queue, setQueue] = useState<DriveUploadItem[]>(() => createUploadQueueItems(initialSeed.acceptedFiles));
   const controllersRef = useRef(new Map<string, { cancel: () => void }>());
   const autoCloseTimerRef = useRef<number | null>(null);
+  const initialRejectedCountRef = useRef(initialSeed.rejectedCount);
+  const lastSeedSignatureRef = useRef(buildSeedSignature(initialFiles, storageMode));
+  const notify = useEffectEvent((message: string, type: 'success' | 'error') => onNotice(message, type));
+  const notifyUploaded = useEffectEvent((file: DriveFile) => onUploaded(file));
 
   useEffect(() => {
-    if (storageMode === 'images') {
-      const acceptedFiles = initialFiles.filter(isImageFile);
-      if (acceptedFiles.length !== initialFiles.length) {
-        onNotice('Only image files can be uploaded into this folder.', 'error');
-      }
-      setQueue(createUploadQueueItems(acceptedFiles));
+    if (!initialRejectedCountRef.current) return;
+    notify('Only image files can be uploaded into this folder.', 'error');
+    initialRejectedCountRef.current = 0;
+  }, []);
+
+  useEffect(() => {
+    const nextSeedSignature = buildSeedSignature(initialFiles, storageMode);
+    if (nextSeedSignature === lastSeedSignatureRef.current) {
       return;
     }
-    setQueue(createUploadQueueItems(initialFiles));
-  }, [initialFiles, onNotice, storageMode]);
+    lastSeedSignatureRef.current = nextSeedSignature;
+
+    const nextSeed = filterFilesForStorageMode(initialFiles, storageMode);
+    if (nextSeed.rejectedCount > 0) {
+      notify('Only image files can be uploaded into this folder.', 'error');
+    }
+    setQueue(createUploadQueueItems(nextSeed.acceptedFiles));
+  }, [initialFiles, storageMode]);
 
   useEffect(() => {
     const activeUploads = queue.filter((item) => item.status === 'uploading').length;
@@ -105,8 +137,8 @@ export default function DriveUploadModal({
                 return nextQueue;
               },
             );
-            onUploaded(uploadedFile);
-            onNotice(`${uploadedFile.fileName} uploaded successfully.`, 'success');
+            notifyUploaded(uploadedFile);
+            notify(`${uploadedFile.fileName} uploaded successfully.`, 'success');
             if (shouldAutoClose) {
               if (autoCloseTimerRef.current) {
                 window.clearTimeout(autoCloseTimerRef.current);
@@ -125,14 +157,14 @@ export default function DriveUploadModal({
               ),
             );
             if (message !== 'Upload cancelled') {
-              onNotice(message, 'error');
+              notify(message, 'error');
             }
           })
           .finally(() => {
             controllersRef.current.delete(item.id);
           });
       });
-  }, [folderId, onNotice, onUploaded, queue]);
+  }, [folderId, queue]);
 
   useEffect(() => {
     return () => {
@@ -264,7 +296,10 @@ export default function DriveUploadModal({
                         ? 'image/*,.svg,.webp'
                         : 'image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.zip,.rar,.mp4,.mp3,.svg,.webp'
                     }
-                    onChange={(event) => appendFiles(Array.from(event.target.files || []))}
+                    onChange={(event) => {
+                      appendFiles(Array.from(event.target.files || []));
+                      event.target.value = '';
+                    }}
                   />
                 </label>
               </div>

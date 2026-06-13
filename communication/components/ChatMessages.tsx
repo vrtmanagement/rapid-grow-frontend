@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import { ChatMessage, ChatUser } from '../types';
 import { MessageBubble } from './MessageBubble';
 
@@ -104,6 +104,7 @@ function formatDateDivider(iso: string) {
 }
 
 export function ChatMessages({
+  conversationKey,
   currentUserId,
   currentUserRole,
   messages,
@@ -126,6 +127,7 @@ export function ChatMessages({
   onClosePoll,
   onDeletePoll,
 }: {
+  conversationKey: string;
   currentUserId: string;
   currentUserRole: string;
   messages: ChatMessage[];
@@ -150,9 +152,10 @@ export function ChatMessages({
 }) {
   const endRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+  useLayoutEffect(() => {
+    if (messagesLoading) return;
+    endRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+  }, [conversationKey, messages.length, messagesLoading]);
 
   return (
     <div className="communication-messages flex-1 overflow-y-auto bg-[#f6f8fb] px-4 py-6">
