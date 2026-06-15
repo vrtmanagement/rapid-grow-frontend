@@ -6,6 +6,7 @@ import type {
   DriveFile,
   DriveFolder,
   DriveFolderStorageMode,
+  DriveFolderVisibility,
   DriveListResponse,
   DriveSortOption,
 } from '../types';
@@ -99,6 +100,7 @@ export async function apiCreateDriveFolder(payload: {
   name: string;
   description?: string;
   storageMode?: DriveFolderStorageMode;
+  visibility?: DriveFolderVisibility;
   parentFolder?: string | null;
 }) {
   return apiFetchJson<{ folder: DriveFolder }>('/drive/folders', {
@@ -109,7 +111,12 @@ export async function apiCreateDriveFolder(payload: {
 
 export async function apiUpdateDriveFolder(
   folderId: string,
-  payload: { name?: string; description?: string; storageMode?: DriveFolderStorageMode },
+  payload: {
+    name?: string;
+    description?: string;
+    storageMode?: DriveFolderStorageMode;
+    visibility?: DriveFolderVisibility;
+  },
 ) {
   return apiFetchJson<{ folder: DriveFolder }>(`/drive/folders/${encodeURIComponent(folderId)}`, {
     method: 'PUT',

@@ -27,7 +27,15 @@ import DriveFolderGrid from '../components/DriveFolderGrid';
 import DriveNoteViewer from '../components/DriveNoteViewer';
 import DriveUploadModal from '../components/DriveUploadModal';
 import { apiForwardDriveFiles } from '../services/driveApi';
-import type { DriveEntry, DriveEntryType, DriveFile, DriveFolder, DriveFolderStorageMode, DriveSortOption } from '../types';
+import type {
+  DriveEntry,
+  DriveEntryType,
+  DriveFile,
+  DriveFolder,
+  DriveFolderStorageMode,
+  DriveFolderVisibility,
+  DriveSortOption,
+} from '../types';
 
 type ToastState = {
   message: string;
@@ -146,6 +154,7 @@ function DriveWorkspace() {
   const [folderFormName, setFolderFormName] = useState('');
   const [folderFormDescription, setFolderFormDescription] = useState('');
   const [folderStorageMode, setFolderStorageMode] = useState<DriveFolderStorageMode>('general');
+  const [folderVisibility, setFolderVisibility] = useState<DriveFolderVisibility>('public');
   const [renameFolderTarget, setRenameFolderTarget] = useState<DriveFolder | null>(null);
   const [moveFolderTarget, setMoveFolderTarget] = useState<DriveFolder | null>(null);
   const [moveFolderDestination, setMoveFolderDestination] = useState<string>('');
@@ -185,6 +194,15 @@ function DriveWorkspace() {
     [moveFileTarget, treeFolders],
   );
   const currentStorageMode = currentFolder?.storageMode || 'general';
+  const createParentIsPrivate = currentFolder?.visibility === 'private';
+  const renameParentFolder = useMemo(
+    () =>
+      renameFolderTarget?.parentFolder
+        ? treeFolders.find((folder) => folder.id === renameFolderTarget.parentFolder) || null
+        : null,
+    [renameFolderTarget, treeFolders],
+  );
+  const renameParentIsPrivate = renameParentFolder?.visibility === 'private';
   const supportsLinks = currentStorageMode === 'links' || currentStorageMode === 'mixed';
   const supportsText = currentStorageMode === 'text' || currentStorageMode === 'mixed';
   const supportsFiles = currentStorageMode === 'general' || currentStorageMode === 'mixed' || currentStorageMode === 'images';
@@ -349,6 +367,7 @@ function DriveWorkspace() {
     setFolderFormName('');
     setFolderFormDescription('');
     setFolderStorageMode('general');
+    setFolderVisibility(createParentIsPrivate ? 'private' : 'public');
   }
 
   function resetFolderDialog() {
@@ -357,6 +376,7 @@ function DriveWorkspace() {
     setFolderFormName('');
     setFolderFormDescription('');
     setFolderStorageMode('general');
+    setFolderVisibility('public');
   }
 
   function resetEntryDialog() {
@@ -410,6 +430,7 @@ function DriveWorkspace() {
           name: folderFormName.trim(),
           description: folderFormDescription.trim(),
           storageMode: folderStorageMode,
+          visibility: folderVisibility,
           parentFolder: currentFolderId,
         });
         setToast({ message: 'Folder created.', type: 'success' });
@@ -418,6 +439,7 @@ function DriveWorkspace() {
           name: folderFormName.trim(),
           description: folderFormDescription.trim(),
           storageMode: folderStorageMode,
+          visibility: folderVisibility,
         });
         setToast({ message: 'Folder updated.', type: 'success' });
       }
@@ -777,6 +799,7 @@ function DriveWorkspace() {
               setFolderFormName(folder.name);
               setFolderFormDescription(folder.description);
               setFolderStorageMode(folder.storageMode || 'general');
+              setFolderVisibility(folder.visibility || 'public');
             }}
             onMove={(folder) => {
               setMoveFolderTarget(folder);
@@ -946,6 +969,26 @@ function DriveWorkspace() {
                     {folderStorageMode === 'mixed' && 'Supports files, saved links, and text notes in the same workspace.'}
                   </p>
                 </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Visibility</label>
+                  <select
+                    value={folderVisibility}
+                    onChange={(event) => setFolderVisibility(event.target.value as DriveFolderVisibility)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
+                  >
+                    <option value="public" disabled={createParentIsPrivate}>
+                      Public folder
+                    </option>
+                    <option value="private">Private folder</option>
+                  </select>
+                  <p className="text-xs leading-5 text-slate-400">
+                    {createParentIsPrivate
+                      ? 'This folder must stay private because it is being created inside a private folder.'
+                      : folderVisibility === 'public'
+                        ? 'Visible to every employee who has access to Drive.'
+                        : 'Visible only to you, including everything stored inside this folder.'}
+                  </p>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
@@ -1029,6 +1072,26 @@ function DriveWorkspace() {
                 {folderStorageMode === 'links' && 'Adds an in-folder link saver so teams can keep curated URLs together.'}
                 {folderStorageMode === 'text' && 'Adds an in-folder note area for storing plain text, drafts, and written references.'}
                 {folderStorageMode === 'mixed' && 'Supports files, saved links, and text notes in the same workspace.'}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Visibility</label>
+              <select
+                value={folderVisibility}
+                onChange={(event) => setFolderVisibility(event.target.value as DriveFolderVisibility)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
+              >
+                <option value="public" disabled={renameParentIsPrivate}>
+                  Public folder
+                </option>
+                <option value="private">Private folder</option>
+              </select>
+              <p className="text-xs leading-5 text-slate-400">
+                {renameParentIsPrivate
+                  ? 'This folder must stay private because its parent folder is private.'
+                  : folderVisibility === 'public'
+                    ? 'Visible to every employee who has access to Drive.'
+                    : 'Visible only to you, including everything stored inside this folder.'}
               </p>
             </div>
           </div>
