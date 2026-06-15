@@ -12,12 +12,14 @@ export type DriveBreadcrumbItem = {
 };
 
 export type DriveFolderStorageMode = 'general' | 'images' | 'links' | 'text' | 'mixed';
+export type DriveFolderVisibility = 'public' | 'private';
 
 export type DriveFolder = {
   id: string;
   name: string;
   description: string;
   storageMode: DriveFolderStorageMode;
+  visibility: DriveFolderVisibility;
   parentFolder: string | null;
   breadcrumb: DriveBreadcrumbItem[];
   depth: number;

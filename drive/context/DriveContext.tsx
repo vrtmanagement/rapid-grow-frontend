@@ -62,11 +62,17 @@ type DriveContextValue = {
     name: string;
     description?: string;
     storageMode?: DriveFolder['storageMode'];
+    visibility?: DriveFolder['visibility'];
     parentFolder?: string | null;
   }) => Promise<DriveFolder>;
   renameFolder: (
     folderId: string,
-    payload: { name?: string; description?: string; storageMode?: DriveFolder['storageMode'] },
+    payload: {
+      name?: string;
+      description?: string;
+      storageMode?: DriveFolder['storageMode'];
+      visibility?: DriveFolder['visibility'];
+    },
   ) => Promise<DriveFolder>;
   moveFolder: (payload: { folderId: string; parentFolder?: string | null }) => Promise<DriveFolder>;
   deleteFolder: (folderId: string) => Promise<{
@@ -344,6 +350,7 @@ export function DriveProvider({ children }: { children: React.ReactNode }) {
     name: string;
     description?: string;
     storageMode?: DriveFolder['storageMode'];
+    visibility?: DriveFolder['visibility'];
     parentFolder?: string | null;
   }) {
     const response = await apiCreateDriveFolder(payload);
@@ -353,7 +360,12 @@ export function DriveProvider({ children }: { children: React.ReactNode }) {
 
   async function renameFolderAction(
     folderId: string,
-    payload: { name?: string; description?: string; storageMode?: DriveFolder['storageMode'] },
+    payload: {
+      name?: string;
+      description?: string;
+      storageMode?: DriveFolder['storageMode'];
+      visibility?: DriveFolder['visibility'];
+    },
   ) {
     const response = await apiUpdateDriveFolder(folderId, payload);
     await refresh(true);
