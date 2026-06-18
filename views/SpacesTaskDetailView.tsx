@@ -231,8 +231,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
 
   const showRecurringBadge = task ? isRecurringSeriesTask(task) : false;
   const showStopRepeating =
-    Boolean(task) &&
-    showRecurringBadge &&
+    Boolean(task?.recurrence?.enabled) &&
     isRecurringSeriesActive(allTasks, task as SpacesTask) &&
     canEditTaskForView(task as SpacesTask, me, mode);
 
@@ -352,7 +351,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
               className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200/80 px-3 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-50 disabled:opacity-50"
             >
               <Octagon size={14} />
-              {stoppingRecurrence ? 'Stopping…' : 'Stop repeating'}
+              {stoppingRecurrence ? 'Stopping…' : 'Stop occurrences'}
             </button>
           ) : null}
         </div>
@@ -461,7 +460,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
                   className="mt-5 text-sm text-slate-500"
                 >
                   {showStopRepeating
-                    ? 'Active repeat schedule — use Stop repeating to end future copies.'
+                    ? 'Active repeat schedule — use Stop occurrences to end future copies.'
                     : 'Repeat schedule has been stopped for this series.'}
                 </motion.p>
               ) : null}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { ThemedSelect } from './SpacesFormControls';
 import type { SelectOption, TaskRecurrenceDraft } from '../../types/spaces';
+import { DATE_REPEAT_INTERVAL_OPTIONS, DEFAULT_DATE_REPEAT_INTERVAL_VALUE } from '../../utils/spaces/taskRecurrence';
 
 type SpacesTaskRecurrenceFieldsProps = {
   taskRecurrence: TaskRecurrenceDraft;
@@ -157,38 +158,56 @@ const SpacesTaskRecurrenceFields: React.FC<SpacesTaskRecurrenceFieldsProps> = ({
               </div>
             </>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Day</label>
+                  <ThemedSelect
+                    value={taskRecurrence?.dayOfWeek || '0'}
+                    onChange={(value) =>
+                      setTaskRecurrence((prev) => ({
+                        ...(prev || ({} as TaskRecurrenceDraft)),
+                        dayOfWeek: value,
+                      }))
+                    }
+                    options={weekdayOptions}
+                    compact={true}
+                    fullWidthCompact={true}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Time</label>
+                  <ThemedSelect
+                    value={taskRecurrence?.time || '09:00'}
+                    onChange={(value) =>
+                      setTaskRecurrence((prev) => ({
+                        ...(prev || ({} as TaskRecurrenceDraft)),
+                        time: value,
+                      }))
+                    }
+                    options={timeOptions}
+                    compact={true}
+                    fullWidthCompact={true}
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Day</label>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Every</label>
                 <ThemedSelect
-                  value={taskRecurrence?.dayOfWeek || '0'}
+                  value={taskRecurrence?.interval || DEFAULT_DATE_REPEAT_INTERVAL_VALUE}
                   onChange={(value) =>
                     setTaskRecurrence((prev) => ({
                       ...(prev || ({} as TaskRecurrenceDraft)),
-                      dayOfWeek: value,
+                      interval: value,
                     }))
                   }
-                  options={weekdayOptions}
+                  options={DATE_REPEAT_INTERVAL_OPTIONS}
                   compact={true}
                   fullWidthCompact={true}
                 />
               </div>
-              <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Time</label>
-                <ThemedSelect
-                  value={taskRecurrence?.time || '09:00'}
-                  onChange={(value) =>
-                    setTaskRecurrence((prev) => ({
-                      ...(prev || ({} as TaskRecurrenceDraft)),
-                      time: value,
-                    }))
-                  }
-                  options={timeOptions}
-                  compact={true}
-                  fullWidthCompact={true}
-                />
-              </div>
-            </div>
+            </>
           )}
         </div>
       </div>

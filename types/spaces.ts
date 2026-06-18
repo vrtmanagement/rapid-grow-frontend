@@ -8,6 +8,8 @@ export type TaskFilterMode = 'all' | 'me' | 'assigned';
 export type CreatePanelTab = 'add-task' | 'top-priorities' | 'weekly-tasks';
 export type WeeklyRangeFilter = 'this-week' | 'next-week' | 'two-weeks' | 'month';
 export type TaskRecurrenceScheduleMode = 'day' | 'date';
+export type TaskCreateRecurrenceFrequency = 'daily' | 'weekly' | 'monthly';
+export type TaskCreateRecurrenceEndsType = 'never' | 'on_date' | 'after';
 
 export interface SpacesViewProps {
   mode: SpacesMode;
@@ -60,6 +62,15 @@ export interface SpacesTaskRecurrence {
   dayOfMonth?: number | null;
   startMonth?: number | null;
   endMonth?: number | null;
+  week_days?: number[];
+  month_day?: number | null;
+  time?: string;
+  ends?: {
+    type: TaskCreateRecurrenceEndsType;
+    date: string | null;
+    occurrences: number | null;
+  };
+  generatedThrough?: string | null;
 }
 
 export interface SpacesTaskEmailChecklist {
@@ -89,6 +100,8 @@ export interface SpacesTask {
   priority: TaskPriority;
   status: TaskStatus;
   recurrence?: SpacesTaskRecurrence;
+  parentTaskId?: string;
+  isRecurring?: boolean;
   emailChecklist?: SpacesTaskEmailChecklist;
   submittedFromStatus?: string;
   comments: SpacesComment[];
@@ -132,10 +145,25 @@ export interface WeeklyTaskGroup {
 export interface TaskRecurrenceDraft {
   enabled: boolean;
   scheduleMode: TaskRecurrenceScheduleMode;
+  interval: string;
   dayOfWeek: string;
   dayOfMonth: string;
   time: string;
   startMonth: string;
   endMonth: string;
   repeatCount: string;
+}
+
+export interface TaskCreateRecurrenceDraft {
+  enabled: boolean;
+  frequency: TaskCreateRecurrenceFrequency;
+  interval: number;
+  weekDays: number[];
+  monthDay: number;
+  time: string;
+  ends: {
+    type: TaskCreateRecurrenceEndsType;
+    date: string | null;
+    occurrences: number | null;
+  };
 }

@@ -28,16 +28,16 @@ import type {
   SpacesMode,
   SpacesTask,
   SpacesViewProps,
+  TaskCreateRecurrenceDraft,
   TaskFilterMode,
   TaskPriority,
-  TaskRecurrenceDraft,
   TaskStatus,
   WeeklyTaskGroup,
 } from '../../types/spaces';
 import {
-  buildDefaultTaskRecurrenceDraft,
-  buildNextDateModeRun,
-  buildNextDayModeRun,
+  buildCreateTaskRecurrencePayload,
+  buildDefaultTaskCreateRecurrenceDraft,
+  clampRecurrenceOccurrences,
   formatChecklistIntervalLabel,
   NO_VISION_SELECTOR_VALUE,
 } from '../../utils/spaces/taskRecurrence';
@@ -102,7 +102,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
   const [emailChecklistEnabled, setEmailChecklistEnabled] = useState(false);
   const [additionalChecklistTitles, setAdditionalChecklistTitles] = useState<string[]>([]);
   const [reminderIntervalHours, setReminderIntervalHours] = useState('24');
-  const [taskRecurrence, setTaskRecurrence] = useState<TaskRecurrenceDraft>(() => buildDefaultTaskRecurrenceDraft());
+  const [taskRecurrence, setTaskRecurrence] = useState<TaskCreateRecurrenceDraft>(() => buildDefaultTaskCreateRecurrenceDraft());
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [taskDocumentFile, setTaskDocumentFile] = useState<File | null>(null);
   const [aiAssigning, setAiAssigning] = useState(false);
@@ -254,7 +254,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     () => new Set(assignableEmployees.map((employee) => employee.empId)),
     [assignableEmployees],
   );
-  const canBulkManageTasks = mode === 'manager' && canManageWeeklyRows;
+  const canBulkManageTasks = (mode === 'manager' && canManageWeeklyRows) || mode === 'employee';
   const canToggleWeeklyDay = canManageWeeklyRows || mode === 'employee';
   const assignmentHint =
     viewerRole === 'SUPER_ADMIN' || viewerRole === 'ADMIN'
@@ -855,7 +855,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     }
   };
 
-  const deleteTask = async (taskId: string, options?: { bulk?: boolean }) => {
+  const deleteTask = async (taskId: string, options?: { bulk?: boolean; deleteScope?: 'single' | 'future' }) => {
     setError(null);
     const normalizedTaskId = String(taskId || '').trim();
     if (!normalizedTaskId) return false;
@@ -866,13 +866,38 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       const res = await fetch(`${API_BASE}/spaces/tasks/${encodeURIComponent(normalizedTaskId)}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
+        body: JSON.stringify({
+          deleteScope: options?.deleteScope || 'single',
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.message || 'Failed to delete task');
       }
 
-      setTasks((prev) => prev.filter((task) => task.taskId !== normalizedTaskId));
+      const deletedTaskIds = Array.isArray(data?.deletedTaskIds)
+        ? data.deletedTaskIds.map((value: unknown) => String(value || '').trim()).filter(Boolean)
+        : [normalizedTaskId];
+      const sourceTaskId = String(data?.sourceTaskId || '').trim();
+
+      setTasks((prev) => {
+        const next = prev.filter((task) => !deletedTaskIds.includes(task.taskId));
+        if (!sourceTaskId || deletedTaskIds.includes(sourceTaskId)) {
+          return next;
+        }
+        return next.map((task) =>
+          task.taskId === sourceTaskId
+            ? normalizeTaskForUi({
+                ...task,
+                recurrence: {
+                  ...(task.recurrence || {}),
+                  enabled: false,
+                  nextRunAt: null,
+                },
+              })
+            : task,
+        );
+      });
       if (existing?.projectId && existing?.projectTaskId) {
         removeProjectTaskFromState(existing.projectId, existing.projectTaskId);
         try {
@@ -942,7 +967,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       setEmailChecklistEnabled(false);
       setAdditionalChecklistTitles([]);
       setReminderIntervalHours('24');
-      setTaskRecurrence(buildDefaultTaskRecurrenceDraft());
+      setTaskRecurrence(buildDefaultTaskCreateRecurrenceDraft());
       setSelectedProjectId('');
       setTaskDocumentFile(null);
       setCreateTaskPlannerEnabled(Boolean(plannerDefaults?.plannerEnabled));
@@ -982,48 +1007,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
 
   const buildTaskRecurrencePayload = useCallback(() => {
     if (!taskRecurrence.enabled) return undefined;
-    const repeatCount = Number(taskRecurrence.repeatCount || 0);
-    const recurrenceLimit = Number.isFinite(repeatCount) && repeatCount > 0 ? { maxOccurrences: repeatCount } : {};
-
-    if (taskRecurrence.scheduleMode === 'day') {
-      const nextRunAt = buildNextDayModeRun(taskRecurrence.dayOfWeek, taskRecurrence.time).toISOString();
-      if (taskRecurrence.dayOfWeek === EVERYDAY_REPEAT_VALUE) {
-        return {
-          enabled: true,
-          frequency: 'daily',
-          interval: 1,
-          intervalUnit: 'day',
-          nextRunAt,
-          ...recurrenceLimit,
-        };
-      }
-      return {
-        enabled: true,
-        frequency: 'weekly',
-        interval: 1,
-        intervalUnit: 'week',
-        dayOfWeek: Number(taskRecurrence.dayOfWeek || 0),
-        nextRunAt,
-        ...recurrenceLimit,
-      };
-    }
-
-    return {
-      enabled: true,
-      frequency: 'monthly',
-      interval: 1,
-      intervalUnit: 'month',
-      dayOfMonth: Number(taskRecurrence.dayOfMonth || 1),
-      startMonth: Number(taskRecurrence.startMonth || 1),
-      endMonth: Number(taskRecurrence.endMonth || taskRecurrence.startMonth || 1),
-      nextRunAt: buildNextDateModeRun(
-        taskRecurrence.dayOfMonth,
-        taskRecurrence.startMonth,
-        taskRecurrence.endMonth,
-        taskRecurrence.time,
-      ).toISOString(),
-      ...recurrenceLimit,
-    };
+    return buildCreateTaskRecurrencePayload(taskRecurrence);
   }, [taskRecurrence]);
 
   const handleAiAssignPdfUpload = useCallback(async (file: File | null) => {
@@ -1141,6 +1125,14 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
           ? `Created from Daily plan: ${params.plannerGroup.week.text || 'Weekly Goal'}`
           : '');
 
+    const customFields = {
+      ...(params.monthGoalContext
+        ? buildMonthGoalCustomFields(params.monthGoalContext)
+        : params.plannerDay && params.plannerGroup
+          ? buildWeeklyTaskCustomFields(params.plannerDay, params.plannerGroup)
+          : {}),
+    };
+
     const res = await fetch(`${API_BASE}/spaces/tasks`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -1159,11 +1151,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
         emailChecklistEnabled: params.emailChecklistEnabled === true,
         reminderIntervalHours: Number(params.reminderIntervalHours) || 24,
         recurrence: params.recurrence,
-        customFields: params.monthGoalContext
-          ? buildMonthGoalCustomFields(params.monthGoalContext)
-          : params.plannerDay && params.plannerGroup
-            ? buildWeeklyTaskCustomFields(params.plannerDay, params.plannerGroup)
-            : undefined,
+        customFields: Object.keys(customFields).length ? customFields : undefined,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -1915,6 +1903,17 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
         ? [cleanTitle, ...additionalChecklistTitles.map((item) => item.trim()).filter(Boolean)].slice(0, 5)
         : [cleanTitle];
       const recurrence = buildTaskRecurrencePayload();
+      if (taskRecurrence.enabled && taskRecurrence.frequency === 'weekly' && !taskRecurrence.weekDays.length) {
+        throw new Error('Select at least one day for a weekly repeating task.');
+      }
+      if (
+        recurrence?.enabled &&
+        recurrence.ends?.type === 'after' &&
+        recurrence.ends.occurrences != null &&
+        clampRecurrenceOccurrences(recurrence.ends.occurrences) < 1
+      ) {
+        throw new Error('Enter at least one occurrence for the recurrence end rule.');
+      }
       const createdTasks: SpacesTask[] = [];
       let checklistEmailWarning = '';
       let checklistEmailSuccess = '';
@@ -2377,6 +2376,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     updateState,
     selectedWeeklyDay,
     selectedWeeklyTaskGroup,
+    weeklyTaskGroups,
     weeklyPeriodPicker,
     getWeekBreadcrumb: getWeekBreadcrumbForView,
     getWeekStartDate: getWeekStartDateForView,

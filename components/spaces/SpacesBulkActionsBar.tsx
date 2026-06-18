@@ -4,6 +4,7 @@ import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewContr
 type SpacesBulkActionsBarProps = Pick<
   SpacesViewController,
   | 'canBulkManageTasks'
+  | 'mode'
   | 'selectedTaskCount'
   | 'bulkStatus'
   | 'setBulkStatus'
@@ -30,6 +31,7 @@ type SpacesBulkActionsBarProps = Pick<
 
 const SpacesBulkActionsBar: React.FC<SpacesBulkActionsBarProps> = ({
   canBulkManageTasks,
+  mode,
   selectedTaskCount,
   bulkStatus,
   setBulkStatus,
@@ -143,31 +145,33 @@ const SpacesBulkActionsBar: React.FC<SpacesBulkActionsBarProps> = ({
           </button>
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-red-100 pt-3">
-        <span className="text-[12px] font-semibold text-slate-700">Checklist reminder gap</span>
-        <select
-          value={bulkReminderIntervalHours}
-          onChange={(event) => setBulkReminderIntervalHours(event.target.value)}
-          disabled={bulkSaving}
-          className="h-10 rounded-xl border border-red-100 bg-white px-3 text-[13px] text-slate-700"
-        >
-          <option value="1">Every 1 hour</option>
-          <option value="6">Every 6 hours</option>
-          <option value="12">Every 12 hours</option>
-          <option value="24">Every 24 hours</option>
-          <option value="48">Every 2 days</option>
-          <option value="168">Every 7 days</option>
-        </select>
-        <button
-          type="button"
-          onClick={sendSelectedTaskChecklist}
-          disabled={bulkSaving}
-          className="h-10 rounded-xl bg-emerald-600 px-4 text-[12px] font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {bulkSaving ? 'Sending...' : 'Send checklist email'}
-        </button>
-        {checklistNotice ? <span className="text-[12px] text-emerald-700">{checklistNotice}</span> : null}
-      </div>
+      {mode !== 'employee' ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-red-100 pt-3">
+          <span className="text-[12px] font-semibold text-slate-700">Checklist reminder gap</span>
+          <select
+            value={bulkReminderIntervalHours}
+            onChange={(event) => setBulkReminderIntervalHours(event.target.value)}
+            disabled={bulkSaving}
+            className="h-10 rounded-xl border border-red-100 bg-white px-3 text-[13px] text-slate-700"
+          >
+            <option value="1">Every 1 hour</option>
+            <option value="6">Every 6 hours</option>
+            <option value="12">Every 12 hours</option>
+            <option value="24">Every 24 hours</option>
+            <option value="48">Every 2 days</option>
+            <option value="168">Every 7 days</option>
+          </select>
+          <button
+            type="button"
+            onClick={sendSelectedTaskChecklist}
+            disabled={bulkSaving}
+            className="h-10 rounded-xl bg-emerald-600 px-4 text-[12px] font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {bulkSaving ? 'Sending...' : 'Send checklist email'}
+          </button>
+          {checklistNotice ? <span className="text-[12px] text-emerald-700">{checklistNotice}</span> : null}
+        </div>
+      ) : null}
     </div>
   );
 };

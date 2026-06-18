@@ -254,6 +254,202 @@ html.dark .app-popover-link:hover {
   color: var(--text-secondary) !important;
 }
 
+.rt-section-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #334155;
+}
+
+.rt-frequency-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.rt-freq-tab {
+  flex: 1 1 0%;
+  border: 0.5px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f2937;
+  padding: 7px 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.rt-freq-tab.is-active {
+  background: #e53935;
+  border-color: #e53935;
+  color: #ffffff;
+}
+
+.rt-day-pill {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 0.5px solid #cbd5e1;
+  background: #ffffff;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.rt-day-pill.is-selected {
+  background: #e53935;
+  border-color: #e53935;
+  color: #ffffff;
+}
+
+.rt-number-input,
+.rt-inline-input,
+.rt-select {
+  min-height: 42px;
+  border: 0.5px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f2937;
+  font-size: 14px;
+  padding: 0 12px;
+  outline: none;
+}
+
+.rt-number-input {
+  width: 60px;
+  text-align: center;
+}
+
+.rt-inline-input {
+  min-width: 138px;
+}
+
+.rt-inline-number {
+  min-width: 72px;
+  max-width: 84px;
+  text-align: center;
+}
+
+.rt-select {
+  min-width: 96px;
+}
+
+.rt-time-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rt-time-select {
+  min-width: 0;
+  flex: 1 1 0%;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.rt-time-meridiem {
+  flex: 0 0 92px;
+}
+
+.rt-select-full {
+  width: 100%;
+}
+
+.rt-ends-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.rt-radio-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.rt-radio-option {
+  flex-wrap: wrap;
+}
+
+.rt-preview {
+  border: 0.5px solid #d6d3d1;
+  border-radius: 8px;
+  background: var(--background-muted, #f5f5f5);
+  padding: 12px 14px;
+}
+
+.rt-preview-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #475569;
+}
+
+.rt-preview-summary {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1f2937;
+}
+
+.rt-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border: 0.5px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 4px 10px;
+  text-align: center;
+}
+
+.rt-preview-occurrences {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+html.dark .rt-freq-tab,
+html.dark .rt-day-pill,
+html.dark .rt-number-input,
+html.dark .rt-inline-input,
+html.dark .rt-select,
+html.dark .rt-chip {
+  background: var(--bg-input);
+  border-color: var(--border-default);
+  color: var(--text-secondary);
+}
+
+html.dark .rt-section-label,
+html.dark .rt-preview-label {
+  color: var(--text-muted);
+}
+
+html.dark .rt-preview {
+  background: var(--bg-elevated);
+  border-color: var(--border-default);
+}
+
+html.dark .rt-preview-summary,
+html.dark .rt-radio-row {
+  color: var(--text-secondary);
+}
+
+html.dark .rt-freq-tab.is-active,
+html.dark .rt-day-pill.is-selected {
+  background: #e53935;
+  border-color: #e53935;
+  color: #ffffff;
+}
+
 html.dark .app-sidebar-tooltip {
   background: var(--bg-surface) !important;
   border-color: var(--border-default) !important;
