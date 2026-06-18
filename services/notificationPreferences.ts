@@ -1,4 +1,5 @@
 import { API_BASE, getAuthHeaders } from '../config/api';
+import { fetchTabEndpoint } from './tabSessionCache';
 import type { AppShellNotification } from '../components/layout/authenticatedShellTypes';
 
 export interface NotificationPreferences {
@@ -121,15 +122,10 @@ export function filterNotificationsByPreferences(
 }
 
 export async function fetchNotificationPreferences(): Promise<NotificationPreferences> {
-  const res = await fetch(`${API_BASE}/notifications/settings/preferences`, {
-    headers: getAuthHeaders(),
-  });
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to load notification preferences');
-  }
-
+  const data = await fetchTabEndpoint<NotificationPreferences>(
+    'app-shell',
+    '/notifications/settings/preferences',
+  );
   const normalized = normalizeNotificationPreferences(data);
   persistNotificationPreferences(normalized);
   return normalized;

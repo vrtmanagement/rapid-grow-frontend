@@ -3,6 +3,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PlanningState, Goal } from '../types';
 import { CheckCircle2, UserPlus2 } from 'lucide-react';
 import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
+import { fetchSpacesList, SPACES_PLANNER_FETCH_LIMIT } from '../services/spacesApi';
+import { fetchTabEndpoint } from '../services/tabSessionCache';
 import { getSocket } from '../realtime/socket';
 import { Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 import VisionFlowNav from '../components/planning/VisionFlowNav';
@@ -207,9 +209,14 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
 
     const loadTasks = async () => {
       try {
-        const res = await fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() });
-        if (!res.ok) return;
-        const data = await res.json().catch(() => ({}));
+        const data = await fetchSpacesList(
+          {
+            filter: 'me',
+            sync: '0',
+            limit: SPACES_PLANNER_FETCH_LIMIT,
+          },
+          { tabKey: 'daily' },
+        );
         const tasks: SpacesTaskSummary[] = Array.isArray(data?.tasks) ? data.tasks : [];
         if (!active) return;
         setAllSpacesTasks(tasks);
@@ -242,13 +249,10 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
 
     const loadEmployees = async () => {
       try {
-        const res = await fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() });
-        if (!res.ok) return;
-        const data = await res.json().catch(() => []);
-        const list = Array.isArray(data) ? data : [];
+        const list = await fetchTabEndpoint<unknown[]>('daily', '/employees');
         if (!active) return;
         setEmployees(
-          list.map((e: any) => ({
+          (Array.isArray(list) ? list : []).map((e: any) => ({
             empId: String(e.empId || e._id || ''),
             empName: String(e.empName || e.name || ''),
             role: String(e.role || ''),

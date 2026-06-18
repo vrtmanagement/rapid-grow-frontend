@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { apiClearChat, apiClosePoll, apiCreatePoll, apiCreateTeam, apiDeletePoll, apiDeleteTeam, apiForwardMessages, apiHistory, apiListConversations, apiListUsers, apiMarkAsRead, apiPinMessage, apiUpdateTeam, apiUploadFile, apiVotePoll } from '../api';
+import { hasTabEndpointCache } from '../../services/tabSessionCache';
 import { API_BASE, getAuthHeaders } from '../../config/api';
+import { fetchTabEndpoint } from '../../services/tabSessionCache';
 import { ChatConversationSummary, ChatMessage, ChatPinnedMessage, ChatUser, ChatNotification } from '../types';
 import { getUnreadDirectMessageSourceCount } from '../unread';
 import { getSocket } from '../../realtime/socket';
@@ -102,9 +105,7 @@ async function loadEmployeeAvatarDirectory(): Promise<EmployeeAvatarDirectory> {
   const byName = new Map<string, string>();
   const apiDirectory = { byId, byEmpId, byName };
   try {
-    const res = await fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() });
-    if (!res.ok) return mergeAvatarDirectories(loadStoredAvatarDirectory(), apiDirectory);
-    const employees = await res.json().catch(() => []);
+    const employees = await fetchTabEndpoint<unknown[]>('communication', '/employees');
     if (!Array.isArray(employees)) return mergeAvatarDirectories(loadStoredAvatarDirectory(), apiDirectory);
     employees.forEach((employee: any) => {
       addAvatarToDirectory(apiDirectory, employee);
@@ -128,6 +129,8 @@ function avatarFromDirectory(directory: EmployeeAvatarDirectory, id?: string, em
 }
 
 export function CommunicationProvider({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const isCommunicationRoute = location.pathname === '/communication' || location.pathname.startsWith('/communication/');
   const [currentUser, setCurrentUser] = useState<CommunicationContextValue['currentUser']>(null);
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [conversations, setConversations] = useState<ChatConversationSummary[]>([]);
@@ -262,12 +265,13 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     setNotifications([]);
   }, [notificationPreferences.communicationMessages, notificationPreferences.toastPreviews]);
 
-  const loadUsers = useCallback(async () => {
-    setUsersLoading(true);
+  const loadUsers = useCallback(async (options?: { force?: boolean }) => {
+    const hasCache = !options?.force && hasTabEndpointCache('communication', '/communication/users');
+    if (!hasCache) setUsersLoading(true);
     setError(null);
     try {
       const [data, avatarDirectory] = await Promise.all([
-        apiListUsers(),
+        apiListUsers(options),
         loadEmployeeAvatarDirectory(),
       ]);
       const storedEmployee = getStoredAuth()?.employee || {};
@@ -294,16 +298,17 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     } catch (e: any) {
       setError(e?.message || 'Failed to load users');
     } finally {
-      setUsersLoading(false);
+      if (!hasCache) setUsersLoading(false);
     }
   }, []);
 
-  const loadConversations = useCallback(async () => {
-    setConversationsLoading(true);
+  const loadConversations = useCallback(async (options?: { force?: boolean }) => {
+    const hasCache = !options?.force && hasTabEndpointCache('communication', '/communication/conversations');
+    if (!hasCache) setConversationsLoading(true);
     setError(null);
     try {
       const [data, avatarDirectory] = await Promise.all([
-        apiListConversations(),
+        apiListConversations(options),
         loadEmployeeAvatarDirectory(),
       ]);
       const mapped: ChatConversationSummary[] = (data.conversations || []).map((conversation: any) => {
@@ -332,7 +337,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     } catch (e: any) {
       setError(e?.message || 'Failed to load conversations');
     } finally {
-      setConversationsLoading(false);
+      if (!hasCache) setConversationsLoading(false);
     }
   }, []);
 
@@ -364,11 +369,12 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     }
   }, []);
 
-  // Global data bootstrap
+  // Load chat directory only when the Communication tab is opened.
   useEffect(() => {
+    if (!isCommunicationRoute) return;
     loadUsers();
     loadConversations();
-  }, [loadUsers, loadConversations]);
+  }, [isCommunicationRoute, loadUsers, loadConversations]);
 
   // Keep server read-state aligned while a conversation stays open on screen.
   useEffect(() => {

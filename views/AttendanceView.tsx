@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BarChart3, Calendar, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { API_BASE, apiGetJson, getAuthHeaders } from '../config/api';
-import { invalidateApiCache, peekApiCache } from '../services/apiCache';
+import { fetchAttendanceBootstrap } from '../services/bootstrapApi';
+import { invalidateApiCache } from '../services/apiCache';
+import { hasTabEndpointCache } from '../services/tabSessionCache';
 import AttendanceHeader from '../components/attendance/AttendanceHeader';
 import LeaveManagementPanel from '../components/attendance/LeaveManagementPanel';
 import AttendanceHistoryPage from '../components/attendance/AttendanceHistoryPage';
@@ -418,47 +420,115 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
     };
   }, []);
 
-  useEffect(() => {
-    if (!canReviewTeamAttendance) return;
-
-    let mounted = true;
-    const loadEmployees = async () => {
-      try {
-        const data = await apiGetJson<unknown[]>('/attendance/members');
-        if (!mounted) return;
-
-        const options = (Array.isArray(data) ? data : [])
-          .filter((employee: any) => employee?.status === 'active')
-          .filter((employee: any) => ['EMPLOYEE', 'TEAM_LEAD'].includes(String(employee?.role || '').toUpperCase()))
-          .map((employee: any) => ({
-            empId: String(employee.empId || '').trim(),
-            empName: String(employee.empName || employee.empId || '').trim(),
-            role: String(employee.role || '').trim(),
-            avatar: String(employee.avatar || '').trim(),
-            designation: String(employee.designation || '').trim(),
-            department: String(employee.department || '').trim(),
-            teamId: String(employee.teamId || '').trim(),
-          }))
-          .filter((employee: AttendanceEmployeeOption) => employee.empId);
-
-        setEmployeeOptions(options);
-        setSelectedEmployeeEmpId((prev) => {
-          if (prev && options.some((employee: AttendanceEmployeeOption) => employee.empId === prev)) {
-            return prev;
-          }
-          return options[0]?.empId || '';
-        });
-        setSelectedEmployeeMonth((prev) => prev || getDefaultMonthValue());
-      } catch (error) {
-        console.error('Failed to load employees for attendance view', error);
+  const applyAttendanceBootstrap = useCallback(
+    async (options?: { silent?: boolean; force?: boolean }) => {
+      const silent = options?.silent === true;
+      const force = options?.force === true;
+      const bootstrapParams = new URLSearchParams();
+      if (range) bootstrapParams.set('range', range);
+      if (range === 'month' && selectedMonth) {
+        bootstrapParams.set('date', `${selectedMonth}-01`);
       }
-    };
+      const bootstrapPath = `/attendance/bootstrap${
+        bootstrapParams.toString() ? `?${bootstrapParams.toString()}` : ''
+      }`;
+      const hasCache = !force && hasTabEndpointCache('attendance', bootstrapPath);
+      if (!silent && !hasCache) {
+        setLoading(true);
+      }
 
-    loadEmployees();
-    return () => {
-      mounted = false;
-    };
-  }, [canReviewTeamAttendance]);
+      try {
+        const bootstrap = await fetchAttendanceBootstrap(
+          {
+            range,
+            date: range === 'month' && selectedMonth ? `${selectedMonth}-01` : undefined,
+          },
+          { force },
+        );
+
+        const data = bootstrap.summary as AttendanceSummaryResponse;
+        setSummary({
+          ...data,
+          start: data.start,
+          end: data.end,
+          lateLoginPolicy: data.lateLoginPolicy || null,
+          lateLoginRecords: Array.isArray(data.lateLoginRecords) ? data.lateLoginRecords : [],
+        });
+        const allSessions = (data.days || []).flatMap((d: any) => d.sessions || []);
+        const open = allSessions.find((s: AttendanceSession) => !s.logoutTime);
+        setActiveSession(open || null);
+
+        setMyLeaves(Array.isArray(bootstrap.leaves?.myLeaves) ? (bootstrap.leaves.myLeaves as LeaveRequest[]) : []);
+        setPendingLeaves(
+          Array.isArray(bootstrap.leaves?.pendingLeaves)
+            ? (bootstrap.leaves.pendingLeaves as LeaveRequest[])
+            : [],
+        );
+        setApproverLeaves(
+          Array.isArray(bootstrap.leaves?.approverLeaves)
+            ? (bootstrap.leaves.approverLeaves as LeaveRequest[])
+            : [],
+        );
+        setLeaveBalanceOverview(
+          (bootstrap.leaveBalanceOverview as LeaveBalanceOverviewResponse | null) || null,
+        );
+        setLeaveInitialLoaded(true);
+
+        if (bootstrap.canReviewTeamAttendance && bootstrap.teamSummary) {
+          const teamData = bootstrap.teamSummary as TeamAttendanceSummary;
+          setTeamAttendanceSummary({
+            total: Number(teamData.total || 0),
+            present: Number(teamData.present || 0),
+            absent: Number(teamData.absent || 0),
+            clockedIn: Number(teamData.clockedIn || 0),
+            onBreak: Number(teamData.onBreak || 0),
+            members: Array.isArray(teamData.members) ? teamData.members : [],
+            activityLog: Array.isArray(teamData.activityLog) ? teamData.activityLog : [],
+            lateLoginRecords: Array.isArray(teamData.lateLoginRecords) ? teamData.lateLoginRecords : [],
+          });
+          setTeamAttendanceSummarySnapshotAt(Date.now());
+        }
+
+        if (bootstrap.canReviewTeamAttendance && Array.isArray(bootstrap.members)) {
+          const options = bootstrap.members
+            .filter((employee: any) => employee?.status === 'active')
+            .filter((employee: any) => ['EMPLOYEE', 'TEAM_LEAD'].includes(String(employee?.role || '').toUpperCase()))
+            .map((employee: any) => ({
+              empId: String(employee.empId || '').trim(),
+              empName: String(employee.empName || employee.empId || '').trim(),
+              role: String(employee.role || '').trim(),
+              avatar: String(employee.avatar || '').trim(),
+              designation: String(employee.designation || '').trim(),
+              department: String(employee.department || '').trim(),
+              teamId: String(employee.teamId || '').trim(),
+            }))
+            .filter((employee: AttendanceEmployeeOption) => employee.empId);
+          setEmployeeOptions(options);
+          setSelectedEmployeeEmpId((prev) => {
+            if (prev && options.some((employee: AttendanceEmployeeOption) => employee.empId === prev)) {
+              return prev;
+            }
+            return options[0]?.empId || '';
+          });
+          setSelectedEmployeeMonth((prev) => prev || getDefaultMonthValue());
+        }
+      } catch (error) {
+        console.error('Failed to load attendance bootstrap', error);
+      } finally {
+        if (!silent) {
+          setLoading(false);
+          setLeaveLoading(false);
+          setLeaveBalanceLoading(false);
+          setTeamAttendanceSummaryLoading(false);
+        }
+      }
+    },
+    [range, selectedMonth],
+  );
+
+  useEffect(() => {
+    void applyAttendanceBootstrap();
+  }, [applyAttendanceBootstrap]);
 
   const loadSummary = async (
     selectedRange: Range,
@@ -473,7 +543,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       params.set('date', `${monthValue}-01`);
     }
     const summaryPath = `/attendance/me?${params.toString()}`;
-    const hasCache = !force && !!peekApiCache(`${API_BASE}${summaryPath}`);
+    const hasCache = !force && hasTabEndpointCache('attendance', summaryPath);
     if (!silent && !hasCache) {
       setLoading(true);
     }
@@ -549,7 +619,7 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
 
   const loadTeamAttendanceSummary = async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true;
-    const hasCache = !!peekApiCache(`${API_BASE}/attendance/team-summary`);
+    const hasCache = hasTabEndpointCache('attendance', '/attendance/team-summary');
     if (!silent && !hasCache) {
       setTeamAttendanceSummaryLoading(true);
     }
@@ -688,18 +758,6 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
   }, [attachEmployeeNames, isBackendApproverRole]);
 
   useEffect(() => {
-    loadSummary(range, selectedMonth);
-  }, [range, selectedMonth]);
-
-  useEffect(() => {
-    loadLeaves();
-  }, [loadLeaves]);
-
-  useEffect(() => {
-    void loadCurrentLeaveBalanceOverview();
-  }, [loadCurrentLeaveBalanceOverview]);
-
-  useEffect(() => {
     if (activeView !== 'late' || !isBackendAdminRole) {
       if (activeView !== 'late') {
         setLateLoginSettingsModalOpen(false);
@@ -717,26 +775,8 @@ const AttendanceView: React.FC<Props> = ({ mode = 'manager' }) => {
       return;
     }
 
-    let mounted = true;
     loadSelectedEmployeeAttendance(selectedEmployeeEmpId, selectedEmployeeMonth);
-    return () => {
-      mounted = false;
-    };
   }, [canReviewTeamAttendance, selectedEmployeeEmpId, selectedEmployeeMonth]);
-
-  useEffect(() => {
-    if (!canReviewTeamAttendance) {
-      setTeamAttendanceSummary(null);
-      setTeamAttendanceSummarySnapshotAt(null);
-      return;
-    }
-
-    let mounted = true;
-    loadTeamAttendanceSummary();
-    return () => {
-      mounted = false;
-    };
-  }, [canReviewTeamAttendance]);
 
   useEffect(() => {
     const socket = getSocket();

@@ -1,4 +1,5 @@
 import { apiGetJson } from '../config/api';
+import { fetchTabEndpoint } from './tabSessionCache';
 import type { SpacesColumn, SpacesTask } from '../types/spaces';
 
 export const SPACES_TASKS_PAGE_SIZE = 15;
@@ -59,11 +60,35 @@ function buildSpacesQueryString(query: SpacesListQuery = {}): string {
   return serialized ? `?${serialized}` : '';
 }
 
+export async function fetchWorkspaceLinkTasks(
+  options?: { force?: boolean; tabKey?: string },
+): Promise<SpacesListResponse> {
+  const path = '/spaces?scope=workspace-link&sync=0';
+  if (options?.tabKey) {
+    return fetchTabEndpoint<SpacesListResponse>(options.tabKey, path, { force: options?.force });
+  }
+  return apiGetJson<SpacesListResponse>(path, {}, options);
+}
+
+export async function fetchGeneralTasks(
+  options?: { force?: boolean; tabKey?: string },
+): Promise<SpacesListResponse> {
+  const path = '/spaces?scope=general-tasks&sync=0';
+  if (options?.tabKey) {
+    return fetchTabEndpoint<SpacesListResponse>(options.tabKey, path, { force: options?.force });
+  }
+  return apiGetJson<SpacesListResponse>(path, {}, options);
+}
+
 export async function fetchSpacesList(
   query: SpacesListQuery = {},
-  options?: { force?: boolean },
+  options?: { force?: boolean; tabKey?: string },
 ): Promise<SpacesListResponse> {
-  return apiGetJson<SpacesListResponse>(`/spaces${buildSpacesQueryString(query)}`, {}, options);
+  const path = `/spaces${buildSpacesQueryString(query)}`;
+  if (options?.tabKey) {
+    return fetchTabEndpoint<SpacesListResponse>(options.tabKey, path, { force: options?.force });
+  }
+  return apiGetJson<SpacesListResponse>(path, {}, options);
 }
 
 export async function fetchSpacesStats(options?: { force?: boolean }): Promise<SpacesStatsResponse> {

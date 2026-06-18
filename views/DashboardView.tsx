@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PlanningState } from '../types';
 import { Target, TrendingUp, Award, Users, CheckCircle2, Zap, User, UserPlus, Shield, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
-import { fetchSpacesList, SPACES_PLANNER_FETCH_LIMIT } from '../services/spacesApi';
+import { API_BASE, apiGetJson, getAuthHeaders, getStoredAuthSession } from '../config/api';
+import { fetchSpacesList, SPACES_PLANNER_FETCH_LIMIT, type SpacesListResponse } from '../services/spacesApi';
+import { fetchTabEndpoint, hasTabEndpointCache, readHydratedTabEndpoint } from '../services/tabSessionCache';
 import { AdminCardGridSkeleton, SkeletonBlock } from '../components/ui/Skeleton';
 import ExecutionMatrix from '../components/dashboard/ExecutionMatrix';
 import PageSectionSubnav from '../components/layout/PageSectionSubnav';
@@ -86,6 +87,20 @@ function buildAssignableTeamMemberIds(
   return ids;
 }
 
+const HOME_TAB = 'home';
+const HOME_PLANNER_PATH = `/spaces?scope=planner&page=1&limit=${SPACES_PLANNER_FETCH_LIMIT}&filter=all&sync=0`;
+
+function mapEmployeeOptions(list: unknown[]): EmployeeOption[] {
+  return (Array.isArray(list) ? list : [])
+    .map((entry: any) => ({
+      empId: String(entry.empId || entry._id || '').trim(),
+      empName: String(entry.empName || entry.name || '').trim(),
+      role: (entry.role || 'EMPLOYEE') as BackendRole,
+      _id: entry._id ? String(entry._id) : undefined,
+    }))
+    .filter((entry: EmployeeOption & { _id?: string }) => entry.empId);
+}
+
 const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
   const backendRole = String(getStoredAuthSession()?.employee?.role || '').toUpperCase();
   const defaultScope: 'individual' | 'team' =
@@ -96,7 +111,9 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
   const [selectedAdmin, setSelectedAdmin] = useState<EmployeeRow | null>(null);
   const [taskHubTasks, setTaskHubTasks] = useState<SpacesTask[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
-  const [tasksLoading, setTasksLoading] = useState(true);
+  const [tasksLoading, setTasksLoading] = useState(
+    () => !hasTabEndpointCache(HOME_TAB, HOME_PLANNER_PATH),
+  );
   const [tasksError, setTasksError] = useState<string | null>(null);
   const { hasPermission } = usePermissions();
   const isSuperAdmin = state.currentUser.role === 'Admin' && state.currentUser.powers?.includes('EDIT_STRATEGY');
@@ -107,15 +124,11 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
     if (!isSuperAdmin) return;
     const load = async () => {
       try {
-        const res = await fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() });
-        if (res.ok) {
-          const data = await res.json();
-          const list: EmployeeRow[] = Array.isArray(data) ? data : [];
-          const adminsOnly = list.filter(
-            (e) => (e.role || '').toUpperCase() === 'SUPER_ADMIN' || (e.role || '').toUpperCase() === 'ADMIN'
-          );
-          setAllAdmins(adminsOnly);
-        }
+        const list = await fetchTabEndpoint<EmployeeRow[]>('home', '/employees');
+        const adminsOnly = (Array.isArray(list) ? list : []).filter(
+          (e) => (e.role || '').toUpperCase() === 'SUPER_ADMIN' || (e.role || '').toUpperCase() === 'ADMIN',
+        );
+        setAllAdmins(adminsOnly);
       } catch (e) {
         console.error('Failed to load employees', e);
       } finally {
@@ -125,43 +138,45 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
     load();
   }, [isSuperAdmin]);
 
-  const loadTaskHubTasks = useCallback(async (options: { silent?: boolean } = {}) => {
+  const loadTaskHubTasks = useCallback(async (options: { silent?: boolean; force?: boolean } = {}) => {
     if (isSuperAdmin) return;
+    const hasCache = !options.force && hasTabEndpointCache(HOME_TAB, HOME_PLANNER_PATH);
+
+    if (hasCache) {
+      const cachedSpaces = readHydratedTabEndpoint<SpacesListResponse>(HOME_TAB, HOME_PLANNER_PATH);
+      const cachedEmployees = readHydratedTabEndpoint<unknown[]>(HOME_TAB, '/employees');
+      if (cachedSpaces?.tasks) {
+        setTaskHubTasks(cachedSpaces.tasks as SpacesTask[]);
+      }
+      if (cachedEmployees) {
+        setEmployees(mapEmployeeOptions(cachedEmployees));
+      }
+      setTasksLoading(false);
+      if (!options.force) return;
+    }
+
     if (!options.silent) {
       setTasksLoading(true);
       setTasksError(null);
     }
     try {
-      const [spacesPayload, employeesRes] = await Promise.all([
-        fetchSpacesList({
-          scope: 'planner',
-          page: 1,
-          limit: SPACES_PLANNER_FETCH_LIMIT,
-          filter: 'all',
-          sync: '1',
-        }),
-        fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() }),
+      const [spacesPayload, employees] = await Promise.all([
+        fetchSpacesList(
+          {
+            scope: 'planner',
+            page: 1,
+            limit: SPACES_PLANNER_FETCH_LIMIT,
+            filter: 'all',
+            sync: '0',
+          },
+          { tabKey: HOME_TAB, force: options.force },
+        ),
+        fetchTabEndpoint<unknown[]>(HOME_TAB, '/employees', { force: options.force }),
       ]);
 
       const tasks = Array.isArray(spacesPayload?.tasks) ? (spacesPayload.tasks as SpacesTask[]) : [];
       setTaskHubTasks(tasks);
-
-      if (employeesRes.ok) {
-        const employeePayload = await employeesRes.json().catch(() => []);
-        const list = Array.isArray(employeePayload) ? employeePayload : [];
-        setEmployees(
-          list
-            .map((entry: any) => ({
-              empId: String(entry.empId || entry._id || '').trim(),
-              empName: String(entry.empName || entry.name || '').trim(),
-              role: (entry.role || 'EMPLOYEE') as BackendRole,
-              _id: entry._id ? String(entry._id) : undefined,
-            }))
-            .filter((entry: EmployeeOption & { _id?: string }) => entry.empId),
-        );
-      } else {
-        setEmployees([]);
-      }
+      setEmployees(mapEmployeeOptions(employees));
     } catch (error: any) {
       setTasksError(error?.message || 'Failed to load TaskHub tasks');
       setTaskHubTasks([]);
@@ -179,7 +194,7 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
   useEffect(() => {
     if (isSuperAdmin) return;
     const socket = getSocket();
-    const refresh = () => void loadTaskHubTasks({ silent: true });
+    const refresh = () => void loadTaskHubTasks({ silent: true, force: true });
     socket.on('spaces:changed', refresh);
     socket.on('taskAssigned', refresh);
     socket.on('task:validation', refresh);

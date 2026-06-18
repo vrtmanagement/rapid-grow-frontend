@@ -10,8 +10,8 @@ import {
   Trophy,
   Users,
 } from 'lucide-react';
-import { API_BASE, getAuthHeaders } from '../../config/api';
 import { getSocket } from '../../realtime/socket';
+import { fetchTabEndpoint, hasTabEndpointCache, readHydratedTabEndpoint } from '../../services/tabSessionCache';
 import { STATIC_EXECUTION_ROWS } from './executionMatrixData';
 import {
   TARGET_SCORE,
@@ -62,6 +62,16 @@ interface PerformanceRow {
 interface EmployeeDepartment {
   empId: string;
   department?: string;
+}
+
+const HOME_TAB = 'home';
+
+function buildWeeklyPerformancePath(weekId: string, department: string) {
+  const params = new URLSearchParams();
+  if (weekId) params.set('weekId', weekId);
+  if (department !== ALL_DEPARTMENTS_VALUE) params.set('department', department);
+  const query = params.toString();
+  return `/performance/weekly${query ? `?${query}` : ''}`;
 }
 
 
@@ -145,11 +155,14 @@ function getStaticExecutionRows(selectedDepartment: string) {
 
 const ExecutionMatrix: React.FC = () => {
   const weekOptions = buildWeekOptions();
+  const defaultWeek = weekOptions[0]?.value || '';
   const [rows, setRows] = useState<PerformanceRow[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
-  const [selectedWeek, setSelectedWeek] = useState(weekOptions[0]?.value || '');
+  const [selectedWeek, setSelectedWeek] = useState(defaultWeek);
   const [selectedDepartment, setSelectedDepartment] = useState(ALL_DEPARTMENTS_VALUE);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(
+    () => !hasTabEndpointCache(HOME_TAB, buildWeeklyPerformancePath(defaultWeek, ALL_DEPARTMENTS_VALUE)),
+  );
   const [error, setError] = useState<string | null>(null);
   const refreshTimeout = useRef<number | null>(null);
   const controlsRef = useRef<HTMLDivElement | null>(null);
@@ -160,79 +173,72 @@ const ExecutionMatrix: React.FC = () => {
   const [departmentMenuOpen, setDepartmentMenuOpen] = useState(false);
   const [listMaxHeight, setListMaxHeight] = useState<number | null>(null);
 
+  const applyPerformanceRows = (incoming: PerformanceRow[]) => {
+    setDepartments((previous) =>
+      buildDepartmentOptions([
+        ...CURATED_DEPARTMENTS,
+        ...previous,
+        ...incoming.map((row) => String(row.department || '')),
+      ]),
+    );
+
+    setRows((previousRows) => {
+      const previousMap = new Map<string, PerformanceRow>(previousRows.map((row) => [row.employeeId, row]));
+      return incoming.map((row) => {
+        const previous = previousMap.get(row.employeeId);
+        const liveScoreDelta = previous
+          ? Math.round((row.weeklyScore - previous.weeklyScore) * 10) / 10
+          : 0;
+        return {
+          ...row,
+          liveScoreDelta,
+        };
+      });
+    });
+  };
+
   useEffect(() => {
     const loadDepartments = async () => {
       try {
-        const response = await fetch(`${API_BASE}/employees`, {
-          headers: getAuthHeaders(),
-        });
-        if (!response.ok) return;
-
-        const payload = await response.json().catch(() => []);
-        const items = Array.isArray(payload) ? payload : [];
+        const items = await fetchTabEndpoint<EmployeeDepartment[]>(HOME_TAB, '/employees');
+        const list = Array.isArray(items) ? items : [];
         setDepartments(
-          buildDepartmentOptions(
-            [
-              ...CURATED_DEPARTMENTS,
-              ...items.map((employee: EmployeeDepartment) => String(employee.department || '')),
-            ],
-          ),
+          buildDepartmentOptions([
+            ...CURATED_DEPARTMENTS,
+            ...list.map((employee) => String(employee.department || '')),
+          ]),
         );
       } catch (fetchError) {
         console.error('Failed to load departments for execution matrix', fetchError);
       }
     };
 
-    loadDepartments();
+    void loadDepartments();
   }, []);
 
   useEffect(() => {
     let ignore = false;
 
-    const loadPerformance = async (silent = false) => {
-      if (!silent) setLoading(true);
+    const loadPerformance = async (silent = false, force = false) => {
+      const path = buildWeeklyPerformancePath(selectedWeek, selectedDepartment);
+      const hasCache = !force && hasTabEndpointCache(HOME_TAB, path);
+
+      if (hasCache) {
+        const cached = readHydratedTabEndpoint<PerformanceRow[]>(HOME_TAB, path);
+        if (cached !== undefined) {
+          applyPerformanceRows(cached);
+          setLoading(false);
+          if (!force) return;
+        }
+      }
+
+      if (!silent && !hasCache) setLoading(true);
       setError(null);
 
       try {
-        const params = new URLSearchParams();
-        if (selectedWeek) params.set('weekId', selectedWeek);
-        if (selectedDepartment !== 'all') params.set('department', selectedDepartment);
-
-        const response = await fetch(`${API_BASE}/performance/weekly?${params.toString()}`, {
-          headers: getAuthHeaders(),
-        });
-
-        if (!response.ok) {
-          const payload = await response.json().catch(() => ({}));
-          throw new Error(payload.message || 'Failed to load execution matrix');
-        }
-
-        const payload = await response.json().catch(() => []);
-        const incoming = Array.isArray(payload) ? (payload as PerformanceRow[]) : [];
-
+        const incoming = await fetchTabEndpoint<PerformanceRow[]>(HOME_TAB, path, { force });
         if (ignore) return;
-
-        setDepartments((previous) =>
-          buildDepartmentOptions([
-            ...CURATED_DEPARTMENTS,
-            ...previous,
-            ...incoming.map((row) => String(row.department || '')),
-          ]),
-        );
-
-        setRows((previousRows) => {
-          const previousMap = new Map<string, PerformanceRow>(previousRows.map((row) => [row.employeeId, row]));
-          return incoming.map((row) => {
-            const previous = previousMap.get(row.employeeId);
-            const liveScoreDelta = previous
-              ? Math.round((row.weeklyScore - previous.weeklyScore) * 10) / 10
-              : 0;
-            return {
-              ...row,
-              liveScoreDelta,
-            };
-          });
-        });
+        applyPerformanceRows(Array.isArray(incoming) ? incoming : []);
       } catch (loadError: any) {
         if (!ignore) {
           setRows(getStaticExecutionRows(selectedDepartment));
@@ -252,7 +258,11 @@ const ExecutionMatrix: React.FC = () => {
       }
     };
 
-    loadPerformance();
+    const cached = readHydratedTabEndpoint<PerformanceRow[]>(
+      HOME_TAB,
+      buildWeeklyPerformancePath(selectedWeek, selectedDepartment),
+    );
+    void loadPerformance(Boolean(cached !== undefined));
 
     const socket = getSocket();
     const handleRealtimeUpdate = () => {
@@ -260,7 +270,7 @@ const ExecutionMatrix: React.FC = () => {
         window.clearTimeout(refreshTimeout.current);
       }
       refreshTimeout.current = window.setTimeout(() => {
-        loadPerformance(true);
+        void loadPerformance(true, true);
       }, 250);
     };
 

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { API_BASE, getAuthHeaders } from '../config/api';
+import { fetchWorkspaceLinkTasks } from '../services/spacesApi';
 import {
   buildEmployeeNameLookup,
   canEditTaskForView,
@@ -182,15 +183,10 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
     setLoading(true);
     setError(null);
     try {
-      const [spacesRes, employeesRes] = await Promise.all([
-        fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() }),
+      const [spacesPayload, employeesRes] = await Promise.all([
+        fetchWorkspaceLinkTasks(),
         fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() }),
       ]);
-
-      if (!spacesRes.ok) {
-        const data = await spacesRes.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to load task details');
-      }
 
       let nameLookup = new Map<string, string>();
       if (employeesRes.ok) {
@@ -206,8 +202,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
       }
       setEmployeeNameById(nameLookup);
 
-      const data = await spacesRes.json().catch(() => ({}));
-      const tasks = Array.isArray(data?.tasks)
+      const tasks = Array.isArray(spacesPayload?.tasks)
         ? enrichTasksWithEmployeeNames(
             data.tasks.map((item: SpacesTask) => normalizeTaskForUi(item)),
             nameLookup,
