@@ -3,6 +3,7 @@ import { ArrowLeft, BarChart3, CalendarRange, Check, CheckCheck, Clock3, FileTex
 import { Link } from 'react-router-dom';
 import { ProjectTeamMember, WorkspaceProject, WorkspaceTask } from '../../types';
 import { API_BASE, getAuthHeaders } from '../../config/api';
+import { fetchWorkspaceLinkTasks } from '../../services/spacesApi';
 import { getSocket } from '../../realtime/socket';
 import ProgressBar from './ProgressBar';
 import TeamHierarchy from './TeamHierarchy';
@@ -243,12 +244,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
       }
 
       try {
-        const response = await fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() });
-        if (!response.ok) {
-          throw new Error('Failed to load project tasks');
-        }
-
-        const data = await response.json().catch(() => ({}));
+        const data = await fetchWorkspaceLinkTasks();
         const linkedTasks = (Array.isArray(data?.tasks) ? data.tasks : [])
           .filter((task: LinkedSpaceTaskRecord) => String(task?.projectId || '').trim() === project.id)
           .map((task: LinkedSpaceTaskRecord) => normalizeIncomingTask(task))

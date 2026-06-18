@@ -13,12 +13,9 @@ import {
   ListTodo,
   Minus,
 } from 'lucide-react';
-import { API_BASE, apiGetJson } from '../config/api';
-import {
-  COMMAND_MATRIX_TASK_LIMIT,
-  fetchCommandMatrixTasks,
-} from '../services/spacesApi';
-import { peekApiCache } from '../services/apiCache';
+import { API_BASE } from '../config/api';
+import { COMMAND_MATRIX_TASK_LIMIT } from '../services/spacesApi';
+import { fetchTabEndpoint, hasTabEndpointCache, readHydratedTabEndpoint } from '../services/tabSessionCache';
 import { PageHeaderSkeleton, ProjectCardGridSkeleton } from '../components/ui/Skeleton';
 import ExecutionMatrix from '../components/dashboard/ExecutionMatrix';
 import { usePermissions } from '../context/usePermissions';
@@ -332,68 +329,105 @@ function reconcileCompletedTaskSnapshots(
 }
 
 async function fetchAssignedProjects(empId: string): Promise<Project[]> {
-  const data = await apiGetJson<unknown[]>(`/project-charters/assigned/${empId}`);
+  const data = await fetchTabEndpoint<unknown[]>('home', `/project-charters/assigned/${empId}?summary=1`);
   return Array.isArray(data) ? (data as Project[]) : [];
+}
+
+const HOME_TAB = 'home';
+
+function getEmployeeDashboardPaths(empId: string) {
+  return {
+    projects: `/project-charters/assigned/${empId}?summary=1`,
+    attendance: '/attendance/me?range=week',
+    performance: '/performance/weekly',
+    commandMatrix: `/spaces?scope=command-matrix&limit=${COMMAND_MATRIX_TASK_LIMIT}&sync=0`,
+  };
+}
+
+function isEmployeeDashboardCached(empId: string) {
+  const paths = getEmployeeDashboardPaths(empId);
+  return Object.values(paths).every((path) => hasTabEndpointCache(HOME_TAB, path));
+}
+
+function parseDashboardInsights(
+  empId: string,
+  attendance: AttendanceSummaryResponse | null | undefined,
+  performanceRows: unknown[] | undefined,
+  spacesPayload: { tasks?: TaskHubTask[]; hasMore?: boolean; totalActive?: number } | undefined,
+) {
+  let attendanceDays = buildRecentAttendanceDays(attendance ?? null);
+
+  let performance: PerformanceSnapshot | null = null;
+  const rows = Array.isArray(performanceRows) ? performanceRows : [];
+  const matched = rows.find(
+    (row: any) => String(row?.employeeId || '').trim() === String(empId).trim(),
+  );
+  if (matched) {
+    performance = {
+      employeeId: String(matched.employeeId || ''),
+      name: String(matched.name || ''),
+      weeklyScore: Number(matched.weeklyScore || 0),
+      trend: (String(matched.trend || 'stable').toLowerCase() as TrendDirection) || 'stable',
+      trendDelta: Number(matched.trendDelta || 0),
+      tasksAssigned: Number(matched.tasksAssigned || 0),
+      tasksCompleted: Number(matched.tasksCompleted || 0),
+      onTimePercentage: Number(matched.onTimePercentage || 0),
+      consistencyScore: Number(matched.consistencyScore || 0),
+      qualityScore:
+        matched.qualityScore === null || matched.qualityScore === undefined
+          ? null
+          : Number(matched.qualityScore || 0),
+    };
+  }
+
+  const tasks = Array.isArray(spacesPayload?.tasks) ? (spacesPayload.tasks as TaskHubTask[]) : [];
+  const todoTasks = sortTodoTasks(tasks.filter((task) => isActiveTodoTask(task, empId)));
+
+  return {
+    attendanceDays,
+    performance,
+    todoTasks,
+    hasMore: Boolean(spacesPayload?.hasMore),
+    totalActive: Number(spacesPayload?.totalActive || todoTasks.length),
+  };
+}
+
+function readEmployeeDashboardFromCache(empId: string) {
+  if (!isEmployeeDashboardCached(empId)) return null;
+
+  const paths = getEmployeeDashboardPaths(empId);
+  const projects = readHydratedTabEndpoint<Project[]>(HOME_TAB, paths.projects);
+  const attendance = readHydratedTabEndpoint<AttendanceSummaryResponse | null>(HOME_TAB, paths.attendance);
+  const performanceRows = readHydratedTabEndpoint<unknown[]>(HOME_TAB, paths.performance);
+  const spaces = readHydratedTabEndpoint<{ tasks?: TaskHubTask[]; hasMore?: boolean; totalActive?: number }>(
+    HOME_TAB,
+    paths.commandMatrix,
+  );
+
+  return {
+    projects: Array.isArray(projects) ? projects : [],
+    ...parseDashboardInsights(empId, attendance, performanceRows, spaces),
+  };
 }
 
 async function fetchDashboardInsights(empId: string): Promise<{
   attendanceDays: RecentAttendanceDay[];
   performance: PerformanceSnapshot | null;
   todoTasks: TaskHubTask[];
+  hasMore: boolean;
+  totalActive: number;
 }> {
-  const [attendanceResult, performanceResult, spacesResult] = await Promise.allSettled([
-    apiGetJson<AttendanceSummaryResponse | null>('/attendance/me?range=week'),
-    apiGetJson<unknown[]>('/performance/weekly'),
-    fetchCommandMatrixTasks(COMMAND_MATRIX_TASK_LIMIT),
+  const paths = getEmployeeDashboardPaths(empId);
+  const [attendance, performanceRows, spaces] = await Promise.all([
+    fetchTabEndpoint<AttendanceSummaryResponse | null>(HOME_TAB, paths.attendance),
+    fetchTabEndpoint<unknown[]>(HOME_TAB, paths.performance),
+    fetchTabEndpoint<{ tasks?: TaskHubTask[]; hasMore?: boolean; totalActive?: number }>(
+      HOME_TAB,
+      paths.commandMatrix,
+    ),
   ]);
 
-  let attendanceDays = buildRecentAttendanceDays(null);
-  if (attendanceResult.status === 'fulfilled') {
-    attendanceDays = buildRecentAttendanceDays(attendanceResult.value);
-  }
-
-  let performance: PerformanceSnapshot | null = null;
-  if (performanceResult.status === 'fulfilled') {
-    const rows = Array.isArray(performanceResult.value) ? performanceResult.value : [];
-    const matched = rows.find(
-      (row: any) => String(row?.employeeId || '').trim() === String(empId).trim(),
-    );
-    if (matched) {
-      performance = {
-        employeeId: String(matched.employeeId || ''),
-        name: String(matched.name || ''),
-        weeklyScore: Number(matched.weeklyScore || 0),
-        trend: (String(matched.trend || 'stable').toLowerCase() as TrendDirection) || 'stable',
-        trendDelta: Number(matched.trendDelta || 0),
-        tasksAssigned: Number(matched.tasksAssigned || 0),
-        tasksCompleted: Number(matched.tasksCompleted || 0),
-        onTimePercentage: Number(matched.onTimePercentage || 0),
-        consistencyScore: Number(matched.consistencyScore || 0),
-        qualityScore:
-          matched.qualityScore === null || matched.qualityScore === undefined
-            ? null
-            : Number(matched.qualityScore || 0),
-      };
-    }
-  }
-
-  let todoTasks: TaskHubTask[] = [];
-  let hasMore = false;
-  let totalActive = 0;
-  if (spacesResult.status === 'fulfilled') {
-    const tasks = Array.isArray(spacesResult.value?.tasks) ? (spacesResult.value.tasks as TaskHubTask[]) : [];
-    todoTasks = sortTodoTasks(tasks.filter((task) => isActiveTodoTask(task, empId)));
-    hasMore = Boolean(spacesResult.value?.hasMore);
-    totalActive = Number(spacesResult.value?.totalActive || todoTasks.length);
-  }
-
-  return {
-    attendanceDays,
-    performance,
-    todoTasks,
-    hasMore,
-    totalActive,
-  };
+  return parseDashboardInsights(empId, attendance, performanceRows, spaces);
 }
 
 function getTrendMeta(trend: TrendDirection) {
@@ -498,16 +532,38 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
     if (!empId) return;
     let active = true;
 
+    const applyDashboardData = (
+      assignedProjects: Project[],
+      insights: Awaited<ReturnType<typeof fetchDashboardInsights>>,
+    ) => {
+      setProjects(assignedProjects);
+      setAttendanceDays(insights.attendanceDays);
+      setPerformance(insights.performance);
+      setTodoTasks(insights.todoTasks);
+      setTodoTasksHasMore(insights.hasMore);
+      setTodoTasksTotalActive(insights.totalActive);
+      setCompletedTodayTasks(
+        reconcileCompletedTaskSnapshots(
+          readCompletedTaskSnapshots(empId, currentDayKey),
+          insights.todoTasks,
+          currentDayKey,
+        ),
+      );
+    };
+
+    const cachedBundle = readEmployeeDashboardFromCache(empId);
+    if (cachedBundle) {
+      applyDashboardData(cachedBundle.projects, cachedBundle);
+      setLoading(false);
+      setWidgetsLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
     const load = async () => {
-      const hasCachedDashboard =
-        !!peekApiCache(`${API_BASE}/project-charters/assigned/${empId}`) &&
-        !!peekApiCache(`${API_BASE}/attendance/me?range=week`) &&
-        !!peekApiCache(`${API_BASE}/performance/weekly`) &&
-        !!peekApiCache(`${API_BASE}/spaces?scope=command-matrix&limit=${COMMAND_MATRIX_TASK_LIMIT}&sync=0`);
-      if (!hasCachedDashboard) {
-        setLoading(true);
-        setWidgetsLoading(true);
-      }
+      setLoading(true);
+      setWidgetsLoading(true);
       try {
         const [assignedProjects, insights] = await Promise.all([
           fetchAssignedProjects(empId).catch(() => []),
@@ -515,19 +571,7 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
         ]);
 
         if (!active) return;
-        setProjects(assignedProjects);
-        setAttendanceDays(insights.attendanceDays);
-        setPerformance(insights.performance);
-        setTodoTasks(insights.todoTasks);
-        setTodoTasksHasMore(insights.hasMore);
-        setTodoTasksTotalActive(insights.totalActive);
-        setCompletedTodayTasks(
-          reconcileCompletedTaskSnapshots(
-            readCompletedTaskSnapshots(empId, currentDayKey),
-            insights.todoTasks,
-            currentDayKey,
-          ),
-        );
+        applyDashboardData(assignedProjects, insights);
       } catch (error) {
         console.error('Failed to load command matrix insights', error);
       } finally {

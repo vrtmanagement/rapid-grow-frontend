@@ -1,4 +1,7 @@
 import { API_BASE, apiFetchJson, apiGetJson, getStoredAuthSession } from '../config/api';
+import { fetchTabEndpoint } from '../services/tabSessionCache';
+
+const COMMUNICATION_TAB = 'communication';
 
 export type ChatRoleGroup = 'admin' | 'team_lead' | 'employees';
 
@@ -42,12 +45,16 @@ function getDownloadFilename(contentDisposition: string | null, fallback: string
   return rawName ? rawName.trim() : fallback;
 }
 
-export async function apiListUsers() {
-  return apiGetJson<{ users: any[] }>('/communication/users');
+export async function apiListUsers(options?: { force?: boolean }) {
+  return fetchTabEndpoint<{ users: any[] }>(COMMUNICATION_TAB, '/communication/users', options);
 }
 
-export async function apiListConversations() {
-  return apiGetJson<{ conversations: any[] }>('/communication/conversations');
+export async function apiListConversations(options?: { force?: boolean }) {
+  return fetchTabEndpoint<{ conversations: any[] }>(
+    COMMUNICATION_TAB,
+    '/communication/conversations',
+    options,
+  );
 }
 
 export async function apiHistory(conversationKey: string, limit = 50) {

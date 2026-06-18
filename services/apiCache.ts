@@ -1,3 +1,5 @@
+import { clearTabSessionCache, invalidateTabEndpointsForApiPath } from './tabSessionCache';
+
 type CacheEntry<T = unknown> = {
   data: T;
   expiresAt: number;
@@ -6,7 +8,7 @@ type CacheEntry<T = unknown> = {
 const memoryCache = new Map<string, CacheEntry>();
 const inflightRequests = new Map<string, Promise<unknown>>();
 
-export const DEFAULT_API_CACHE_TTL_MS = 5 * 60 * 1000;
+export const DEFAULT_API_CACHE_TTL_MS = 8 * 60 * 60 * 1000;
 
 export function buildApiCacheKey(url: string, init?: RequestInit): string {
   const method = String(init?.method || 'GET').toUpperCase();
@@ -40,6 +42,7 @@ export function invalidateApiCache(match?: string | RegExp): void {
 export function clearApiCache(): void {
   memoryCache.clear();
   inflightRequests.clear();
+  clearTabSessionCache();
 }
 
 export async function cachedFetchJson<T>(
@@ -92,6 +95,7 @@ export function invalidateApiCacheForMutation(url: string, init?: RequestInit): 
   try {
     const parsed = new URL(url);
     const path = parsed.pathname;
+    invalidateTabEndpointsForApiPath(path);
     if (path.includes('/crm')) {
       invalidateApiCache('/crm');
       invalidateApiCache('/audit-logs');
@@ -99,8 +103,10 @@ export function invalidateApiCacheForMutation(url: string, init?: RequestInit): 
     if (path.includes('/content')) invalidateApiCache('/content');
     if (path.includes('/spaces')) invalidateApiCache('/spaces');
     if (path.includes('/attendance')) invalidateApiCache('/attendance');
+    if (path.includes('/app/bootstrap')) invalidateApiCache('/app/bootstrap');
     if (path.includes('/employees')) invalidateApiCache('/employees');
     if (path.includes('/goals')) invalidateApiCache('/goals');
+    if (path.includes('/project-charters')) invalidateApiCache('/project-charters');
     if (path.includes('/expense')) invalidateApiCache('/expense');
     if (path.includes('/communication')) invalidateApiCache('/communication');
     if (path.includes('/drive')) invalidateApiCache('/drive');

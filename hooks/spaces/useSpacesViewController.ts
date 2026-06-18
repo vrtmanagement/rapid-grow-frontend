@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { API_BASE, apiGetJson, getAuthHeaders, getStoredAuthSession } from '../../config/api';
+import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../../config/api';
 import { peekApiCache } from '../../services/apiCache';
+import { fetchTabEndpoint } from '../../services/tabSessionCache';
 import { useDebounce } from '../useDebounce';
 import {
   fetchSpacesList,
@@ -433,7 +434,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     if (!options.silent && !hasCache) setSpacesLoading(true);
     setError(null);
     try {
-      const data = await fetchSpacesList(query, { force });
+      const data = await fetchSpacesList(query, { force, tabKey: 'spaces' });
       setColumns(Array.isArray(data?.columns) ? data.columns : []);
       setTasks(
         Array.isArray(data?.tasks)
@@ -646,7 +647,10 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
             setProjects([]);
             return;
           }
-          const data = await apiGetJson<unknown[]>(`/project-charters/assigned/${me.id}`).catch(() => []);
+          const data = await fetchTabEndpoint<unknown[]>(
+            'spaces',
+            `/project-charters/assigned/${me.id}?summary=1`,
+          ).catch(() => []);
           if (!data) {
             setProjects([]);
             return;
@@ -662,7 +666,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
               .filter((p: ProjectOption) => p.id && p.name),
           );
         } else {
-          const data = await apiGetJson<unknown[]>('/project-charters').catch(() => []);
+          const data = await fetchTabEndpoint<unknown[]>('spaces', '/project-charters?summary=1').catch(() => []);
           if (!data) {
             setProjects([]);
             return;
@@ -693,7 +697,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     const loadEmployees = async () => {
       setEmployeesLoading(true);
       try {
-        const data = await apiGetJson<unknown[]>('/employees').catch(() => []);
+        const data = await fetchTabEndpoint<unknown[]>('spaces', '/employees').catch(() => []);
         if (!data) {
           setEmployees([]);
           return;

@@ -21,6 +21,8 @@ import {
 import PageSectionSubnav from '../components/layout/PageSectionSubnav';
 import VisionHeaderTabs from '../components/planning/VisionHeaderTabs';
 import { removeGoal, saveGoal } from '../services/goalApi';
+import { fetchWorkspaceLinkTasks } from '../services/spacesApi';
+import { fetchTabEndpoint } from '../services/tabSessionCache';
 import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
 import { PageHeaderSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
 import { monthSlotDisplayName, monthSlotSortKey } from '../planning/goalHierarchy';
@@ -947,25 +949,20 @@ const Vision = ({ state, updateState, loading = false }) => {
       setProgressLoading(true);
       setProgressDataReady(false);
       try {
-        const [tasksRes, employeesRes] = await Promise.all([
-          fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() }),
+        const [tasksPayload, employeesRes] = await Promise.all([
+          fetchWorkspaceLinkTasks({ tabKey: 'planning' }),
+          fetchTabEndpoint('planning', '/employees'),
         ]);
         if (!active) return;
-        if (tasksRes.ok) {
-          const payload = await tasksRes.json().catch(() => ({}));
-          setSpacesTasks(Array.isArray(payload?.tasks) ? payload.tasks : []);
-        }
-        if (employeesRes.ok) {
-          const payload = await employeesRes.json().catch(() => []);
-          setEmployees(
-            (Array.isArray(payload) ? payload : []).map((emp) => ({
-              empId: String(emp.empId || emp._id || ''),
-              empName: String(emp.empName || emp.name || ''),
-              role: String(emp.role || ''),
-            })),
-          );
-        }
+        setSpacesTasks(Array.isArray(tasksPayload?.tasks) ? tasksPayload.tasks : []);
+        const employees = Array.isArray(employeesRes) ? employeesRes : [];
+        setEmployees(
+          employees.map((emp) => ({
+            empId: String(emp.empId || emp._id || ''),
+            empName: String(emp.empName || emp.name || ''),
+            role: String(emp.role || ''),
+          })),
+        );
       } catch (error) {
         console.error(error);
       } finally {

@@ -57,6 +57,9 @@ import {
   type NotificationPreferences,
 } from './services/notificationPreferences';
 import { getDisplayAvatarUrl, persistSessionEmployeeAvatar, PROFILE_AVATAR_UPDATED_EVENT } from './utils/avatar';
+import { fetchAppBootstrap } from './services/bootstrapApi';
+import { fetchAllGoalLevels, mapGoalsToPlanningState } from './services/goalApi';
+import { hasTabEndpointCache } from './services/tabSessionCache';
 
 interface GlobalLeaveToast {
   key: string;
@@ -227,13 +230,23 @@ function clearPlanningGoals(prev: PlanningState): PlanningState {
   });
 }
 
+const GOAL_ROUTE_PATTERN =
+  /^(yearly|quarterly|monthly|weekly|daily|workspaces|review|reflection)(\/|$)/;
+const VISION_PERMISSION_KEYS = [
+  'YEARLY_VIEW',
+  'QUARTERLY_VIEW',
+  'MONTHLY_VIEW',
+  'WEEKLY_VIEW',
+  'DAILY_VIEW',
+] as const;
+
 const App: React.FC = () => {
   const { permissions, hasPermission, loading: permissionsLoading, role: permissionRole } = usePermissions();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [publicHashPath, setPublicHashPath] = useState(getPublicHashPath);
   const [appStateHydrated, setAppStateHydrated] = useState(false);
-  const [goalsHydrated, setGoalsHydrated] = useState(false);
+  const [goalsHydrated, setGoalsHydrated] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationMenuOpen, setNotificationMenuOpen] = useState(false);
   const [isVisionsOpen, setIsVisionsOpen] = useState(true);
@@ -434,57 +447,127 @@ const App: React.FC = () => {
   const [state, setState] = useState<PlanningState>(normalizeGoalHierarchy(createDefaultPlanningStateInput()));
 
   useEffect(() => {
-    if (!isAuthenticated || !state.currentUser?.id) return;
-
-    let active = true;
-    const currentUserId = state.currentUser.id;
-    const currentUserName = state.currentUser.name;
-    const currentUserEmail = state.currentUser.email;
-
-    async function syncCurrentEmployeeProfile() {
-      try {
-        const res = await fetch(`${API_BASE}/employees/${encodeURIComponent(currentUserId)}`, {
-          headers: getAuthHeaders(),
-        });
-        if (!res.ok) return;
-        const employee = await res.json();
-        if (!active || !employee) return;
-
-        const nextUser = {
-          id: employee._id || employee.empId || currentUserId,
-          name: employee.empName || currentUserName,
-          role: mapBackendRoleToUiRole(employee.role),
-          email: employee.email || currentUserEmail,
-          avatar: getDisplayAvatarUrl(employee.avatar, employee.empName || currentUserName),
-          status: 'Active',
-          isVerified: true,
-        };
-
-        persistSessionEmployeeAvatar(employee.avatar, employee);
-        setState((prev) => ({
-          ...prev,
-          currentUser: {
-            ...prev.currentUser,
-            ...nextUser,
-            powers: prev.currentUser.powers,
-          },
-          team: prev.team.map((member) =>
-            String(member.id) === String(prev.currentUser.id) || String(member.id) === String(employee.empId)
-              ? { ...member, ...nextUser, powers: member.powers }
-              : member,
-          ),
-        }));
-      } catch (err) {
-        console.warn('Failed to sync current employee profile', err);
-      }
+    if (!isAuthenticated) {
+      setGoalsHydrated(true);
+      return;
     }
 
-    syncCurrentEmployeeProfile();
+    let active = true;
+
+    const applyBootstrap = async () => {
+      try {
+        const bootstrap = await fetchAppBootstrap();
+        if (!active) return;
+
+        const session = getStoredAuthSession();
+        const sessionEmployee = session?.employee || {};
+        const employee = bootstrap.employee as Record<string, unknown> | null;
+        if (employee) {
+          const currentUserId = String(
+            sessionEmployee._id || sessionEmployee.empId || employee._id || employee.empId || '',
+          );
+          const currentUserName = String(sessionEmployee.empName || employee.empName || 'User');
+          const currentUserEmail = String(sessionEmployee.email || employee.email || '');
+          const nextUser = {
+            id: String(employee._id || employee.empId || currentUserId),
+            name: String(employee.empName || currentUserName),
+            role: mapBackendRoleToUiRole(String(employee.role || '')),
+            email: String(employee.email || currentUserEmail),
+            avatar: getDisplayAvatarUrl(String(employee.avatar || ''), String(employee.empName || currentUserName)),
+            status: 'Active',
+            isVerified: true,
+          };
+
+          persistSessionEmployeeAvatar(String(employee.avatar || ''), employee);
+          setState((prev) => ({
+            ...prev,
+            currentUser: {
+              ...prev.currentUser,
+              ...nextUser,
+              powers: prev.currentUser.powers,
+            },
+            team: prev.team.map((member) =>
+              String(member.id) === String(prev.currentUser.id) ||
+              String(member.id) === String(employee.empId || '')
+                ? { ...member, ...nextUser, powers: member.powers }
+                : member,
+            ),
+          }));
+        }
+
+        const unreadCount = bootstrap.taskUnreadCount?.unreadCount;
+        if (typeof unreadCount === 'number') {
+          setTaskCount(unreadCount);
+        }
+
+        setNotifications(
+          (Array.isArray(bootstrap.notifications) ? bootstrap.notifications : []).filter(
+            (notification: AppShellNotification) =>
+              !(shouldAutoClearNotification(notification) && notification.isRead),
+          ),
+        );
+
+        window.dispatchEvent(
+          new CustomEvent('rapidgrow:app-bootstrap', {
+            detail: bootstrap,
+          }),
+        );
+      } catch (err) {
+        console.warn('Failed to load app bootstrap', err);
+        if (active) {
+          setState(clearPlanningGoals);
+        }
+      }
+    };
+
+    void applyBootstrap();
 
     return () => {
       active = false;
     };
-  }, [isAuthenticated, state.currentUser?.id]);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated || permissionsLoading) return;
+
+    const routeSegment = String(publicHashPath || '').split('/')[0] || '';
+    const needsGoals = GOAL_ROUTE_PATTERN.test(`${routeSegment}/`);
+    if (!needsGoals) return;
+
+    const canLoadGoals = VISION_PERMISSION_KEYS.some((key) => hasPermission(key));
+    if (!canLoadGoals) return;
+
+    const allGoalsCached = ['year', 'quarter', 'month', 'week', 'day'].every((level) =>
+      hasTabEndpointCache('planning', `/goals?level=${level}`),
+    );
+
+    let active = true;
+    if (!allGoalsCached) {
+      setGoalsHydrated(false);
+    }
+
+    const loadGoals = async () => {
+      try {
+        const goals = await fetchAllGoalLevels();
+        if (!active) return;
+        setState((prev) => mapGoalsToPlanningState(goals, prev));
+      } catch (err) {
+        console.warn('Failed to load planning goals', err);
+        if (active) {
+          setState(clearPlanningGoals);
+        }
+      } finally {
+        if (active) {
+          setGoalsHydrated(true);
+        }
+      }
+    };
+
+    void loadGoals();
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, permissionsLoading, publicHashPath, hasPermission]);
 
   useEffect(() => {
     const saved = localStorage.getItem('rapidgrow-os-v1');
@@ -658,27 +741,6 @@ const App: React.FC = () => {
     const { empId } = getStoredEmployeeIdentifiers();
     if (!empId) return;
 
-    let active = true;
-
-    async function fetchTaskCount() {
-      try {
-        const res = await fetch(`${API_BASE}/tasks/unread-count/${encodeURIComponent(empId)}`, {
-          headers: getAuthHeaders(),
-        });
-        if (!res.ok) {
-          throw new Error('Failed to load task count');
-        }
-        const data = await res.json();
-        if (active) {
-          setTaskCount(typeof data?.unreadCount === 'number' ? data.unreadCount : 0);
-        }
-      } catch (err) {
-        console.warn('Failed to load task count', err);
-      }
-    }
-
-    fetchTaskCount();
-
     const socket = getSocket();
     const handleTaskCount = (payload: any) => {
       if (!payload || String(payload.userId) !== empId) return;
@@ -688,7 +750,6 @@ const App: React.FC = () => {
     socket.on('taskCount', handleTaskCount);
 
     return () => {
-      active = false;
       socket.off('taskCount', handleTaskCount);
     };
   }, [isAuthenticated]);
@@ -706,68 +767,6 @@ const App: React.FC = () => {
       window.removeEventListener('rapidgrow:task-count-sync', handleImmediateTaskCount as EventListener);
     };
   }, []);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setGoalsHydrated(true);
-      return;
-    }
-    setGoalsHydrated(false);
-    const loadGoals = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/goals`, { headers: getAuthHeaders() });
-        if (!res.ok) {
-          setState(clearPlanningGoals);
-          return;
-        }
-        const goals = await res.json();
-        if (!Array.isArray(goals)) {
-          setState(clearPlanningGoals);
-          return;
-        }
-        setState((prev) =>
-          normalizeGoalHierarchy({
-            ...prev,
-            yearlyGoals: goals
-              .filter((g: any) => g.level === 'year')
-              .map((g: any) => ({
-                id: g.goalId,
-                text: g.text || '',
-                details: g.details || '',
-                completed: !!g.completed,
-                level: 'year' as const,
-              })),
-            quarterlyGoals: goals
-              .filter((g: any) => g.level === 'quarter')
-              .map((g: any) => ({
-                id: g.goalId,
-                text: g.text || '',
-                details: g.details || '',
-                completed: !!g.completed,
-                level: 'quarter' as const,
-                parentId: g.parentId || '',
-                timeline: g.timeline || '',
-              })),
-            monthlyGoals: goals
-              .filter((g: any) => g.level === 'month')
-              .map((g: any) => ({ id: g.goalId, text: g.text || '', completed: !!g.completed, level: 'month' as const, parentId: g.parentId || '', details: g.details || '' })),
-            weeklyGoals: goals
-              .filter((g: any) => g.level === 'week')
-              .map((g: any) => ({ id: g.goalId, text: g.text || '', completed: !!g.completed, level: 'week' as const, parentId: g.parentId || '', details: g.details || '', timeline: g.timeline || '' })),
-            dailyGoals: goals
-              .filter((g: any) => g.level === 'day')
-              .map((g: any) => ({ id: g.goalId, text: g.text || '', completed: !!g.completed, level: 'day' as const, parentId: g.parentId || '' })),
-          }),
-        );
-      } catch (err) {
-        console.warn('Failed to load goals', err);
-        setState(clearPlanningGoals);
-      } finally {
-        setGoalsHydrated(true);
-      }
-    };
-    loadGoals();
-  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!globalLeaveToast) return undefined;
@@ -1068,36 +1067,6 @@ const App: React.FC = () => {
     const backendEmpId = String(session?.employee?.empId || '').trim();
     const socket = getSocket();
 
-    async function loadNotifications() {
-      try {
-        setNotificationsLoading(true);
-        const res = await fetch(`${API_BASE}/notifications`, {
-          headers: getAuthHeaders(),
-        });
-
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.message || 'Failed to fetch notifications');
-        }
-
-        const data = await res.json();
-        if (active) {
-          setNotifications(
-            (Array.isArray(data) ? data : []).filter(
-              (notification: AppShellNotification) =>
-                !(shouldAutoClearNotification(notification) && notification.isRead),
-            ),
-          );
-        }
-      } catch (err) {
-        console.warn('Failed to load notifications', err);
-      } finally {
-        if (active) {
-          setNotificationsLoading(false);
-        }
-      }
-    }
-
     const onNotificationCreated = (payload: any) => {
       if (!payload || String(payload.empId || '').trim() !== backendEmpId) return;
       if (!isNotificationEnabledForType(notificationPreferences, payload?.type)) return;
@@ -1165,13 +1134,11 @@ const App: React.FC = () => {
       });
     };
 
-    loadNotifications();
     socket.on('notification:created', onNotificationCreated);
     socket.on('notification:read', onNotificationRead);
     socket.on('notification:deleted', onNotificationDeleted);
 
     return () => {
-      active = false;
       socket.off('notification:created', onNotificationCreated);
       socket.off('notification:read', onNotificationRead);
       socket.off('notification:deleted', onNotificationDeleted);
@@ -1315,7 +1282,10 @@ const App: React.FC = () => {
     notificationPreferences.toastPreviews,
   ]);
 
-  const planningViewsLoading = !appStateHydrated || !goalsHydrated;
+  const isPlanningRoute = GOAL_ROUTE_PATTERN.test(
+    `${String(publicHashPath || '').split('/')[0] || ''}/`,
+  );
+  const planningViewsLoading = !appStateHydrated || (isPlanningRoute && !goalsHydrated);
   const unreadNotificationCount = visibleNotifications.filter((notification) => !notification.isRead).length;
   const notificationToastTopClass = globalLeaveToast && globalTaskToast
     ? 'top-[14.5rem]'
@@ -1390,7 +1360,7 @@ const App: React.FC = () => {
     return <LoginView onLoginSuccess={handleLoginSuccess} />;
   }
 
-  if (permissionsLoading && state.currentUser?.id) {
+  if (permissionsLoading && state.currentUser?.id && permissions.length === 0) {
     return null;
   }
 

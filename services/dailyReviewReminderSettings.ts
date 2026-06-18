@@ -1,4 +1,5 @@
 import { API_BASE, getAuthHeaders } from '../config/api';
+import { fetchTabEndpoint } from './tabSessionCache';
 
 export interface DailyReviewReminderSettings {
   enabled: boolean;
@@ -81,15 +82,10 @@ export function broadcastDailyReviewReminderSettings(settings: DailyReviewRemind
 }
 
 export async function fetchDailyReviewReminderSettings(): Promise<DailyReviewReminderSettings> {
-  const res = await fetch(`${API_BASE}/notifications/settings/daily-review-reminder`, {
-    headers: getAuthHeaders(),
-  });
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to load daily reminder settings');
-  }
-
+  const data = await fetchTabEndpoint<DailyReviewReminderSettings>(
+    'app-shell',
+    '/notifications/settings/daily-review-reminder',
+  );
   return normalizeDailyReviewReminderSettings(data);
 }
 

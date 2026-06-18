@@ -113,7 +113,7 @@ const AiAgentView: React.FC = () => {
 
   const loadProjects = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/project-charters`, { headers: getAuthHeaders() });
+      const res = await fetch(`${API_BASE}/project-charters?summary=1`, { headers: getAuthHeaders() });
       if (!res.ok) return;
       const rows = await res.json().catch(() => []);
       setProjects(

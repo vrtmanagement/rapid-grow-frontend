@@ -22,7 +22,10 @@ import {
   normalizeProjectRecord,
   normalizeProjectStatus,
 } from '../components/project-charter/projectCharterUtils';
-import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../config/api';
+import { API_BASE, apiGetJson, getAuthHeaders, getStoredAuthSession } from '../config/api';
+import { fetchGeneralTasks, fetchWorkspaceLinkTasks } from '../services/spacesApi';
+import { fetchTabEndpoint, hasTabEndpointCache } from '../services/tabSessionCache';
+import { useTabKey } from '../hooks/useTabKey';
 import { getSocket } from '../realtime/socket';
 
 interface Props {
@@ -182,15 +185,14 @@ function GeneralTasksDetailRoute() {
     let cancelled = false;
 
     const loadGeneralTasks = async () => {
+      const tasksPath = '/spaces?scope=general-tasks&sync=0';
+      const hasCache = hasTabEndpointCache('workspaces', tasksPath);
       try {
-        setLoading(true);
-        setError(null);
-        const response = await fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() });
-        if (!response.ok) {
-          throw new Error('Failed to load general tasks');
+        if (!hasCache) {
+          setLoading(true);
         }
-
-        const data = await response.json().catch(() => ({}));
+        setError(null);
+        const data = await fetchGeneralTasks({ tabKey: 'workspaces' });
         const nextTasks = (Array.isArray(data?.tasks) ? data.tasks : [])
           .filter((task: LinkedSpaceTaskRecord) => !String(task?.projectId || '').trim())
           .map((task: LinkedSpaceTaskRecord) => normalizeGeneralTask(task))
@@ -333,6 +335,7 @@ function GeneralMetric({ icon, label, value }: { icon: React.ReactNode; label: s
 }
 
 const WorkspacesView: React.FC<Props> = ({ state, updateState, loading = false }) => {
+  const tabKey = useTabKey('workspaces');
   const location = useLocation();
   const navigate = useNavigate();
   const [projectLoading, setProjectLoading] = useState(loading);
@@ -442,38 +445,34 @@ const WorkspacesView: React.FC<Props> = ({ state, updateState, loading = false }
     updateState((prev) => upsertProjectInState(prev, saved));
   }, [directoryMap, updateState]);
 
-  const fetchProjectList = useCallback(async () => {
-    setProjectLoading(true);
+  const fetchProjectList = useCallback(async (options?: { force?: boolean }) => {
+    const session = getStoredAuthSession();
+    const employee = session?.employee || {};
+    const employeeEmpId = String(employee.empId || '').trim();
+    const endpointPath =
+      state.currentUser.role === 'Employee' && employeeEmpId
+        ? `/project-charters/assigned/${encodeURIComponent(employeeEmpId)}?summary=1`
+        : '/project-charters?summary=1';
+
+    const hasCache = !options?.force && hasTabEndpointCache(tabKey, endpointPath);
+    if (!hasCache) setProjectLoading(true);
 
     try {
-      const session = getStoredAuthSession();
-      const employee = session?.employee || {};
-      const employeeEmpId = String(employee.empId || '').trim();
-      const endpoint =
-        state.currentUser.role === 'Employee' && employeeEmpId
-          ? `${API_BASE}/project-charters/assigned/${encodeURIComponent(employeeEmpId)}`
-          : `${API_BASE}/project-charters`;
-
-      const response = await fetch(endpoint, { headers: getAuthHeaders() });
-      if (!response.ok) {
-        throw new Error('Failed to load project charters.');
-      }
-
-      const data = await response.json().catch(() => []);
-      const normalized = (Array.isArray(data) ? data : []).map((project) => normalizeProjectRecord(project, directoryMap));
+      const data = await fetchTabEndpoint<unknown[]>(tabKey, endpointPath, { force: options?.force });
+      const normalized = (Array.isArray(data) ? data : []).map((project) =>
+        normalizeProjectRecord(project, directoryMap),
+      );
       updateState((prev) => replaceProjectsInState(prev, normalized));
     } catch (error) {
       console.error('Failed to load project charters', error);
     } finally {
-      setProjectLoading(false);
+      if (!hasCache) setProjectLoading(false);
     }
-  }, [state.currentUser.role, updateState]);
+  }, [state.currentUser.role, tabKey, updateState, directoryMap]);
 
-  const fetchEmployees = useCallback(async () => {
+  const fetchEmployees = useCallback(async (options?: { force?: boolean }) => {
     try {
-      const response = await fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() });
-      if (!response.ok) return;
-      const data = await response.json().catch(() => []);
+      const data = await fetchTabEndpoint<unknown[]>(tabKey, '/employees', { force: options?.force });
       const directory = buildEmployeeDirectory(Array.isArray(data) ? (data as EmployeeDirectoryRecord[]) : []);
       setEmployees(
         Array.from(
@@ -483,17 +482,14 @@ const WorkspacesView: React.FC<Props> = ({ state, updateState, loading = false }
     } catch (error) {
       console.error('Failed to load employees for project charters', error);
     }
-  }, []);
+  }, [tabKey]);
 
-  const fetchLinkedWorkspaceTasks = useCallback(async () => {
+  const fetchLinkedWorkspaceTasks = useCallback(async (options?: { force?: boolean }) => {
+    const tasksPath = '/spaces?scope=workspace-link&sync=0';
+    const hasCache = !options?.force && hasTabEndpointCache(tabKey, tasksPath);
     try {
-      setTaskHubLoading(true);
-      const response = await fetch(`${API_BASE}/spaces`, { headers: getAuthHeaders() });
-      if (!response.ok) {
-        throw new Error('Failed to load linked project tasks');
-      }
-
-      const data = await response.json().catch(() => ({}));
+      if (!hasCache) setTaskHubLoading(true);
+      const data = await fetchWorkspaceLinkTasks({ tabKey, force: options?.force });
       const nextGeneralTasks: WorkspaceProject['tasks'] = [];
       const nextTasksByProject = (Array.isArray(data?.tasks) ? data.tasks : []).reduce(
         (acc: Record<string, WorkspaceProject['tasks']>, task: LinkedSpaceTaskRecord) => {
@@ -533,24 +529,20 @@ const WorkspacesView: React.FC<Props> = ({ state, updateState, loading = false }
       console.error('Failed to load linked workspace tasks', error);
       setTaskHubFailed(true);
     } finally {
-      setTaskHubLoading(false);
+      if (!hasCache) setTaskHubLoading(false);
     }
-  }, []);
+  }, [tabKey]);
 
   const fetchProjectById = useCallback(
     async (projectId: string) => {
-      const response = await fetch(`${API_BASE}/project-charters/${projectId}`, {
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to load project charter.');
-      }
-
-      const saved = normalizeProjectRecord(await response.json(), directoryMap);
+      const path = `/project-charters/${projectId}`;
+      const saved = normalizeProjectRecord(
+        await fetchTabEndpoint<Record<string, unknown>>(tabKey, path),
+        directoryMap,
+      );
       updateState((prev) => upsertProjectInState(prev, saved));
     },
-    [directoryMap, updateState],
+    [directoryMap, tabKey, updateState],
   );
 
   useEffect(() => {
@@ -577,7 +569,7 @@ const WorkspacesView: React.FC<Props> = ({ state, updateState, loading = false }
       if (projectId) {
         refreshProject(projectId);
       }
-      void fetchLinkedWorkspaceTasks();
+      void fetchLinkedWorkspaceTasks({ force: true });
     };
 
     socket.on('spaces:changed', onSpacesChanged);
