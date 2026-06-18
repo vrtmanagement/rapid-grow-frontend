@@ -206,6 +206,7 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
 
       <SpacesBulkActionsBar
         canBulkManageTasks={canBulkManageTasks}
+        mode={mode}
         selectedTaskCount={props.selectedTaskCount}
         bulkStatus={props.bulkStatus}
         setBulkStatus={props.setBulkStatus}
@@ -390,6 +391,12 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         patchTask={patchTask}
         deleteTask={deleteTask}
         setEditingTask={setEditingTask}
+        projectSelectOptions={projectSelectOptions}
+        projectsLoading={projectsLoading}
+        priorityOptions={priorityOptions}
+        statusOptions={statusOptions}
+        weeklyTaskGroups={props.weeklyTaskGroups}
+        getDayDisplay={props.getDayDisplay}
       />
     </>
   );

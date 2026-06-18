@@ -5,9 +5,7 @@ import { FileDropZone } from '../ui/FileDropZone';
 import { CREATE_INPUT_CLASS, ThemedDatePicker, ThemedSelect } from './SpacesFormControls';
 import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
 import SpacesTaskPlannerFields from './SpacesTaskPlannerFields';
-import SpacesTaskRecurrenceFields from './SpacesTaskRecurrenceFields';
-
-const EVERYDAY_REPEAT_VALUE = 'everyday';
+import SpacesTaskCreateRecurrenceFields from './SpacesTaskCreateRecurrenceFields';
 
 type SpacesTaskCreateModalProps = Pick<
   SpacesViewController,
@@ -111,81 +109,6 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
     plannerSummary,
     hideWeeklyPlanner = false,
   } = props;
-
-  const weekdayOptions = React.useMemo(
-    () => [
-      { value: EVERYDAY_REPEAT_VALUE, label: 'Everyday' },
-      { value: '0', label: 'Sunday' },
-      { value: '1', label: 'Monday' },
-      { value: '2', label: 'Tuesday' },
-      { value: '3', label: 'Wednesday' },
-      { value: '4', label: 'Thursday' },
-      { value: '5', label: 'Friday' },
-      { value: '6', label: 'Saturday' },
-    ],
-    [],
-  );
-
-  const monthOptions = React.useMemo(
-    () => [
-      { value: '1', label: 'January' },
-      { value: '2', label: 'February' },
-      { value: '3', label: 'March' },
-      { value: '4', label: 'April' },
-      { value: '5', label: 'May' },
-      { value: '6', label: 'June' },
-      { value: '7', label: 'July' },
-      { value: '8', label: 'August' },
-      { value: '9', label: 'September' },
-      { value: '10', label: 'October' },
-      { value: '11', label: 'November' },
-      { value: '12', label: 'December' },
-    ],
-    [],
-  );
-
-  const dayOfMonthOptions = React.useMemo(
-    () =>
-      Array.from({ length: 31 }, (_, index) => {
-        const day = index + 1;
-        const suffix =
-          day % 10 === 1 && day % 100 !== 11
-            ? 'st'
-            : day % 10 === 2 && day % 100 !== 12
-              ? 'nd'
-              : day % 10 === 3 && day % 100 !== 13
-                ? 'rd'
-                : 'th';
-        return { value: String(day), label: `${day}${suffix}` };
-      }),
-    [],
-  );
-
-  const timeOptions = React.useMemo(
-    () =>
-      Array.from({ length: 48 }, (_, index) => {
-        const hours = Math.floor(index / 2);
-        const minutes = index % 2 === 0 ? 0 : 30;
-        const suffix = hours >= 12 ? 'PM' : 'AM';
-        const twelveHour = hours % 12 || 12;
-        const label = `${twelveHour}:${String(minutes).padStart(2, '0')} ${suffix}`;
-        const value = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-        return { value, label };
-      }),
-    [],
-  );
-
-  const isDateMode = taskRecurrence?.scheduleMode === 'date';
-  const dateFallbackNote = React.useMemo(() => {
-    const selectedDate = Number(taskRecurrence?.dayOfMonth || 1);
-    if (selectedDate >= 31) {
-      return 'Months with 31 days repeat on the 31st. Shorter months automatically fall back to their last day, including February 28th or 29th in leap years.';
-    }
-    if (selectedDate >= 30) {
-      return 'Months with 30 or 31 days repeat on the selected date. February automatically falls back to the 28th or 29th in leap years.';
-    }
-    return 'Dates from the 1st to the 28th repeat on the exact same calendar day each allowed month.';
-  }, [taskRecurrence?.dayOfMonth]);
 
   const normalizedPlannerWeekOptions = React.useMemo(() => {
     const unique = new Map<string, { value: string; label: string }>();
@@ -359,6 +282,7 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
               </div>
 
               <div className="space-y-3">
+                {/* Weekly Planner section intentionally commented out per request.
                 <SpacesTaskPlannerFields
                   hideWeeklyPlanner={hideWeeklyPlanner}
                   addToWeeklyPlanner={addToWeeklyPlanner}
@@ -379,6 +303,7 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                   plannerDayId={plannerDayId}
                   setPlannerDayId={setPlannerDayId}
                 />
+                */}
 
                 <div>
                   <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Document / Attachments</label>
@@ -493,15 +418,9 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                   ) : null}
                 </div> : null}
 
-                <SpacesTaskRecurrenceFields
+                <SpacesTaskCreateRecurrenceFields
                   taskRecurrence={taskRecurrence}
                   setTaskRecurrence={setTaskRecurrence}
-                  isDateMode={isDateMode}
-                  dateFallbackNote={dateFallbackNote}
-                  monthOptions={monthOptions}
-                  dayOfMonthOptions={dayOfMonthOptions}
-                  timeOptions={timeOptions}
-                  weekdayOptions={weekdayOptions}
                 />
               </div>
             </div>
