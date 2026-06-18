@@ -1921,7 +1921,6 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       const createdTasks: SpacesTask[] = [];
       let checklistEmailWarning = '';
       let checklistEmailSuccess = '';
-      const sendEmailOnCreate = emailChecklistEnabled && checklistTitles.length === 1;
 
       for (let index = 0; index < checklistTitles.length; index += 1) {
         const createdTask = await createTaskInternal({
@@ -1937,23 +1936,13 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
           plannerDay,
           plannerGroup,
           monthGoalContext,
-          emailChecklistEnabled: sendEmailOnCreate,
+          emailChecklistEnabled: false,
           recurrence,
         });
         createdTasks.push(createdTask);
-
-        if (sendEmailOnCreate) {
-          const checklistEmail = (createdTask as SpacesTask & { checklistEmail?: { emailsSent?: number; message?: string } })
-            .checklistEmail;
-          if (checklistEmail?.emailsSent) {
-            checklistEmailSuccess = 'Checklist email sent to the assignee. They can mark the task done from the email link.';
-          } else if (checklistEmail?.message) {
-            checklistEmailWarning = checklistEmail.message;
-          }
-        }
       }
 
-      if (emailChecklistEnabled && !sendEmailOnCreate) {
+      if (emailChecklistEnabled && createdTasks.length > 0) {
         try {
           const response = await fetch(`${API_BASE}/spaces/tasks/send-checklist`, {
             method: 'POST',
@@ -1972,7 +1961,10 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
               data.message ||
               'Tasks were created, but no checklist email was sent. Check the assignee email address and mail credentials.';
           } else {
-            checklistEmailSuccess = `Checklist email sent for ${data.emailsSent} assignee(s).`;
+            checklistEmailSuccess =
+              createdTasks.length === 1
+                ? 'Checklist email sent to the assignee. Reminder emails will follow at your selected interval.'
+                : `Checklist email sent for ${data.emailsSent} assignee(s). Reminder emails will follow at your selected interval.`;
           }
         } catch (emailErr: any) {
           checklistEmailWarning =

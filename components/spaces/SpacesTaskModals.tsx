@@ -1055,6 +1055,7 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
                                       value={editingReminderIntervalHours}
                                       onChange={setEditingReminderIntervalHours}
                                       options={[
+                                        { value: '0.0166666667', label: 'Every 1 minute' },
                                         { value: '0.0833333333', label: 'Every 5 minutes' },
                                         { value: '0.25', label: 'Every 15 minutes' },
                                         { value: '0.5', label: 'Every 30 minutes' },
