@@ -54,6 +54,33 @@ function buildFolderTreeOptions(
   });
 }
 
+async function copyTextToClipboard(value: string): Promise<boolean> {
+  if (!value) return false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // Fall back for browsers without clipboard permissions support.
+  }
+
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
 function DriveDestinationPicker({
   value,
   onChange,
@@ -656,6 +683,15 @@ function DriveWorkspace() {
     }
   }
 
+  async function handleCopyEntryLink(entry: DriveEntry) {
+    const copied = await copyTextToClipboard(entry.linkUrl || '');
+    setToast({
+      message: copied ? 'Link copied to clipboard.' : 'Could not copy the link.',
+      type: copied ? 'success' : 'error',
+    });
+    return copied;
+  }
+
   return (
     <FileDropZone
       className="min-h-[calc(100vh-10rem)]"
@@ -840,6 +876,7 @@ function DriveWorkspace() {
                 onCreateLink={supportsLinks ? () => openCreateEntryDialog('link') : undefined}
                 onCreateText={supportsText ? () => openCreateEntryDialog('text') : undefined}
                 onView={openNoteEntry}
+                onCopyLink={handleCopyEntryLink}
                 onEdit={openEditEntryDialog}
                 onDelete={(entry) => setDeleteEntryTarget(entry)}
               />
