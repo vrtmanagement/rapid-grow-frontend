@@ -204,7 +204,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
 
       const tasks = Array.isArray(spacesPayload?.tasks)
         ? enrichTasksWithEmployeeNames(
-            data.tasks.map((item: SpacesTask) => normalizeTaskForUi(item)),
+            spacesPayload.tasks.map((item: SpacesTask) => normalizeTaskForUi(item)),
             nameLookup,
           )
         : [];
