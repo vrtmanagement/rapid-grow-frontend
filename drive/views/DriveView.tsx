@@ -633,7 +633,7 @@ function DriveWorkspace() {
       if (editingEntry) {
         await updateEntry(editingEntry.id, {
           title: entryTitle.trim(),
-          description: entryDescription.trim(),
+          description: entryType === 'text' ? entryDescription.trim() : '',
           linkUrl: entryType === 'link' ? entryLinkUrl.trim() : undefined,
           contentText: entryType === 'text' ? entryContentText.trim() : undefined,
         });
@@ -643,7 +643,7 @@ function DriveWorkspace() {
           folderId: currentFolderId as string,
           entryType,
           title: entryTitle.trim(),
-          description: entryDescription.trim(),
+          description: entryType === 'text' ? entryDescription.trim() : '',
           linkUrl: entryType === 'link' ? entryLinkUrl.trim() : undefined,
           contentText: entryType === 'text' ? entryContentText.trim() : undefined,
         });
@@ -873,6 +873,7 @@ function DriveWorkspace() {
                     ? 'Capture structured notes, drafts, and plain text directly inside this folder.'
                     : 'Store links and written notes alongside uploaded documents in this workspace.'
                 }
+                variant={currentStorageMode === 'links' ? 'links-list' : 'default'}
                 onCreateLink={supportsLinks ? () => openCreateEntryDialog('link') : undefined}
                 onCreateText={supportsText ? () => openCreateEntryDialog('text') : undefined}
                 onView={openNoteEntry}
@@ -1181,13 +1182,6 @@ function DriveWorkspace() {
               placeholder={getActiveEntryType() === 'link' ? 'Link title' : 'Note title'}
               className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
             />
-            <textarea
-              value={entryDescription}
-              onChange={(event) => setEntryDescription(event.target.value)}
-              placeholder="Short description"
-              rows={3}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-            />
             {getActiveEntryType() === 'link' ? (
               <input
                 value={entryLinkUrl}
@@ -1196,13 +1190,22 @@ function DriveWorkspace() {
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
               />
             ) : (
-              <textarea
-                value={entryContentText}
-                onChange={(event) => setEntryContentText(event.target.value)}
-                placeholder="Write or paste your note here"
-                rows={8}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-              />
+              <>
+                <textarea
+                  value={entryDescription}
+                  onChange={(event) => setEntryDescription(event.target.value)}
+                  placeholder="Short description"
+                  rows={3}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
+                />
+                <textarea
+                  value={entryContentText}
+                  onChange={(event) => setEntryContentText(event.target.value)}
+                  placeholder="Write or paste your note here"
+                  rows={8}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
+                />
+              </>
             )}
           </div>
         </DriveDialog>
