@@ -715,29 +715,38 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
       {bulkDeleteTaskModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-          onClick={() => {
-            if (bulkSaving) return;
-            setBulkDeleteTaskModalOpen(false);
-          }}
+          onClick={() => setBulkDeleteTaskModalOpen(false)}
         >
           <div className="bg-white rounded-3xl w-full max-w-sm border border-slate-200 p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Delete selected tasks</h3>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <h3 className="text-lg font-semibold text-slate-900">Delete selected tasks</h3>
+              <button
+                type="button"
+                onClick={() => setBulkDeleteTaskModalOpen(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                aria-label="Close"
+              >
+                <X size={14} />
+              </button>
+            </div>
             <p className="text-[14px] text-slate-600 mb-6">
-              Are you sure you want to delete {selectedTaskCount} selected task{selectedTaskCount === 1 ? '' : 's'}?
+              Are you sure you want to delete {selectedTaskCount} selected task{selectedTaskCount === 1 ? '' : 's'}? You can close this dialog and deletion will continue in the background.
             </p>
             <div className="flex justify-end gap-3">
               <button
                 type="button"
-                disabled={bulkSaving}
                 onClick={() => setBulkDeleteTaskModalOpen(false)}
                 className="px-4 py-2 rounded-full border border-slate-200 text-[13px] text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                No
+                Close
               </button>
               <button
                 type="button"
                 disabled={bulkSaving}
-                onClick={() => void deleteSelectedTasks()}
+                onClick={() => {
+                  setBulkDeleteTaskModalOpen(false);
+                  void deleteSelectedTasks();
+                }}
                 className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded-full bg-brand-red px-5 py-2 text-[13px] font-semibold text-white hover:bg-brand-navy disabled:cursor-not-allowed disabled:opacity-80"
               >
                 {bulkSaving ? (
