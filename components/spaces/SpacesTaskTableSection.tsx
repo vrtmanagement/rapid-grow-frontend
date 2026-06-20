@@ -365,13 +365,17 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                     onClick={(event) => {
                       const target = event.target as HTMLElement;
                       if (isRowInteractiveTarget(target)) return;
-                      if (hasSelectedTasks && !isSelected && canSelectTask?.(t)) {
+                      if (hasSelectedTasks && canSelectTask?.(t)) {
                         toggleTaskSelection?.(t);
                         return;
                       }
                       openTaskDetail(t.taskId);
                     }}
-                    className={`${getTaskRowClasses(t)} cursor-pointer ${isSelected ? '!bg-red-50/80 ring-1 ring-inset ring-red-200' : ''}`}
+                    className={`${getTaskRowClasses(t)} cursor-pointer transition-colors ${
+                      isSelected
+                        ? '!bg-gradient-to-r !from-red-50/90 !to-rose-50/70 ring-1 ring-inset ring-brand-red/25 shadow-[inset_3px_0_0_0_rgba(220,38,38,0.85)]'
+                        : ''
+                    }`}
                   >
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-2">

@@ -146,6 +146,7 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
     editingTaskMode,
     editingTaskDraft,
     assignableEmployees,
+    bulkAssigneeOptions,
   } = props;
 
   return (
@@ -219,8 +220,7 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         bulkAssigneeId={props.bulkAssigneeId}
         setBulkAssigneeId={props.setBulkAssigneeId}
         employeesLoading={employeesLoading}
-        assignableEmployees={assignableEmployees}
-        me={me}
+        bulkAssigneeOptions={bulkAssigneeOptions}
         bulkDueDate={props.bulkDueDate}
         setBulkDueDate={props.setBulkDueDate}
         clearSelectedTasks={props.clearSelectedTasks}

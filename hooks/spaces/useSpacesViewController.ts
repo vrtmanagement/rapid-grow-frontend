@@ -2112,6 +2112,52 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     [selectedTaskIds, tasks],
   );
 
+  const bulkAssigneeOptions = useMemo(() => {
+    const optionMap = new Map<string, EmployeeOption>();
+    assignableEmployees.forEach((employee) => optionMap.set(employee.empId, employee));
+    selectedTasks.forEach((task) => {
+      const assigneeId = String(task.assigneeId || '').trim();
+      if (!assigneeId || optionMap.has(assigneeId)) return;
+      const employee = employeeById.get(assigneeId);
+      optionMap.set(
+        assigneeId,
+        employee || { empId: assigneeId, empName: task.assigneeName || assigneeId, role: 'EMPLOYEE' },
+      );
+    });
+    return [
+      { value: '', label: 'Unassigned' },
+      ...Array.from(optionMap.values()).map((employee) => ({
+        value: employee.empId,
+        label: employee.empId === me.id ? `${employee.empName || 'You'} (You)` : employee.empName || employee.empId,
+      })),
+    ];
+  }, [assignableEmployees, employeeById, me.id, selectedTasks]);
+
+  useEffect(() => {
+    if (!selectedTaskIds.length) {
+      setBulkStatus('todo');
+      setBulkAssigneeId('');
+      setBulkDueDate('');
+      setBulkTouched({ status: false, assigneeId: false, dueDate: false });
+      return;
+    }
+
+    const currentSelected = selectedTaskIds
+      .map((taskId) => tasks.find((task) => task.taskId === taskId))
+      .filter((task): task is SpacesTask => !!task);
+
+    const pickSharedValue = <T,>(getter: (task: SpacesTask) => T): T | undefined => {
+      if (!currentSelected.length) return undefined;
+      const firstValue = getter(currentSelected[0]);
+      return currentSelected.every((task) => getter(task) === firstValue) ? firstValue : undefined;
+    };
+
+    setBulkStatus((pickSharedValue((task) => task.status || 'todo') ?? 'todo') as TaskStatus);
+    setBulkAssigneeId(pickSharedValue((task) => task.assigneeId || '') ?? '');
+    setBulkDueDate(pickSharedValue((task) => task.dueDate || '') ?? '');
+    setBulkTouched({ status: false, assigneeId: false, dueDate: false });
+  }, [selectedTaskIds]);
+
   const toggleTaskSelection = (task: SpacesTask) => {
     if (!canSelectTask(task)) return;
     setSelectedTaskIds((prev) =>
@@ -2228,15 +2274,23 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     }
 
     setDeleteTaskModal(null);
+    setBulkDeleteTaskModalOpen(false);
     setBulkSaving(true);
     setError(null);
+    setChecklistNotice(`Deleting ${deletableTasks.length} selected task${deletableTasks.length === 1 ? '' : 's'} in background...`);
 
     let failedCount = 0;
     try {
-      for (const task of deletableTasks) {
-        const ok = await deleteTask(task.taskId, { bulk: true });
-        if (!ok) failedCount += 1;
+      // Process deletions in small batches so requests run in parallel without overwhelming the API.
+      const CONCURRENCY = 6;
+      for (let index = 0; index < deletableTasks.length; index += CONCURRENCY) {
+        const chunk = deletableTasks.slice(index, index + CONCURRENCY);
+        const results = await Promise.all(
+          chunk.map((task) => deleteTask(task.taskId, { bulk: true })),
+        );
+        failedCount += results.filter((ok) => !ok).length;
       }
+
       if (failedCount > 0) {
         throw new Error(
           failedCount === deletableTasks.length
@@ -2245,7 +2299,9 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
         );
       }
       clearSelectedTasks();
-      setBulkDeleteTaskModalOpen(false);
+      setChecklistNotice(
+        `Deleted ${deletableTasks.length} selected task${deletableTasks.length === 1 ? '' : 's'}.`,
+      );
     } catch (e: any) {
       setError(e?.message || 'Failed to delete selected tasks');
       await loadSpaces({ silent: true, page: taskPage });
@@ -2541,6 +2597,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     editingTaskMode,
     editingTaskDraft,
     assignableEmployees,
+    bulkAssigneeOptions,
   };
 
   return {
