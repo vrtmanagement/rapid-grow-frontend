@@ -191,6 +191,8 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         mode={mode}
         aiAssigning={props.aiAssigning}
         aiAssignFileName={props.aiAssignFileName}
+        aiAssignCreatedCount={props.aiAssignCreatedCount}
+        aiAssignTotalCount={props.aiAssignTotalCount}
         handleAiAssignPdfUpload={props.handleAiAssignPdfUpload}
       />
 

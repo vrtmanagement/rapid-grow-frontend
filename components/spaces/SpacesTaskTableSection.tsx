@@ -344,7 +344,10 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
 
                 const isSelected = selectedTaskIds.includes(t.taskId);
                 const assignee = assigneeOptionsForTask(t.assigneeId).find((employee: any) => employee.empId === t.assigneeId);
-                const assigneeName = assignee ? assignee.empName || 'Unknown User' : 'Unassigned';
+                const fallbackAssigneeName = String(t.assigneeName || '').trim();
+                const assigneeName = t.assigneeId
+                  ? assignee?.empName || fallbackAssigneeName || 'Unknown User'
+                  : 'Unassigned';
                 const assigneeAvatar = getDisplayAvatarUrl(assignee?.avatar, assigneeName);
                 const showRecurringBadge = isRecurringSeriesTask(t as SpacesTask);
                 const showAutoCarryForwardBadge = isAutoCarriedForwardTask(t as SpacesTask);

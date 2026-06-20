@@ -77,10 +77,18 @@ import {
   upsertTaskByIdHelper,
 } from '../../views/spacesViewHelpers';
 
+type AiAssignProgressState = {
+  requestId: string;
+  created: number;
+  total: number;
+  phase: 'uploading' | 'creating' | 'completed';
+};
+
 export const useSpacesViewController = ({ mode, state, updateState }: SpacesViewProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const taskHubRootRef = useRef<HTMLDivElement | null>(null);
+  const aiAssignRequestIdRef = useRef('');
   const generateId = () =>
     (typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? (crypto.randomUUID() as string)
@@ -108,6 +116,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
   const [taskDocumentFile, setTaskDocumentFile] = useState<File | null>(null);
   const [aiAssigning, setAiAssigning] = useState(false);
   const [aiAssignFileName, setAiAssignFileName] = useState('');
+  const [aiAssignProgress, setAiAssignProgress] = useState<AiAssignProgressState | null>(null);
   const [uploadingTaskDocument, setUploadingTaskDocument] = useState(false);
   const [saving, setSaving] = useState(false);
   const [monthGoalSaving, setMonthGoalSaving] = useState(false);
@@ -589,6 +598,30 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
         return;
       }
 
+      if (action === 'ai_assign_progress') {
+        const requestId = String(payload?.requestId || '').trim();
+        if (!requestId || requestId !== aiAssignRequestIdRef.current) {
+          return;
+        }
+
+        const total = Number(payload?.total || 0);
+        const created = Number(payload?.created || 0);
+        const phase =
+          payload?.phase === 'completed'
+            ? 'completed'
+            : payload?.phase === 'progress'
+              ? 'creating'
+              : 'uploading';
+
+        setAiAssignProgress((prev) => ({
+          requestId,
+          total: total > 0 ? total : prev?.total || 0,
+          created: Math.max(created, prev?.created || 0),
+          phase,
+        }));
+        return;
+      }
+
       if (action === 'ai_assign_tasks_created' && Array.isArray(payload?.tasks)) {
         const incoming = payload.tasks.map((task: SpacesTask) => normalizeTaskForUi(task));
         setTasks((prev) => incoming.reduce((next, task) => upsertTaskById(next, task), prev));
@@ -1016,12 +1049,21 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
 
   const handleAiAssignPdfUpload = useCallback(async (file: File | null) => {
     if (!file || aiAssigning) return;
+    const requestId = generateId();
     setError(null);
     setAiAssigning(true);
     setAiAssignFileName(file.name || 'PDF');
+    aiAssignRequestIdRef.current = requestId;
+    setAiAssignProgress({
+      requestId,
+      created: 0,
+      total: 0,
+      phase: 'uploading',
+    });
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('requestId', requestId);
       const session = getStoredAuthSession();
       const token = typeof session?.token === 'string' ? session.token : '';
       const response = await fetch(`${API_BASE}/ai-assign/upload`, {
@@ -1039,6 +1081,16 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       const createdTasks = Array.isArray(data?.tasks)
         ? data.tasks.map((task: SpacesTask) => normalizeTaskForUi(task))
         : [];
+      setAiAssignProgress((prev) =>
+        prev?.requestId === requestId
+          ? {
+              requestId,
+              created: createdTasks.length,
+              total: prev.total || createdTasks.length,
+              phase: 'completed',
+            }
+          : prev
+      );
       setTasks((prev) => createdTasks.reduce((next, task) => upsertTaskById(next, task), prev));
       if (!createdTasks.length && data?.message) {
         setError(String(data.message));
@@ -1048,6 +1100,8 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     } finally {
       setAiAssigning(false);
       setAiAssignFileName('');
+      setAiAssignProgress(null);
+      aiAssignRequestIdRef.current = '';
     }
   }, [aiAssigning]);
 
@@ -2340,6 +2394,8 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     uploadingTaskDocument,
     aiAssigning,
     aiAssignFileName,
+    aiAssignCreatedCount: aiAssignProgress?.created || 0,
+    aiAssignTotalCount: aiAssignProgress?.total || 0,
     handleAiAssignPdfUpload,
     error,
     isTaskCreateModalOpen,
