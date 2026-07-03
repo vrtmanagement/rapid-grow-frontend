@@ -27,6 +27,12 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
     setStatus,
     emailChecklistEnabled,
     setEmailChecklistEnabled,
+    emailChecklistExternalPerson,
+    setEmailChecklistExternalPerson,
+    externalAssigneeEmail,
+    setExternalAssigneeEmail,
+    externalAssigneeName,
+    setExternalAssigneeName,
     additionalChecklistTitles,
     setAdditionalChecklistTitles,
     reminderIntervalHours,
@@ -319,6 +325,12 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         setStatus={setStatus}
         emailChecklistEnabled={emailChecklistEnabled}
         setEmailChecklistEnabled={setEmailChecklistEnabled}
+        emailChecklistExternalPerson={emailChecklistExternalPerson}
+        setEmailChecklistExternalPerson={setEmailChecklistExternalPerson}
+        externalAssigneeEmail={externalAssigneeEmail}
+        setExternalAssigneeEmail={setExternalAssigneeEmail}
+        externalAssigneeName={externalAssigneeName}
+        setExternalAssigneeName={setExternalAssigneeName}
         additionalChecklistTitles={additionalChecklistTitles}
         setAdditionalChecklistTitles={setAdditionalChecklistTitles}
         reminderIntervalHours={reminderIntervalHours}
