@@ -109,6 +109,9 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [status, setStatus] = useState<TaskStatus>('todo');
   const [emailChecklistEnabled, setEmailChecklistEnabled] = useState(false);
+  const [emailChecklistExternalPerson, setEmailChecklistExternalPerson] = useState(false);
+  const [externalAssigneeEmail, setExternalAssigneeEmail] = useState('');
+  const [externalAssigneeName, setExternalAssigneeName] = useState('');
   const [additionalChecklistTitles, setAdditionalChecklistTitles] = useState<string[]>([]);
   const [reminderIntervalHours, setReminderIntervalHours] = useState('24');
   const [taskRecurrence, setTaskRecurrence] = useState<TaskCreateRecurrenceDraft>(() => buildDefaultTaskCreateRecurrenceDraft());
@@ -1002,6 +1005,9 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       setPriority('medium');
       setStatus('todo');
       setEmailChecklistEnabled(false);
+      setEmailChecklistExternalPerson(false);
+      setExternalAssigneeEmail('');
+      setExternalAssigneeName('');
       setAdditionalChecklistTitles([]);
       setReminderIntervalHours('24');
       setTaskRecurrence(buildDefaultTaskCreateRecurrenceDraft());
@@ -1119,6 +1125,8 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     plannerGroup?: WeeklyTaskGroup | null;
     monthGoalContext?: MonthGoalContext | null;
     emailChecklistEnabled?: boolean;
+    externalAssigneeEmail?: string;
+    externalAssigneeName?: string;
     recurrence?: Record<string, unknown>;
   }) => {
     const cleanTitle = params.title.trim();
@@ -1189,7 +1197,14 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
         : params.plannerDay && params.plannerGroup
           ? buildWeeklyTaskCustomFields(params.plannerDay, params.plannerGroup)
           : {}),
+      ...(params.externalAssigneeName
+        ? { externalAssigneeName: params.externalAssigneeName.trim() }
+        : {}),
     };
+
+    const resolvedAssigneeId = params.externalAssigneeEmail?.trim()
+      ? params.externalAssigneeEmail.trim().toLowerCase()
+      : params.assigneeId;
 
     const res = await fetch(`${API_BASE}/spaces/tasks`, {
       method: 'POST',
@@ -1202,7 +1217,9 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
         documentMimeType: uploadedDocument?.documentMimeType || '',
         projectId: project?.id || '',
         projectTaskId: project ? projectTaskId : undefined,
-        assigneeId: params.assigneeId,
+        assigneeId: resolvedAssigneeId,
+        externalAssigneeEmail: params.externalAssigneeEmail?.trim().toLowerCase() || undefined,
+        externalAssigneeName: params.externalAssigneeName?.trim() || undefined,
         dueDate: params.dueDate,
         priority: params.priority,
         status: requestedStatus,
@@ -1953,9 +1970,21 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
         }
       }
 
-      if (emailChecklistEnabled && !assigneeId) {
+      if (emailChecklistEnabled && emailChecklistExternalPerson) {
+        const normalizedEmail = externalAssigneeEmail.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+          throw new Error('Enter a valid email address for the external assignee.');
+        }
+      } else if (emailChecklistEnabled && !assigneeId) {
         throw new Error('Select an assignee before enabling checklist email reminders.');
       }
+
+      const resolvedAssigneeId = emailChecklistEnabled && emailChecklistExternalPerson
+        ? externalAssigneeEmail.trim().toLowerCase()
+        : assigneeId;
+      const resolvedExternalName = emailChecklistEnabled && emailChecklistExternalPerson
+        ? externalAssigneeName.trim()
+        : '';
 
       const checklistTitles = emailChecklistEnabled
         ? [cleanTitle, ...additionalChecklistTitles.map((item) => item.trim()).filter(Boolean)].slice(0, 5)
@@ -1980,7 +2009,11 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
         const createdTask = await createTaskInternal({
           title: checklistTitles[index],
           description,
-          assigneeId,
+          assigneeId: resolvedAssigneeId,
+          externalAssigneeEmail: emailChecklistEnabled && emailChecklistExternalPerson
+            ? resolvedAssigneeId
+            : undefined,
+          externalAssigneeName: resolvedExternalName || undefined,
           dueDate,
           priority,
           status,
@@ -2430,6 +2463,12 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     setStatus,
     emailChecklistEnabled,
     setEmailChecklistEnabled,
+    emailChecklistExternalPerson,
+    setEmailChecklistExternalPerson,
+    externalAssigneeEmail,
+    setExternalAssigneeEmail,
+    externalAssigneeName,
+    setExternalAssigneeName,
     additionalChecklistTitles,
     setAdditionalChecklistTitles,
     reminderIntervalHours,

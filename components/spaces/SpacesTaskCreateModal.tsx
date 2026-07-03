@@ -26,6 +26,12 @@ type SpacesTaskCreateModalProps = Pick<
   | 'setStatus'
   | 'emailChecklistEnabled'
   | 'setEmailChecklistEnabled'
+  | 'emailChecklistExternalPerson'
+  | 'setEmailChecklistExternalPerson'
+  | 'externalAssigneeEmail'
+  | 'setExternalAssigneeEmail'
+  | 'externalAssigneeName'
+  | 'setExternalAssigneeName'
   | 'additionalChecklistTitles'
   | 'setAdditionalChecklistTitles'
   | 'reminderIntervalHours'
@@ -82,6 +88,12 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
     setStatus,
     emailChecklistEnabled,
     setEmailChecklistEnabled,
+    emailChecklistExternalPerson,
+    setEmailChecklistExternalPerson,
+    externalAssigneeEmail,
+    setExternalAssigneeEmail,
+    externalAssigneeName,
+    setExternalAssigneeName,
     additionalChecklistTitles,
     setAdditionalChecklistTitles,
     reminderIntervalHours,
@@ -259,7 +271,13 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Assignee</label>
-                    <ThemedSelect value={assigneeId} onChange={setAssigneeId} options={createAssigneeOptions} placeholder="Unassigned" disabled={employeesLoading} />
+                    {emailChecklistEnabled && emailChecklistExternalPerson ? (
+                      <div className="flex h-[52px] items-center rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 text-[14px] text-emerald-800">
+                        Assigned via email below
+                      </div>
+                    ) : (
+                      <ThemedSelect value={assigneeId} onChange={setAssigneeId} options={createAssigneeOptions} placeholder="Unassigned" disabled={employeesLoading} />
+                    )}
                   </div>
                   <div>
                     <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Due Date</label>
@@ -340,7 +358,12 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                         onChange={(event) => {
                           const enabled = event.target.checked;
                           setEmailChecklistEnabled(enabled);
-                          if (!enabled) setAdditionalChecklistTitles([]);
+                          if (!enabled) {
+                            setAdditionalChecklistTitles([]);
+                            setEmailChecklistExternalPerson(false);
+                            setExternalAssigneeEmail('');
+                            setExternalAssigneeName('');
+                          }
                         }}
                         className="peer sr-only"
                       />
@@ -351,6 +374,58 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
 
                   {emailChecklistEnabled ? (
                     <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
+                      <div className="rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-700">Send to external person</div>
+                            <p className="mt-1 text-[11px] leading-5 text-slate-500">Assign by email instead of picking a team member.</p>
+                          </div>
+                          <label className="relative inline-flex cursor-pointer items-center">
+                            <input
+                              type="checkbox"
+                              checked={emailChecklistExternalPerson}
+                              onChange={(event) => {
+                                const enabled = event.target.checked;
+                                setEmailChecklistExternalPerson(enabled);
+                                if (enabled) {
+                                  setAssigneeId('');
+                                } else {
+                                  setExternalAssigneeEmail('');
+                                  setExternalAssigneeName('');
+                                }
+                              }}
+                              className="peer sr-only"
+                            />
+                            <span className="h-6 w-10 rounded-full bg-slate-200 transition peer-checked:bg-emerald-600" />
+                            <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+                          </label>
+                        </div>
+
+                        {emailChecklistExternalPerson ? (
+                          <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                            <div>
+                              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Recipient email *</label>
+                              <input
+                                type="email"
+                                value={externalAssigneeEmail}
+                                onChange={(event) => setExternalAssigneeEmail(event.target.value)}
+                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
+                                placeholder="person@example.com"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Recipient name</label>
+                              <input
+                                value={externalAssigneeName}
+                                onChange={(event) => setExternalAssigneeName(event.target.value)}
+                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
+                                placeholder="Optional — used in the email greeting"
+                              />
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+
                       <div>
                         <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Email Reminder Gap</label>
                         <ThemedSelect
@@ -439,9 +514,23 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
           <button
             type="button"
             onClick={onSubmit}
-            disabled={saving || uploadingTaskDocument || !title.trim()}
+            disabled={
+              saving ||
+              uploadingTaskDocument ||
+              !title.trim() ||
+              (emailChecklistEnabled &&
+                emailChecklistExternalPerson &&
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(externalAssigneeEmail.trim()))
+            }
             className={`inline-flex items-center gap-2 rounded-full bg-brand-red px-7 py-3 text-[15px] font-black text-white shadow-lg transition-colors hover:bg-brand-navy ${
-              saving || uploadingTaskDocument || !title.trim() ? 'cursor-not-allowed opacity-60' : ''
+              saving ||
+              uploadingTaskDocument ||
+              !title.trim() ||
+              (emailChecklistEnabled &&
+                emailChecklistExternalPerson &&
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(externalAssigneeEmail.trim()))
+                ? 'cursor-not-allowed opacity-60'
+                : ''
             }`}
           >
             <Plus size={16} />
