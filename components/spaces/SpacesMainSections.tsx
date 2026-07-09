@@ -75,6 +75,7 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
     monthGoalUploading,
     stopTaskRecurrence,
     stoppingRecurrenceTaskId,
+    stopTaskEmailChecklist,
     deleteTask,
     tasks,
     monthGoalSourceTasks,
@@ -260,6 +261,7 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         getTaskRowClasses={getTaskRowClasses}
         patchTask={patchTask}
         stopTaskRecurrence={stopTaskRecurrence}
+        stopTaskEmailChecklist={stopTaskEmailChecklist}
         stoppingRecurrenceTaskId={stoppingRecurrenceTaskId}
         projectNameById={projectNameById}
         mode={mode}
