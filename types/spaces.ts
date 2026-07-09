@@ -76,8 +76,10 @@ export interface SpacesTaskRecurrence {
 export interface SpacesTaskEmailChecklist {
   enabled?: boolean;
   reminderIntervalHours?: number;
+  assignmentSentAt?: string | null;
   nextReminderAt?: string | null;
   lastSentAt?: string | null;
+  completedFromEmailAt?: string | null;
 }
 
 export interface SpacesTask {

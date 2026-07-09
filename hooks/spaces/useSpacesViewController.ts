@@ -895,6 +895,66 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     }
   };
 
+  const stopTaskEmailChecklist = async (task: SpacesTask) => {
+    const hasChecklist = Boolean(task.emailChecklist?.enabled);
+    if (!hasChecklist) return false;
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/spaces/tasks/${task.taskId}/checklist/stop`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to stop checklist reminders');
+      }
+
+      if (data.task) {
+        const normalized = normalizeTaskForUi(data.task as SpacesTask);
+        setTasks((prev) => upsertTaskById(prev, normalized));
+        setPlannerTasks((prev) => upsertTaskById(prev, normalized));
+      } else {
+        const stoppedAt = new Date().toISOString();
+        setTasks((prev) =>
+          prev.map((item) =>
+            item.taskId === task.taskId
+              ? normalizeTaskForUi({
+                  ...item,
+                  emailChecklist: {
+                    ...(item.emailChecklist || {}),
+                    enabled: false,
+                    nextReminderAt: null,
+                    completedFromEmailAt: stoppedAt,
+                  },
+                })
+              : item,
+          ),
+        );
+        setPlannerTasks((prev) =>
+          prev.map((item) =>
+            item.taskId === task.taskId
+              ? normalizeTaskForUi({
+                  ...item,
+                  emailChecklist: {
+                    ...(item.emailChecklist || {}),
+                    enabled: false,
+                    nextReminderAt: null,
+                    completedFromEmailAt: stoppedAt,
+                  },
+                })
+              : item,
+          ),
+        );
+      }
+      return true;
+    } catch (e: any) {
+      setError(e?.message || 'Failed to stop checklist reminders');
+      await loadSpaces({ silent: true, page: taskPage });
+      void loadPlannerTasks();
+      return false;
+    }
+  };
+
   const deleteTask = async (taskId: string, options?: { bulk?: boolean; deleteScope?: 'single' | 'future' }) => {
     setError(null);
     const normalizedTaskId = String(taskId || '').trim();
@@ -2062,6 +2122,38 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       closeTaskCreateModal({ keepError: !!checklistEmailWarning });
       if (checklistEmailWarning) setError(checklistEmailWarning);
       else if (checklistEmailSuccess) setChecklistNotice(checklistEmailSuccess);
+      
+      // Update tasks with emailChecklist data if checklist was enabled
+      if (emailChecklistEnabled && createdTasks.length > 0) {
+        const emailChecklistData = {
+          enabled: true,
+          reminderIntervalHours: Number(reminderIntervalHours),
+        };
+        
+        setTasks((prev) =>
+          prev.map((task) => {
+            if (createdTasks.some((ct) => ct.taskId === task.taskId)) {
+              return {
+                ...task,
+                emailChecklist: emailChecklistData,
+              };
+            }
+            return task;
+          })
+        );
+        
+        setPlannerTasks((prev) =>
+          prev.map((task) => {
+            if (createdTasks.some((ct) => ct.taskId === task.taskId)) {
+              return {
+                ...task,
+                emailChecklist: emailChecklistData,
+              };
+            }
+            return task;
+          })
+        );
+      }
     } catch (e: any) {
       setError(e?.message || 'Failed to create task');
     } finally {
@@ -2516,6 +2608,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     monthGoalSaving,
     monthGoalUploading: uploadingTaskDocument,
     stopTaskRecurrence,
+    stopTaskEmailChecklist,
     stoppingRecurrenceTaskId,
     deleteTask,
     weeklyError,
