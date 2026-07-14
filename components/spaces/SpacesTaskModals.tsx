@@ -21,6 +21,9 @@ import SpacesTaskCreateRecurrenceFields from './SpacesTaskCreateRecurrenceFields
 import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
 import type { SelectOption, SpacesTask, TaskCreateRecurrenceDraft, WeeklyTaskGroup } from '../../types/spaces';
 
+import SpacesWeeklyReminderFields from './SpacesWeeklyReminderFields';
+import { EMAIL_REMINDER_GAP_OPTIONS } from './spacesEmailReminderOptions';
+
 type SpacesTaskModalsProps = Pick<
   SpacesViewController,
   | 'activeCommentTask'
@@ -206,6 +209,11 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
   const [editingTaskDocumentFile, setEditingTaskDocumentFile] = React.useState<File | null>(null);
   const [editingEmailChecklistEnabled, setEditingEmailChecklistEnabled] = React.useState(false);
   const [editingReminderIntervalHours, setEditingReminderIntervalHours] = React.useState('24');
+  const [editingRepeatEveryWeek, setEditingRepeatEveryWeek] = React.useState(false);
+  const [editingRepeatCadence, setEditingRepeatCadence] = React.useState('week');
+  const [editingRepeatWeekDay, setEditingRepeatWeekDay] = React.useState('1');
+  const [editingRepeatWeekTime, setEditingRepeatWeekTime] = React.useState('09:00');
+  const [editingRepeatOccurrences, setEditingRepeatOccurrences] = React.useState('unlimited');
   const [editingAdditionalChecklistTitles, setEditingAdditionalChecklistTitles] = React.useState<string[]>([]);
   const [editingTaskRecurrence, setEditingTaskRecurrence] = React.useState<TaskCreateRecurrenceDraft>(() =>
     buildDefaultTaskCreateRecurrenceDraft(),
@@ -374,6 +382,15 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
     setEditingProjectId(String(editingTask.projectId || '').trim());
     setEditingEmailChecklistEnabled(Boolean(editingTask.emailChecklist?.enabled));
     setEditingReminderIntervalHours(String(editingTask.emailChecklist?.reminderIntervalHours || 24));
+    setEditingRepeatEveryWeek(Boolean(editingTask.emailChecklist?.repeatEveryWeek));
+    setEditingRepeatCadence(
+      editingTask.emailChecklist?.repeatCadence === '5_minutes'
+        ? '2_minutes'
+        : String(editingTask.emailChecklist?.repeatCadence || 'week'),
+    );
+    setEditingRepeatWeekDay(String(editingTask.emailChecklist?.repeatWeekDay ?? new Date().getDay()));
+    setEditingRepeatWeekTime(String(editingTask.emailChecklist?.repeatWeekTime || '09:00'));
+    setEditingRepeatOccurrences(editingTask.emailChecklist?.repeatOccurrences == null ? 'unlimited' : String(editingTask.emailChecklist.repeatOccurrences));
     setEditingAdditionalChecklistTitles([]);
     setEditingTaskRecurrence(buildEditTaskRecurrenceDraft(editingTask));
     setEditingAddToWeeklyPlanner(Boolean(plannerGroup));
@@ -480,6 +497,11 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
         customFields: nextCustomFields,
         recurrence: recurrencePayload,
         emailChecklistEnabled: editingEmailChecklistEnabled,
+        repeatEveryWeek: editingRepeatEveryWeek,
+        repeatCadence: editingRepeatCadence,
+        repeatWeekDay: Number(editingRepeatWeekDay),
+        repeatWeekTime: editingRepeatWeekTime,
+        repeatOccurrences: editingRepeatOccurrences === 'unlimited' ? null : Number(editingRepeatOccurrences),
         reminderIntervalHours: Number(editingReminderIntervalHours) || 24,
       };
 
@@ -511,6 +533,11 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
     editingPlannerDayId,
     editingProjectId,
     editingReminderIntervalHours,
+    editingRepeatEveryWeek,
+    editingRepeatCadence,
+    editingRepeatWeekDay,
+    editingRepeatWeekTime,
+    editingRepeatOccurrences,
     editingSelectedPlannerWeekGroup,
     editingTask,
     editingTaskDocumentFile,
@@ -862,7 +889,7 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
                 onClick={closeEditingTaskDrawer}
               >
                 <div
-                  className="spaces-task-drawer-panel flex h-full w-full max-w-[760px] flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl"
+                  className="spaces-task-drawer-panel flex h-full w-full max-w-[880px] flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl"
                   style={{ animation: 'spacesTaskDrawerSlideIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both' }}
                   onClick={(event) => event.stopPropagation()}
                 >
@@ -884,7 +911,7 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
 
                   <div className="min-h-0 flex-1 overflow-y-auto px-6 py-3.5">
                     <div className="space-y-3">
-                      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.35fr)_300px]">
+                      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.35fr)_360px]">
                         <div className="space-y-3">
                           <div>
                             <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Task Name *</label>
@@ -1045,8 +1072,11 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
                                     checked={editingEmailChecklistEnabled}
                                     onChange={(event) => {
                                       const enabled = event.target.checked;
-                                      setEditingEmailChecklistEnabled(enabled);
-                                      if (!enabled) setEditingAdditionalChecklistTitles([]);
+                                     setEditingEmailChecklistEnabled(enabled);
+                                     if (!enabled) {
+                                       setEditingAdditionalChecklistTitles([]);
+                                       setEditingRepeatEveryWeek(false);
+                                     }
                                     }}
                                     disabled={editingTaskMode === 'view'}
                                     className="peer sr-only"
@@ -1058,28 +1088,43 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
 
                               {editingEmailChecklistEnabled ? (
                                 <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
-                                  <div>
-                                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Email Reminder Gap</label>
-                                    <ThemedSelect
-                                      value={editingReminderIntervalHours}
-                                      onChange={setEditingReminderIntervalHours}
-                                      options={[
-                                        { value: '0.0166666667', label: 'Every 1 minute' },
-                                        { value: '0.0833333333', label: 'Every 5 minutes' },
-                                        { value: '0.25', label: 'Every 15 minutes' },
-                                        { value: '0.5', label: 'Every 30 minutes' },
-                                        { value: '1', label: 'Every 1 hour' },
-                                        { value: '6', label: 'Every 6 hours' },
-                                        { value: '12', label: 'Every 12 hours' },
-                                        { value: '24', label: 'Every 24 hours' },
-                                        { value: '48', label: 'Every 2 days' },
-                                        { value: '168', label: 'Every 7 days' },
-                                      ]}
-                                      compact={true}
-                                      fullWidthCompact={true}
-                                      disabled={editingTaskMode === 'view'}
-                                    />
+                                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3">
+                                    <div>
+                                      <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-700">Repeat Occurrences</div>
+                                      <p className="mt-1 text-[11px] text-slate-500">Reactivates this task on the selected repeat interval.</p>
+                                    </div>
+                                    <label className="relative inline-flex cursor-pointer items-center">
+                                      <input type="checkbox" checked={editingRepeatEveryWeek} onChange={(event) => setEditingRepeatEveryWeek(event.target.checked)} disabled={editingTaskMode === 'view'} className="peer sr-only" />
+                                      <span className="h-6 w-10 rounded-full bg-slate-200 transition peer-checked:bg-emerald-600" />
+                                      <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+                                    </label>
                                   </div>
+                                  {editingRepeatEveryWeek ? (
+                                    <SpacesWeeklyReminderFields
+                                      repeatCadence={editingRepeatCadence}
+                                      setRepeatCadence={setEditingRepeatCadence}
+                                      repeatWeekDay={editingRepeatWeekDay}
+                                      setRepeatWeekDay={setEditingRepeatWeekDay}
+                                      repeatWeekTime={editingRepeatWeekTime}
+                                      setRepeatWeekTime={setEditingRepeatWeekTime}
+                                      repeatOccurrences={editingRepeatOccurrences}
+                                      setRepeatOccurrences={setEditingRepeatOccurrences}
+                                      disabled={editingTaskMode === 'view'}
+                                      fieldName="edit-weekly-occurrences"
+                                    />
+                                  ) : (
+                                    <div>
+                                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Email Reminder Gap</label>
+                                      <ThemedSelect
+                                        value={editingReminderIntervalHours}
+                                        onChange={setEditingReminderIntervalHours}
+                                        options={EMAIL_REMINDER_GAP_OPTIONS}
+                                        compact={true}
+                                        fullWidthCompact={true}
+                                        disabled={editingTaskMode === 'view'}
+                                      />
+                                    </div>
+                                  )}
 
                                   <div>
                                     <div className="flex items-center justify-between gap-2">

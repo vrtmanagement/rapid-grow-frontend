@@ -37,6 +37,16 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
     setAdditionalChecklistTitles,
     reminderIntervalHours,
     setReminderIntervalHours,
+    repeatEveryWeek,
+    setRepeatEveryWeek,
+    repeatCadence,
+    setRepeatCadence,
+    repeatWeekDay,
+    setRepeatWeekDay,
+    repeatWeekTime,
+    setRepeatWeekTime,
+    repeatOccurrences,
+    setRepeatOccurrences,
     taskRecurrence,
     setTaskRecurrence,
     statusOptions,
@@ -76,6 +86,7 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
     stopTaskRecurrence,
     stoppingRecurrenceTaskId,
     stopTaskEmailChecklist,
+    stopTaskWeeklyRepeat,
     deleteTask,
     tasks,
     monthGoalSourceTasks,
@@ -262,6 +273,7 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         patchTask={patchTask}
         stopTaskRecurrence={stopTaskRecurrence}
         stopTaskEmailChecklist={stopTaskEmailChecklist}
+        stopTaskWeeklyRepeat={stopTaskWeeklyRepeat}
         stoppingRecurrenceTaskId={stoppingRecurrenceTaskId}
         projectNameById={projectNameById}
         mode={mode}
@@ -337,6 +349,16 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         setAdditionalChecklistTitles={setAdditionalChecklistTitles}
         reminderIntervalHours={reminderIntervalHours}
         setReminderIntervalHours={setReminderIntervalHours}
+        repeatEveryWeek={repeatEveryWeek}
+        setRepeatEveryWeek={setRepeatEveryWeek}
+        repeatCadence={repeatCadence}
+        setRepeatCadence={setRepeatCadence}
+        repeatWeekDay={repeatWeekDay}
+        setRepeatWeekDay={setRepeatWeekDay}
+        repeatWeekTime={repeatWeekTime}
+        setRepeatWeekTime={setRepeatWeekTime}
+        repeatOccurrences={repeatOccurrences}
+        setRepeatOccurrences={setRepeatOccurrences}
         taskRecurrence={taskRecurrence}
         setTaskRecurrence={setTaskRecurrence}
         statusOptions={statusOptions}

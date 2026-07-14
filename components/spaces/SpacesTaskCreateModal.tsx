@@ -6,6 +6,8 @@ import { CREATE_INPUT_CLASS, ThemedDatePicker, ThemedSelect } from './SpacesForm
 import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
 import SpacesTaskPlannerFields from './SpacesTaskPlannerFields';
 import SpacesTaskCreateRecurrenceFields from './SpacesTaskCreateRecurrenceFields';
+import SpacesWeeklyReminderFields from './SpacesWeeklyReminderFields';
+import { EMAIL_REMINDER_GAP_OPTIONS } from './spacesEmailReminderOptions';
 
 type SpacesTaskCreateModalProps = Pick<
   SpacesViewController,
@@ -36,6 +38,16 @@ type SpacesTaskCreateModalProps = Pick<
   | 'setAdditionalChecklistTitles'
   | 'reminderIntervalHours'
   | 'setReminderIntervalHours'
+  | 'repeatEveryWeek'
+  | 'setRepeatEveryWeek'
+  | 'repeatCadence'
+  | 'setRepeatCadence'
+  | 'repeatWeekDay'
+  | 'setRepeatWeekDay'
+  | 'repeatWeekTime'
+  | 'setRepeatWeekTime'
+  | 'repeatOccurrences'
+  | 'setRepeatOccurrences'
   | 'taskRecurrence'
   | 'setTaskRecurrence'
   | 'statusOptions'
@@ -98,6 +110,16 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
     setAdditionalChecklistTitles,
     reminderIntervalHours,
     setReminderIntervalHours,
+    repeatEveryWeek,
+    setRepeatEveryWeek,
+    repeatCadence,
+    setRepeatCadence,
+    repeatWeekDay,
+    setRepeatWeekDay,
+    repeatWeekTime,
+    setRepeatWeekTime,
+    repeatOccurrences,
+    setRepeatOccurrences,
     taskRecurrence,
     setTaskRecurrence,
     statusOptions,
@@ -227,7 +249,7 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
         onClick={onClose}
       >
         <div
-          className="spaces-task-drawer-panel flex h-full w-full max-w-[760px] flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl"
+          className="spaces-task-drawer-panel flex h-full w-full max-w-[880px] flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl"
           style={{ animation: 'spacesTaskDrawerSlideIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both' }}
           onClick={(event) => event.stopPropagation()}
         >
@@ -251,7 +273,7 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
               <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</div>
             ) : null}
 
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.35fr)_300px]">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.35fr)_360px]">
               <div className="space-y-3">
                 <div>
                   <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Task Name *</label>
@@ -363,6 +385,7 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                             setEmailChecklistExternalPerson(false);
                             setExternalAssigneeEmail('');
                             setExternalAssigneeName('');
+                            setRepeatEveryWeek(false);
                           }
                         }}
                         className="peer sr-only"
@@ -374,6 +397,18 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
 
                   {emailChecklistEnabled ? (
                     <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
+                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3">
+                        <div>
+                          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-700">Repeat Occurrences</div>
+                          <p className="mt-1 text-[11px] text-slate-500">Reactivates this task on the selected repeat interval.</p>
+                        </div>
+                        <label className="relative inline-flex cursor-pointer items-center">
+                          <input type="checkbox" checked={repeatEveryWeek} onChange={(event) => setRepeatEveryWeek(event.target.checked)} className="peer sr-only" />
+                          <span className="h-6 w-10 rounded-full bg-slate-200 transition peer-checked:bg-emerald-600" />
+                          <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
+                        </label>
+                      </div>
+
                       <div className="rounded-xl border border-slate-200 bg-white p-3">
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -426,27 +461,30 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                         ) : null}
                       </div>
 
-                      <div>
-                        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Email Reminder Gap</label>
-                        <ThemedSelect
-                          value={reminderIntervalHours}
-                          onChange={setReminderIntervalHours}
-                          options={[
-                            { value: '0.0166666667', label: 'Every 1 minute' },
-                            { value: '0.0833333333', label: 'Every 5 minutes' },
-                            { value: '0.25', label: 'Every 15 minutes' },
-                            { value: '0.5', label: 'Every 30 minutes' },
-                            { value: '1', label: 'Every 1 hour' },
-                            { value: '6', label: 'Every 6 hours' },
-                            { value: '12', label: 'Every 12 hours' },
-                            { value: '24', label: 'Every 24 hours' },
-                            { value: '48', label: 'Every 2 days' },
-                            { value: '168', label: 'Every 7 days' },
-                          ]}
-                          compact={true}
-                          fullWidthCompact={true}
+                      {repeatEveryWeek ? (
+                        <SpacesWeeklyReminderFields
+                          repeatCadence={repeatCadence}
+                          setRepeatCadence={setRepeatCadence}
+                          repeatWeekDay={repeatWeekDay}
+                          setRepeatWeekDay={setRepeatWeekDay}
+                          repeatWeekTime={repeatWeekTime}
+                          setRepeatWeekTime={setRepeatWeekTime}
+                          repeatOccurrences={repeatOccurrences}
+                          setRepeatOccurrences={setRepeatOccurrences}
+                          fieldName="create-weekly-occurrences"
                         />
-                      </div>
+                      ) : (
+                        <div>
+                          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Email Reminder Gap</label>
+                          <ThemedSelect
+                            value={reminderIntervalHours}
+                            onChange={setReminderIntervalHours}
+                            options={EMAIL_REMINDER_GAP_OPTIONS}
+                            compact={true}
+                            fullWidthCompact={true}
+                          />
+                        </div>
+                      )}
 
                       <div>
                         <div className="flex items-center justify-between gap-2">
