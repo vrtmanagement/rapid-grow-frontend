@@ -114,6 +114,11 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
   const [externalAssigneeName, setExternalAssigneeName] = useState('');
   const [additionalChecklistTitles, setAdditionalChecklistTitles] = useState<string[]>([]);
   const [reminderIntervalHours, setReminderIntervalHours] = useState('24');
+  const [repeatEveryWeek, setRepeatEveryWeek] = useState(false);
+  const [repeatCadence, setRepeatCadence] = useState('week');
+  const [repeatWeekDay, setRepeatWeekDay] = useState(String(new Date().getDay()));
+  const [repeatWeekTime, setRepeatWeekTime] = useState('09:00');
+  const [repeatOccurrences, setRepeatOccurrences] = useState('unlimited');
   const [taskRecurrence, setTaskRecurrence] = useState<TaskCreateRecurrenceDraft>(() => buildDefaultTaskCreateRecurrenceDraft());
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [taskDocumentFile, setTaskDocumentFile] = useState<File | null>(null);
@@ -920,6 +925,30 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     }
   };
 
+  const stopTaskWeeklyRepeat = async (task: SpacesTask) => {
+    if (!task.emailChecklist?.repeatEveryWeek) return false;
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/spaces/tasks/${encodeURIComponent(task.taskId)}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          emailChecklistEnabled: false,
+          repeatEveryWeek: false,
+          reminderIntervalHours: Number(task.emailChecklist?.reminderIntervalHours) || 24,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Failed to stop weekly repeating');
+      await loadSpaces({ silent: true, force: true, page: taskPage });
+      void loadPlannerTasks({ force: true });
+      return true;
+    } catch (e: any) {
+      setError(e?.message || 'Failed to stop weekly repeating');
+      return false;
+    }
+  };
+
   const deleteTask = async (taskId: string, options?: { bulk?: boolean; deleteScope?: 'single' | 'future' }) => {
     setError(null);
     const normalizedTaskId = String(taskId || '').trim();
@@ -1035,6 +1064,11 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       setExternalAssigneeName('');
       setAdditionalChecklistTitles([]);
       setReminderIntervalHours('24');
+      setRepeatEveryWeek(false);
+      setRepeatCadence('week');
+      setRepeatWeekDay(String(new Date().getDay()));
+      setRepeatWeekTime('09:00');
+      setRepeatOccurrences('unlimited');
       setTaskRecurrence(buildDefaultTaskCreateRecurrenceDraft());
       setSelectedProjectId('');
       setTaskDocumentFile(null);
@@ -1150,6 +1184,11 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     plannerGroup?: WeeklyTaskGroup | null;
     monthGoalContext?: MonthGoalContext | null;
     emailChecklistEnabled?: boolean;
+    repeatEveryWeek?: boolean;
+    repeatCadence?: string;
+    repeatWeekDay?: number;
+    repeatWeekTime?: string;
+    repeatOccurrences?: number;
     externalAssigneeEmail?: string;
     externalAssigneeName?: string;
     recurrence?: Record<string, unknown>;
@@ -1249,6 +1288,11 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
         priority: params.priority,
         status: requestedStatus,
         emailChecklistEnabled: params.emailChecklistEnabled === true,
+        repeatEveryWeek: params.repeatEveryWeek === true,
+        repeatCadence: params.repeatCadence,
+        repeatWeekDay: params.repeatWeekDay,
+        repeatWeekTime: params.repeatWeekTime,
+        repeatOccurrences: params.repeatOccurrences,
         reminderIntervalHours: Number(params.reminderIntervalHours) || 24,
         recurrence: params.recurrence,
         customFields: Object.keys(customFields).length ? customFields : undefined,
@@ -2049,6 +2093,11 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
           plannerGroup,
           monthGoalContext,
           emailChecklistEnabled: false,
+          repeatEveryWeek,
+          repeatCadence,
+          repeatWeekDay: Number(repeatWeekDay),
+          repeatWeekTime,
+          repeatOccurrences: repeatOccurrences === 'unlimited' ? undefined : Number(repeatOccurrences),
           recurrence,
         });
         createdTasks.push(createdTask);
@@ -2062,6 +2111,11 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
             body: JSON.stringify({
               taskIds: createdTasks.map((task) => task.taskId),
               reminderIntervalHours: Number(reminderIntervalHours),
+              repeatEveryWeek,
+              repeatCadence,
+              repeatWeekDay: Number(repeatWeekDay),
+              repeatWeekTime,
+              repeatOccurrences: repeatOccurrences === 'unlimited' ? null : Number(repeatOccurrences),
             }),
           });
           const data = await response.json().catch(() => ({}));
@@ -2074,9 +2128,13 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
               'Tasks were created, but no checklist email was sent. Check the assignee email address and mail credentials.';
           } else {
             checklistEmailSuccess =
-              createdTasks.length === 1
-                ? 'Checklist email sent to the assignee. Reminder emails will follow at your selected interval.'
-                : `Checklist email sent for ${data.emailsSent} assignee(s). Reminder emails will follow at your selected interval.`;
+              repeatEveryWeek
+                ? createdTasks.length === 1
+                  ? 'Checklist email sent. The task will reactivate at the selected repeat interval.'
+                  : `Checklist email sent for ${data.emailsSent} assignee(s). The tasks will reactivate on their repeat schedule.`
+                : createdTasks.length === 1
+                  ? 'Checklist email sent to the assignee. Reminder emails will follow at your selected interval.'
+                  : `Checklist email sent for ${data.emailsSent} assignee(s). Reminder emails will follow at your selected interval.`;
           }
         } catch (emailErr: any) {
           checklistEmailWarning =
@@ -2502,6 +2560,16 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     setAdditionalChecklistTitles,
     reminderIntervalHours,
     setReminderIntervalHours,
+    repeatEveryWeek,
+    setRepeatEveryWeek,
+    repeatCadence,
+    setRepeatCadence,
+    repeatWeekDay,
+    setRepeatWeekDay,
+    repeatWeekTime,
+    setRepeatWeekTime,
+    repeatOccurrences,
+    setRepeatOccurrences,
     taskRecurrence,
     setTaskRecurrence,
     statusOptions,
@@ -2546,6 +2614,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     monthGoalUploading: uploadingTaskDocument,
     stopTaskRecurrence,
     stopTaskEmailChecklist,
+    stopTaskWeeklyRepeat,
     stoppingRecurrenceTaskId,
     deleteTask,
     weeklyError,

@@ -149,6 +149,32 @@ function formatDateTime(value?: string) {
   });
 }
 
+function renderDescriptionWithLinks(description: string) {
+  const parts = description.split(/(https?:\/\/[^\s]+|www\.[^\s]+)/gi);
+  return parts.map((part, index) => {
+    if (!/^(https?:\/\/|www\.)/i.test(part)) {
+      return <React.Fragment key={`description-text-${index}`}>{part}</React.Fragment>;
+    }
+    const trailingMatch = part.match(/[),.;!?]+$/);
+    const trailing = trailingMatch?.[0] || '';
+    const urlText = trailing ? part.slice(0, -trailing.length) : part;
+    const href = /^https?:\/\//i.test(urlText) ? urlText : `https://${urlText}`;
+    return (
+      <React.Fragment key={`description-link-${index}`}>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-blue-600 underline decoration-blue-400 underline-offset-2 transition hover:text-blue-800"
+        >
+          {urlText}
+        </a>
+        {trailing}
+      </React.Fragment>
+    );
+  });
+}
+
 function getTaskSourceLabel(task?: SpacesTask | null) {
   if (!task) return 'Manual';
   if (task.source === 'review_matrix') return 'Review Matrix';
@@ -272,9 +298,10 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
     setLoading(true);
     setError(null);
     try {
-      const [spacesPayload, employeesRes] = await Promise.all([
+      const [spacesPayload, employeesRes, taskDetailRes] = await Promise.all([
         fetchWorkspaceLinkTasks(),
         fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() }),
+        fetch(`${API_BASE}/spaces/tasks/${encodeURIComponent(taskId)}`, { headers: getAuthHeaders() }),
       ]);
 
       let nameLookup = new Map<string, string>();
@@ -297,7 +324,15 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
             nameLookup,
           )
         : [];
-      const found = tasks.find((item) => item.taskId === taskId) || null;
+      const taskDetailPayload = taskDetailRes.ok
+        ? await taskDetailRes.json().catch(() => null)
+        : null;
+      const found = taskDetailPayload
+        ? enrichTasksWithEmployeeNames(
+            [normalizeTaskForUi(taskDetailPayload as SpacesTask)],
+            nameLookup,
+          )[0]
+        : tasks.find((item) => item.taskId === taskId) || null;
       if (!found) throw new Error('Task not found');
       setAllTasks(tasks);
       setTask(found);
@@ -626,7 +661,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
                 >
                   <ContentPanel title="Description" icon={<FileText size={15} />}>
                     <p className="max-w-3xl text-[15px] leading-[1.75] text-slate-700 whitespace-pre-wrap break-words">
-                      {task.description?.trim() || (
+                      {task.description?.trim() ? renderDescriptionWithLinks(task.description.trim()) : (
                         <span className="text-slate-400">No description provided for this task yet.</span>
                       )}
                     </p>

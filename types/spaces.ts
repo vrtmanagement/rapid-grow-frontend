@@ -80,6 +80,16 @@ export interface SpacesTaskEmailChecklist {
   nextReminderAt?: string | null;
   lastSentAt?: string | null;
   completedFromEmailAt?: string | null;
+  repeatEveryWeek?: boolean;
+  repeatCadence?: 'week' | 'hour' | '2_minutes' | '5_minutes';
+  weeklyAnchorAt?: string | null;
+  repeatWeekDay?: number | null;
+  repeatWeekTime?: string | null;
+  repeatOccurrences?: number | null;
+  remainingOccurrences?: number | null;
+  weeklyOccurrenceCompletedAt?: string | null;
+  repeatStoppedAt?: string | null;
+  occurrenceScheduledAt?: string | null;
 }
 
 export interface SpacesTask {
