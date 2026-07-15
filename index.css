@@ -1,3 +1,22 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-brand-red: #e61c21;
+  --color-brand-navy: #1e2b82;
+  --color-brand-grey: #5f5f5f;
+  --color-brand-blue: #2e70a5;
+  --color-brand-cyan: #35addd;
+  --color-brand-green: #139951;
+  --color-brand-orange: #fa9113;
+  --color-brand-brown: #63391f;
+  --radius-4xl: 2rem;
+  --radius-5xl: 3rem;
+  --background-image-brand-gradient: linear-gradient(to bottom right, #e61c21, #1e2b82);
+  --background-image-brand-glow: radial-gradient(circle, rgba(230, 28, 33, 0.15) 0%, rgba(30, 43, 130, 0.05) 100%);
+}
+
 :root {
   color-scheme: light;
   --background: #f1f5f9;

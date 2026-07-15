@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import {
   Target,
@@ -18,35 +18,44 @@ import {
   CalendarRange,
 } from 'lucide-react';
 import { PlanningState } from '../../types';
-import Vision from '../../views/Vision';
-import ReflectionView from '../../views/ReflectionView';
-import DashboardView from '../../views/DashboardView';
-import WorkspacesView from '../../views/WorkspacesView';
-import ProfileView from '../../views/ProfileView';
-import SpacesView from '../../views/SpacesView';
-import AttendanceView from '../../views/AttendanceView';
-import StaffView from '../../views/StaffView';
-import CommunicationView from '../../communication/views/CommunicationView';
-import DriveView from '../../drive/views/DriveView';
 import { GlobalCommunicationNotifications } from '../../communication/components/GlobalCommunicationNotifications';
-import ContentView from '../../views/ContentView';
-import ContentCreateView from '../../views/ContentCreateView';
-import SpacesTaskDetailView from '../../views/SpacesTaskDetailView';
-import CRMPage from '../../views/CRMPage';
-import CRMLeadDetailPage from '../../views/CRMLeadDetailPage';
-import StrategyExecutionView from '../../views/StrategyExecutionView';
-import ExpenseTravelView from '../../views/ExpenseTravelView';
-import AiAgentView from '../../views/AiAgentView';
-import TaskAnalyticsView from '../../views/TaskAnalyticsView';
-import StrengthsDashboardView from '../../views/StrengthsDashboardView';
-import SuperAdminView from '../../views/SuperAdminView';
-import BillingAiUsageView from '../../views/BillingAiUsageView';
 import PlanLimitsBanner from '../plan/PlanLimitsBanner';
 import { useI18n } from '../../context/I18nContext';
 import AccessDenied from '../AccessDenied';
 import { SidebarLink, SidebarToggleButton } from './SidebarPrimitives';
 import { NotificationBellMenu, ThemeToggleButton, UserAccountMenu } from './AppTopbarControls';
 import type { AppShellNotification } from './authenticatedShellTypes';
+
+const Vision = lazy(() => import('../../views/Vision'));
+const ReflectionView = lazy(() => import('../../views/ReflectionView'));
+const DashboardView = lazy(() => import('../../views/DashboardView'));
+const WorkspacesView = lazy(() => import('../../views/WorkspacesView'));
+const ProfileView = lazy(() => import('../../views/ProfileView'));
+const SpacesView = lazy(() => import('../../views/SpacesView'));
+const AttendanceView = lazy(() => import('../../views/AttendanceView'));
+const StaffView = lazy(() => import('../../views/StaffView'));
+const DriveView = lazy(() => import('../../drive/views/DriveView'));
+const ContentView = lazy(() => import('../../views/ContentView'));
+const ContentCreateView = lazy(() => import('../../views/ContentCreateView'));
+const SpacesTaskDetailView = lazy(() => import('../../views/SpacesTaskDetailView'));
+const CRMPage = lazy(() => import('../../views/CRMPage'));
+const CRMLeadDetailPage = lazy(() => import('../../views/CRMLeadDetailPage'));
+const StrategyExecutionView = lazy(() => import('../../views/StrategyExecutionView'));
+const ExpenseTravelView = lazy(() => import('../../views/ExpenseTravelView'));
+const AiAgentView = lazy(() => import('../../views/AiAgentView'));
+const TaskAnalyticsView = lazy(() => import('../../views/TaskAnalyticsView'));
+const StrengthsDashboardView = lazy(() => import('../../views/StrengthsDashboardView'));
+const SuperAdminView = lazy(() => import('../../views/SuperAdminView'));
+const BillingAiUsageView = lazy(() => import('../../views/BillingAiUsageView'));
+const CommunicationView = lazy(() => import('../../communication/views/CommunicationView'));
+
+function RouteFallback() {
+  return (
+    <div className="flex h-full min-h-[50vh] items-center justify-center bg-slate-50">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-brand-red" aria-label="Loading" />
+    </div>
+  );
+}
 
 const RedirectToBillingAiTab: React.FC<{ panel: 'billing' | 'ai-usage'; aiPanel?: 'usage' | 'settings' }> = ({
   panel,
@@ -305,6 +314,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                 <PlanLimitsBanner />
               </div>
             )}
+            <Suspense fallback={<RouteFallback />}>
             <Routes>
               {hasPower('DASHBOARD_VIEW') && (
                 <Route path="/" element={<DashboardView state={state} loading={planningViewsLoading} />} />
@@ -386,7 +396,9 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {hasPower('REFLECTION_VIEW') && (
                 <Route path="/review" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />
               )}
-              {hasPower('COMMUNICATION_VIEW') && <Route path="/communication" element={<CommunicationView />} />}
+              {hasPower('COMMUNICATION_VIEW') && (
+                <Route path="/communication" element={<CommunicationView />} />
+              )}
               {hasPower('DRIVE_VIEW') && <Route path="/drive" element={<DriveView />} />}
               {hasPower('CONTENT_VIEW') && <Route path="/content" element={<ContentView />} />}
               {hasPower('CONTENT_VIEW') && <Route path="/content/day/:dayKey" element={<ContentView />} />}
@@ -413,9 +425,12 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
               {isAdmin && (
                 <Route path="/settings/audit-logs" element={<Navigate to="/profile?tab=audit-log" replace />} />
               )}
-              {isAdmin && hasPower('PROFILE_VIEW') && <Route path="/settings/privacy" element={<Navigate to="/profile?tab=privacy" replace />} />}
+              {isAdmin && hasPower('PROFILE_VIEW') && (
+                <Route path="/settings/privacy" element={<Navigate to="/profile?tab=privacy" replace />} />
+              )}
               <Route path="*" element={<AccessDenied />} />
             </Routes>
+            </Suspense>
           </div>
         </main>
       </div>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import {
   Target,
@@ -14,29 +14,38 @@ import {
   CalendarRange,
 } from 'lucide-react';
 import { PlanningState } from '../../types';
-import Vision from '../../views/Vision';
-import ReflectionView from '../../views/ReflectionView';
-import EmployeeDashboardView from '../../views/EmployeeDashboardView';
-import EmployeeProfileView from '../../views/EmployeeProfileView';
-import EmployeeProjectDetailView from '../../views/EmployeeProjectDetailView';
-import SpacesView from '../../views/SpacesView';
-import AttendanceView from '../../views/AttendanceView';
-import StaffView from '../../views/StaffView';
-import CommunicationView from '../../communication/views/CommunicationView';
-import DriveView from '../../drive/views/DriveView';
 import { GlobalCommunicationNotifications } from '../../communication/components/GlobalCommunicationNotifications';
-import ContentView from '../../views/ContentView';
-import ContentCreateView from '../../views/ContentCreateView';
-import SpacesTaskDetailView from '../../views/SpacesTaskDetailView';
-import WorkspacesView from '../../views/WorkspacesView';
-import CRMPage from '../../views/CRMPage';
-import CRMLeadDetailPage from '../../views/CRMLeadDetailPage';
-import StrategyExecutionView from '../../views/StrategyExecutionView';
-import ExpenseTravelView from '../../views/ExpenseTravelView';
 import AccessDenied from '../AccessDenied';
 import { SidebarLink, SidebarToggleButton } from './SidebarPrimitives';
 import { NotificationBellMenu, ThemeToggleButton, UserAccountMenu } from './AppTopbarControls';
 import type { AppShellNotification } from './authenticatedShellTypes';
+
+const Vision = lazy(() => import('../../views/Vision'));
+const ReflectionView = lazy(() => import('../../views/ReflectionView'));
+const EmployeeDashboardView = lazy(() => import('../../views/EmployeeDashboardView'));
+const EmployeeProfileView = lazy(() => import('../../views/EmployeeProfileView'));
+const EmployeeProjectDetailView = lazy(() => import('../../views/EmployeeProjectDetailView'));
+const SpacesView = lazy(() => import('../../views/SpacesView'));
+const AttendanceView = lazy(() => import('../../views/AttendanceView'));
+const StaffView = lazy(() => import('../../views/StaffView'));
+const DriveView = lazy(() => import('../../drive/views/DriveView'));
+const ContentView = lazy(() => import('../../views/ContentView'));
+const ContentCreateView = lazy(() => import('../../views/ContentCreateView'));
+const SpacesTaskDetailView = lazy(() => import('../../views/SpacesTaskDetailView'));
+const WorkspacesView = lazy(() => import('../../views/WorkspacesView'));
+const CRMPage = lazy(() => import('../../views/CRMPage'));
+const CRMLeadDetailPage = lazy(() => import('../../views/CRMLeadDetailPage'));
+const StrategyExecutionView = lazy(() => import('../../views/StrategyExecutionView'));
+const ExpenseTravelView = lazy(() => import('../../views/ExpenseTravelView'));
+const CommunicationView = lazy(() => import('../../communication/views/CommunicationView'));
+
+function RouteFallback() {
+  return (
+    <div className="flex h-full min-h-[50vh] items-center justify-center bg-slate-50">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-brand-red" aria-label="Loading" />
+    </div>
+  );
+}
 
 export interface AppEmployeePortalLayoutProps {
   globalToastsElement: React.ReactNode;
@@ -230,6 +239,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
                 ? 'overflow-y-auto px-4 pb-4 pt-0 sm:px-8 sm:pb-8 sm:pt-0 lg:px-16 lg:pb-16 lg:pt-0'
                 : 'overflow-y-auto p-4 sm:p-8 lg:p-16'
           }`}>
+            <Suspense fallback={<RouteFallback />}>
             <Routes>
               {hasPower('DASHBOARD_VIEW') && (
                 <Route path="/" element={<EmployeeDashboardView uiConfig={state.uiConfig} />} />
@@ -274,7 +284,9 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
               {hasPower('REFLECTION_VIEW') && (
                 <Route path="/review" element={<ReflectionView state={state} updateState={updateState} loading={planningViewsLoading} />} />
               )}
-              {hasPower('COMMUNICATION_VIEW') && <Route path="/communication" element={<CommunicationView />} />}
+              {hasPower('COMMUNICATION_VIEW') && (
+                <Route path="/communication" element={<CommunicationView />} />
+              )}
               {hasPower('DRIVE_VIEW') && <Route path="/drive" element={<DriveView />} />}
               {hasPower('CONTENT_VIEW') && <Route path="/content" element={<ContentView />} />}
               {hasPower('CONTENT_VIEW') && <Route path="/content/day/:dayKey" element={<ContentView />} />}
@@ -293,6 +305,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
               {hasPower('EXPENSE_VIEW') && <Route path="/expense-travel" element={<ExpenseTravelView mode="employee" />} />}
               <Route path="*" element={<AccessDenied />} />
             </Routes>
+            </Suspense>
           </div>
         </main>
       </div>

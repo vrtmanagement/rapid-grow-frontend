@@ -90,6 +90,25 @@ function isUpcomingScheduledMailTask(task?: SpacesTask) {
   return Boolean(checklist.nextReminderAt);
 }
 
+function getRepeatingSeriesKey(task?: SpacesTask) {
+  if (!task) return '';
+  // One series root only: parent/source if present, otherwise this task.
+  return String(task.parentTaskId || task.recurrence?.sourceTaskId || task.taskId || '').trim();
+}
+
+function isWeeklyRepeatActive(task?: SpacesTask) {
+  const checklist = task?.emailChecklist;
+  if (!checklist) return false;
+  if (checklist.repeatEveryWeek) return true;
+  return Boolean(checklist.enabled && checklist.nextReminderAt);
+}
+
+function isWeeklyRepeatStopped(task?: SpacesTask) {
+  const checklist = task?.emailChecklist;
+  if (!checklist?.repeatStoppedAt) return false;
+  return !isWeeklyRepeatActive(task);
+}
+
 function formatCreatedAtLabel(value?: string) {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -252,6 +271,30 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
     });
     return owners;
   }, [paginatedTasks]);
+
+  const repeatingSeriesState = React.useMemo(() => {
+    const activeSeries = new Set<string>();
+    const stoppedSeries = new Set<string>();
+    (tasks as SpacesTask[]).forEach((task) => {
+      const seriesKey = getRepeatingSeriesKey(task);
+      if (!seriesKey) return;
+      const recurrenceActive = isRecurringSeriesActive(tasks as SpacesTask[], task);
+      if (isWeeklyRepeatActive(task) || recurrenceActive || task.recurrence?.enabled) {
+        activeSeries.add(seriesKey);
+      }
+      if (isWeeklyRepeatStopped(task)) {
+        stoppedSeries.add(seriesKey);
+      }
+      if (isRecurringSeriesTask(task) && !recurrenceActive && !task.recurrence?.enabled) {
+        stoppedSeries.add(seriesKey);
+      }
+    });
+    // If any occurrence in the series is still active, the series is not stopped.
+    stoppedSeries.forEach((key) => {
+      if (activeSeries.has(key)) stoppedSeries.delete(key);
+    });
+    return { activeSeries, stoppedSeries };
+  }, [tasks]);
   const openTaskDetail = (taskId: string) => {
     navigate(`/spaces/task/${taskId}`);
   };
@@ -459,9 +502,29 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                 const showMailStopped = hasStoppedMail && isMailIndicatorTask && !isWeeklyMailTask;
                 const showStopEmailChecklist = (showMailActive || showMailStopped) && canEditTask(t);
                 const isStoppingEmailChecklist = stoppingEmailChecklistTaskId === t.taskId;
-                const showWeeklyRepeatAction = isWeeklyMailTask && canEditTask(t);
-                const isStoppingWeeklyRepeat = stoppingWeeklyRepeatTaskId === t.taskId;
+                const canStopRepeating =
+                  canEditTask(t) &&
+                  (typeof stopTaskWeeklyRepeat === 'function' || typeof stopTaskRecurrence === 'function');
                 const weeklyMailStopped = isWeeklyMailTask && !t.emailChecklist?.repeatEveryWeek;
+                const repeatingSeriesKey = getRepeatingSeriesKey(t as SpacesTask);
+                const seriesHasActiveRepeating = Boolean(
+                  repeatingSeriesKey && repeatingSeriesState.activeSeries.has(repeatingSeriesKey),
+                );
+                const seriesHasStoppedRepeating = Boolean(
+                  repeatingSeriesKey && repeatingSeriesState.stoppedSeries.has(repeatingSeriesKey),
+                );
+                const taskHasActiveRepeating =
+                  isWeeklyRepeatActive(t as SpacesTask) ||
+                  Boolean(t.recurrence?.enabled) ||
+                  showStopOccurrences;
+                // Disable only for THIS series after it was stopped — never for other repeating series.
+                const isRepeatingAlreadyStopped =
+                  seriesHasStoppedRepeating && !seriesHasActiveRepeating && !taskHasActiveRepeating;
+                const showStopRepeatingTask =
+                  canStopRepeating &&
+                  (taskHasActiveRepeating || seriesHasActiveRepeating || isRepeatingAlreadyStopped);
+                const isStopRepeatingDisabled = isRepeatingAlreadyStopped;
+                const isStoppingWeeklyRepeat = stoppingWeeklyRepeatTaskId === t.taskId;
                 const isUpcomingMail = isUpcomingScheduledMailTask(t as SpacesTask);
                 const upcomingMailLabel = isUpcomingMail
                   ? formatOccurrenceDateTimeLabel(t.emailChecklist?.nextReminderAt)
@@ -634,7 +697,7 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                       </td>
                     ))}
                     <td className="px-2 py-3 text-right">
-                      {(canValidateTask(t) || canEditTask(t) || canDeleteTask(t) || showStopOccurrences || showStopEmailChecklist || (canBulkManageTasks && canSelectTask?.(t))) ? (
+                      {(canValidateTask(t) || canEditTask(t) || canDeleteTask(t) || showStopOccurrences || showStopRepeatingTask || showStopEmailChecklist || (canBulkManageTasks && canSelectTask?.(t))) ? (
                         <div className="inline-flex items-center gap-2">
                           {canValidateTask(t) ? (
                             <>
@@ -720,45 +783,72 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                                     {isSelected ? 'Unselect' : 'Select'}
                                   </button>
                                 ) : null}
-                                {showStopOccurrences ? (
+                                {showStopRepeatingTask ? (
                                   <button
                                     type="button"
                                     onClick={async () => {
-                                      if (isStoppingRecurrence) return;
-                                      setActiveRowMenuId(null);
-                                      setActiveRowMenuPlacement('bottom');
-                                      activeRowMenuButtonRef.current = null;
-                                      await stopTaskRecurrence(t);
-                                    }}
-                                    disabled={isStoppingRecurrence}
-                                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    <Octagon size={14} />
-                                    {isStoppingRecurrence ? 'Stopping...' : 'Stop occurrences'}
-                                  </button>
-                                ) : null}
-                                {showWeeklyRepeatAction ? (
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      if (!t.emailChecklist?.repeatEveryWeek || isStoppingWeeklyRepeat) return;
+                                      if (
+                                        isStoppingWeeklyRepeat ||
+                                        isStoppingRecurrence ||
+                                        isStopRepeatingDisabled
+                                      ) {
+                                        return;
+                                      }
                                       setStoppingWeeklyRepeatTaskId(t.taskId);
+                                      setError(null);
                                       try {
-                                        const stopped = await stopTaskWeeklyRepeat(t as SpacesTask);
-                                        if (stopped) setActiveRowMenuId(null);
+                                        let stopped = false;
+                                        if (
+                                          (Boolean(t.recurrence?.enabled) || showStopOccurrences) &&
+                                          typeof stopTaskRecurrence === 'function'
+                                        ) {
+                                          stopped = (await stopTaskRecurrence(t)) || stopped;
+                                        }
+                                        if (typeof stopTaskWeeklyRepeat === 'function') {
+                                          stopped = (await stopTaskWeeklyRepeat(t as SpacesTask)) || stopped;
+                                        }
+                                        if (
+                                          !stopped &&
+                                          typeof stopTaskEmailChecklist === 'function' &&
+                                          t.emailChecklist?.enabled
+                                        ) {
+                                          stopped =
+                                            (await stopTaskEmailChecklist(t as SpacesTask)) || stopped;
+                                        }
+                                        setActiveRowMenuId(null);
+                                        setActiveRowMenuPlacement('bottom');
+                                        activeRowMenuButtonRef.current = null;
+                                        if (!stopped) {
+                                          setError(
+                                            'Could not turn off repeating for this task. Refresh and try again.',
+                                          );
+                                        }
                                       } finally {
                                         setStoppingWeeklyRepeatTaskId(null);
                                       }
                                     }}
-                                    disabled={!t.emailChecklist?.repeatEveryWeek || isStoppingWeeklyRepeat}
-                                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                    disabled={
+                                      isStoppingWeeklyRepeat ||
+                                      isStoppingRecurrence ||
+                                      isStopRepeatingDisabled
+                                    }
+                                    title={
+                                      isRepeatingAlreadyStopped || isStopRepeatingDisabled
+                                        ? 'Repeating is already stopped for this task series'
+                                        : 'Stop repeating for this task series'
+                                    }
+                                    className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                                      isStopRepeatingDisabled
+                                        ? 'text-slate-400 hover:bg-transparent'
+                                        : 'text-violet-700 hover:bg-violet-50'
+                                    }`}
                                   >
                                     <Octagon size={14} />
-                                    {isStoppingWeeklyRepeat
+                                    {isStoppingWeeklyRepeat || isStoppingRecurrence
                                       ? 'Stopping...'
-                                      : t.emailChecklist?.repeatEveryWeek
-                                        ? 'Stop sending mail'
-                                        : 'Mail stopped'}
+                                      : isRepeatingAlreadyStopped || isStopRepeatingDisabled
+                                        ? 'Repeating stopped'
+                                        : 'Stop repeating task'}
                                   </button>
                                 ) : null}
                                 {showStopEmailChecklist ? (

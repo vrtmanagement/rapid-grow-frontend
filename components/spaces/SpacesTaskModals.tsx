@@ -213,7 +213,12 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
   const [editingRepeatCadence, setEditingRepeatCadence] = React.useState('week');
   const [editingRepeatWeekDays, setEditingRepeatWeekDays] = React.useState<string[]>(['1']);
   const [editingRepeatWeekTime, setEditingRepeatWeekTime] = React.useState('09:00');
-  const [editingRepeatOccurrences, setEditingRepeatOccurrences] = React.useState('unlimited');
+  const [editingRepeatFromDate, setEditingRepeatFromDate] = React.useState(() => new Date().toISOString().slice(0, 10));
+  const [editingRepeatToDate, setEditingRepeatToDate] = React.useState(() => {
+    const end = new Date();
+    end.setDate(end.getDate() + 28);
+    return end.toISOString().slice(0, 10);
+  });
   const [editingAdditionalChecklistTitles, setEditingAdditionalChecklistTitles] = React.useState<string[]>([]);
   const [editingTaskRecurrence, setEditingTaskRecurrence] = React.useState<TaskCreateRecurrenceDraft>(() =>
     buildDefaultTaskCreateRecurrenceDraft(),
@@ -400,7 +405,14 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
         : [String(editingTask.emailChecklist?.repeatWeekDay ?? new Date().getDay())],
     );
     setEditingRepeatWeekTime(String(editingTask.emailChecklist?.repeatWeekTime || '09:00'));
-    setEditingRepeatOccurrences(editingTask.emailChecklist?.repeatOccurrences == null ? 'unlimited' : String(editingTask.emailChecklist.repeatOccurrences));
+    const today = new Date().toISOString().slice(0, 10);
+    const defaultTo = (() => {
+      const end = new Date();
+      end.setDate(end.getDate() + 28);
+      return end.toISOString().slice(0, 10);
+    })();
+    setEditingRepeatFromDate(String(editingTask.emailChecklist?.repeatFromDate || today).slice(0, 10));
+    setEditingRepeatToDate(String(editingTask.emailChecklist?.repeatToDate || defaultTo).slice(0, 10));
     setEditingAdditionalChecklistTitles([]);
     setEditingTaskRecurrence(buildEditTaskRecurrenceDraft(editingTask));
     setEditingAddToWeeklyPlanner(Boolean(plannerGroup));
@@ -461,6 +473,20 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
       setError('Select an assignee before enabling checklist email reminders.');
       return;
     }
+    if (editingEmailChecklistEnabled && editingRepeatEveryWeek && (!editingRepeatFromDate || !editingRepeatToDate)) {
+      setError('Select from and to dates for the repeat schedule.');
+      return;
+    }
+    if (
+      editingEmailChecklistEnabled &&
+      editingRepeatEveryWeek &&
+      editingRepeatFromDate &&
+      editingRepeatToDate &&
+      editingRepeatToDate < editingRepeatFromDate
+    ) {
+      setError('To date must be on or after the from date.');
+      return;
+    }
 
     setEditingTaskSaving(true);
     setError(null);
@@ -512,7 +538,9 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
         repeatWeekDay: Number(editingRepeatWeekDays[0]),
         repeatWeekDays: editingRepeatWeekDays.map((day) => Number(day)).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6).slice(0, 6),
         repeatWeekTime: editingRepeatWeekTime,
-        repeatOccurrences: editingRepeatOccurrences === 'unlimited' ? null : Number(editingRepeatOccurrences),
+        repeatFromDate: editingRepeatFromDate,
+        repeatToDate: editingRepeatToDate,
+        repeatOccurrences: null,
         reminderIntervalHours: Number(editingReminderIntervalHours) || 24,
       };
 
@@ -548,7 +576,8 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
     editingRepeatCadence,
     editingRepeatWeekDays,
     editingRepeatWeekTime,
-    editingRepeatOccurrences,
+    editingRepeatFromDate,
+    editingRepeatToDate,
     editingSelectedPlannerWeekGroup,
     editingTask,
     editingTaskDocumentFile,
@@ -1118,8 +1147,10 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
                                       setRepeatWeekDays={setEditingRepeatWeekDays}
                                       repeatWeekTime={editingRepeatWeekTime}
                                       setRepeatWeekTime={setEditingRepeatWeekTime}
-                                      repeatOccurrences={editingRepeatOccurrences}
-                                      setRepeatOccurrences={setEditingRepeatOccurrences}
+                                      repeatFromDate={editingRepeatFromDate}
+                                      setRepeatFromDate={setEditingRepeatFromDate}
+                                      repeatToDate={editingRepeatToDate}
+                                      setRepeatToDate={setEditingRepeatToDate}
                                       disabled={editingTaskMode === 'view'}
                                       fieldName="edit-weekly-occurrences"
                                     />
