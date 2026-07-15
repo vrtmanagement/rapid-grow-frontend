@@ -41,8 +41,8 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
     setRepeatEveryWeek,
     repeatCadence,
     setRepeatCadence,
-    repeatWeekDay,
-    setRepeatWeekDay,
+    repeatWeekDays,
+    setRepeatWeekDays,
     repeatWeekTime,
     setRepeatWeekTime,
     repeatOccurrences,
@@ -353,8 +353,8 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         setRepeatEveryWeek={setRepeatEveryWeek}
         repeatCadence={repeatCadence}
         setRepeatCadence={setRepeatCadence}
-        repeatWeekDay={repeatWeekDay}
-        setRepeatWeekDay={setRepeatWeekDay}
+        repeatWeekDays={repeatWeekDays}
+        setRepeatWeekDays={setRepeatWeekDays}
         repeatWeekTime={repeatWeekTime}
         setRepeatWeekTime={setRepeatWeekTime}
         repeatOccurrences={repeatOccurrences}
