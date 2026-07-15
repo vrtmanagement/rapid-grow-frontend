@@ -118,7 +118,12 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
   const [repeatCadence, setRepeatCadence] = useState('week');
   const [repeatWeekDays, setRepeatWeekDays] = useState<string[]>([String(new Date().getDay())]);
   const [repeatWeekTime, setRepeatWeekTime] = useState('09:00');
-  const [repeatOccurrences, setRepeatOccurrences] = useState('unlimited');
+  const [repeatFromDate, setRepeatFromDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [repeatToDate, setRepeatToDate] = useState(() => {
+    const end = new Date();
+    end.setDate(end.getDate() + 28);
+    return end.toISOString().slice(0, 10);
+  });
   const [taskRecurrence, setTaskRecurrence] = useState<TaskCreateRecurrenceDraft>(() => buildDefaultTaskCreateRecurrenceDraft());
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [taskDocumentFile, setTaskDocumentFile] = useState<File | null>(null);
@@ -926,25 +931,58 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
   };
 
   const stopTaskWeeklyRepeat = async (task: SpacesTask) => {
-    if (!task.emailChecklist?.repeatEveryWeek) return false;
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/spaces/tasks/${encodeURIComponent(task.taskId)}`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          emailChecklistEnabled: false,
-          repeatEveryWeek: false,
-          reminderIntervalHours: Number(task.emailChecklist?.reminderIntervalHours) || 24,
-        }),
-      });
+      const res = await fetch(
+        `${API_BASE}/spaces/tasks/${encodeURIComponent(task.taskId)}/checklist/stop`,
+        {
+          method: 'POST',
+          headers: getAuthHeaders(),
+        },
+      );
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'Failed to stop weekly repeating');
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to stop repeating task');
+      }
+
+      const stoppedAt =
+        data.task?.emailChecklist?.repeatStoppedAt || new Date().toISOString();
+      // Only this task's series root — never other repeating tasks.
+      const seriesRootId = String(
+        task.parentTaskId || task.recurrence?.sourceTaskId || task.taskId || '',
+      ).trim();
+
+      setTasks((prev) =>
+        prev.map((item) => {
+          const itemRootId = String(
+            item.parentTaskId || item.recurrence?.sourceTaskId || item.taskId || '',
+          ).trim();
+          if (!seriesRootId || itemRootId !== seriesRootId) return item;
+
+          const nextChecklist = {
+            ...(item.emailChecklist || {}),
+            ...(item.taskId === task.taskId ? data.task?.emailChecklist || {} : {}),
+            enabled: false,
+            repeatEveryWeek: false,
+            nextReminderAt: null,
+            remainingOccurrences: 0,
+            repeatStoppedAt: stoppedAt,
+          };
+
+          return normalizeTaskForUi({
+            ...item,
+            emailChecklist: nextChecklist,
+          });
+        }),
+      );
+
       await loadSpaces({ silent: true, force: true, page: taskPage });
       void loadPlannerTasks({ force: true });
       return true;
     } catch (e: any) {
-      setError(e?.message || 'Failed to stop weekly repeating');
+      setError(e?.message || 'Failed to stop repeating task');
+      await loadSpaces({ silent: true, force: true, page: taskPage });
+      void loadPlannerTasks({ force: true });
       return false;
     }
   };
@@ -1068,7 +1106,13 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       setRepeatCadence('week');
       setRepeatWeekDays([String(new Date().getDay())]);
       setRepeatWeekTime('09:00');
-      setRepeatOccurrences('unlimited');
+      {
+        const today = new Date().toISOString().slice(0, 10);
+        const end = new Date();
+        end.setDate(end.getDate() + 28);
+        setRepeatFromDate(today);
+        setRepeatToDate(end.toISOString().slice(0, 10));
+      }
       setTaskRecurrence(buildDefaultTaskCreateRecurrenceDraft());
       setSelectedProjectId('');
       setTaskDocumentFile(null);
@@ -1188,7 +1232,8 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     repeatCadence?: string;
     repeatWeekDays?: number[];
     repeatWeekTime?: string;
-    repeatOccurrences?: number;
+    repeatFromDate?: string;
+    repeatToDate?: string;
     externalAssigneeEmail?: string;
     externalAssigneeName?: string;
     recurrence?: Record<string, unknown>;
@@ -1295,7 +1340,8 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
           : undefined,
         repeatWeekDays: params.repeatWeekDays,
         repeatWeekTime: params.repeatWeekTime,
-        repeatOccurrences: params.repeatOccurrences,
+        repeatFromDate: params.repeatFromDate,
+        repeatToDate: params.repeatToDate,
         reminderIntervalHours: Number(params.reminderIntervalHours) || 24,
         recurrence: params.recurrence,
         customFields: Object.keys(customFields).length ? customFields : undefined,
@@ -2076,6 +2122,22 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       if (
         emailChecklistEnabled &&
         repeatEveryWeek &&
+        (!repeatFromDate || !repeatToDate)
+      ) {
+        throw new Error('Select from and to dates for the repeat schedule.');
+      }
+      if (
+        emailChecklistEnabled &&
+        repeatEveryWeek &&
+        repeatFromDate &&
+        repeatToDate &&
+        repeatToDate < repeatFromDate
+      ) {
+        throw new Error('To date must be on or after the from date.');
+      }
+      if (
+        emailChecklistEnabled &&
+        repeatEveryWeek &&
         repeatCadence === 'week' &&
         (!Array.isArray(repeatWeekDays) || repeatWeekDays.length < 1)
       ) {
@@ -2112,7 +2174,8 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
           repeatCadence,
           repeatWeekDays: normalizedRepeatWeekDays,
           repeatWeekTime,
-          repeatOccurrences: repeatOccurrences === 'unlimited' ? undefined : Number(repeatOccurrences),
+          repeatFromDate,
+          repeatToDate,
           recurrence,
         });
         createdTasks.push(createdTask);
@@ -2131,8 +2194,9 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
               repeatWeekDay: normalizedRepeatWeekDays[0],
               repeatWeekDays: normalizedRepeatWeekDays,
               repeatWeekTime,
-              repeatOccurrences: repeatOccurrences === 'unlimited' ? null : Number(repeatOccurrences),
-              // Weekly/hour/2-min schedules wait for nextReminderAt before first mail.
+              repeatFromDate,
+              repeatToDate,
+              repeatOccurrences: null,
               scheduleOnly: repeatEveryWeek === true,
             }),
           });
@@ -2596,8 +2660,10 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     setRepeatWeekDays,
     repeatWeekTime,
     setRepeatWeekTime,
-    repeatOccurrences,
-    setRepeatOccurrences,
+    repeatFromDate,
+    setRepeatFromDate,
+    repeatToDate,
+    setRepeatToDate,
     taskRecurrence,
     setTaskRecurrence,
     statusOptions,

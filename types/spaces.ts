@@ -86,6 +86,8 @@ export interface SpacesTaskEmailChecklist {
   repeatWeekDay?: number | null;
   repeatWeekDays?: number[] | null;
   repeatWeekTime?: string | null;
+  repeatFromDate?: string | null;
+  repeatToDate?: string | null;
   repeatOccurrences?: number | null;
   remainingOccurrences?: number | null;
   weeklyOccurrenceCompletedAt?: string | null;

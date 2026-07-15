@@ -478,7 +478,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
               className="inline-flex h-10 items-center gap-2 rounded-full border border-amber-300/60 bg-amber-50 px-4 text-[12px] font-semibold text-amber-900 transition hover:bg-amber-100 disabled:opacity-50"
             >
               <Octagon size={14} />
-              {stoppingRecurrence ? 'Stopping…' : 'Stop occurrences'}
+              {stoppingRecurrence ? 'Stopping…' : 'Stop repeating task'}
             </button>
           ) : null}
         </div>
@@ -602,7 +602,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
                     className="mt-5 max-w-2xl text-sm leading-relaxed text-slate-400"
                   >
                     {showStopRepeating
-                      ? 'This task repeats on a schedule. Use Stop occurrences to end future copies without deleting past work.'
+                      ? 'This task repeats on a schedule. Use Stop repeating task to end future copies without deleting past work.'
                       : 'Repeat schedule has been stopped for this series.'}
                   </motion.p>
                 ) : null}

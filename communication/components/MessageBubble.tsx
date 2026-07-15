@@ -433,6 +433,7 @@ export function MessageBubble({
             disabled={!sender || !showAvatar}
             className={`h-8 w-8 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm disabled:cursor-default ${showAvatar ? 'opacity-100' : 'opacity-0'} ${isOwn ? 'mb-1' : 'mt-0.5'}`}
             title={sender?.name || 'User'}
+            aria-label={sender?.name ? `${sender.name} profile` : 'User profile'}
           >
             <img
               src={getDisplayAvatarUrl(sender?.avatar, sender?.name || 'User')}

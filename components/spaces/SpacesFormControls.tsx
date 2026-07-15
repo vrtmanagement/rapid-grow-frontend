@@ -319,13 +319,11 @@ export const ThemedSelect: React.FC<{
       const nextMaxHeight = Math.max(120, Math.min(desiredHeight, availableSpace));
       setOpenAbove(shouldOpenAbove);
       setMenuMaxHeight(nextMaxHeight);
-      if (useCompactMenu) {
-        setMenuPosition({
-          left: rect.left,
-          top: shouldOpenAbove ? Math.max(8, rect.top - nextMaxHeight - gap) : rect.bottom + gap,
-          width: rect.width,
-        });
-      }
+      setMenuPosition({
+        left: rect.left,
+        top: shouldOpenAbove ? Math.max(8, rect.top - nextMaxHeight - gap) : rect.bottom + gap,
+        width: rect.width,
+      });
     };
     updatePlacement();
     window.addEventListener('resize', updatePlacement);
@@ -335,36 +333,6 @@ export const ThemedSelect: React.FC<{
       window.removeEventListener('scroll', updatePlacement, true);
     };
   }, [open, useCompactMenu, denseMenu, forceOpenDown, options.length]);
-
-  useEffect(() => {
-    if (!open || !useCompactMenu) return;
-    const updatePosition = () => {
-      if (!wrapperRef.current) return;
-      const rect = wrapperRef.current.getBoundingClientRect();
-      const rowHeight = denseMenu ? 32 : 38;
-      const estimatedHeight = Math.min(Math.max(options.length, 1), 6) * rowHeight + (denseMenu ? 10 : 16);
-      const gap = 6;
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      const shouldOpenAbove = forceOpenDown ? false : spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
-      const availableSpace = shouldOpenAbove ? rect.top - gap - 8 : window.innerHeight - rect.bottom - gap - 8;
-      const nextMaxHeight = Math.max(120, Math.min(estimatedHeight, availableSpace));
-      setOpenAbove(shouldOpenAbove);
-      setMenuMaxHeight(nextMaxHeight);
-      setMenuPosition({
-        top: shouldOpenAbove ? Math.max(8, rect.top - nextMaxHeight - gap) : rect.bottom + gap,
-        left: rect.left,
-        width: rect.width,
-      });
-    };
-    updatePosition();
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-    return () => {
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
-    };
-  }, [open, useCompactMenu, options.length, denseMenu, forceOpenDown]);
 
   const selected = options.find((option) => option.value === value);
   const triggerClass = toolbarInline
@@ -395,36 +363,20 @@ export const ThemedSelect: React.FC<{
         />
       </button>
 
-      {open && !disabled && !useCompactMenu && (
-        <div
-          className={`${menuClass} ${THIN_SCROLL_MENU_CLASS} overflow-y-auto ${openAbove ? 'bottom-full top-auto mb-2 mt-0' : ''}`}
-          style={{ maxHeight: `${menuMaxHeight}px` }}
-        >
-          {options.map((option) => {
-            const isSelected = option.value === value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                }}
-                className={`${optionClass} ${isSelected ? 'bg-red-50 text-brand-red' : ''}`}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {open && !disabled && useCompactMenu
+      {open && !disabled
         ? createPortal(
             <div
               ref={menuRef}
-              className={`${menuClass} ${THIN_SCROLL_MENU_CLASS} fixed z-[220] overflow-y-auto`}
-              style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, width: `${menuPosition.width}px`, maxHeight: `${menuMaxHeight}px` }}
+              className={`${menuClass} ${THIN_SCROLL_MENU_CLASS} fixed z-[240] overflow-y-auto shadow-[0_18px_40px_rgba(15,23,42,0.16)]`}
+              style={{
+                top: `${menuPosition.top}px`,
+                left: `${menuPosition.left}px`,
+                width: `${menuPosition.width}px`,
+                maxHeight: `${menuMaxHeight}px`,
+                position: 'fixed',
+                margin: 0,
+              }}
+              data-open-above={openAbove ? 'true' : 'false'}
             >
               {options.map((option) => {
                 const isSelected = option.value === value;

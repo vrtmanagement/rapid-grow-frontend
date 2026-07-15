@@ -12,10 +12,12 @@ type SpacesWeeklyReminderFieldsProps = {
   setRepeatWeekDays: (value: string[]) => void;
   repeatWeekTime: string;
   setRepeatWeekTime: (value: string) => void;
-  repeatOccurrences: string;
-  setRepeatOccurrences: (value: string) => void;
+  repeatFromDate: string;
+  setRepeatFromDate: (value: string) => void;
+  repeatToDate: string;
+  setRepeatToDate: (value: string) => void;
   disabled?: boolean;
-  fieldName: string;
+  fieldName?: string;
 };
 
 const REPEAT_CADENCE_OPTIONS = [
@@ -24,6 +26,9 @@ const REPEAT_CADENCE_OPTIONS = [
   { value: '2_minutes', label: '2 Minutes' },
 ];
 
+const dateInputClassName =
+  'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60';
+
 const SpacesWeeklyReminderFields: React.FC<SpacesWeeklyReminderFieldsProps> = ({
   repeatCadence,
   setRepeatCadence,
@@ -31,12 +36,12 @@ const SpacesWeeklyReminderFields: React.FC<SpacesWeeklyReminderFieldsProps> = ({
   setRepeatWeekDays,
   repeatWeekTime,
   setRepeatWeekTime,
-  repeatOccurrences,
-  setRepeatOccurrences,
+  repeatFromDate,
+  setRepeatFromDate,
+  repeatToDate,
+  setRepeatToDate,
   disabled = false,
-  fieldName,
 }) => {
-  const hasCustomOccurrences = repeatOccurrences !== 'unlimited';
   const selectedDays = Array.isArray(repeatWeekDays) ? repeatWeekDays : [];
 
   const toggleWeekDay = (dayValue: string) => {
@@ -120,56 +125,46 @@ const SpacesWeeklyReminderFields: React.FC<SpacesWeeklyReminderFieldsProps> = ({
       </div>
 
       <div>
-        <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Occurrences</label>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <label className={`flex min-h-11 items-center gap-2 rounded-xl border bg-white px-3 text-[13px] ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${!hasCustomOccurrences ? 'border-violet-400 ring-2 ring-violet-100' : 'border-slate-200'}`}>
+        <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">
+          Date range
+        </label>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500">From date</div>
             <input
-              type="radio"
-              name={fieldName}
-              checked={!hasCustomOccurrences}
-              onChange={() => setRepeatOccurrences('unlimited')}
-              disabled={disabled}
-              className="h-4 w-4 accent-violet-600"
-            />
-            <span className="font-medium text-slate-700">Unlimited</span>
-          </label>
-
-          <label className={`flex min-h-11 items-center gap-2 rounded-xl border bg-white px-3 text-[13px] ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${hasCustomOccurrences ? 'border-violet-400 ring-2 ring-violet-100' : 'border-slate-200'}`}>
-            <input
-              type="radio"
-              name={fieldName}
-              checked={hasCustomOccurrences}
-              onChange={() => setRepeatOccurrences(hasCustomOccurrences ? repeatOccurrences : '5')}
-              disabled={disabled}
-              className="h-4 w-4 accent-violet-600"
-            />
-            <input
-              type="number"
-              min={1}
-              max={999}
-              step={1}
-              value={hasCustomOccurrences ? repeatOccurrences : ''}
-              onFocus={() => {
-                if (!hasCustomOccurrences) setRepeatOccurrences('5');
-              }}
-              onChange={(event) => setRepeatOccurrences(event.target.value)}
-              onBlur={() => {
-                if (hasCustomOccurrences && (!Number.isFinite(Number(repeatOccurrences)) || Number(repeatOccurrences) < 1)) {
-                  setRepeatOccurrences('1');
+              type="date"
+              value={repeatFromDate}
+              min={new Date().toISOString().slice(0, 10)}
+              max={repeatToDate || undefined}
+              onChange={(event) => {
+                const nextFrom = event.target.value;
+                setRepeatFromDate(nextFrom);
+                if (repeatToDate && nextFrom && repeatToDate < nextFrom) {
+                  setRepeatToDate(nextFrom);
                 }
               }}
               disabled={disabled}
-              placeholder="5"
-              aria-label="Number of occurrences"
-              className="h-8 w-16 rounded-lg border border-slate-200 bg-white px-2 text-center text-[13px] font-semibold text-slate-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-slate-50"
+              aria-label="Repeat from date"
+              className={dateInputClassName}
             />
-            <span className="text-slate-600">occurrences</span>
-          </label>
+          </div>
+          <div>
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500">To date</div>
+            <input
+              type="date"
+              value={repeatToDate}
+              min={repeatFromDate || new Date().toISOString().slice(0, 10)}
+              onChange={(event) => setRepeatToDate(event.target.value)}
+              disabled={disabled}
+              aria-label="Repeat to date"
+              className={dateInputClassName}
+            />
+          </div>
         </div>
       </div>
 
       <p className="text-[11px] leading-5 text-slate-500">
-        Each selected interval creates and emails a new task occurrence, whether the previous task is done or not.
+        Tasks repeat and email only between the selected from and to dates, on each selected interval.
       </p>
     </div>
   );
