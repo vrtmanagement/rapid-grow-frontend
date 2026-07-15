@@ -83,6 +83,13 @@ function hasStoppedAutomatedMail(task?: SpacesTask) {
   );
 }
 
+function isUpcomingScheduledMailTask(task?: SpacesTask) {
+  const checklist = task?.emailChecklist;
+  if (!checklist?.enabled || !checklist.repeatEveryWeek) return false;
+  if (checklist.assignmentSentAt || checklist.lastSentAt) return false;
+  return Boolean(checklist.nextReminderAt);
+}
+
 function formatCreatedAtLabel(value?: string) {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -455,6 +462,10 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                 const showWeeklyRepeatAction = isWeeklyMailTask && canEditTask(t);
                 const isStoppingWeeklyRepeat = stoppingWeeklyRepeatTaskId === t.taskId;
                 const weeklyMailStopped = isWeeklyMailTask && !t.emailChecklist?.repeatEveryWeek;
+                const isUpcomingMail = isUpcomingScheduledMailTask(t as SpacesTask);
+                const upcomingMailLabel = isUpcomingMail
+                  ? formatOccurrenceDateTimeLabel(t.emailChecklist?.nextReminderAt)
+                  : '';
                 const repeatMailLabel =
                   t.emailChecklist?.repeatCadence === '2_minutes' || t.emailChecklist?.repeatCadence === '5_minutes'
                     ? '2 Min Mail'
@@ -523,6 +534,18 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                             {weeklyMailStopped ? 'Mail Stopped' : repeatMailLabel}
                           </span>
                         ) : null}
+                        {isUpcomingMail ? (
+                          <span
+                            className="inline-flex shrink-0 items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-amber-800"
+                            title={
+                              upcomingMailLabel
+                                ? `Mail will send on ${upcomingMailLabel}`
+                                : 'Mail is scheduled and has not been sent yet'
+                            }
+                          >
+                            Upcoming{upcomingMailLabel ? ` · ${upcomingMailLabel}` : ''}
+                          </span>
+                        ) : null}
                         <input
                           defaultValue={t.title}
                           onBlur={(e) => {
@@ -567,6 +590,9 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                       <span className="text-[14px] font-medium text-slate-500">
                         {formatOccurrenceDateTimeLabel(
                           t.emailChecklist?.occurrenceScheduledAt ||
+                            (isUpcomingScheduledMailTask(t as SpacesTask)
+                              ? t.emailChecklist?.nextReminderAt
+                              : null) ||
                             (t.emailChecklist?.repeatCadence ? t.emailChecklist?.assignmentSentAt : null) ||
                             (t.isRecurring && t.parentTaskId ? t.createdAt : null),
                         ) || formatDueDateLabel(t.dueDate)}

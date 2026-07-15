@@ -84,6 +84,7 @@ export interface SpacesTaskEmailChecklist {
   repeatCadence?: 'week' | 'hour' | '2_minutes' | '5_minutes';
   weeklyAnchorAt?: string | null;
   repeatWeekDay?: number | null;
+  repeatWeekDays?: number[] | null;
   repeatWeekTime?: string | null;
   repeatOccurrences?: number | null;
   remainingOccurrences?: number | null;

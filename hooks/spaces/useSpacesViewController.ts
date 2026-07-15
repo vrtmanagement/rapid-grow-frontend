@@ -116,7 +116,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
   const [reminderIntervalHours, setReminderIntervalHours] = useState('24');
   const [repeatEveryWeek, setRepeatEveryWeek] = useState(false);
   const [repeatCadence, setRepeatCadence] = useState('week');
-  const [repeatWeekDay, setRepeatWeekDay] = useState(String(new Date().getDay()));
+  const [repeatWeekDays, setRepeatWeekDays] = useState<string[]>([String(new Date().getDay())]);
   const [repeatWeekTime, setRepeatWeekTime] = useState('09:00');
   const [repeatOccurrences, setRepeatOccurrences] = useState('unlimited');
   const [taskRecurrence, setTaskRecurrence] = useState<TaskCreateRecurrenceDraft>(() => buildDefaultTaskCreateRecurrenceDraft());
@@ -1066,7 +1066,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       setReminderIntervalHours('24');
       setRepeatEveryWeek(false);
       setRepeatCadence('week');
-      setRepeatWeekDay(String(new Date().getDay()));
+      setRepeatWeekDays([String(new Date().getDay())]);
       setRepeatWeekTime('09:00');
       setRepeatOccurrences('unlimited');
       setTaskRecurrence(buildDefaultTaskCreateRecurrenceDraft());
@@ -1186,7 +1186,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     emailChecklistEnabled?: boolean;
     repeatEveryWeek?: boolean;
     repeatCadence?: string;
-    repeatWeekDay?: number;
+    repeatWeekDays?: number[];
     repeatWeekTime?: string;
     repeatOccurrences?: number;
     externalAssigneeEmail?: string;
@@ -1290,7 +1290,10 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
         emailChecklistEnabled: params.emailChecklistEnabled === true,
         repeatEveryWeek: params.repeatEveryWeek === true,
         repeatCadence: params.repeatCadence,
-        repeatWeekDay: params.repeatWeekDay,
+        repeatWeekDay: Array.isArray(params.repeatWeekDays) && params.repeatWeekDays.length
+          ? params.repeatWeekDays[0]
+          : undefined,
+        repeatWeekDays: params.repeatWeekDays,
         repeatWeekTime: params.repeatWeekTime,
         repeatOccurrences: params.repeatOccurrences,
         reminderIntervalHours: Number(params.reminderIntervalHours) || 24,
@@ -2070,6 +2073,18 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       ) {
         throw new Error('Enter at least one occurrence for the recurrence end rule.');
       }
+      if (
+        emailChecklistEnabled &&
+        repeatEveryWeek &&
+        repeatCadence === 'week' &&
+        (!Array.isArray(repeatWeekDays) || repeatWeekDays.length < 1)
+      ) {
+        throw new Error('Select at least one week day for the repeat schedule.');
+      }
+      const normalizedRepeatWeekDays = (Array.isArray(repeatWeekDays) ? repeatWeekDays : [])
+        .map((day) => Number(day))
+        .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+        .slice(0, 6);
       const createdTasks: SpacesTask[] = [];
       let checklistEmailWarning = '';
       let checklistEmailSuccess = '';
@@ -2095,7 +2110,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
           emailChecklistEnabled: false,
           repeatEveryWeek,
           repeatCadence,
-          repeatWeekDay: Number(repeatWeekDay),
+          repeatWeekDays: normalizedRepeatWeekDays,
           repeatWeekTime,
           repeatOccurrences: repeatOccurrences === 'unlimited' ? undefined : Number(repeatOccurrences),
           recurrence,
@@ -2113,32 +2128,45 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
               reminderIntervalHours: Number(reminderIntervalHours),
               repeatEveryWeek,
               repeatCadence,
-              repeatWeekDay: Number(repeatWeekDay),
+              repeatWeekDay: normalizedRepeatWeekDays[0],
+              repeatWeekDays: normalizedRepeatWeekDays,
               repeatWeekTime,
               repeatOccurrences: repeatOccurrences === 'unlimited' ? null : Number(repeatOccurrences),
+              // Weekly/hour/2-min schedules wait for nextReminderAt before first mail.
+              scheduleOnly: repeatEveryWeek === true,
             }),
           });
           const data = await response.json().catch(() => ({}));
           if (!response.ok) {
             checklistEmailWarning =
-              data.message || 'Tasks were created, but the checklist email could not be sent.';
+              data.message || 'Tasks were created, but the checklist email could not be scheduled.';
+          } else if (repeatEveryWeek) {
+            const nextAt = data.nextReminderAt
+              ? new Date(data.nextReminderAt).toLocaleString('en-US', {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })
+              : '';
+            checklistEmailSuccess =
+              createdTasks.length === 1
+                ? `Task scheduled. Mail will send${nextAt ? ` on ${nextAt}` : ' at the selected time'}.`
+                : `${createdTasks.length} tasks scheduled. Mail will send${nextAt ? ` starting ${nextAt}` : ' at the selected times'}.`;
           } else if (!data.emailsSent) {
             checklistEmailWarning =
               data.message ||
               'Tasks were created, but no checklist email was sent. Check the assignee email address and mail credentials.';
           } else {
             checklistEmailSuccess =
-              repeatEveryWeek
-                ? createdTasks.length === 1
-                  ? 'Checklist email sent. The task will reactivate at the selected repeat interval.'
-                  : `Checklist email sent for ${data.emailsSent} assignee(s). The tasks will reactivate on their repeat schedule.`
-                : createdTasks.length === 1
-                  ? 'Checklist email sent to the assignee. Reminder emails will follow at your selected interval.'
-                  : `Checklist email sent for ${data.emailsSent} assignee(s). Reminder emails will follow at your selected interval.`;
+              createdTasks.length === 1
+                ? 'Checklist email sent to the assignee. Reminder emails will follow at your selected interval.'
+                : `Checklist email sent for ${data.emailsSent} assignee(s). Reminder emails will follow at your selected interval.`;
           }
         } catch (emailErr: any) {
           checklistEmailWarning =
-            emailErr?.message || 'Tasks were created, but the checklist email could not be sent.';
+            emailErr?.message || 'Tasks were created, but the checklist email could not be scheduled.';
         }
       }
 
@@ -2564,8 +2592,8 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     setRepeatEveryWeek,
     repeatCadence,
     setRepeatCadence,
-    repeatWeekDay,
-    setRepeatWeekDay,
+    repeatWeekDays,
+    setRepeatWeekDays,
     repeatWeekTime,
     setRepeatWeekTime,
     repeatOccurrences,

@@ -42,8 +42,8 @@ type SpacesTaskCreateModalProps = Pick<
   | 'setRepeatEveryWeek'
   | 'repeatCadence'
   | 'setRepeatCadence'
-  | 'repeatWeekDay'
-  | 'setRepeatWeekDay'
+  | 'repeatWeekDays'
+  | 'setRepeatWeekDays'
   | 'repeatWeekTime'
   | 'setRepeatWeekTime'
   | 'repeatOccurrences'
@@ -114,8 +114,8 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
     setRepeatEveryWeek,
     repeatCadence,
     setRepeatCadence,
-    repeatWeekDay,
-    setRepeatWeekDay,
+    repeatWeekDays,
+    setRepeatWeekDays,
     repeatWeekTime,
     setRepeatWeekTime,
     repeatOccurrences,
@@ -465,8 +465,8 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                         <SpacesWeeklyReminderFields
                           repeatCadence={repeatCadence}
                           setRepeatCadence={setRepeatCadence}
-                          repeatWeekDay={repeatWeekDay}
-                          setRepeatWeekDay={setRepeatWeekDay}
+                          repeatWeekDays={repeatWeekDays}
+                          setRepeatWeekDays={setRepeatWeekDays}
                           repeatWeekTime={repeatWeekTime}
                           setRepeatWeekTime={setRepeatWeekTime}
                           repeatOccurrences={repeatOccurrences}

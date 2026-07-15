@@ -211,7 +211,7 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
   const [editingReminderIntervalHours, setEditingReminderIntervalHours] = React.useState('24');
   const [editingRepeatEveryWeek, setEditingRepeatEveryWeek] = React.useState(false);
   const [editingRepeatCadence, setEditingRepeatCadence] = React.useState('week');
-  const [editingRepeatWeekDay, setEditingRepeatWeekDay] = React.useState('1');
+  const [editingRepeatWeekDays, setEditingRepeatWeekDays] = React.useState<string[]>(['1']);
   const [editingRepeatWeekTime, setEditingRepeatWeekTime] = React.useState('09:00');
   const [editingRepeatOccurrences, setEditingRepeatOccurrences] = React.useState('unlimited');
   const [editingAdditionalChecklistTitles, setEditingAdditionalChecklistTitles] = React.useState<string[]>([]);
@@ -388,7 +388,17 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
         ? '2_minutes'
         : String(editingTask.emailChecklist?.repeatCadence || 'week'),
     );
-    setEditingRepeatWeekDay(String(editingTask.emailChecklist?.repeatWeekDay ?? new Date().getDay()));
+    const existingWeekDays = Array.isArray(editingTask.emailChecklist?.repeatWeekDays)
+      ? editingTask.emailChecklist.repeatWeekDays
+          .map((day) => Number(day))
+          .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+          .map(String)
+      : [];
+    setEditingRepeatWeekDays(
+      existingWeekDays.length
+        ? existingWeekDays.slice(0, 6)
+        : [String(editingTask.emailChecklist?.repeatWeekDay ?? new Date().getDay())],
+    );
     setEditingRepeatWeekTime(String(editingTask.emailChecklist?.repeatWeekTime || '09:00'));
     setEditingRepeatOccurrences(editingTask.emailChecklist?.repeatOccurrences == null ? 'unlimited' : String(editingTask.emailChecklist.repeatOccurrences));
     setEditingAdditionalChecklistTitles([]);
@@ -499,7 +509,8 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
         emailChecklistEnabled: editingEmailChecklistEnabled,
         repeatEveryWeek: editingRepeatEveryWeek,
         repeatCadence: editingRepeatCadence,
-        repeatWeekDay: Number(editingRepeatWeekDay),
+        repeatWeekDay: Number(editingRepeatWeekDays[0]),
+        repeatWeekDays: editingRepeatWeekDays.map((day) => Number(day)).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6).slice(0, 6),
         repeatWeekTime: editingRepeatWeekTime,
         repeatOccurrences: editingRepeatOccurrences === 'unlimited' ? null : Number(editingRepeatOccurrences),
         reminderIntervalHours: Number(editingReminderIntervalHours) || 24,
@@ -535,7 +546,7 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
     editingReminderIntervalHours,
     editingRepeatEveryWeek,
     editingRepeatCadence,
-    editingRepeatWeekDay,
+    editingRepeatWeekDays,
     editingRepeatWeekTime,
     editingRepeatOccurrences,
     editingSelectedPlannerWeekGroup,
@@ -1103,8 +1114,8 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
                                     <SpacesWeeklyReminderFields
                                       repeatCadence={editingRepeatCadence}
                                       setRepeatCadence={setEditingRepeatCadence}
-                                      repeatWeekDay={editingRepeatWeekDay}
-                                      setRepeatWeekDay={setEditingRepeatWeekDay}
+                                      repeatWeekDays={editingRepeatWeekDays}
+                                      setRepeatWeekDays={setEditingRepeatWeekDays}
                                       repeatWeekTime={editingRepeatWeekTime}
                                       setRepeatWeekTime={setEditingRepeatWeekTime}
                                       repeatOccurrences={editingRepeatOccurrences}

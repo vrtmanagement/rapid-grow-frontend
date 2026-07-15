@@ -3,11 +3,13 @@ import { ThemedSelect } from './SpacesFormControls';
 import { SpacesWeeklyReminderTimePicker } from './SpacesWeeklyReminderTimePicker';
 import { WEEKDAY_SELECT_OPTIONS } from './spacesEmailReminderOptions';
 
+const MAX_WEEK_DAYS = 6;
+
 type SpacesWeeklyReminderFieldsProps = {
   repeatCadence: string;
   setRepeatCadence: (value: string) => void;
-  repeatWeekDay: string;
-  setRepeatWeekDay: (value: string) => void;
+  repeatWeekDays: string[];
+  setRepeatWeekDays: (value: string[]) => void;
   repeatWeekTime: string;
   setRepeatWeekTime: (value: string) => void;
   repeatOccurrences: string;
@@ -25,8 +27,8 @@ const REPEAT_CADENCE_OPTIONS = [
 const SpacesWeeklyReminderFields: React.FC<SpacesWeeklyReminderFieldsProps> = ({
   repeatCadence,
   setRepeatCadence,
-  repeatWeekDay,
-  setRepeatWeekDay,
+  repeatWeekDays,
+  setRepeatWeekDays,
   repeatWeekTime,
   setRepeatWeekTime,
   repeatOccurrences,
@@ -35,6 +37,24 @@ const SpacesWeeklyReminderFields: React.FC<SpacesWeeklyReminderFieldsProps> = ({
   fieldName,
 }) => {
   const hasCustomOccurrences = repeatOccurrences !== 'unlimited';
+  const selectedDays = Array.isArray(repeatWeekDays) ? repeatWeekDays : [];
+
+  const toggleWeekDay = (dayValue: string) => {
+    if (disabled) return;
+    const alreadySelected = selectedDays.includes(dayValue);
+    if (alreadySelected) {
+      if (selectedDays.length <= 1) return;
+      setRepeatWeekDays(selectedDays.filter((day) => day !== dayValue));
+      return;
+    }
+    if (selectedDays.length >= MAX_WEEK_DAYS) return;
+    const next = [...selectedDays, dayValue].sort((left, right) => {
+      const leftOrder = left === '0' ? 7 : Number(left);
+      const rightOrder = right === '0' ? 7 : Number(right);
+      return leftOrder - rightOrder;
+    });
+    setRepeatWeekDays(next);
+  };
 
   return (
     <div className="space-y-4 rounded-xl border border-violet-100 bg-violet-50/40 p-4">
@@ -50,17 +70,36 @@ const SpacesWeeklyReminderFields: React.FC<SpacesWeeklyReminderFieldsProps> = ({
         />
 
         {repeatCadence === 'week' ? (
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(120px,1.35fr)_minmax(210px,2fr)]">
+          <div className="mt-3 flex flex-col gap-3">
             <div>
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500">Week Day</div>
-              <ThemedSelect
-                value={repeatWeekDay}
-                onChange={setRepeatWeekDay}
-                options={WEEKDAY_SELECT_OPTIONS}
-                compact={true}
-                fullWidthCompact={true}
-                disabled={disabled}
-              />
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500">
+                Week Day
+                <span className="ml-1 font-medium normal-case tracking-normal text-slate-400">
+                  (up to {MAX_WEEK_DAYS})
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {WEEKDAY_SELECT_OPTIONS.map((option) => {
+                  const selected = selectedDays.includes(option.value);
+                  const atLimit = !selected && selectedDays.length >= MAX_WEEK_DAYS;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={selected}
+                      disabled={disabled || atLimit}
+                      onClick={() => toggleWeekDay(option.value)}
+                      className={`inline-flex min-h-9 items-center rounded-xl border px-3 text-[12px] font-semibold transition ${
+                        selected
+                          ? 'border-violet-400 bg-violet-100 text-violet-800 ring-2 ring-violet-100'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:bg-violet-50/60'
+                      } ${disabled || atLimit ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500">Time</div>
