@@ -9,10 +9,19 @@ import {
   getTopPriorityPillClasses,
   isCompletedPriorityStatus,
 } from '../../utils/spaces/topPriority';
+import { openSpacesTaskDetail, prefetchSpacesTaskDetailView } from '../../utils/spaces/taskNavigation';
 
 type SpacesTopPrioritiesPanelProps = Pick<
   SpacesViewController,
-  'topPriorityTasks' | 'navigate' | 'canChangeStatus' | 'patchTask' | 'mode'
+  | 'topPriorityTasks'
+  | 'navigate'
+  | 'canChangeStatus'
+  | 'patchTask'
+  | 'mode'
+  | 'taskPage'
+  | 'taskFilterMode'
+  | 'taskStatusFilter'
+  | 'taskSearch'
 >;
 
 const SpacesTopPrioritiesPanel: React.FC<SpacesTopPrioritiesPanelProps> = ({
@@ -21,6 +30,10 @@ const SpacesTopPrioritiesPanel: React.FC<SpacesTopPrioritiesPanelProps> = ({
   canChangeStatus,
   patchTask,
   mode,
+  taskPage,
+  taskFilterMode,
+  taskStatusFilter,
+  taskSearch,
 }) => {
   const [pendingCompletedTasks, setPendingCompletedTasks] = useState<
     Record<string, { task: SpacesTask; index: number }>
@@ -120,12 +133,25 @@ const SpacesTopPrioritiesPanel: React.FC<SpacesTopPrioritiesPanelProps> = ({
               key={task.taskId}
               role="button"
               tabIndex={0}
-              onClick={() => navigate(`/spaces/task/${task.taskId}`)}
+              onMouseEnter={() => prefetchSpacesTaskDetailView()}
+              onClick={() =>
+                openSpacesTaskDetail(navigate, task, {
+                  page: taskPage,
+                  filterMode: taskFilterMode,
+                  statusFilter: taskStatusFilter,
+                  search: taskSearch,
+                })
+              }
               onKeyDown={(event) => {
                 if (event.target !== event.currentTarget) return;
                 if (event.key !== 'Enter' && event.key !== ' ') return;
                 event.preventDefault();
-                navigate(`/spaces/task/${task.taskId}`);
+                openSpacesTaskDetail(navigate, task, {
+                  page: taskPage,
+                  filterMode: taskFilterMode,
+                  statusFilter: taskStatusFilter,
+                  search: taskSearch,
+                });
               }}
               className={`flex cursor-pointer items-start gap-2 rounded-2xl px-3 py-2 transition-colors ${getTopPriorityCardClasses(task, index)}`}
             >

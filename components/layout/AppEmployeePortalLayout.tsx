@@ -19,6 +19,8 @@ import AccessDenied from '../AccessDenied';
 import { SidebarLink, SidebarToggleButton } from './SidebarPrimitives';
 import { NotificationBellMenu, ThemeToggleButton, UserAccountMenu } from './AppTopbarControls';
 import type { AppShellNotification } from './authenticatedShellTypes';
+// Eager load so task row clicks do not wait on a lazy chunk.
+import SpacesTaskDetailView from '../../views/SpacesTaskDetailView';
 
 const Vision = lazy(() => import('../../views/Vision'));
 const ReflectionView = lazy(() => import('../../views/ReflectionView'));
@@ -31,7 +33,6 @@ const StaffView = lazy(() => import('../../views/StaffView'));
 const DriveView = lazy(() => import('../../drive/views/DriveView'));
 const ContentView = lazy(() => import('../../views/ContentView'));
 const ContentCreateView = lazy(() => import('../../views/ContentCreateView'));
-const SpacesTaskDetailView = lazy(() => import('../../views/SpacesTaskDetailView'));
 const WorkspacesView = lazy(() => import('../../views/WorkspacesView'));
 const CRMPage = lazy(() => import('../../views/CRMPage'));
 const CRMLeadDetailPage = lazy(() => import('../../views/CRMLeadDetailPage'));
