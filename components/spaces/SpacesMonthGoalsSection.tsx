@@ -23,12 +23,17 @@ import {
   getTopPriorityCardClasses,
   getTopPriorityPillClasses,
 } from '../../utils/spaces/topPriority';
+import { openSpacesTaskDetail, prefetchSpacesTaskDetailView } from '../../utils/spaces/taskNavigation';
 
 type SpacesMonthGoalsSectionProps = {
   tasks: SpacesTask[];
   patchTask: (taskId: string, updates: Record<string, unknown>) => Promise<unknown>;
   onCreateMonthGoalTask: (payload: CreateMonthGoalTaskPayload) => Promise<void>;
-  navigate: (path: string) => void;
+  navigate: (path: string, options?: { state?: unknown }) => void;
+  taskPage?: number;
+  taskFilterMode?: import('../../types/spaces').TaskFilterMode;
+  taskStatusFilter?: import('../../types/spaces').TaskStatus | '';
+  taskSearch?: string;
   canEditTask: (task: SpacesTask) => boolean;
   canValidateTask: (task: SpacesTask) => boolean;
   canPickSchedule: boolean;
@@ -77,6 +82,10 @@ const SpacesMonthGoalsSection: React.FC<SpacesMonthGoalsSectionProps> = ({
   patchTask,
   onCreateMonthGoalTask,
   navigate,
+  taskPage,
+  taskFilterMode = 'me',
+  taskStatusFilter = '',
+  taskSearch = '',
   canEditTask,
   canValidateTask,
   canPickSchedule,
@@ -191,16 +200,27 @@ const SpacesMonthGoalsSection: React.FC<SpacesMonthGoalsSectionProps> = ({
         key={task.taskId}
         role="button"
         tabIndex={0}
+        onMouseEnter={() => prefetchSpacesTaskDetailView()}
         onClick={(event) => {
           event.stopPropagation();
-          navigate(`/spaces/task/${task.taskId}`);
+          openSpacesTaskDetail(navigate, task, {
+            page: taskPage,
+            filterMode: taskFilterMode,
+            statusFilter: taskStatusFilter,
+            search: taskSearch,
+          });
         }}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
           if (event.key !== 'Enter' && event.key !== ' ') return;
           event.preventDefault();
           event.stopPropagation();
-          navigate(`/spaces/task/${task.taskId}`);
+          openSpacesTaskDetail(navigate, task, {
+            page: taskPage,
+            filterMode: taskFilterMode,
+            statusFilter: taskStatusFilter,
+            search: taskSearch,
+          });
         }}
         className={`flex cursor-pointer items-start gap-2 rounded-2xl px-3 py-2 transition-colors ${getTopPriorityCardClasses(task, index)}`}
       >

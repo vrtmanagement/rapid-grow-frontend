@@ -43,6 +43,11 @@ import {
   NO_VISION_SELECTOR_VALUE,
 } from '../../utils/spaces/taskRecurrence';
 import {
+  consumeSpacesTaskFocus,
+  peekSpacesTaskFocus,
+  spacesTaskRowElementId,
+} from '../../utils/spaces/taskNavigation';
+import {
   findScrollableContainer,
   forceDownloadDocument,
   getDayDisplay,
@@ -88,6 +93,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
   const navigate = useNavigate();
   const location = useLocation();
   const taskHubRootRef = useRef<HTMLDivElement | null>(null);
+  const skipFilterPageResetRef = useRef(false);
   const aiAssignRequestIdRef = useRef('');
   const generateId = () =>
     (typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -163,12 +169,20 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
   const [rejectTaskModal, setRejectTaskModal] = useState<SpacesTask | null>(null);
   const [rejectFeedbackDraft, setRejectFeedbackDraft] = useState('');
   const [rejectingTask, setRejectingTask] = useState(false);
-  const [taskFilterMode, setTaskFilterMode] = useState<TaskFilterMode>('me');
+  const initialTaskFocus = useMemo(() => peekSpacesTaskFocus(), []);
+  const [taskFilterMode, setTaskFilterMode] = useState<TaskFilterMode>(
+    () => initialTaskFocus?.filterMode || 'me',
+  );
   const [taskAssigneeFilterId, setTaskAssigneeFilterId] = useState('');
-  const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | ''>('');
-  const [taskSearch, setTaskSearch] = useState('');
+  const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | ''>(
+    () => initialTaskFocus?.statusFilter ?? '',
+  );
+  const [taskSearch, setTaskSearch] = useState(() => initialTaskFocus?.search || '');
   const debouncedTaskSearch = useDebounce(taskSearch.trim(), 250);
-  const [taskPage, setTaskPage] = useState(1);
+  const [taskPage, setTaskPage] = useState(() =>
+    Number(initialTaskFocus?.page) > 0 ? Number(initialTaskFocus.page) : 1,
+  );
+  const [focusedTaskId, setFocusedTaskId] = useState(() => String(initialTaskFocus?.taskId || ''));
   const [taskListTotal, setTaskListTotal] = useState(0);
   const [taskListTotalPages, setTaskListTotalPages] = useState(1);
   const [plannerTasks, setPlannerTasks] = useState<SpacesTask[]>([]);
@@ -1440,6 +1454,23 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
   }, [canUseAssigneeFilter, me.id]);
 
   const filteredTasks = visibleListTasks;
+  const sortedTasks = useMemo(() => {
+    const statusRank = (status?: string) => {
+      const value = String(status || 'todo').trim().toLowerCase();
+      if (value === 'todo') return 0;
+      if (value === 'doing') return 1;
+      if (value === 'review') return 2;
+      if (value === 'blocked') return 3;
+      if (value === 'done') return 4;
+      return 5;
+    };
+    // Keep incomplete/review tasks above done tasks even after local status patches.
+    return [...filteredTasks].sort((left, right) => {
+      const statusDiff = statusRank(left.status) - statusRank(right.status);
+      if (statusDiff !== 0) return statusDiff;
+      return new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime();
+    });
+  }, [filteredTasks]);
 
   const monthGoalSourceTasks = useMemo(() => {
     let list = visibleTasks;
@@ -1451,7 +1482,6 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     return list;
   }, [visibleTasks, mode, me.id, canUseAssigneeFilter, taskAssigneeFilterId]);
 
-  const sortedTasks = filteredTasks;
   const topPriorityTasks = useMemo(() => {
     const assigneeTarget =
       canUseAssigneeFilter && taskAssigneeFilterId ? taskAssigneeFilterId : me.id;
@@ -2260,7 +2290,20 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     return pages;
   }, [taskPage, totalTaskPages]);
 
+  const filterPageResetReadyRef = useRef(false);
   useEffect(() => {
+    if (!filterPageResetReadyRef.current) {
+      filterPageResetReadyRef.current = true;
+      if (skipFilterPageResetRef.current || initialTaskFocus?.taskId) {
+        skipFilterPageResetRef.current = false;
+        return;
+      }
+      return;
+    }
+    if (skipFilterPageResetRef.current) {
+      skipFilterPageResetRef.current = false;
+      return;
+    }
     setTaskPage(1);
   }, [taskFilterMode, taskStatusFilter, debouncedTaskSearch, taskAssigneeFilterId, mode]);
 
@@ -2573,6 +2616,41 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
   );
 
   useEffect(() => {
+    // Restore focus target when returning from task detail (filters/page seeded from session).
+    const focus = consumeSpacesTaskFocus();
+    if (!focus?.taskId) return;
+    skipFilterPageResetRef.current = true;
+    setFocusedTaskId(focus.taskId);
+    if (Number(focus.page) > 0) {
+      setTaskPage(Number(focus.page));
+    }
+    if (focus.filterMode) {
+      setTaskFilterMode(focus.filterMode);
+    }
+    if (focus.statusFilter !== undefined) {
+      setTaskStatusFilter(focus.statusFilter);
+    }
+    if (focus.search !== undefined) {
+      setTaskSearch(focus.search);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!focusedTaskId || spacesLoading) return;
+    const row = document.getElementById(spacesTaskRowElementId(focusedTaskId));
+    if (!row) {
+      const missTimer = window.setTimeout(() => setFocusedTaskId(''), 3000);
+      return () => window.clearTimeout(missTimer);
+    }
+
+    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const clearFocusTimer = window.setTimeout(() => setFocusedTaskId(''), 2200);
+    return () => window.clearTimeout(clearFocusTimer);
+  }, [focusedTaskId, spacesLoading, paginatedTasks, taskPage, taskFilterMode, taskStatusFilter, debouncedTaskSearch]);
+
+  useEffect(() => {
+    // Only reset on portal mode changes — never after returning to a focused task row.
+    if (peekSpacesTaskFocus()?.taskId || focusedTaskId) return;
     const runScrollReset = () => {
       const scrollContainer = findScrollableContainer(taskHubRootRef.current);
       if (scrollContainer === window) {
@@ -2585,6 +2663,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     runScrollReset();
     const rafId = window.requestAnimationFrame(runScrollReset);
     return () => window.cancelAnimationFrame(rafId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
   const handleAddComment = async () => {
@@ -2803,6 +2882,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     setTaskPage,
     visibleTaskPages,
     totalTaskPages,
+    focusedTaskId,
     API_BASE,
     getAuthHeaders,
     activeCommentTask,

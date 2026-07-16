@@ -5,9 +5,15 @@ import { getDisplayAvatarUrl } from '../../utils/avatar';
 import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
 import type { SpacesTask } from '../../types/spaces';
 import {
+  findScrollableContainer,
   isRecurringSeriesActive,
   isRecurringSeriesTask,
 } from '../../views/spacesViewHelpers';
+import {
+  openSpacesTaskDetail,
+  prefetchSpacesTaskDetailView,
+  spacesTaskRowElementId,
+} from '../../utils/spaces/taskNavigation';
 
 function getPriorityPillClass(priority?: string) {
   const normalized = String(priority || 'medium').trim().toLowerCase();
@@ -185,8 +191,12 @@ type SpacesTaskTableSectionProps = Pick<
   | 'setTaskPage'
   | 'visibleTaskPages'
   | 'totalTaskPages'
+  | 'taskFilterMode'
+  | 'taskStatusFilter'
+  | 'taskSearch'
   | 'API_BASE'
   | 'getAuthHeaders'
+  | 'focusedTaskId'
 >;
 
 const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) => {
@@ -247,8 +257,12 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
     setTaskPage,
     visibleTaskPages,
     totalTaskPages,
+    taskFilterMode,
+    taskStatusFilter,
+    taskSearch,
     API_BASE,
     getAuthHeaders,
+    focusedTaskId = '',
   } = props;
   const [activeRowMenuId, setActiveRowMenuId] = React.useState<string | null>(null);
   const [activeRowMenuPlacement, setActiveRowMenuPlacement] = React.useState<'top' | 'bottom'>('bottom');
@@ -295,8 +309,15 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
     });
     return { activeSeries, stoppedSeries };
   }, [tasks]);
-  const openTaskDetail = (taskId: string) => {
-    navigate(`/spaces/task/${taskId}`);
+  const openTaskDetail = (task: SpacesTask) => {
+    prefetchSpacesTaskDetailView();
+    openSpacesTaskDetail(navigate, task, {
+      page: taskPage,
+      filterMode: taskFilterMode,
+      statusFilter: taskStatusFilter,
+      search: taskSearch,
+      scrollContainer: findScrollableContainer(tableCardRef.current),
+    });
   };
   const isRowInteractiveTarget = (target: HTMLElement) =>
     Boolean(target.closest('button, select, textarea, input, a, [role="button"]'));
@@ -536,9 +557,13 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                       ? 'Hourly Mail'
                       : 'Weekly Mail';
 
+                const isFocusedReturn = focusedTaskId && focusedTaskId === t.taskId;
+
                 return (
                   <tr
                     key={t.taskId}
+                    id={spacesTaskRowElementId(t.taskId)}
+                    onMouseEnter={() => prefetchSpacesTaskDetailView()}
                     onClick={(event) => {
                       const target = event.target as HTMLElement;
                       if (isRowInteractiveTarget(target)) return;
@@ -546,13 +571,17 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                         toggleTaskSelection?.(t);
                         return;
                       }
-                      openTaskDetail(t.taskId);
+                      openTaskDetail(t);
                     }}
                     className={`${getTaskRowClasses(t)} cursor-pointer transition-colors ${
                       showMailActive ? 'bg-emerald-50' : showMailStopped ? 'bg-rose-50' : isWeeklyMailTask && !weeklyMailStopped ? 'bg-violet-50/60' : weeklyMailStopped ? 'bg-slate-50' : ''
                     } ${
                       isSelected
                         ? '!bg-gradient-to-r !from-red-50/90 !to-rose-50/70 ring-1 ring-inset ring-brand-red/25 shadow-[inset_3px_0_0_0_rgba(220,38,38,0.85)]'
+                        : ''
+                    } ${
+                      isFocusedReturn
+                        ? 'ring-2 ring-inset ring-brand-red/40 !bg-red-50/80'
                         : ''
                     }`}
                   >
@@ -732,7 +761,7 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                                     setActiveRowMenuId(null);
                                     setActiveRowMenuPlacement('bottom');
                                     activeRowMenuButtonRef.current = null;
-                                    openTaskDetail(t.taskId);
+                                    openTaskDetail(t);
                                   }}
                                   className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium text-slate-700 transition hover:bg-slate-50"
                                 >

@@ -179,6 +179,10 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
             canChangeStatus={canChangeStatus}
             patchTask={patchTask}
             mode={mode}
+            taskPage={taskPage}
+            taskFilterMode={props.taskFilterMode}
+            taskStatusFilter={props.taskStatusFilter}
+            taskSearch={props.taskSearch}
           />
 
           <div className="order-2 flex flex-col rounded-3xl border border-slate-200 bg-white p-5">
@@ -203,6 +207,10 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
               monthGoalSaving={monthGoalSaving}
               monthGoalUploading={monthGoalUploading}
               setError={setError}
+              taskPage={taskPage}
+              taskFilterMode={props.taskFilterMode}
+              taskStatusFilter={props.taskStatusFilter}
+              taskSearch={props.taskSearch}
             />
           </div>
         </div>
@@ -310,6 +318,10 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         setTaskPage={setTaskPage}
         visibleTaskPages={visibleTaskPages}
         totalTaskPages={totalTaskPages}
+        taskFilterMode={props.taskFilterMode}
+        taskStatusFilter={props.taskStatusFilter}
+        taskSearch={props.taskSearch}
+        focusedTaskId={props.focusedTaskId}
         API_BASE={API_BASE}
         getAuthHeaders={getAuthHeaders}
       />

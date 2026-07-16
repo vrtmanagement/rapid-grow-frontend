@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   CalendarDays,
@@ -20,6 +20,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { fetchWorkspaceLinkTasks } from '../services/spacesApi';
 import { getDisplayAvatarUrl } from '../utils/avatar';
+import { peekSpacesTaskFocus, rememberSpacesTaskFocus } from '../utils/spaces/taskNavigation';
 import {
   buildEmployeeNameLookup,
   canEditTaskForView,
@@ -39,14 +40,26 @@ interface Props {
   mode: 'employee' | 'manager';
 }
 
+type TaskDetailLocationState = {
+  task?: SpacesTask;
+  spacesReturn?: {
+    page?: number;
+    filterMode?: 'all' | 'me' | 'assigned';
+    statusFilter?: TaskStatus | '';
+    search?: string;
+  };
+  /** @deprecated use spacesReturn.page */
+  spacesReturnPage?: number;
+};
+
 const pageEase = [0.22, 1, 0.36, 1] as const;
 
 const sectionReveal = {
-  hidden: { opacity: 0, y: 14 },
+  hidden: { opacity: 0, y: 6 },
   show: (index: number) => ({
     opacity: 1,
     y: 0,
-    transition: { duration: 0.42, delay: 0.06 + index * 0.05, ease: pageEase },
+    transition: { duration: 0.2, delay: Math.min(index, 3) * 0.02, ease: pageEase },
   }),
 };
 
@@ -283,69 +296,122 @@ function TaskDetailSkeleton({ reducedMotion }: { reducedMotion: boolean }) {
 const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
   const { taskId = '' } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = (location.state || {}) as TaskDetailLocationState;
   const prefersReducedMotion = useReducedMotion();
   const me = useMemo(() => getLoggedInEmployee(), []);
-  const [task, setTask] = useState<SpacesTask | null>(null);
+  const seededTask = useMemo(() => {
+    const candidate = locationState.task;
+    if (!candidate || String(candidate.taskId || '') !== taskId) return null;
+    return normalizeTaskForUi(candidate);
+  }, [locationState.task, taskId]);
+  const [task, setTask] = useState<SpacesTask | null>(seededTask);
   const [allTasks, setAllTasks] = useState<SpacesTask[]>([]);
   const [employeeNameById, setEmployeeNameById] = useState<Map<string, string>>(() => new Map());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!seededTask);
   const [downloading, setDownloading] = useState(false);
   const [stoppingRecurrence, setStoppingRecurrence] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const goBackToSpaces = () => {
+    const returnContext = locationState.spacesReturn;
+    rememberSpacesTaskFocus({
+      taskId,
+      page:
+        Number(returnContext?.page) > 0
+          ? Number(returnContext.page)
+          : Number(locationState.spacesReturnPage) > 0
+            ? Number(locationState.spacesReturnPage)
+            : peekSpacesTaskFocus()?.page,
+      filterMode: returnContext?.filterMode || peekSpacesTaskFocus()?.filterMode,
+      statusFilter:
+        returnContext?.statusFilter !== undefined
+          ? returnContext.statusFilter
+          : peekSpacesTaskFocus()?.statusFilter,
+      search:
+        returnContext?.search !== undefined
+          ? returnContext.search
+          : peekSpacesTaskFocus()?.search,
+    });
+    navigate('/spaces');
+  };
+
   const loadTask = async () => {
     if (!taskId) return;
-    setLoading(true);
     setError(null);
+
+    // Never blank the page when we already have this task (seeded navigation / refresh).
+    let hasVisibleTask = false;
+    setTask((current) => {
+      hasVisibleTask = Boolean(current && current.taskId === taskId);
+      return current;
+    });
+    if (!hasVisibleTask) setLoading(true);
+
     try {
-      const [spacesPayload, employeesRes, taskDetailRes] = await Promise.all([
-        fetchWorkspaceLinkTasks(),
-        fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() }),
-        fetch(`${API_BASE}/spaces/tasks/${encodeURIComponent(taskId)}`, { headers: getAuthHeaders() }),
-      ]);
-
-      let nameLookup = new Map<string, string>();
-      if (employeesRes.ok) {
-        const employeePayload = await employeesRes.json().catch(() => []);
-        const list = Array.isArray(employeePayload) ? employeePayload : [];
-        nameLookup = buildEmployeeNameLookup(
-          list.map((entry: any) => ({
-            empId: String(entry.empId || entry._id || '').trim(),
-            empName: String(entry.empName || entry.name || '').trim(),
-            _id: entry._id ? String(entry._id) : undefined,
-          })),
-        );
-      }
-      setEmployeeNameById(nameLookup);
-
-      const tasks = Array.isArray(spacesPayload?.tasks)
-        ? enrichTasksWithEmployeeNames(
-            spacesPayload.tasks.map((item: SpacesTask) => normalizeTaskForUi(item)),
-            nameLookup,
-          )
-        : [];
+      const taskDetailRes = await fetch(`${API_BASE}/spaces/tasks/${encodeURIComponent(taskId)}`, {
+        headers: getAuthHeaders(),
+      });
       const taskDetailPayload = taskDetailRes.ok
         ? await taskDetailRes.json().catch(() => null)
         : null;
-      const found = taskDetailPayload
-        ? enrichTasksWithEmployeeNames(
-            [normalizeTaskForUi(taskDetailPayload as SpacesTask)],
-            nameLookup,
-          )[0]
-        : tasks.find((item) => item.taskId === taskId) || null;
-      if (!found) throw new Error('Task not found');
-      setAllTasks(tasks);
+      if (!taskDetailPayload) throw new Error('Task not found');
+
+      const found = normalizeTaskForUi(taskDetailPayload as SpacesTask);
       setTask(found);
+      setLoading(false);
+
+      // Enrich names + recurrence context in the background (not on the critical path).
+      void (async () => {
+        try {
+          const [spacesPayload, employeesRes] = await Promise.all([
+            fetchWorkspaceLinkTasks(),
+            fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() }),
+          ]);
+
+          let nameLookup = new Map<string, string>();
+          if (employeesRes.ok) {
+            const employeePayload = await employeesRes.json().catch(() => []);
+            const list = Array.isArray(employeePayload) ? employeePayload : [];
+            nameLookup = buildEmployeeNameLookup(
+              list.map((entry: any) => ({
+                empId: String(entry.empId || entry._id || '').trim(),
+                empName: String(entry.empName || entry.name || '').trim(),
+                _id: entry._id ? String(entry._id) : undefined,
+              })),
+            );
+          }
+          setEmployeeNameById(nameLookup);
+
+          const tasks = Array.isArray(spacesPayload?.tasks)
+            ? enrichTasksWithEmployeeNames(
+                spacesPayload.tasks.map((item: SpacesTask) => normalizeTaskForUi(item)),
+                nameLookup,
+              )
+            : [];
+          setAllTasks(tasks);
+          setTask((prev) =>
+            enrichTasksWithEmployeeNames([normalizeTaskForUi(prev || found)], nameLookup)[0] || found,
+          );
+        } catch {
+          // Non-critical enrichment; keep the already-rendered task.
+        }
+      })();
     } catch (e: any) {
-      setTask(null);
       setError(e?.message || 'Failed to load task details');
-    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    if (seededTask && seededTask.taskId === taskId) {
+      setTask(seededTask);
+      setLoading(false);
+    } else if (!seededTask) {
+      setTask(null);
+    }
     void loadTask();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
   const showRecurringBadge = task ? isRecurringSeriesTask(task) : false;
@@ -434,15 +500,15 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(circle_at_top_left,rgba(220,38,38,0.08),transparent_55%),radial-gradient(circle_at_top_right,rgba(15,23,42,0.06),transparent_45%)]" />
 
       <motion.header
-        initial={prefersReducedMotion ? false : { opacity: 0, y: -8 }}
+        initial={prefersReducedMotion ? false : { opacity: 0, y: -4 }}
         animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-        transition={{ duration: 0.34, ease: pageEase }}
+        transition={{ duration: 0.18, ease: pageEase }}
         className="relative mb-8 flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-slate-200/70 bg-white/80 px-4 py-3 shadow-[0_10px_40px_rgba(15,23,42,0.05)] backdrop-blur-xl sm:px-5"
       >
         <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate('/spaces')}
+            onClick={goBackToSpaces}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
             aria-label="Back to TaskHub"
           >
@@ -450,7 +516,14 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
           </button>
           <nav className="min-w-0 text-sm">
             <div className="flex flex-wrap items-center gap-1.5 text-slate-500">
-              <Link to="/spaces" className="font-medium text-slate-600 transition hover:text-brand-red">
+              <Link
+                to="/spaces"
+                onClick={(event) => {
+                  event.preventDefault();
+                  goBackToSpaces();
+                }}
+                className="font-medium text-slate-600 transition hover:text-brand-red"
+              >
                 TaskHub
               </Link>
               <ChevronRight size={14} className="text-slate-300" />
@@ -504,19 +577,19 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
           </motion.div>
         ) : null}
 
-        {loading ? (
+        {loading && !task ? (
           <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <TaskDetailSkeleton reducedMotion={!!prefersReducedMotion} />
           </motion.div>
         ) : null}
 
-        {!loading && !error && task ? (
+        {!error && task ? (
           <motion.article
             key={task.taskId}
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
             animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-            exit={prefersReducedMotion ? undefined : { opacity: 0, y: 8 }}
-            transition={{ duration: 0.48, ease: pageEase }}
+            exit={prefersReducedMotion ? undefined : { opacity: 0 }}
+            transition={{ duration: 0.2, ease: pageEase }}
             className="relative space-y-6"
           >
             <div

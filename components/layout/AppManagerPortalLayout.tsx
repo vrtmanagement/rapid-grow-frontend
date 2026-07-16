@@ -25,6 +25,7 @@ import AccessDenied from '../AccessDenied';
 import { SidebarLink, SidebarToggleButton } from './SidebarPrimitives';
 import { NotificationBellMenu, ThemeToggleButton, UserAccountMenu } from './AppTopbarControls';
 import type { AppShellNotification } from './authenticatedShellTypes';
+import SpacesTaskDetailView from '../../views/SpacesTaskDetailView';
 
 const Vision = lazy(() => import('../../views/Vision'));
 const ReflectionView = lazy(() => import('../../views/ReflectionView'));
@@ -37,7 +38,6 @@ const StaffView = lazy(() => import('../../views/StaffView'));
 const DriveView = lazy(() => import('../../drive/views/DriveView'));
 const ContentView = lazy(() => import('../../views/ContentView'));
 const ContentCreateView = lazy(() => import('../../views/ContentCreateView'));
-const SpacesTaskDetailView = lazy(() => import('../../views/SpacesTaskDetailView'));
 const CRMPage = lazy(() => import('../../views/CRMPage'));
 const CRMLeadDetailPage = lazy(() => import('../../views/CRMLeadDetailPage'));
 const StrategyExecutionView = lazy(() => import('../../views/StrategyExecutionView'));
