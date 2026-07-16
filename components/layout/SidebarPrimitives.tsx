@@ -113,11 +113,11 @@ export const SidebarLink: React.FC<{ to: string; icon: any; label: string; colla
         ref={linkRef}
         to={to}
         aria-label={label}
-        className={`app-sidebar-link group relative flex items-center gap-3 rounded-lg px-3.5 py-2.5 transition-all max-sm:justify-center max-sm:px-0 ${
+        className={`app-sidebar-link group relative flex items-center gap-3 rounded-lg px-3.5 py-2 transition-all max-sm:justify-center max-sm:px-0 ${
           isActive
             ? 'is-active bg-brand-red text-white shadow-xl'
             : 'text-slate-500 hover:bg-white/5 hover:text-white dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white'
-        } ${collapsed ? 'justify-center px-0 py-2.5' : ''}`}
+        } ${collapsed ? 'justify-center px-0 py-2' : ''}`}
         onMouseEnter={() => collapsed && setTooltipOpen(true)}
         onMouseLeave={() => setTooltipOpen(false)}
         onFocus={() => collapsed && setTooltipOpen(true)}

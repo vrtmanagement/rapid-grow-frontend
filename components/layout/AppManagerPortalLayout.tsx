@@ -126,6 +126,19 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
     hasPower('MONTHLY_VIEW') ||
     hasPower('WEEKLY_VIEW') ||
     hasPower('DAILY_VIEW');
+  const showPrimaryNav =
+    hasPower('DASHBOARD_VIEW') ||
+    (!isSuperAdmin &&
+      (hasPower('WORKSPACES_VIEW') || hasPower('SPACES_VIEW') || hasPower('ATTENDANCE_VIEW')));
+  const showPlanningNav =
+    !isSuperAdmin &&
+    (hasVisionAccess || hasPower('STRATEGY_EXECUTION_VIEW') || hasPower('REFLECTION_VIEW'));
+  const showToolsNav =
+    hasPower('COMMUNICATION_VIEW') ||
+    hasPower('DRIVE_VIEW') ||
+    hasPower('CONTENT_VIEW') ||
+    hasPower('STAFF_VIEW') ||
+    hasPower('CRM_VIEW');
   const browserHash = typeof window !== 'undefined' ? window.location.hash || '' : '';
   const routePathSource = browserHash.startsWith('#') ? browserHash.slice(1) : location.pathname;
   const routePath = (routePathSource || location.pathname || '/').split('?')[0] || '/';
@@ -180,7 +193,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
             </div>
             <SidebarToggleButton isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
           </div>
-          <nav className="flex-1 min-h-0 space-y-1 overflow-y-auto overflow-x-hidden px-2.5 py-3.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0">
+          <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5 py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0">
             {hasPower('DASHBOARD_VIEW') && (
               <SidebarLink
                 to="/"
@@ -211,7 +224,9 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                 {hasPower('ATTENDANCE_VIEW') && (
                   <SidebarLink to="/attendance" icon={<Clock size={20} />} label="Manage Attendance" collapsed={!isSidebarOpen} />
                 )}
-                <div className="app-sidebar-divider h-px bg-white/5 mx-2.5 my-3.5"></div>
+                {showPrimaryNav && showPlanningNav ? (
+                  <div className="app-sidebar-divider h-px bg-white/5 mx-2.5 my-1"></div>
+                ) : null}
                 {hasVisionAccess && (
                   <SidebarLink to="/yearly" icon={<Target size={20} />} label="Vision" collapsed={!isSidebarOpen} />
                 )}
@@ -231,7 +246,9 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
                     collapsed={!isSidebarOpen}
                   />
                 )}
-                <div className="app-sidebar-divider h-px bg-white/5 mx-2.5 my-3.5"></div>
+                {(showPrimaryNav || showPlanningNav) && showToolsNav ? (
+                  <div className="app-sidebar-divider h-px bg-white/5 mx-2.5 my-1"></div>
+                ) : null}
               </>
             )}
             {hasPower('COMMUNICATION_VIEW') && (
