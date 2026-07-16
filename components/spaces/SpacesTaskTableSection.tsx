@@ -581,34 +581,6 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                             Mail Stopped
                           </span>
                         ) : null}
-                        {isWeeklyMailTask ? (
-                          <span
-                            className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] ${
-                              weeklyMailStopped
-                                ? 'border-slate-200 bg-slate-100 text-slate-600'
-                                : 'border-violet-200 bg-violet-50 text-violet-700'
-                            }`}
-                            title={
-                              weeklyMailStopped
-                                ? 'Automated repeat mail has been stopped'
-                                : `Automated mail repeats every ${t.emailChecklist?.repeatCadence === '2_minutes' || t.emailChecklist?.repeatCadence === '5_minutes' ? '2 minutes' : t.emailChecklist?.repeatCadence || 'week'}`
-                            }
-                          >
-                            {weeklyMailStopped ? 'Mail Stopped' : repeatMailLabel}
-                          </span>
-                        ) : null}
-                        {isUpcomingMail ? (
-                          <span
-                            className="inline-flex shrink-0 items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-amber-800"
-                            title={
-                              upcomingMailLabel
-                                ? `Mail will send on ${upcomingMailLabel}`
-                                : 'Mail is scheduled and has not been sent yet'
-                            }
-                          >
-                            Upcoming{upcomingMailLabel ? ` · ${upcomingMailLabel}` : ''}
-                          </span>
-                        ) : null}
                         <input
                           defaultValue={t.title}
                           onBlur={(e) => {
@@ -633,6 +605,38 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                         ) : null}
                         {((mode === 'manager') || (mode === 'employee' && t.createdByEmpId !== me.id)) && (t.createdByName || t.createdByEmpId) ? (
                           <div>Created by: {t.createdByName || t.createdByEmpId}</div>
+                        ) : null}
+                        {(isWeeklyMailTask || isUpcomingMail) ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {isWeeklyMailTask ? (
+                              <span
+                                className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] ${
+                                  weeklyMailStopped
+                                    ? 'border-slate-200 bg-slate-100 text-slate-600'
+                                    : 'border-violet-200 bg-violet-50 text-violet-700'
+                                }`}
+                                title={
+                                  weeklyMailStopped
+                                    ? 'Automated repeat mail has been stopped'
+                                    : `Automated mail repeats every ${t.emailChecklist?.repeatCadence === '2_minutes' || t.emailChecklist?.repeatCadence === '5_minutes' ? '2 minutes' : t.emailChecklist?.repeatCadence || 'week'}`
+                                }
+                              >
+                                {weeklyMailStopped ? 'Mail Stopped' : repeatMailLabel}
+                              </span>
+                            ) : null}
+                            {isUpcomingMail ? (
+                              <span
+                                className="inline-flex shrink-0 items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-amber-800"
+                                title={
+                                  upcomingMailLabel
+                                    ? `Mail will send on ${upcomingMailLabel}`
+                                    : 'Mail is scheduled and has not been sent yet'
+                                }
+                              >
+                                Upcoming{upcomingMailLabel ? ` · ${upcomingMailLabel}` : ''}
+                              </span>
+                            ) : null}
+                          </div>
                         ) : null}
                         {t.description ? <div className="truncate text-slate-500" title={t.description}>Description: {t.description}</div> : null}
                       </div>
