@@ -132,7 +132,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
   });
   const [taskRecurrence, setTaskRecurrence] = useState<TaskCreateRecurrenceDraft>(() => buildDefaultTaskCreateRecurrenceDraft());
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-  const [taskDocumentFile, setTaskDocumentFile] = useState<File | null>(null);
+  const [taskDocumentFiles, setTaskDocumentFiles] = useState<File[]>([]);
   const [aiAssigning, setAiAssigning] = useState(false);
   const [aiAssignFileName, setAiAssignFileName] = useState('');
   const [aiAssignProgress, setAiAssignProgress] = useState<AiAssignProgressState | null>(null);
@@ -1129,7 +1129,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       }
       setTaskRecurrence(buildDefaultTaskCreateRecurrenceDraft());
       setSelectedProjectId('');
-      setTaskDocumentFile(null);
+      setTaskDocumentFiles([]);
       setCreateTaskPlannerEnabled(Boolean(plannerDefaults?.plannerEnabled));
       setCreateTaskPlannerQuarterId(plannerDefaults?.quarterId || '');
       setCreateTaskPlannerMonthId(plannerDefaults?.monthId || '');
@@ -1142,28 +1142,55 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
 
   const uploadTaskDocument = useCallback(async (file: File | null) => {
     if (!file) return null;
-    setUploadingTaskDocument(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    const session = getStoredAuthSession();
-    const token = typeof session?.token === 'string' ? session.token : '';
-    const resUpload = await fetch(`${API_BASE}/spaces/tasks/upload-document`, {
-      method: 'POST',
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: formData,
-    });
-    const uploaded = await resUpload.json().catch(() => ({}));
-    if (!resUpload.ok) {
-      throw new Error(uploaded.message || 'Failed to upload task document');
+    const maxDocumentBytes = 10 * 1024 * 1024;
+    if (file.size > maxDocumentBytes) {
+      throw new Error(`"${file.name}" file size is more than 10 MB.`);
     }
-    return {
-      documentUrl: String(uploaded.documentUrl || ''),
-      documentName: String(uploaded.documentName || file.name || ''),
-      documentMimeType: String(uploaded.documentMimeType || file.type || ''),
-    };
+    setUploadingTaskDocument(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const session = getStoredAuthSession();
+      const token = typeof session?.token === 'string' ? session.token : '';
+      const resUpload = await fetch(`${API_BASE}/spaces/tasks/upload-document`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+      const uploaded = await resUpload.json().catch(() => ({}));
+      if (!resUpload.ok) {
+        const errorText = String(uploaded.error || uploaded.message || 'Failed to upload task document');
+        if (/file size too large|more than 10/i.test(errorText)) {
+          throw new Error(`"${file.name}" file size is more than 10 MB.`);
+        }
+        throw new Error(uploaded.message || errorText);
+      }
+      return {
+        documentUrl: String(uploaded.documentUrl || ''),
+        documentName: String(uploaded.documentName || file.name || ''),
+        documentMimeType: String(uploaded.documentMimeType || file.type || ''),
+      };
+    } finally {
+      setUploadingTaskDocument(false);
+    }
   }, []);
+
+  const uploadTaskDocuments = useCallback(async (files: File[]) => {
+    const normalized = Array.isArray(files) ? files.slice(0, 10) : [];
+    const uploaded: Array<{ url: string; name: string; mimeType: string }> = [];
+    for (const file of normalized) {
+      const doc = await uploadTaskDocument(file);
+      if (!doc) continue;
+      uploaded.push({
+        url: String(doc.documentUrl || ''),
+        name: String(doc.documentName || file.name || ''),
+        mimeType: String(doc.documentMimeType || file.type || ''),
+      });
+    }
+    return uploaded;
+  }, [uploadTaskDocument]);
 
   const buildTaskRecurrencePayload = useCallback(() => {
     if (!taskRecurrence.enabled) return undefined;
@@ -1237,7 +1264,8 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     status: TaskStatus;
     reminderIntervalHours: string;
     projectId: string;
-    taskDocumentFile: File | null;
+    taskDocumentFiles?: File[];
+    uploadedDocuments?: Array<{ url: string; name: string; mimeType: string }>;
     plannerDay?: Goal | null;
     plannerGroup?: WeeklyTaskGroup | null;
     monthGoalContext?: MonthGoalContext | null;
@@ -1265,7 +1293,11 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       ? projects.find((p) => p.id === params.projectId) || null
       : null;
 
-    const uploadedDocument = await uploadTaskDocument(params.taskDocumentFile);
+    const uploadedDocuments =
+      Array.isArray(params.uploadedDocuments) && params.uploadedDocuments.length
+        ? params.uploadedDocuments
+        : await uploadTaskDocuments(params.taskDocumentFiles || []);
+    const primaryDocument = uploadedDocuments[0] || null;
 
     if (project) {
       const resProj = await fetch(`${API_BASE}/project-charters/${project.id}`, {
@@ -1335,9 +1367,10 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       body: JSON.stringify({
         title: cleanTitle,
         description: plannerDescription,
-        documentUrl: uploadedDocument?.documentUrl || '',
-        documentName: uploadedDocument?.documentName || '',
-        documentMimeType: uploadedDocument?.documentMimeType || '',
+        documentUrl: primaryDocument?.url || '',
+        documentName: primaryDocument?.name || '',
+        documentMimeType: primaryDocument?.mimeType || '',
+        documents: uploadedDocuments,
         projectId: project?.id || '',
         projectTaskId: project ? projectTaskId : undefined,
         assigneeId: resolvedAssigneeId,
@@ -1370,7 +1403,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     const normalizedTask = normalizeTaskForUi(data as SpacesTask);
     setTasks((prev) => upsertTaskById(prev, normalizedTask));
     return checklistEmail ? { ...normalizedTask, checklistEmail } : normalizedTask;
-  }, [appendProjectTaskToState, me.id, me.role, mode, projects, uploadTaskDocument]);
+  }, [appendProjectTaskToState, me.id, me.role, mode, projects, uploadTaskDocuments]);
 
   const createMonthGoalTask = useCallback(
     async (params: CreateMonthGoalTaskPayload) => {
@@ -1406,7 +1439,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
           status: 'todo',
           reminderIntervalHours: '24',
           projectId: '',
-          taskDocumentFile: params.taskDocumentFile,
+          taskDocumentFiles: params.taskDocumentFile ? [params.taskDocumentFile] : [],
           monthGoalContext: params.context,
         });
       } finally {
@@ -2076,6 +2109,15 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
   const handleCreate = async () => {
     const cleanTitle = title.trim();
     if (!cleanTitle) return;
+    if (taskDocumentFiles.length > 10) {
+      setError('Only 10 files are allowed.');
+      return;
+    }
+    const oversizedFile = taskDocumentFiles.find((file) => file.size > 10 * 1024 * 1024);
+    if (oversizedFile) {
+      setError(`"${oversizedFile.name}" file size is more than 10 MB.`);
+      return;
+    }
     setSaving(true);
     setError(null);
     setWeeklyError('');
@@ -2181,6 +2223,8 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
       let checklistEmailWarning = '';
       let checklistEmailSuccess = '';
 
+      const uploadedDocuments = await uploadTaskDocuments(taskDocumentFiles);
+
       for (let index = 0; index < checklistTitles.length; index += 1) {
         const createdTask = await createTaskInternal({
           title: checklistTitles[index],
@@ -2195,7 +2239,7 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
           status,
           reminderIntervalHours,
           projectId: selectedProjectId,
-          taskDocumentFile: index === 0 ? taskDocumentFile : null,
+          uploadedDocuments,
           plannerDay,
           plannerGroup,
           monthGoalContext,
@@ -2218,6 +2262,27 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
             headers: getAuthHeaders(),
             body: JSON.stringify({
               taskIds: createdTasks.map((task) => task.taskId),
+              taskDetails: createdTasks.map((task) => ({
+                taskId: task.taskId,
+                title: task.title,
+                description: String(task.description || description || '').trim(),
+                dueDate: String(task.dueDate || dueDate || '').trim(),
+                priority: task.priority || priority,
+                status: task.status || status,
+                assigneeId: task.assigneeId || resolvedAssigneeId,
+                assigneeName: String(task.assigneeName || resolvedExternalName || '').trim(),
+                projectId: String(task.projectId || selectedProjectId || '').trim(),
+                createdByName: String(task.createdByName || me.name || '').trim(),
+                estimatedHours: Number(task.estimatedHours || 0),
+                actualHours: Number(task.actualHours || 0),
+                documentUrl: task.documentUrl || uploadedDocuments[0]?.url || '',
+                documentName: task.documentName || uploadedDocuments[0]?.name || '',
+                documentMimeType: task.documentMimeType || uploadedDocuments[0]?.mimeType || '',
+                documents:
+                  Array.isArray(task.documents) && task.documents.length
+                    ? task.documents
+                    : uploadedDocuments,
+              })),
               reminderIntervalHours: Number(reminderIntervalHours),
               repeatEveryWeek,
               repeatCadence,
@@ -2752,8 +2817,8 @@ export const useSpacesViewController = ({ mode, state, updateState }: SpacesView
     setSelectedProjectId,
     projectSelectOptions,
     projectsLoading,
-    setTaskDocumentFile,
-    taskDocumentFile,
+    setTaskDocumentFiles,
+    taskDocumentFiles,
     handleCreate,
     saving,
     uploadingTaskDocument,

@@ -102,6 +102,11 @@ export interface SpacesTask {
   documentUrl?: string;
   documentName?: string;
   documentMimeType?: string;
+  documents?: Array<{
+    url: string;
+    name: string;
+    mimeType?: string;
+  }>;
   projectId?: string;
   projectTaskId?: string;
   source?: string;

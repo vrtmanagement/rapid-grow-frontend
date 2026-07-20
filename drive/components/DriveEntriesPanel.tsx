@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Check, Copy, EllipsisVertical, ExternalLink, Eye, FileText, Globe, Link2, Pencil, Trash2 } from 'lucide-react';
 import type { DriveEntry } from '../types';
 
@@ -53,6 +54,150 @@ function EntryIconButton({
   );
 }
 
+function EntryLinkActionMenu({
+  entry,
+  isOpen,
+  iconSize,
+  triggerClassName = '',
+  onToggle,
+  onClose,
+  onEdit,
+  onDelete,
+}: {
+  entry: DriveEntry;
+  isOpen: boolean;
+  iconSize: number;
+  triggerClassName?: string;
+  onToggle: () => void;
+  onClose: () => void;
+  onEdit: (entry: DriveEntry) => void;
+  onDelete: (entry: DriveEntry) => void;
+}) {
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+  const triggerRef = React.useRef<HTMLButtonElement | null>(null);
+  const [menuPosition, setMenuPosition] = React.useState<{ top: number; left: number } | null>(null);
+
+  const updateMenuPosition = React.useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+
+    const menuWidth = 160;
+    const menuHeight = 132;
+    const offset = 8;
+    const rect = trigger.getBoundingClientRect();
+
+    let top = rect.bottom + offset;
+    let left = rect.right - menuWidth;
+
+    if (top + menuHeight > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - menuHeight - offset);
+    }
+
+    left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
+    setMenuPosition({ top, left });
+  }, []);
+
+  React.useLayoutEffect(() => {
+    if (!isOpen) {
+      setMenuPosition(null);
+      return;
+    }
+    updateMenuPosition();
+  }, [isOpen, updateMenuPosition]);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target)) return;
+      if (triggerRef.current?.contains(target)) return;
+      onClose();
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', updateMenuPosition, true);
+    window.addEventListener('resize', updateMenuPosition);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', updateMenuPosition, true);
+      window.removeEventListener('resize', updateMenuPosition);
+    };
+  }, [isOpen, onClose, updateMenuPosition]);
+
+  return (
+    <div className={`relative flex items-center ${triggerClassName}`}>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={onToggle}
+        className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+        aria-label={`More actions for ${entry.title}`}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+      >
+        <EllipsisVertical size={iconSize} />
+      </button>
+      {isOpen && menuPosition
+        ? createPortal(
+            <div
+              ref={menuRef}
+              className="fixed z-[140] w-40 rounded-xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.14)]"
+              style={{ top: menuPosition.top, left: menuPosition.left }}
+              role="menu"
+            >
+              <a
+                href={entry.linkUrl}
+                target="_blank"
+                rel="noreferrer"
+                onClick={onClose}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 hover:text-brand-red"
+                role="menuitem"
+              >
+                <ExternalLink size={14} />
+                Open link
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEdit(entry);
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 hover:text-brand-red"
+                role="menuitem"
+              >
+                <Pencil size={14} />
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onDelete(entry);
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-rose-50 hover:text-rose-600"
+                role="menuitem"
+              >
+                <Trash2 size={14} />
+                Delete
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
 export default function DriveEntriesPanel({
   entries,
   loading,
@@ -70,36 +215,12 @@ export default function DriveEntriesPanel({
   const [copiedEntryId, setCopiedEntryId] = React.useState<string | null>(null);
   const [openMenuEntryId, setOpenMenuEntryId] = React.useState<string | null>(null);
   const copyFeedbackTimeoutRef = React.useRef<number | null>(null);
-  const linkMenuRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => () => {
     if (copyFeedbackTimeoutRef.current !== null) {
       window.clearTimeout(copyFeedbackTimeoutRef.current);
     }
   }, []);
-
-  React.useEffect(() => {
-    if (!openMenuEntryId) return;
-
-    function handlePointerDown(event: MouseEvent) {
-      if (linkMenuRef.current && !linkMenuRef.current.contains(event.target as Node)) {
-        setOpenMenuEntryId(null);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setOpenMenuEntryId(null);
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [openMenuEntryId]);
 
   async function handleCopyLink(entry: DriveEntry) {
     if (!onCopyLink) return;
@@ -200,63 +321,15 @@ export default function DriveEntriesPanel({
                       <ExternalLink size={14} />
                     </a>
 
-                    <div
-                      ref={openMenuEntryId === entry.id ? linkMenuRef : undefined}
-                      className="relative flex items-center"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setOpenMenuEntryId((current) => (current === entry.id ? null : entry.id))}
-                        className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                        aria-label={`More actions for ${entry.title}`}
-                        aria-haspopup="menu"
-                        aria-expanded={openMenuEntryId === entry.id}
-                      >
-                        <EllipsisVertical size={17} />
-                      </button>
-                      {openMenuEntryId === entry.id ? (
-                        <div
-                          className="absolute right-0 top-full z-20 mt-2 w-40 rounded-xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.14)]"
-                          role="menu"
-                        >
-                          <a
-                            href={entry.linkUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={() => setOpenMenuEntryId(null)}
-                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 hover:text-brand-red"
-                            role="menuitem"
-                          >
-                            <ExternalLink size={14} />
-                            Open link
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOpenMenuEntryId(null);
-                              onEdit(entry);
-                            }}
-                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 hover:text-brand-red"
-                            role="menuitem"
-                          >
-                            <Pencil size={14} />
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOpenMenuEntryId(null);
-                              onDelete(entry);
-                            }}
-                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-rose-50 hover:text-rose-600"
-                            role="menuitem"
-                          >
-                            <Trash2 size={14} />
-                            Delete
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
+                    <EntryLinkActionMenu
+                      entry={entry}
+                      iconSize={17}
+                      isOpen={openMenuEntryId === entry.id}
+                      onToggle={() => setOpenMenuEntryId((current) => (current === entry.id ? null : entry.id))}
+                      onClose={() => setOpenMenuEntryId(null)}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                    />
                   </div>
                 </article>
               ))}
@@ -304,63 +377,16 @@ export default function DriveEntriesPanel({
                       )}
                     </div>
                     {isLink ? (
-                      <div
-                        ref={openMenuEntryId === entry.id ? linkMenuRef : undefined}
-                        className="relative flex items-center opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setOpenMenuEntryId((current) => (current === entry.id ? null : entry.id))}
-                          className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                          aria-label={`More actions for ${entry.title}`}
-                          aria-haspopup="menu"
-                          aria-expanded={openMenuEntryId === entry.id}
-                        >
-                          <EllipsisVertical size={16} />
-                        </button>
-                        {openMenuEntryId === entry.id ? (
-                          <div
-                            className="absolute right-0 top-full z-20 mt-2 w-40 rounded-xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_45px_rgba(15,23,42,0.14)]"
-                            role="menu"
-                          >
-                            <a
-                              href={entry.linkUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={() => setOpenMenuEntryId(null)}
-                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 hover:text-brand-red"
-                              role="menuitem"
-                            >
-                              <ExternalLink size={14} />
-                              Open link
-                            </a>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenMenuEntryId(null);
-                                onEdit(entry);
-                              }}
-                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 hover:text-brand-red"
-                              role="menuitem"
-                            >
-                              <Pencil size={14} />
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenMenuEntryId(null);
-                                onDelete(entry);
-                              }}
-                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-rose-50 hover:text-rose-600"
-                              role="menuitem"
-                            >
-                              <Trash2 size={14} />
-                              Delete
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
+                      <EntryLinkActionMenu
+                        entry={entry}
+                        iconSize={16}
+                        triggerClassName="opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100"
+                        isOpen={openMenuEntryId === entry.id}
+                        onToggle={() => setOpenMenuEntryId((current) => (current === entry.id ? null : entry.id))}
+                        onClose={() => setOpenMenuEntryId(null)}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
+                      />
                     ) : (
                       <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
                         {!isLink && onView ? (

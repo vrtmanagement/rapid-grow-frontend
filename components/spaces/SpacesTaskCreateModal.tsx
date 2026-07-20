@@ -8,6 +8,14 @@ import SpacesTaskPlannerFields from './SpacesTaskPlannerFields';
 import SpacesTaskCreateRecurrenceFields from './SpacesTaskCreateRecurrenceFields';
 import SpacesWeeklyReminderFields from './SpacesWeeklyReminderFields';
 import { EMAIL_REMINDER_GAP_OPTIONS } from './spacesEmailReminderOptions';
+import { MAX_DOCUMENT_BYTES, MAX_TASK_ATTACHMENTS } from './monthGoalsHelpers';
+
+const formatAttachmentSize = (size: number) => {
+  if (!size || Number.isNaN(size)) return '0 KB';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+  return `${(size / 1024 / 1024).toFixed(size >= 10 * 1024 * 1024 ? 0 : 2)} MB`;
+};
 
 type SpacesTaskCreateModalProps = Pick<
   SpacesViewController,
@@ -57,8 +65,8 @@ type SpacesTaskCreateModalProps = Pick<
   | 'setSelectedProjectId'
   | 'projectSelectOptions'
   | 'projectsLoading'
-  | 'taskDocumentFile'
-  | 'setTaskDocumentFile'
+  | 'taskDocumentFiles'
+  | 'setTaskDocumentFiles'
   | 'saving'
   | 'uploadingTaskDocument'
   | 'error'
@@ -131,8 +139,8 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
     setSelectedProjectId,
     projectSelectOptions,
     projectsLoading,
-    taskDocumentFile,
-    setTaskDocumentFile,
+    taskDocumentFiles,
+    setTaskDocumentFiles,
     saving,
     uploadingTaskDocument,
     error,
@@ -169,6 +177,58 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
 
   const [plannerQuarterLabel, setPlannerQuarterLabel] = React.useState('');
   const [plannerMonthLabel, setPlannerMonthLabel] = React.useState('');
+  const [attachmentLimitMessage, setAttachmentLimitMessage] = React.useState('');
+  const attachmentInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const appendTaskDocumentFiles = React.useCallback(
+    (picked: File[]) => {
+      if (!picked.length) return;
+
+      const messages: string[] = [];
+      const accepted: File[] = [];
+      const existingKeys = new Set(
+        taskDocumentFiles.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
+      );
+
+      picked.forEach((file) => {
+        const fileKey = `${file.name}:${file.size}:${file.lastModified}`;
+        if (existingKeys.has(fileKey)) return;
+
+        if (file.size > MAX_DOCUMENT_BYTES) {
+          messages.push(`"${file.name}" file size is more than 10 MB.`);
+          return;
+        }
+
+        accepted.push(file);
+        existingKeys.add(fileKey);
+      });
+
+      const remainingSlots = Math.max(0, MAX_TASK_ATTACHMENTS - taskDocumentFiles.length);
+      if (accepted.length > remainingSlots) {
+        messages.push('Only 10 files are allowed.');
+      }
+
+      const nextFiles = [...taskDocumentFiles, ...accepted.slice(0, remainingSlots)];
+      setTaskDocumentFiles(nextFiles);
+      setAttachmentLimitMessage(messages.join(' '));
+
+      if (attachmentInputRef.current) {
+        attachmentInputRef.current.value = '';
+      }
+    },
+    [setTaskDocumentFiles, taskDocumentFiles],
+  );
+
+  const removeTaskDocumentFile = React.useCallback(
+    (index: number) => {
+      setTaskDocumentFiles(taskDocumentFiles.filter((_, itemIndex) => itemIndex !== index));
+      setAttachmentLimitMessage('');
+      if (attachmentInputRef.current) {
+        attachmentInputRef.current.value = '';
+      }
+    },
+    [setTaskDocumentFiles, taskDocumentFiles],
+  );
 
   const plannerQuarterOptions = React.useMemo(() => {
     const unique = new Map<string, { value: string; label: string }>();
@@ -352,22 +412,101 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                 <div>
                   <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Document / Attachments</label>
                   <FileDropZone
-                    as="label"
-                    multiple={false}
+                    multiple={true}
                     disabled={saving || uploadingTaskDocument}
-                    className="flex min-h-[132px] cursor-pointer flex-col items-center justify-center rounded-[22px] border border-dashed border-red-200 bg-slate-50/70 px-5 text-center transition hover:bg-red-50/50"
+                    className={`rounded-[22px] border border-dashed border-red-200 bg-slate-50/70 px-4 py-4 transition ${
+                      taskDocumentFiles.length === 0 ? 'min-h-[132px]' : ''
+                    }`}
                     overlayTitle="Drop document here"
                     overlayHint="PDF, DOCX, JPG, PNG, WEBP"
-                    onFiles={(files) => setTaskDocumentFile(files[0] || null)}
+                    onFiles={appendTaskDocumentFiles}
                   >
-                    <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" className="hidden" onChange={(e) => setTaskDocumentFile(e.target.files?.[0] || null)} />
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
-                      <Paperclip size={20} />
-                    </div>
-                    <div className="mt-3 text-[15px] font-medium text-slate-700">
-                      {taskDocumentFile ? taskDocumentFile.name : 'Click to upload or drag and drop'}
-                    </div>
-                    <div className="mt-1 text-[12px] text-slate-500">PDF, DOCX, JPG, PNG, WEBP</div>
+                    {taskDocumentFiles.length === 0 ? (
+                      <label className="flex min-h-[100px] cursor-pointer flex-col items-center justify-center text-center">
+                        <input
+                          ref={attachmentInputRef}
+                          type="file"
+                          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
+                          multiple
+                          className="hidden"
+                          disabled={saving || uploadingTaskDocument}
+                          onChange={(event) => appendTaskDocumentFiles(Array.from(event.target.files || []))}
+                        />
+                        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
+                          <Paperclip size={20} />
+                        </div>
+                        <div className="mt-3 text-[15px] font-medium text-slate-700">Click to upload or drag and drop</div>
+                        <div className="mt-1 text-[12px] text-slate-500">PDF, DOCX, JPG, PNG, WEBP (max 10 files, 10 MB each)</div>
+                      </label>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
+                          {taskDocumentFiles.map((file, index) => {
+                            const isOversized = file.size > MAX_DOCUMENT_BYTES;
+                            return (
+                              <div
+                                key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+                                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2"
+                              >
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500">
+                                  <Paperclip size={16} />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate text-[13px] font-medium text-slate-700" title={file.name}>
+                                    {file.name}
+                                  </div>
+                                  <div className={`text-[11px] ${isOversized ? 'font-medium text-red-600' : 'text-slate-500'}`}>
+                                    {isOversized ? 'File size is more than 10 MB.' : formatAttachmentSize(file.size)}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeTaskDocumentFile(index)}
+                                  disabled={saving || uploadingTaskDocument}
+                                  className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                  aria-label={`Remove ${file.name}`}
+                                  title="Remove file"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-3">
+                          <div className="text-[12px] text-slate-500">
+                            {taskDocumentFiles.length}/{MAX_TASK_ATTACHMENTS} files attached
+                          </div>
+                          {taskDocumentFiles.length < MAX_TASK_ATTACHMENTS ? (
+                            <button
+                              type="button"
+                              onClick={() => attachmentInputRef.current?.click()}
+                              disabled={saving || uploadingTaskDocument}
+                              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Paperclip size={13} />
+                              Attach file
+                            </button>
+                          ) : null}
+                        </div>
+
+                        <input
+                          ref={attachmentInputRef}
+                          type="file"
+                          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
+                          multiple
+                          className="hidden"
+                          disabled={saving || uploadingTaskDocument}
+                          onChange={(event) => appendTaskDocumentFiles(Array.from(event.target.files || []))}
+                        />
+                      </div>
+                    )}
+                    {attachmentLimitMessage ? (
+                      <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-medium text-red-600">
+                        {attachmentLimitMessage}
+                      </div>
+                    ) : null}
                   </FileDropZone>
                 </div>
 
@@ -562,6 +701,7 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
               saving ||
               uploadingTaskDocument ||
               !title.trim() ||
+              taskDocumentFiles.some((file) => file.size > MAX_DOCUMENT_BYTES) ||
               (emailChecklistEnabled &&
                 emailChecklistExternalPerson &&
                 !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(externalAssigneeEmail.trim()))
@@ -570,6 +710,7 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
               saving ||
               uploadingTaskDocument ||
               !title.trim() ||
+              taskDocumentFiles.some((file) => file.size > MAX_DOCUMENT_BYTES) ||
               (emailChecklistEnabled &&
                 emailChecklistExternalPerson &&
                 !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(externalAssigneeEmail.trim()))

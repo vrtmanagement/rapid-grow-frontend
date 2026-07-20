@@ -36,6 +36,51 @@ function getFileLabel(file?: File | null) {
   return extension || 'File';
 }
 
+function truncateFileName(fileName: string, maxLength = 25) {
+  const name = String(fileName || '').trim();
+  if (name.length <= maxLength) return name;
+  return `${name.slice(0, maxLength)}...`;
+}
+
+function AttachmentPreviewThumb({ file }: { file: File }) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isImageFile(file) && !isVideoFile(file)) return undefined;
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  if (isImageFile(file) && previewUrl) {
+    return (
+      <img
+        src={previewUrl}
+        alt={file.name}
+        className="h-full w-full object-cover"
+      />
+    );
+  }
+
+  if (isVideoFile(file) && previewUrl) {
+    return (
+      <video
+        src={previewUrl}
+        muted
+        playsInline
+        preload="metadata"
+        className="h-full w-full object-cover"
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-[#eef4ff] text-slate-600">
+      {isImageFile(file) ? <ImageIcon size={16} /> : <FileUp size={16} />}
+    </div>
+  );
+}
+
 function getImageFilesFromClipboard(data: DataTransfer | null) {
   if (!data?.items?.length) return [];
   const pastedImages: File[] = [];
@@ -283,54 +328,49 @@ export function ChatComposer({
   return (
     <div className="communication-composer shrink-0 border-t border-slate-200 bg-white/95 p-4 shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
       {files.length > 0 ? (
-        <div className="mb-3 space-y-2">
-          {files.map((file, index) => (
-            <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-              <div className="min-w-0 flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#d7e5fb] bg-[#eef4ff]">
-                  {isImageFile(file) ? <ImageIcon size={18} className="text-slate-700" /> : <FileUp size={18} className="text-slate-700" />}
+        <div className="mb-3 max-h-44 overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {files.map((file, index) => {
+              const showMediaPreview = isImageFile(file) || isVideoFile(file);
+              return (
+                <div
+                  key={`${file.name}-${file.size}-${index}`}
+                  className="relative rounded-xl border border-slate-200 bg-white p-2 shadow-sm"
+                >
+                  {showMediaPreview ? (
+                    <div className="mb-1.5 h-16 w-full overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
+                      <AttachmentPreviewThumb file={file} />
+                    </div>
+                  ) : (
+                    <div className="mb-1.5 flex h-16 w-full items-center justify-center rounded-lg border border-[#d7e5fb] bg-[#eef4ff]">
+                      <FileUp size={16} className="text-slate-700" />
+                    </div>
+                  )}
+                  <div
+                    className="truncate text-[10px] font-medium leading-4 text-slate-900"
+                    title={file.name}
+                  >
+                    {truncateFileName(file.name)}
+                  </div>
+                  <div className="mt-0.5 truncate text-[9px] leading-3 text-slate-500">
+                    {`${getFileLabel(file)} | ${formatFileSize(file.size)}`}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFiles((prev) => prev.filter((_, i) => i !== index));
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="absolute right-1 top-1 inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-md border border-slate-200 bg-white/95 text-slate-600 shadow-sm hover:bg-slate-50"
+                    aria-label={`Remove ${file.name}`}
+                    title="Remove file"
+                  >
+                    <X size={10} />
+                  </button>
                 </div>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold text-slate-900">{file.name}</div>
-                  <div className="text-xs text-slate-500">{`${getFileLabel(file)} | ${formatFileSize(file.size)}`}</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setFiles((prev) => prev.filter((_, i) => i !== index));
-                  if (fileInputRef.current) fileInputRef.current.value = '';
-                }}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                aria-label={`Remove ${file.name}`}
-                title="Remove file"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {filePreviewUrl ? (
-        <div className="relative mb-3 inline-block">
-          {filePreviewKind === 'video' ? (
-            <video
-              src={filePreviewUrl}
-              controls
-              preload="metadata"
-              className="max-h-56 w-auto rounded-2xl border border-slate-200 bg-white shadow-sm"
-            />
-          ) : (
-            <img src={filePreviewUrl} alt="Attachment preview" className="max-h-56 w-auto rounded-2xl border border-slate-200 bg-white shadow-sm" />
-          )}
-          {sending ? (
-            <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/20">
-              <div className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white/95 shadow">
-                <Loader2 size={18} className="animate-spin text-slate-700" />
-              </div>
-            </div>
-          ) : null}
+              );
+            })}
+          </div>
         </div>
       ) : null}
 
@@ -455,7 +495,7 @@ export function ChatComposer({
                     <button
                       type="button"
                       onClick={openFilePicker}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+                      className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:bg-slate-50"
                     >
                       <FileText size={18} className="text-indigo-500" />
                       Attach file
@@ -463,7 +503,7 @@ export function ChatComposer({
                     <button
                       type="button"
                       onClick={openImagePicker}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+                      className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:bg-slate-50"
                     >
                       <ImageIcon size={18} className="text-sky-500" />
                       Photos & images
@@ -471,7 +511,7 @@ export function ChatComposer({
                     <button
                       type="button"
                       onClick={openPollModal}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+                      className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:bg-slate-50"
                     >
                       <ListChecks size={18} className="text-amber-500" />
                       Poll

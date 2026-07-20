@@ -251,7 +251,8 @@ export type MonthGoalValidationOptions = {
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_DESCRIPTION_LENGTH = 4000;
-const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+export const MAX_TASK_ATTACHMENTS = 10;
 
 export function validateMonthGoalTaskDraft(
   draft: MonthGoalTaskDraft,
