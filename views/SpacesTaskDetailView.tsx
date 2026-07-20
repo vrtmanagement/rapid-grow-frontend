@@ -32,6 +32,7 @@ import {
   resolveAssigneeLabel,
   resolveEmployeeDisplayName,
   getTaskAttachments,
+  ensureDownloadFileName,
   type SpacesTask,
   type TaskPriority,
   type TaskStatus,
@@ -67,17 +68,19 @@ const sectionReveal = {
 async function downloadWithFallback(url: string, fileName?: string) {
   const href = String(url || '').trim();
   if (!href) throw new Error('Document URL is missing');
-  const query = new URLSearchParams({ url: href, name: fileName || 'task-document' });
+  const resolvedName = ensureDownloadFileName(fileName, { url: href });
+  const query = new URLSearchParams({ url: href, name: resolvedName });
   const response = await fetch(`${API_BASE}/spaces/tasks/document-download?${query.toString()}`, {
     method: 'GET',
     headers: getAuthHeaders(),
   });
   if (!response.ok) throw new Error('Download request failed');
   const blob = await response.blob();
+  const finalName = ensureDownloadFileName(resolvedName, { mimeType: blob.type, url: href });
   const objectUrl = window.URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = objectUrl;
-  anchor.download = fileName || 'task-document';
+  anchor.download = finalName;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
