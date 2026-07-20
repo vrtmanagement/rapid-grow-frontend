@@ -48,7 +48,7 @@ export function clearApiCache(): void {
 export async function cachedFetchJson<T>(
   url: string,
   init?: RequestInit,
-  options?: { ttlMs?: number; force?: boolean },
+  options?: { ttlMs?: number; force?: boolean; fetchImpl?: typeof fetch },
 ): Promise<T> {
   const method = String(init?.method || 'GET').toUpperCase();
   if (method !== 'GET') {
@@ -67,7 +67,8 @@ export async function cachedFetchJson<T>(
   if (existing) return existing as Promise<T>;
 
   const request = (async () => {
-    const response = await fetch(url, init);
+    const fetchFn = options?.fetchImpl ?? fetch;
+    const response = await fetchFn(url, init);
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       const message =

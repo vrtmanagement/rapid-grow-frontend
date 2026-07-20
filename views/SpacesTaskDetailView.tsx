@@ -31,6 +31,7 @@ import {
   normalizeTaskForUi,
   resolveAssigneeLabel,
   resolveEmployeeDisplayName,
+  getTaskAttachments,
   type SpacesTask,
   type TaskPriority,
   type TaskStatus,
@@ -309,7 +310,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
   const [allTasks, setAllTasks] = useState<SpacesTask[]>([]);
   const [employeeNameById, setEmployeeNameById] = useState<Map<string, string>>(() => new Map());
   const [loading, setLoading] = useState(!seededTask);
-  const [downloading, setDownloading] = useState(false);
+  const [downloadingFileKey, setDownloadingFileKey] = useState('');
   const [stoppingRecurrence, setStoppingRecurrence] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -482,16 +483,19 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
     }
   };
 
-  const handleDownload = async () => {
-    if (!task?.documentUrl) return;
-    setDownloading(true);
+  const taskAttachments = useMemo(() => (task ? getTaskAttachments(task) : []), [task]);
+
+  const handleDownload = async (url: string, fileName: string) => {
+    if (!url) return;
+    const downloadKey = `${url}:${fileName}`;
+    setDownloadingFileKey(downloadKey);
     setError(null);
     try {
-      await downloadWithFallback(task.documentUrl, task.documentName || 'task-document');
+      await downloadWithFallback(url, fileName || 'task-document');
     } catch (e: any) {
       setError(e?.message || 'Failed to download document');
     } finally {
-      setDownloading(false);
+      setDownloadingFileKey('');
     }
   };
 
@@ -789,7 +793,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
               </div>
 
               <div className="space-y-6">
-                {task.documentUrl ? (
+                {taskAttachments.length ? (
                   <motion.div
                     custom={6}
                     variants={sectionReveal}
@@ -802,21 +806,38 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
                           <FileText size={18} />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Attachment</p>
-                          <p className="mt-1 truncate text-sm font-semibold text-white">
-                            {task.documentName || 'task-document'}
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                            {taskAttachments.length === 1 ? 'Attachment' : `Attachments (${taskAttachments.length})`}
                           </p>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void handleDownload()}
-                        disabled={downloading}
-                        className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-semibold text-slate-900 transition hover:bg-red-50 hover:text-brand-red disabled:opacity-50"
-                      >
-                        <Download size={16} />
-                        {downloading ? 'Downloading…' : 'Download file'}
-                      </button>
+                      <div className="mt-4 space-y-2">
+                        {taskAttachments.map((file, index) => {
+                          const downloadKey = `${file.url}:${file.name}`;
+                          const isDownloading = downloadingFileKey === downloadKey;
+                          return (
+                            <div
+                              key={`${file.url}-${index}`}
+                              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold text-white" title={file.name}>
+                                  {file.name}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => void handleDownload(file.url, file.name)}
+                                disabled={Boolean(downloadingFileKey)}
+                                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-white px-3 text-xs font-semibold text-slate-900 transition hover:bg-red-50 hover:text-brand-red disabled:opacity-50"
+                              >
+                                <Download size={14} />
+                                {isDownloading ? 'Downloading…' : 'Download'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </motion.div>
                 ) : null}

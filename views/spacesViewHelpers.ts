@@ -317,10 +317,16 @@ export function buildCommandMatrixTopPriorityTasks(options: {
 }
 
 export function normalizeTaskForUi(task: SpacesTask): SpacesTask {
+  const documents = getTaskAttachments(task);
+  const primary = documents[0];
   return {
     ...task,
     status: normalizeTaskStatus(task?.status),
     submittedFromStatus: task?.submittedFromStatus ? normalizeTaskStatus(task.submittedFromStatus) : task?.submittedFromStatus,
+    documents,
+    documentUrl: String(task?.documentUrl || primary?.url || '').trim(),
+    documentName: String(task?.documentName || primary?.name || '').trim(),
+    documentMimeType: String(task?.documentMimeType || primary?.mimeType || '').trim(),
   };
 }
 
@@ -393,6 +399,30 @@ export function projectCharterPayloadFromBackendProject(proj: any, updatedTasks:
 
 export function getDownloadableUrl(url: string): string {
   return String(url || '').trim();
+}
+
+export function getTaskAttachments(task?: Pick<SpacesTask, 'documents' | 'documentUrl' | 'documentName' | 'documentMimeType'>) {
+  const documents = Array.isArray(task?.documents) ? task.documents : [];
+  const normalized = documents
+    .map((item) => ({
+      url: String(item?.url || '').trim(),
+      name: String(item?.name || '').trim() || 'Attachment',
+      mimeType: String(item?.mimeType || '').trim(),
+    }))
+    .filter((item) => item.url);
+
+  if (normalized.length) return normalized;
+
+  const fallbackUrl = String(task?.documentUrl || '').trim();
+  if (!fallbackUrl) return [];
+
+  return [
+    {
+      url: fallbackUrl,
+      name: String(task?.documentName || '').trim() || 'Attachment',
+      mimeType: String(task?.documentMimeType || '').trim(),
+    },
+  ];
 }
 
 export async function forceDownloadDocument(url: string, fileName?: string) {

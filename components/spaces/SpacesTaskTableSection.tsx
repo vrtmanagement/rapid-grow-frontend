@@ -1,6 +1,7 @@
 import React from 'react';
 import { CheckSquare, Eye, MessageSquareText, MoreVertical, Octagon, Pencil, Plus, X } from 'lucide-react';
 import { TaskHubTableSkeleton, ThemedSelect } from './SpacesFormControls';
+import TaskAttachmentsCell from './TaskAttachmentsCell';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
 import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
 import type { SpacesTask } from '../../types/spaces';
@@ -265,6 +266,7 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
     focusedTaskId = '',
   } = props;
   const [activeRowMenuId, setActiveRowMenuId] = React.useState<string | null>(null);
+  const [activeFilesDropdownId, setActiveFilesDropdownId] = React.useState<string | null>(null);
   const [activeRowMenuPlacement, setActiveRowMenuPlacement] = React.useState<'top' | 'bottom'>('bottom');
   const [stoppingEmailChecklistTaskId, setStoppingEmailChecklistTaskId] = React.useState<string | null>(null);
   const [stoppingWeeklyRepeatTaskId, setStoppingWeeklyRepeatTaskId] = React.useState<string | null>(null);
@@ -715,11 +717,14 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                       )}
                     </td>
                     <td className="px-3 py-3">
-                      {t.documentUrl ? (
-                        <button type="button" onClick={async () => { try { await forceDownloadDocument(t.documentUrl || '', t.documentName || undefined); } catch (e: any) { setError(e?.message || 'Failed to download document'); } }} className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[12px] font-semibold text-brand-red hover:bg-red-50">Download</button>
-                      ) : (
-                        <span className="text-[12px] text-slate-400">-</span>
-                      )}
+                      <TaskAttachmentsCell
+                        task={t}
+                        forceDownloadDocument={forceDownloadDocument}
+                        onError={(message) => setError(message)}
+                        dropdownId={t.taskId}
+                        activeDropdownId={activeFilesDropdownId}
+                        onToggleDropdown={setActiveFilesDropdownId}
+                      />
                     </td>
                     <td className="px-3 py-3">
                       <button type="button" onClick={() => { if (!canCommentOnTask(t) || isLockedDoneRow) return; setCommentTaskId(t.taskId); setModalStatus(t.status); }} disabled={!canCommentOnTask(t) || isLockedDoneRow} className={`inline-flex items-center gap-1.5 rounded-xl border bg-white px-2.5 py-2 text-slate-700 ${canCommentOnTask(t) && !isLockedDoneRow ? 'border-slate-200 hover:bg-slate-50' : 'cursor-not-allowed border-slate-100 opacity-60'}`} title="View comments"><MessageSquareText size={16} /><span className="text-[12px] font-semibold">{t.comments?.length || 0}</span></button>

@@ -58,8 +58,8 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
     setSelectedProjectId,
     projectSelectOptions,
     projectsLoading,
-    setTaskDocumentFile,
-    taskDocumentFile,
+    setTaskDocumentFiles,
+    taskDocumentFiles,
     handleCreate,
     saving,
     uploadingTaskDocument,
@@ -382,8 +382,8 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         setSelectedProjectId={setSelectedProjectId}
         projectSelectOptions={projectSelectOptions}
         projectsLoading={projectsLoading}
-        taskDocumentFile={taskDocumentFile}
-        setTaskDocumentFile={setTaskDocumentFile}
+        taskDocumentFiles={taskDocumentFiles}
+        setTaskDocumentFiles={setTaskDocumentFiles}
         saving={saving}
         uploadingTaskDocument={uploadingTaskDocument}
         error={error}

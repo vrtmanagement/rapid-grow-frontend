@@ -37,6 +37,7 @@ import {
   clearStoredSession,
   getAuthHeaders,
   getStoredAuthSession,
+  startSessionRefreshScheduler,
 } from './config/api';
 import {
   DAILY_REVIEW_REMINDER_SETTINGS_UPDATED_EVENT,
@@ -420,9 +421,11 @@ const App: React.FC = () => {
 
     syncStoredSession();
     window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    const stopSessionRefresh = startSessionRefreshScheduler();
 
     return () => {
       window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+      stopSessionRefresh();
     };
   }, []);
 
