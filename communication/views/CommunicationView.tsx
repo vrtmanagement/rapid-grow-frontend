@@ -152,6 +152,14 @@ function CommunicationLayout() {
 
   const resolveUserName = (userId: string) => usersById.get(userId)?.name || 'User';
 
+  const openUserPreview = (user: ChatUser) => {
+    setPreviewEntity({
+      name: user.name,
+      avatar: user.avatar,
+      subtitle: user.online ? 'Online now' : 'Offline',
+    });
+  };
+
   const selectedMessages = useMemo(
     () => messages.filter((message) => selectedMessageIds.includes(message.id)),
     [messages, selectedMessageIds]
@@ -299,13 +307,7 @@ function CommunicationLayout() {
             onCreateTeam={(name, memberIds) => ctx.createTeam(name, memberIds)}
             onUpdateTeam={(conversationKey, payload) => ctx.updateTeam(conversationKey, payload)}
             onDeleteTeam={(conversationKey) => ctx.deleteTeam(conversationKey)}
-            onPreviewUser={(user) =>
-              setPreviewEntity({
-                name: user.name,
-                avatar: user.avatar,
-                subtitle: user.online ? 'Online now' : 'Offline',
-              })
-            }
+            onPreviewUser={openUserPreview}
             onPreviewTeamAvatar={(team) =>
               setPreviewEntity({
                 name: team.title,
@@ -381,7 +383,11 @@ function CommunicationLayout() {
                     <img
                       src={getDisplayAvatarUrl(currentUser.avatar, currentUser.name)}
                       alt=""
-                      className="h-7 w-7 rounded-full border border-slate-200 bg-slate-50 object-cover"
+                      className="h-7 w-7 cursor-pointer rounded-full border border-slate-200 bg-slate-50 object-cover"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openUserPreview(currentUser);
+                      }}
                     />
                     <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
                   </span>
@@ -405,7 +411,11 @@ function CommunicationLayout() {
                       <img
                         src={getDisplayAvatarUrl(u.avatar, u.name)}
                         alt=""
-                        className="h-7 w-7 rounded-full border border-slate-200 bg-slate-50 object-cover"
+                        className="h-7 w-7 cursor-pointer rounded-full border border-slate-200 bg-slate-50 object-cover"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openUserPreview(u);
+                        }}
                       />
                       <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white ${u.online ? 'bg-emerald-500' : 'bg-slate-300'}`} />
                     </span>
@@ -640,6 +650,7 @@ function CommunicationLayout() {
                 onVotePoll={(pollId, optionIds) => ctx.votePoll(pollId, optionIds)}
                 onClosePoll={(pollId) => ctx.closePoll(pollId)}
                 onDeletePoll={(pollId) => ctx.deletePoll(pollId)}
+                onPreviewSender={openUserPreview}
               />
 
               <ChatComposer

@@ -28,7 +28,7 @@ export function AvatarPreviewModal({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex flex-col items-center text-center">
-          <div className="h-62 w-62 overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-50 shadow-sm">
+          <div className="aspect-square w-full overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-50 shadow-sm">
             <img
               src={getDisplayAvatarUrl(entity.avatar, entity.name || 'User')}
               alt={entity.name}

@@ -248,6 +248,7 @@ export function MessageBubble({
   currentUserRole,
   groupPosition = 'single',
   bundledMessages,
+  onPreviewSender,
 }: {
   message: ChatMessage;
   isOwn: boolean;
@@ -271,6 +272,7 @@ export function MessageBubble({
   groupPosition?: 'single' | 'first' | 'middle' | 'last';
   /** When set (length > 1), render all attachments + one caption in a single bubble */
   bundledMessages?: ChatMessage[];
+  onPreviewSender?: (sender: ChatUser) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPlacement, setMenuPlacement] = useState<'top' | 'bottom' | 'inside'>('top');
@@ -477,13 +479,18 @@ export function MessageBubble({
             type="button"
             disabled={!sender || !showAvatar}
             onClick={(event) => {
-              if (!selectionVisible || message.deleted) return;
               event.preventDefault();
               event.stopPropagation();
-              onToggleSelect?.();
+              if (selectionVisible && !message.deleted) {
+                onToggleSelect?.();
+                return;
+              }
+              if (sender) {
+                onPreviewSender?.(sender);
+              }
             }}
             className={`h-8 w-8 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm disabled:cursor-default ${showAvatar ? 'opacity-100' : 'opacity-0'} ${isOwn ? 'mb-1' : 'mt-0.5'} ${
-              selectionVisible && !message.deleted ? 'cursor-pointer' : ''
+              selectionVisible && !message.deleted ? 'cursor-pointer' : sender ? 'cursor-pointer' : ''
             }`}
             title={sender?.name || 'User'}
             aria-label={sender?.name ? `${sender.name} profile` : 'User profile'}

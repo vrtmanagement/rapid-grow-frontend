@@ -163,6 +163,7 @@ export function ChatMessages({
   onVotePoll,
   onClosePoll,
   onDeletePoll,
+  onPreviewSender,
 }: {
   conversationKey: string;
   currentUserId: string;
@@ -186,6 +187,7 @@ export function ChatMessages({
   onVotePoll: (pollId: string, optionIds: string[]) => Promise<void>;
   onClosePoll: (pollId: string) => Promise<void>;
   onDeletePoll: (pollId: string) => Promise<void>;
+  onPreviewSender?: (sender: ChatUser) => void;
 }) {
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -273,6 +275,7 @@ export function ChatMessages({
                     onDeletePoll={() => (m.poll ? onDeletePoll(m.poll.id) : Promise.resolve())}
                     currentUserRole={currentUserRole}
                     resolveUserName={(userId) => usersById.get(userId)?.name || 'User'}
+                    onPreviewSender={onPreviewSender}
                   />
                   </div>
                 </React.Fragment>
