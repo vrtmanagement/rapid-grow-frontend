@@ -573,10 +573,37 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       // If the message is for the current conversation, append it.
       if (selectedConversationKeyRef.current === conversationKey) {
         setMessages((prev) => {
-          if (prev.some((m) => m.id === mapped.id)) {
-            return prev.map((m) => (m.id === mapped.id ? mapped : m));
+          const revokePendingPreview = (message: ChatMessage) => {
+            if (message.localPreviewUrl) {
+              try {
+                URL.revokeObjectURL(message.localPreviewUrl);
+              } catch {
+                // ignore revoke failures
+              }
+            }
+          };
+
+          const withoutPending = prev.filter((message) => {
+            if (!message.pending) return true;
+            const sameClientId =
+              !!mapped.clientMessageId &&
+              !!message.clientMessageId &&
+              message.clientMessageId === mapped.clientMessageId;
+            const sameBundleFile =
+              !!mapped.bundleId &&
+              message.bundleId === mapped.bundleId &&
+              String(message.attachment?.fileName || '') === String(mapped.attachment?.fileName || '');
+            if (sameClientId || sameBundleFile) {
+              revokePendingPreview(message);
+              return false;
+            }
+            return true;
+          });
+
+          if (withoutPending.some((m) => m.id === mapped.id)) {
+            return withoutPending.map((m) => (m.id === mapped.id ? mapped : m));
           }
-          return [...prev, mapped];
+          return [...withoutPending, mapped];
         });
       }
 
@@ -1128,78 +1155,161 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       if (!/\S/.test(content)) return;
       if (!conversationKey) return;
 
+      const senderId = currentUserRef.current?.id;
+      if (!senderId) return;
+
       const clientMessageId =
         typeof crypto !== 'undefined' && 'randomUUID' in crypto
           ? (crypto as any).randomUUID()
           : `cmi_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
-      await new Promise<void>((resolve, reject) => {
-        const timeout = window.setTimeout(() => reject(new Error('Message send timeout')), 8000);
-        socket.emit(
-          'comm:message:send',
-          {
-            conversationKey,
-            type: 'text',
-            content,
-            clientMessageId,
-            replyToMessageId: replyToMessageId || undefined,
-          },
-          (ack: any) => {
-            window.clearTimeout(timeout);
-            if (!ack?.ok) {
-              reject(new Error(String(ack?.error || 'Failed to send message')));
-              return;
+      const pendingMessage: ChatMessage = {
+        id: `pending_${clientMessageId}`,
+        conversationKey,
+        type: 'text',
+        senderId,
+        content,
+        attachment: null,
+        bundleId: null,
+        clientMessageId,
+        pending: true,
+        createdAt: new Date().toISOString(),
+        tick: { state: 'sent' },
+        replyTo: null,
+      };
+
+      if (selectedConversationKeyRef.current === conversationKey) {
+        setMessages((prev) => [...prev, pendingMessage]);
+      }
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timeout = window.setTimeout(() => reject(new Error('Message send timeout')), 8000);
+          socket.emit(
+            'comm:message:send',
+            {
+              conversationKey,
+              type: 'text',
+              content,
+              clientMessageId,
+              replyToMessageId: replyToMessageId || undefined,
+            },
+            (ack: any) => {
+              window.clearTimeout(timeout);
+              if (!ack?.ok) {
+                reject(new Error(String(ack?.error || 'Failed to send message')));
+                return;
+              }
+              resolve();
             }
-            resolve();
-          }
-        );
-      });
+          );
+        });
+      } catch (error) {
+        setMessages((prev) => prev.filter((message) => message.id !== pendingMessage.id));
+        throw error;
+      }
     },
     [socket]
   );
 
   const sendFile = useCallback(
-    async (conversationKey: string, file: File, content?: string, replyToMessageId?: string | null) => {
+    async (
+      conversationKey: string,
+      file: File,
+      content?: string,
+      replyToMessageId?: string | null,
+      bundleId?: string | null,
+    ) => {
       if (!file) return;
       if (!conversationKey) return;
 
-      const upload = await apiUploadFile(file);
-      const fileUrl = upload.fileUrl || `${API_BASE}${upload.urlPath}`;
+      const senderId = currentUserRef.current?.id;
+      if (!senderId) return;
 
       const clientMessageId =
         typeof crypto !== 'undefined' && 'randomUUID' in crypto
           ? (crypto as any).randomUUID()
           : `cmi_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
-      await new Promise<void>((resolve, reject) => {
-        const timeout = window.setTimeout(() => reject(new Error('Attachment send timeout')), 8000);
-        socket.emit(
-          'comm:message:send',
-          {
-            conversationKey,
-            type: upload.type,
-            content: content?.toString() || '',
-            fileUrl,
-            clientMessageId,
-            attachment: {
-              fileId: upload.fileId,
-              url: fileUrl,
-              fileName: upload.fileName,
-              mimeType: upload.mimeType,
-              size: upload.size,
+      const isImage = String(file.type || '').startsWith('image/');
+      const isVideo = String(file.type || '').startsWith('video/');
+      const localPreviewUrl = isImage || isVideo ? URL.createObjectURL(file) : null;
+
+      const pendingMessage: ChatMessage = {
+        id: `pending_${clientMessageId}`,
+        conversationKey,
+        type: isImage ? 'image' : 'file',
+        senderId,
+        content: content?.toString() || '',
+        fileUrl: localPreviewUrl || '',
+        attachment: {
+          fileId: '',
+          url: localPreviewUrl || '',
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          size: file.size || 0,
+        },
+        bundleId: bundleId || null,
+        clientMessageId,
+        pending: true,
+        localPreviewUrl,
+        createdAt: new Date().toISOString(),
+        tick: { state: 'sent' },
+        replyTo: null,
+      };
+
+      if (selectedConversationKeyRef.current === conversationKey) {
+        setMessages((prev) => [...prev, pendingMessage]);
+      }
+
+      try {
+        const upload = await apiUploadFile(file);
+        const fileUrl = upload.fileUrl || `${API_BASE}${upload.urlPath}`;
+
+        await new Promise<void>((resolve, reject) => {
+          const timeout = window.setTimeout(() => reject(new Error('Attachment send timeout')), 8000);
+          socket.emit(
+            'comm:message:send',
+            {
+              conversationKey,
+              type: upload.type,
+              content: content?.toString() || '',
+              fileUrl,
+              clientMessageId,
+              bundleId: bundleId || undefined,
+              attachment: {
+                fileId: upload.fileId,
+                url: fileUrl,
+                fileName: upload.fileName,
+                mimeType: upload.mimeType,
+                size: upload.size,
+              },
+              replyToMessageId: replyToMessageId || undefined,
             },
-            replyToMessageId: replyToMessageId || undefined,
-          },
-          (ack: any) => {
-            window.clearTimeout(timeout);
-            if (!ack?.ok) {
-              reject(new Error(String(ack?.error || 'Failed to send attachment')));
-              return;
+            (ack: any) => {
+              window.clearTimeout(timeout);
+              if (!ack?.ok) {
+                reject(new Error(String(ack?.error || 'Failed to send attachment')));
+                return;
+              }
+              resolve();
             }
-            resolve();
+          );
+        });
+      } catch (error) {
+        setMessages((prev) => {
+          const next = prev.filter((message) => message.id !== pendingMessage.id);
+          if (localPreviewUrl) {
+            try {
+              URL.revokeObjectURL(localPreviewUrl);
+            } catch {
+              // ignore
+            }
           }
-        );
-      });
+          return next;
+        });
+        throw error;
+      }
     },
     [socket]
   );
@@ -1291,11 +1401,22 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   const deleteMessage = useCallback(
     async (messageId: string, conversationKey: string) => {
       if (!messageId || !conversationKey) return;
-      socket.emit(
-        'comm:message:delete',
-        { messageId, conversationKey },
-        () => {}
-      );
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => reject(new Error('Message delete timeout')), 8000);
+        socket.emit(
+          'comm:message:delete',
+          { messageId, conversationKey },
+          (ack: any) => {
+            window.clearTimeout(timeout);
+            if (ack && ack.ok === false) {
+              reject(new Error(String(ack?.error || 'Failed to delete message')));
+              return;
+            }
+            resolve();
+          }
+        );
+      });
     },
     [socket]
   );

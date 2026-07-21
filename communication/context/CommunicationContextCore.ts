@@ -26,7 +26,13 @@ export type CommunicationContextValue = {
   deleteTeam: (conversationKey: string) => Promise<void>;
 
   sendText: (conversationKey: string, content: string, replyToMessageId?: string | null) => Promise<void>;
-  sendFile: (conversationKey: string, file: File, content?: string, replyToMessageId?: string | null) => Promise<void>;
+  sendFile: (
+    conversationKey: string,
+    file: File,
+    content?: string,
+    replyToMessageId?: string | null,
+    bundleId?: string | null,
+  ) => Promise<void>;
   createPoll: (
     conversationKey: string,
     payload: {

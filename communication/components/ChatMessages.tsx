@@ -103,6 +103,43 @@ function formatDateDivider(iso: string) {
   }).format(date);
 }
 
+type ChatRenderEntry =
+  | { kind: 'single'; message: ChatMessage }
+  | { kind: 'bundle'; messages: ChatMessage[]; primary: ChatMessage };
+
+function buildChatRenderEntries(messages: ChatMessage[]): ChatRenderEntry[] {
+  const entries: ChatRenderEntry[] = [];
+  let index = 0;
+
+  while (index < messages.length) {
+    const current = messages[index];
+    const bundleId = String(current.bundleId || '').trim();
+    if (!bundleId) {
+      entries.push({ kind: 'single', message: current });
+      index += 1;
+      continue;
+    }
+
+    const group = [current];
+    let cursor = index + 1;
+    while (cursor < messages.length && String(messages[cursor].bundleId || '').trim() === bundleId) {
+      group.push(messages[cursor]);
+      cursor += 1;
+    }
+
+    if (group.length === 1) {
+      entries.push({ kind: 'single', message: current });
+    } else {
+      const primary =
+        [...group].reverse().find((item) => /\S/.test(String(item.content || ''))) || group[group.length - 1];
+      entries.push({ kind: 'bundle', messages: group, primary });
+    }
+    index = cursor;
+  }
+
+  return entries;
+}
+
 export function ChatMessages({
   conversationKey,
   currentUserId,
@@ -144,7 +181,7 @@ export function ChatMessages({
   onSelectMessage: (message: ChatMessage) => void;
   onPinMessage: (message: ChatMessage) => void;
   onEditMessage: (message: ChatMessage) => void;
-  onDeleteMessage: (messageId: string, conversationKey: string) => void;
+  onDeleteMessage: (messageId: string, conversationKey: string) => void | Promise<void>;
   onReplyMessage: (message: ChatMessage) => void;
   onVotePoll: (pollId: string, optionIds: string[]) => Promise<void>;
   onClosePoll: (pollId: string) => Promise<void>;
@@ -169,11 +206,22 @@ export function ChatMessages({
           </div>
         ) : (
           <div>
-            {messages.map((m, index) => {
+            {buildChatRenderEntries(messages).map((entry, entryIndex, entries) => {
+              const m = entry.kind === 'bundle' ? entry.primary : entry.message;
               const isOwn = m.senderId === currentUserId;
               const sender = usersById.get(m.senderId) || null;
-              const previousMessage = index > 0 ? messages[index - 1] : null;
-              const nextMessage = index < messages.length - 1 ? messages[index + 1] : null;
+              const previousEntry = entryIndex > 0 ? entries[entryIndex - 1] : null;
+              const nextEntry = entryIndex < entries.length - 1 ? entries[entryIndex + 1] : null;
+              const previousMessage = previousEntry
+                ? previousEntry.kind === 'bundle'
+                  ? previousEntry.primary
+                  : previousEntry.message
+                : null;
+              const nextMessage = nextEntry
+                ? nextEntry.kind === 'bundle'
+                  ? nextEntry.primary
+                  : nextEntry.message
+                : null;
               const showDateDivider =
                 !previousMessage || getMessageDateKey(previousMessage.createdAt) !== getMessageDateKey(m.createdAt);
               const previousSameSender =
@@ -191,8 +239,10 @@ export function ChatMessages({
                 : nextSameSender
                   ? 'first'
                   : 'single';
+              const entryKey =
+                entry.kind === 'bundle' ? `bundle-${entry.primary.bundleId}-${entry.primary.id}` : m.id;
               return (
-                <React.Fragment key={m.id}>
+                <React.Fragment key={entryKey}>
                   {showDateDivider ? (
                     <div className="sticky top-2 z-[5] my-5 flex justify-center">
                       <span className="communication-date-divider inline-flex min-w-[8rem] items-center justify-center rounded-full border border-slate-200 bg-white/95 px-3 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">
@@ -210,6 +260,7 @@ export function ChatMessages({
                     selectionVisible={selectionVisible}
                     onToggleSelect={() => onToggleSelectMessage(m.id)}
                     groupPosition={groupPosition}
+                    bundledMessages={entry.kind === 'bundle' ? entry.messages : undefined}
                     onForward={() => onForwardMessage(m)}
                     onSelect={() => onSelectMessage(m)}
                     onPin={() => onPinMessage(m)}

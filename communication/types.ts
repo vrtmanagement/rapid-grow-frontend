@@ -120,6 +120,12 @@ export type ChatMessage = {
   content: string;
   fileUrl?: string;
   attachment: ChatAttachment | null;
+  /** Shared id when multiple attachments (+ caption) were sent together */
+  bundleId?: string | null;
+  clientMessageId?: string | null;
+  /** True while upload/send is still in flight (optimistic UI) */
+  pending?: boolean;
+  localPreviewUrl?: string | null;
   createdAt: string;
 
   deleted?: boolean;
