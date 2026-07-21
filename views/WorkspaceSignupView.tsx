@@ -3,24 +3,20 @@ import { ArrowLeft, Building2, Check, Eye, EyeOff } from 'lucide-react';
 import { API_BASE, AUTH_STORAGE_KEY } from '../config/api';
 import { PUBLIC_PLANS, type PublicPlanId } from '../config/landingPageConstants';
 import { getReadableError, parseApiResponse } from '../services/apiClient';
-import ErrorAlert from '../components/ui/ErrorAlert';
+import { navigateApp } from '../utils/appNavigation';
 
 interface WorkspaceSignupViewProps {
   onSignupSuccess: (token: string, employee: any) => void;
 }
 
-function getSignupPlanFromHash(): PublicPlanId {
-  const hash = window.location.hash.replace(/^#\/?/, '');
-  const queryIndex = hash.indexOf('?');
-  if (queryIndex === -1) return 'free';
-  const params = new URLSearchParams(hash.slice(queryIndex + 1));
-  const plan = params.get('plan');
+function getSignupPlanFromUrl(): PublicPlanId {
+  const plan = new URLSearchParams(window.location.search).get('plan');
   if (plan === 'gold' || plan === 'platinum' || plan === 'free') return plan;
   return 'free';
 }
 
 const WorkspaceSignupView: React.FC<WorkspaceSignupViewProps> = ({ onSignupSuccess }) => {
-  const initialPlan = useMemo(() => getSignupPlanFromHash(), []);
+  const initialPlan = useMemo(() => getSignupPlanFromUrl(), []);
   const [selectedPlan, setSelectedPlan] = useState<PublicPlanId>(initialPlan);
   const [companyName, setCompanyName] = useState('');
   const [industry, setIndustry] = useState('');
@@ -82,7 +78,7 @@ const WorkspaceSignupView: React.FC<WorkspaceSignupViewProps> = ({ onSignupSucce
             <button
               type="button"
               onClick={() => {
-                window.location.hash = '#/';
+                navigateApp('/');
               }}
               className="inline-flex items-center gap-2 text-sm text-white/70 transition hover:text-white"
             >
@@ -118,7 +114,7 @@ const WorkspaceSignupView: React.FC<WorkspaceSignupViewProps> = ({ onSignupSucce
             <button
               type="button"
               onClick={() => {
-                window.location.hash = '#/login';
+                navigateApp('/login');
               }}
               className="mt-8 rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
             >

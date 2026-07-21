@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { fetchClientPortal } from '../services/p4Api';
 
-function getPortalTokenFromHash() {
-  const path = window.location.hash.replace(/^#\/?/, '').split('?')[0];
+function getPortalTokenFromPath() {
+  const path = window.location.pathname.replace(/^\//, '').split('?')[0];
   if (!path.startsWith('client-portal/')) return '';
   return path.slice('client-portal/'.length);
 }
 
 const ClientPortalView: React.FC = () => {
-  const token = getPortalTokenFromHash();
+  const token = getPortalTokenFromPath();
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
 

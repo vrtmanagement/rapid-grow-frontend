@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 
 interface AppNotification {
@@ -51,7 +52,10 @@ const GlobalAppToasts: React.FC<GlobalAppToastsProps> = ({
   setGlobalTaskToast,
   setGlobalReminderToast,
   dismissGlobalReminderToast,
-}) => (
+}) => {
+  const navigate = useNavigate();
+
+  return (
   <>
     {globalLeaveToast ? (
       <div
@@ -94,7 +98,7 @@ const GlobalAppToasts: React.FC<GlobalAppToastsProps> = ({
         type="button"
         onClick={() => {
           const nextRoute = globalTaskToast.route.startsWith('/') ? globalTaskToast.route : `/${globalTaskToast.route}`;
-          window.location.hash = `#${nextRoute}`;
+          navigate(nextRoute);
           setGlobalTaskToast(null);
         }}
         className={`fixed right-6 z-[101] max-w-sm rounded-[24px] border bg-white px-5 py-4 text-left shadow-[0_22px_50px_rgba(15,23,42,0.16)] animate-in slide-in-from-top-2 fade-in duration-300 ${
@@ -153,7 +157,7 @@ const GlobalAppToasts: React.FC<GlobalAppToastsProps> = ({
             }
 
             const nextRoute = globalReminderToast.route.startsWith('/') ? globalReminderToast.route : `/${globalReminderToast.route}`;
-            window.location.hash = `#${nextRoute}`;
+            navigate(nextRoute);
             setGlobalReminderToast(null);
           }}
           className="mt-3 text-[12px] font-semibold text-brand-red transition-colors hover:text-red-700"
@@ -163,6 +167,7 @@ const GlobalAppToasts: React.FC<GlobalAppToastsProps> = ({
       </div>
     ) : null}
   </>
-);
+  );
+};
 
 export default GlobalAppToasts;

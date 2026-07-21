@@ -139,9 +139,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
     hasPower('CONTENT_VIEW') ||
     hasPower('STAFF_VIEW') ||
     hasPower('CRM_VIEW');
-  const browserHash = typeof window !== 'undefined' ? window.location.hash || '' : '';
-  const routePathSource = browserHash.startsWith('#') ? browserHash.slice(1) : location.pathname;
-  const routePath = (routePathSource || location.pathname || '/').split('?')[0] || '/';
+  const routePath = (location.pathname || '/').split('?')[0] || '/';
   const isAttendanceRoute = routePath.startsWith('/attendance');
   const isExpenseRoute = routePath.startsWith('/expense-travel');
   const isCommunicationRoute = routePath === '/communication';

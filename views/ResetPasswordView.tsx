@@ -8,14 +8,12 @@ interface ResetPasswordViewProps {
   onResetSuccess: (token: string, employee: any) => void;
 }
 
-function getResetTokenFromHash() {
-  const hash = window.location.hash || '';
-  const query = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
-  return new URLSearchParams(query).get('token') || '';
+function getResetTokenFromUrl() {
+  return new URLSearchParams(window.location.search).get('token') || '';
 }
 
 const ResetPasswordView: React.FC<ResetPasswordViewProps> = ({ onResetSuccess }) => {
-  const token = useMemo(() => getResetTokenFromHash().trim(), []);
+  const token = useMemo(() => getResetTokenFromUrl().trim(), []);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

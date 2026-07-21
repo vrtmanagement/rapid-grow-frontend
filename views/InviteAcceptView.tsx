@@ -22,11 +22,12 @@ type InvitePreview = {
   };
 };
 
-function getInviteTokenFromHash() {
-  const hash = window.location.hash || '';
-  const query = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
-  const params = new URLSearchParams(query);
-  return params.get('token') || hash.split('/').pop() || '';
+function getInviteTokenFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const fromQuery = params.get('token');
+  if (fromQuery) return fromQuery;
+  const segments = window.location.pathname.split('/').filter(Boolean);
+  return segments[segments.length - 1] || '';
 }
 
 const readOnlyFieldClassName =
@@ -36,7 +37,7 @@ const editableFieldClassName =
   'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20';
 
 const InviteAcceptView: React.FC<InviteAcceptViewProps> = ({ onAcceptSuccess }) => {
-  const token = useMemo(() => getInviteTokenFromHash().trim(), []);
+  const token = useMemo(() => getInviteTokenFromUrl().trim(), []);
   const existingSession = useMemo(() => getStoredAuthSession(), []);
   const [invite, setInvite] = useState<InvitePreview | null>(null);
   const [empName, setEmpName] = useState('');

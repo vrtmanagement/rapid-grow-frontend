@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const STORAGE_KEY = 'rapidgrow-onboarding-complete';
 
@@ -38,6 +39,7 @@ function markCompleted() {
 }
 
 const OnboardingTour: React.FC<{ role: string }> = ({ role }) => {
+  const navigate = useNavigate();
   const steps = useMemo(
     () => (role === 'Employee' ? EMPLOYEE_STEPS : OWNER_STEPS),
     [role]
@@ -61,7 +63,7 @@ const OnboardingTour: React.FC<{ role: string }> = ({ role }) => {
 
   const goNext = () => {
     if (step.route) {
-      window.location.hash = `#${step.route}`;
+      navigate(step.route);
     }
     if (isLast) {
       finish();

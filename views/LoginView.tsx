@@ -128,7 +128,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
       <header className="relative z-10 border-b border-white/10 bg-slate-950/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <a href="#/" className="flex items-center gap-3">
+          <a href="/" className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-gradient shadow-lg shadow-brand-red/20">
               <span className="text-lg font-bold">RG</span>
             </div>
@@ -138,7 +138,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             </div>
           </a>
           <a
-            href="#/"
+            href="/"
             className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm text-white/80 transition hover:bg-white/5 hover:text-white"
           >
             <ArrowLeft size={16} />
@@ -283,7 +283,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                     </button>
                   </div>
                   <p className="text-right text-sm">
-                    <a href="#/password/forgot" className="font-medium text-brand-red transition hover:text-white">
+                    <a href="/password/forgot" className="font-medium text-brand-red transition hover:text-white">
                       Forgot password?
                     </a>
                   </p>
@@ -307,7 +307,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               {!lockedFields && (
                 <p className="text-center text-sm text-white/50">
                   New company?{' '}
-                  <a href="#/signup" className="font-semibold text-brand-red transition hover:text-white">
+                  <a href="/signup" className="font-semibold text-brand-red transition hover:text-white">
                     Create workspace
                   </a>
                 </p>

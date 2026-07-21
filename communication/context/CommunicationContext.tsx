@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { apiClearChat, apiClosePoll, apiCreatePoll, apiCreateTeam, apiDeletePoll, apiDeleteTeam, apiForwardMessages, apiHistory, apiListConversations, apiListUsers, apiMarkAsRead, apiPinMessage, apiUpdateTeam, apiUploadFile, apiVotePoll } from '../api';
 import { hasTabEndpointCache } from '../../services/tabSessionCache';
 import { API_BASE, getAuthHeaders } from '../../config/api';
@@ -130,6 +130,7 @@ function avatarFromDirectory(directory: EmployeeAvatarDirectory, id?: string, em
 
 export function CommunicationProvider({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const isCommunicationRoute = location.pathname === '/communication' || location.pathname.startsWith('/communication/');
   const [currentUser, setCurrentUser] = useState<CommunicationContextValue['currentUser']>(null);
   const [users, setUsers] = useState<ChatUser[]>([]);
@@ -978,12 +979,12 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
       const target = notifications.find((item) => item.id === notificationId);
       if (!target) return;
       dismissNotification(notificationId);
-      if (typeof window !== 'undefined' && !window.location.hash.includes('/communication')) {
-        window.location.hash = '#/communication';
+      if (typeof window !== 'undefined' && !location.pathname.startsWith('/communication')) {
+        navigate('/communication');
       }
       await joinByConversationKey(target.conversationKey);
     },
-    [dismissNotification, joinByConversationKey, notifications]
+    [dismissNotification, joinByConversationKey, location.pathname, navigate, notifications]
   );
 
   const selectChannel = useCallback(

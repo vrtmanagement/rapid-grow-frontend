@@ -101,7 +101,7 @@ function AuthPage({ children }: { children: React.ReactNode }) {
         <AuthPageHeader />
         {children}
         <p className="text-center text-sm text-slate-500 mt-6">
-          <a href="#/" className="text-brand-red font-medium hover:underline">
+          <a href="/" className="text-brand-red font-medium hover:underline">
             Back to login
           </a>
         </p>
