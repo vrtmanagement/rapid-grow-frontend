@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
 import {
   Bell,
@@ -340,7 +341,10 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
   userRole,
   userAvatar,
   onLogout,
-}) => (
+}) => {
+  const navigate = useNavigate();
+
+  return (
   <div className="relative">
     <button
       type="button"
@@ -368,7 +372,7 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
         <div className="app-popover-card fixed right-8 top-20 z-[9999] w-56 rounded-xl border border-slate-200 bg-white py-2 shadow-lg dark:border-slate-800 dark:bg-slate-900">
           <button
             type="button"
-            onClick={() => { setUserMenuOpen(false); window.location.hash = '#/profile'; }}
+            onClick={() => { setUserMenuOpen(false); navigate('/profile'); }}
             className="app-popover-row flex w-full items-center gap-3 px-4 py-3 text-left text-slate-700 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
           >
             <UserCircle size={18} className="text-slate-500" />
@@ -387,4 +391,5 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
       document.body
     )}
   </div>
-);
+  );
+};

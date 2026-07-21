@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { HashRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
+import { getPublicPath, navigateApp } from './utils/appNavigation';
 import { ThemeProvider } from './context/ThemeContext';
 import { I18nProvider } from './context/I18nContext';
 import ClientPortalView from './views/ClientPortalView';
@@ -149,11 +150,7 @@ function isDailyReviewReminderNotification(notification?: Partial<AppShellNotifi
   return String(notification?.type || '').trim().toLowerCase() === DAILY_REVIEW_REMINDER_TYPE;
 }
 
-function getPublicHashPath() {
-  return window.location.hash.replace(/^#\/?/, '').split('?')[0];
-}
-
-function isInviteAcceptPath(path = getPublicHashPath()) {
+function isInviteAcceptPath(path = getPublicPath()) {
   return path === 'invite' || path === 'invite/accept' || path.startsWith('invite/');
 }
 
@@ -245,7 +242,7 @@ const App: React.FC = () => {
   const { permissions, hasPermission, loading: permissionsLoading, role: permissionRole } = usePermissions();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [publicHashPath, setPublicHashPath] = useState(getPublicHashPath);
+  const [publicPath, setPublicPath] = useState(getPublicPath);
   const [appStateHydrated, setAppStateHydrated] = useState(false);
   const [goalsHydrated, setGoalsHydrated] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -437,21 +434,20 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const syncHashPath = () => setPublicHashPath(getPublicHashPath());
-    window.addEventListener('hashchange', syncHashPath);
-    return () => window.removeEventListener('hashchange', syncHashPath);
+    const syncPublicPath = () => setPublicPath(getPublicPath());
+    window.addEventListener('popstate', syncPublicPath);
+    return () => window.removeEventListener('popstate', syncPublicPath);
   }, []);
 
   const handleLoginSuccess = useCallback(() => {
     setIsAuthenticated(true);
-    window.location.hash = '#/';
-    window.location.reload();
+    window.location.assign('/');
   }, []);
 
   const handleLogout = useCallback(() => {
     clearStoredSession();
     setIsAuthenticated(false);
-    window.location.hash = '#/';
+    navigateApp('/');
   }, []);
 
   const [state, setState] = useState<PlanningState>(normalizeGoalHierarchy(createDefaultPlanningStateInput()));
@@ -540,7 +536,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isAuthenticated || permissionsLoading) return;
 
-    const routeSegment = String(publicHashPath || '').split('/')[0] || '';
+    const routeSegment = String(publicPath || '').split('/')[0] || '';
     const needsGoals = GOAL_ROUTE_PATTERN.test(`${routeSegment}/`);
     if (!needsGoals) return;
 
@@ -577,7 +573,7 @@ const App: React.FC = () => {
     return () => {
       active = false;
     };
-  }, [isAuthenticated, permissionsLoading, publicHashPath, hasPermission]);
+  }, [isAuthenticated, permissionsLoading, publicPath, hasPermission]);
 
   useEffect(() => {
     const saved = localStorage.getItem('rapidgrow-os-v1');
@@ -1063,7 +1059,7 @@ const App: React.FC = () => {
     }
 
     const nextRoute = notification.route?.startsWith('/') ? notification.route : `/${notification.route || 'review'}`;
-    window.location.hash = `#${nextRoute}`;
+    navigateApp(nextRoute);
   }, [globalReminderToast, markNotificationRead]);
 
   useEffect(() => {
@@ -1314,7 +1310,7 @@ const App: React.FC = () => {
   ]);
 
   const isPlanningRoute = GOAL_ROUTE_PATTERN.test(
-    `${String(publicHashPath || '').split('/')[0] || ''}/`,
+    `${String(publicPath || '').split('/')[0] || ''}/`,
   );
   const planningViewsLoading = !appStateHydrated || (isPlanningRoute && !goalsHydrated);
   const unreadNotificationCount = visibleNotifications.filter((notification) => !notification.isRead).length;
@@ -1365,27 +1361,27 @@ const App: React.FC = () => {
     return null;
   }
 
-  if (isInviteAcceptPath(publicHashPath)) {
+  if (isInviteAcceptPath(publicPath)) {
     return <InviteAcceptView onAcceptSuccess={handleLoginSuccess} />;
   }
 
   if (!isAuthenticated) {
-    if (publicHashPath === 'signup' || publicHashPath.startsWith('signup') || publicHashPath === 'workspaces/signup') {
+    if (publicPath === 'signup' || publicPath.startsWith('signup') || publicPath === 'workspaces/signup') {
       return <WorkspaceSignupView onSignupSuccess={handleLoginSuccess} />;
     }
-    if (publicHashPath === 'login') {
+    if (publicPath === 'login') {
       return <LoginView onLoginSuccess={handleLoginSuccess} />;
     }
-    if (publicHashPath === 'password/forgot' || publicHashPath === 'password/reset') {
-      if (publicHashPath === 'password/reset') {
+    if (publicPath === 'password/forgot' || publicPath === 'password/reset') {
+      if (publicPath === 'password/reset') {
         return <ResetPasswordView onResetSuccess={handleLoginSuccess} />;
       }
       return <ForgotPasswordView />;
     }
-    if (publicHashPath.startsWith('client-portal/')) {
+    if (publicPath.startsWith('client-portal/')) {
       return <ClientPortalView />;
     }
-    if (publicHashPath === '' || publicHashPath === 'home' || publicHashPath === 'landing') {
+    if (publicPath === '' || publicPath === 'home' || publicPath === 'landing') {
       return <LandingPageView />;
     }
     return <LoginView onLoginSuccess={handleLoginSuccess} />;
@@ -1399,7 +1395,7 @@ const App: React.FC = () => {
     return (
       <ThemeProvider>
         <I18nProvider>
-      <HashRouter>
+      <BrowserRouter>
         <OnboardingTour role={state.currentUser.role} />
         <CommunicationProvider>
           <AppEmployeePortalLayout
@@ -1425,7 +1421,7 @@ const App: React.FC = () => {
             handleLogout={handleLogout}
           />
         </CommunicationProvider>
-      </HashRouter>
+      </BrowserRouter>
         </I18nProvider>
       </ThemeProvider>
     );
@@ -1434,7 +1430,7 @@ const App: React.FC = () => {
   return (
     <ThemeProvider>
       <I18nProvider>
-    <HashRouter>
+    <BrowserRouter>
       <OnboardingTour role={state.currentUser.role} />
       <CommunicationProvider>
         <AppManagerPortalLayout
@@ -1462,7 +1458,7 @@ const App: React.FC = () => {
           handleLogout={handleLogout}
         />
       </CommunicationProvider>
-    </HashRouter>
+    </BrowserRouter>
       </I18nProvider>
     </ThemeProvider>
   );

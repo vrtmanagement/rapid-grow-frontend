@@ -17,22 +17,22 @@ test.describe('Rapid Grow MVP smoke', () => {
   });
 
   test('login page loads', async ({ page }) => {
-    await page.goto(`${APP_URL}/#/`);
+    await page.goto(`${APP_URL}/`);
     await expect(page.getByText('Rapid Grow Admin Portal')).toBeVisible();
   });
 
   test('signup route loads', async ({ page }) => {
-    await page.goto(`${APP_URL}/#/signup`);
+    await page.goto(`${APP_URL}/signup`);
     await expect(page.getByText(/workspace|company/i)).toBeVisible();
   });
 
   test('forgot password route loads', async ({ page }) => {
-    await page.goto(`${APP_URL}/#/password/forgot`);
+    await page.goto(`${APP_URL}/password/forgot`);
     await expect(page.getByText('Reset your password')).toBeVisible();
   });
 
   test('invite accept route loads without token', async ({ page }) => {
-    await page.goto(`${APP_URL}/#/invite/accept`);
+    await page.goto(`${APP_URL}/invite/accept`);
     await expect(page.getByText(/invite|workspace/i)).toBeVisible();
   });
 });

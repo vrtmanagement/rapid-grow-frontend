@@ -11,7 +11,6 @@ function buildEndpointKey(tabKey: string, path: string): string {
 
 export function normalizeTabKeyFromPath(pathname: string): string {
   const segment = String(pathname || '')
-    .replace(/^#/, '')
     .replace(/^\//, '')
     .split('/')[0]
     .trim()

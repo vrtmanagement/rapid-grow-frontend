@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChatConversationSummary, ChatUser } from '../types';
 import { Camera, FolderOpen, MoreVertical, Plus, Trash2, UserPlus } from 'lucide-react';
 import { MessageActionModal } from './MessageActionModal';
@@ -53,6 +54,7 @@ export function ChatSidebar({
   onPreviewUser: (user: ChatUser) => void;
   onPreviewTeamAvatar: (team: ChatConversationSummary) => void;
 }) {
+  const navigate = useNavigate();
   const [peopleFilter, setPeopleFilter] = useState<'all' | 'unread'>('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -191,9 +193,7 @@ export function ChatSidebar({
           <button
             type="button"
             onClick={() => {
-              if (typeof window !== 'undefined') {
-                window.location.hash = '#/drive';
-              }
+              navigate('/drive');
             }}
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-red-200 hover:text-brand-red"
             aria-label="Open Drive"

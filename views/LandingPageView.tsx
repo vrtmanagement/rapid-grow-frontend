@@ -17,9 +17,7 @@ import {
   type PublicPlanId,
 } from '../config/landingPageConstants';
 
-function navigateTo(path: string) {
-  window.location.hash = path.startsWith('#') ? path : `#${path}`;
-}
+import { navigateApp } from '../utils/appNavigation';
 
 const LandingPageView: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -30,7 +28,7 @@ const LandingPageView: React.FC = () => {
   };
 
   const startRegistration = (plan: PublicPlanId = 'free') => {
-    navigateTo(`/signup?plan=${plan}`);
+    navigateApp(`/signup?plan=${plan}`);
   };
 
   return (
@@ -62,7 +60,7 @@ const LandingPageView: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => navigateTo('/login')}
+              onClick={() => navigateApp('/login')}
               className="text-sm font-medium text-white/80 transition hover:text-white"
             >
               Sign in
@@ -95,7 +93,7 @@ const LandingPageView: React.FC = () => {
               <button type="button" onClick={() => scrollTo('pricing')} className="rounded-xl px-3 py-2 text-left text-sm text-white/80">
                 Pricing
               </button>
-              <button type="button" onClick={() => navigateTo('/login')} className="rounded-xl px-3 py-2 text-left text-sm text-white/80">
+              <button type="button" onClick={() => navigateApp('/login')} className="rounded-xl px-3 py-2 text-left text-sm text-white/80">
                 Sign in
               </button>
               <button
@@ -318,7 +316,7 @@ const LandingPageView: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => navigateTo('/login')}
+                onClick={() => navigateApp('/login')}
                 className="rounded-2xl border border-white/30 px-6 py-4 text-base font-semibold text-white transition hover:bg-white/10"
               >
                 I already have an account
@@ -338,7 +336,7 @@ const LandingPageView: React.FC = () => {
             <button type="button" onClick={() => scrollTo('pricing')} className="hover:text-white">
               Pricing
             </button>
-            <button type="button" onClick={() => navigateTo('/login')} className="hover:text-white">
+            <button type="button" onClick={() => navigateApp('/login')} className="hover:text-white">
               Sign in
             </button>
           </div>
