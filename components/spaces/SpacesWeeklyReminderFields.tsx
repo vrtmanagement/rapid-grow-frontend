@@ -27,7 +27,7 @@ const REPEAT_CADENCE_OPTIONS = [
 ];
 
 const dateInputClassName =
-  'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60';
+  'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-700 outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60';
 
 const SpacesWeeklyReminderFields: React.FC<SpacesWeeklyReminderFieldsProps> = ({
   repeatCadence,
@@ -62,7 +62,7 @@ const SpacesWeeklyReminderFields: React.FC<SpacesWeeklyReminderFieldsProps> = ({
   };
 
   return (
-    <div className="space-y-4 rounded-xl border border-violet-100 bg-violet-50/40 p-4">
+    <div className="space-y-4 rounded-xl border border-red-200 bg-red-50/40 p-4">
       <div>
         <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">For Every</label>
         <ThemedSelect
@@ -96,8 +96,8 @@ const SpacesWeeklyReminderFields: React.FC<SpacesWeeklyReminderFieldsProps> = ({
                       onClick={() => toggleWeekDay(option.value)}
                       className={`inline-flex min-h-9 items-center rounded-xl border px-3 text-[12px] font-semibold transition ${
                         selected
-                          ? 'border-violet-400 bg-violet-100 text-violet-800 ring-2 ring-violet-100'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:bg-violet-50/60'
+                          ? 'border-brand-red bg-red-50 text-brand-red ring-2 ring-brand-red/10'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-red-200 hover:bg-red-50/60'
                       } ${disabled || atLimit ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
                     >
                       {option.label}
