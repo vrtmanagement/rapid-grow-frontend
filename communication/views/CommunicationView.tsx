@@ -5,7 +5,7 @@ import { ChatSidebar } from '../components/ChatSidebar';
 import { ChatMessages } from '../components/ChatMessages';
 import { ChatComposer } from '../components/ChatComposer';
 import { ChatHeaderMenu } from '../components/ChatHeaderMenu';
-import { FileUp, Mail } from 'lucide-react';
+import { FileUp, Loader2, Mail } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
 import Toast from '../../components/ui/Toast';
@@ -13,6 +13,7 @@ import { ForwardActionBar } from '../components/forward/ForwardActionBar';
 import { ForwardModal } from '../components/forward/ForwardModal';
 import { ForwardRecipientOption } from '../components/forward/types';
 import { PinnedMessageBar } from '../components/PinnedMessageBar';
+import { MessageActionModal } from '../components/MessageActionModal';
 import { useChatStore } from '../stores/useChatStore';
 
 function CommunicationHeaderSkeleton() {
@@ -118,6 +119,9 @@ function CommunicationLayout() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [incomingComposerFiles, setIncomingComposerFiles] = useState<File[] | null>(null);
   const [isChatDragOver, setIsChatDragOver] = useState(false);
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
+  const [batchDeleting, setBatchDeleting] = useState(false);
+  const batchDeleteInFlightRef = useRef(false);
   const {
     forwardSelectionMode,
     selectedMessageIds,
@@ -151,6 +155,13 @@ function CommunicationLayout() {
   const selectedMessages = useMemo(
     () => messages.filter((message) => selectedMessageIds.includes(message.id)),
     [messages, selectedMessageIds]
+  );
+  const deletableSelectedMessages = useMemo(
+    () =>
+      selectedMessages.filter(
+        (message) => message.senderId === currentUser?.id && !message.deleted,
+      ),
+    [currentUser?.id, selectedMessages],
   );
 
   const forwardModalMessages = useMemo(
@@ -218,7 +229,7 @@ function CommunicationLayout() {
     return Array.from(uniqueByRecipientId.values());
   }, [conversations, currentUser?.id, users]);
 
-  const canDeleteSelected = selectedMessages.some((message) => message.senderId === currentUser?.id);
+  const canDeleteSelected = deletableSelectedMessages.length > 0;
 
   const enterForwardSelection = (messageIds: string[]) => {
     const nextIds = Array.from(new Set(messageIds));
@@ -230,6 +241,44 @@ function CommunicationLayout() {
     const nextIds = Array.from(new Set(messageIds));
     setForwardModalMessageIds(nextIds);
     setForwardModalOpen(true);
+  };
+
+  const closeBatchDeleteModal = () => {
+    setBatchDeleteOpen(false);
+  };
+
+  const handleConfirmBatchDelete = () => {
+    if (batchDeleteInFlightRef.current || batchDeleting) return;
+    if (!deletableSelectedMessages.length) {
+      setBatchDeleteOpen(false);
+      setToast({ type: 'error', message: 'Only your own messages can be deleted.' });
+      return;
+    }
+
+    const messagesToDelete = [...deletableSelectedMessages];
+    batchDeleteInFlightRef.current = true;
+    setBatchDeleting(true);
+
+    void (async () => {
+      try {
+        for (const message of messagesToDelete) {
+          if (message.poll?.id) await ctx.deletePoll(message.poll.id);
+          else await ctx.deleteMessage(message.id, message.conversationKey);
+        }
+        setSelectedMessageIds([]);
+        setForwardSelectionMode(false);
+        setToast({ type: 'success', message: 'Selected messages deleted.' });
+      } catch (error) {
+        setToast({
+          type: 'error',
+          message: error instanceof Error ? error.message : 'Failed to delete selected messages.',
+        });
+      } finally {
+        batchDeleteInFlightRef.current = false;
+        setBatchDeleting(false);
+        setBatchDeleteOpen(false);
+      }
+    })();
   };
 
   return (
@@ -545,19 +594,12 @@ function CommunicationLayout() {
                     if (!selectedMessageIds.length) return;
                     openForwardForMessages(selectedMessageIds);
                   }}
-                  onDelete={async () => {
-                    try {
-                      const ownMessages = selectedMessages.filter((message) => message.senderId === currentUser.id);
-                      for (const message of ownMessages) {
-                        if (message.poll?.id) await ctx.deletePoll(message.poll.id);
-                        else await ctx.deleteMessage(message.id, message.conversationKey);
-                      }
-                      setSelectedMessageIds([]);
-                      setForwardSelectionMode(false);
-                      setToast({ type: 'success', message: ownMessages.length ? 'Selected messages deleted.' : 'Only your own messages can be deleted.' });
-                    } catch (error) {
-                      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to delete selected messages.' });
+                  onDelete={() => {
+                    if (!canDeleteSelected) {
+                      setToast({ type: 'error', message: 'Only your own messages can be deleted.' });
+                      return;
                     }
+                    setBatchDeleteOpen(true);
                   }}
                   onClear={() => {
                     setSelectedMessageIds([]);
@@ -580,8 +622,14 @@ function CommunicationLayout() {
                 selectedMessageIds={selectedMessageIds}
                 selectionVisible={forwardSelectionMode && !forwardModalOpen}
                 onToggleSelectMessage={toggleSelectedMessage}
-                onForwardMessage={(message) => openForwardForMessages([message.id])}
-                onSelectMessage={(message) => enterForwardSelection([message.id])}
+                onForwardMessage={(message) => {
+                  if (message.deleted) return;
+                  openForwardForMessages([message.id]);
+                }}
+                onSelectMessage={(message) => {
+                  if (message.deleted) return;
+                  enterForwardSelection([message.id]);
+                }}
                 onPinMessage={(message) => void ctx.pinMessage(message.id, message.conversationKey)}
                 onEditMessage={(message) => {
                   setReplyToMessage(null);
@@ -599,7 +647,9 @@ function CommunicationLayout() {
                 disabled={messagesLoading}
                 notifyTyping={() => ctx.notifyTyping(selectedConversationKey!)}
                 onSendText={(content, replyId) => ctx.sendText(selectedConversationKey!, content, replyId)}
-                onSendFile={(file, content, replyId) => ctx.sendFile(selectedConversationKey!, file, content, replyId)}
+                onSendFile={(file, content, replyId, bundleId) =>
+                  ctx.sendFile(selectedConversationKey!, file, content, replyId, bundleId)
+                }
                 onCreatePoll={(payload) => ctx.createPoll(selectedConversationKey!, payload)}
                 replyToMessage={replyToMessage}
                 onCancelReply={() => setReplyToMessage(null)}
@@ -644,6 +694,46 @@ function CommunicationLayout() {
           setToast({ type: 'success', message: 'Messages forwarded successfully.' });
         }}
       />
+
+      <MessageActionModal
+        open={batchDeleteOpen}
+        title={deletableSelectedMessages.length === 1 ? 'Delete message' : 'Delete messages'}
+        description={
+          deletableSelectedMessages.length === 1
+            ? 'Are you sure you want to delete this message?'
+            : `Are you sure you want to delete ${deletableSelectedMessages.length} selected messages?`
+        }
+        onClose={closeBatchDeleteModal}
+      >
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={closeBatchDeleteModal}
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {batchDeleting ? 'Close' : 'Cancel'}
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirmBatchDelete}
+            disabled={batchDeleting || !deletableSelectedMessages.length}
+            className={`inline-flex min-w-[5.5rem] items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+              batchDeleting
+                ? 'cursor-wait border-red-300 bg-red-300 text-red-900'
+                : 'border-red-300 bg-red-300 text-red-900 hover:bg-red-400'
+            }`}
+          >
+            {batchDeleting ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                Deleting…
+              </>
+            ) : (
+              'Delete'
+            )}
+          </button>
+        </div>
+      </MessageActionModal>
 
       {toast ? <Toast message={toast.message} type={toast.type} /> : null}
     </div>

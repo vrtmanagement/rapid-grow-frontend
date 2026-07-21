@@ -217,6 +217,10 @@ export function mapApiHistoryMessage(m: any): ChatMessage {
     deleted: !!m.deleted,
     editedAt: m.editedAt ? String(m.editedAt) : null,
     attachment: toChatAttachment(m.attachment),
+    bundleId: m.bundleId ? String(m.bundleId) : null,
+    clientMessageId: m.clientMessageId ? String(m.clientMessageId) : null,
+    pending: false,
+    localPreviewUrl: null,
     createdAt: String(m.createdAt),
     tick: m.tick
       ? ({

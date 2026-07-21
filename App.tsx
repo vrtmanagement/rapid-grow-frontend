@@ -256,6 +256,7 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<AppShellNotification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [clearedNotificationIds, setClearedNotificationIds] = useState<Record<string, boolean>>({});
+  const clearedNotificationsHydratedRef = useRef(false);
   const [globalLeaveToast, setGlobalLeaveToast] = useState<GlobalLeaveToast | null>(null);
   const [globalTaskToast, setGlobalTaskToast] = useState<GlobalTaskToast | null>(null);
   const [globalReminderToast, setGlobalReminderToast] = useState<GlobalReminderToast | null>(null);
@@ -377,11 +378,17 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    clearedNotificationsHydratedRef.current = false;
     setClearedNotificationIds(readClearedAppNotificationState(notificationClearStorageKey));
   }, [notificationClearStorageKey]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    // Skip the first write after hydrate so we never persist an empty {} over saved clears.
+    if (!clearedNotificationsHydratedRef.current) {
+      clearedNotificationsHydratedRef.current = true;
+      return;
+    }
     try {
       window.localStorage.setItem(
         notificationClearStorageKey,
@@ -1185,14 +1192,35 @@ const App: React.FC = () => {
 
   const clearNotificationsFromPopup = useCallback(() => {
     if (!visibleNotifications.length) return;
+    const idsToClear = visibleNotifications.map((notification) => String(notification._id || '')).filter(Boolean);
+    if (!idsToClear.length) return;
+
     setClearedNotificationIds((prev) => {
       const next = { ...prev };
-      visibleNotifications.forEach((notification) => {
-        next[notification._id] = true;
+      idsToClear.forEach((id) => {
+        next[id] = true;
       });
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(notificationClearStorageKey, JSON.stringify(next));
+        }
+      } catch {
+        // Keep in-memory clear even if storage write fails.
+      }
       return next;
     });
-  }, [visibleNotifications]);
+
+    // Mark as read on the server so the same items stay dismissed after refresh.
+    void Promise.all(
+      idsToClear.map(async (notificationId) => {
+        try {
+          await markNotificationRead(notificationId);
+        } catch {
+          // Cleared locally even if a single read mark fails.
+        }
+      }),
+    );
+  }, [markNotificationRead, notificationClearStorageKey, visibleNotifications]);
 
   useEffect(() => {
     if (!notificationPreferences.toastPreviews) return;

@@ -7,6 +7,7 @@ import { getDisplayAvatarUrl } from '../../utils/avatar';
 import { MessageSelectionCheckbox } from './forward/MessageSelectionCheckbox';
 import { PollMessage } from './PollMessage';
 import { usePollStore } from '../stores/usePollStore';
+import { BundledAttachments } from './BundledAttachments';
 
 function formatTime(iso: string) {
   const d = new Date(iso);
@@ -246,6 +247,7 @@ export function MessageBubble({
   resolveUserName,
   currentUserRole,
   groupPosition = 'single',
+  bundledMessages,
 }: {
   message: ChatMessage;
   isOwn: boolean;
@@ -255,7 +257,7 @@ export function MessageBubble({
   selectionVisible?: boolean;
   onToggleSelect?: () => void;
   onEdit?: () => void;
-  onDelete?: () => void;
+  onDelete?: () => void | Promise<void>;
   onReply?: () => void;
   onForward?: () => void;
   onSelect?: () => void;
@@ -267,6 +269,8 @@ export function MessageBubble({
   resolveUserName?: (userId: string) => string;
   currentUserRole?: string;
   groupPosition?: 'single' | 'first' | 'middle' | 'last';
+  /** When set (length > 1), render all attachments + one caption in a single bubble */
+  bundledMessages?: ChatMessage[];
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPlacement, setMenuPlacement] = useState<'top' | 'bottom' | 'inside'>('top');
@@ -275,6 +279,8 @@ export function MessageBubble({
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [actionLoading, setActionLoading] = useState<null | 'download'>(null);
+  const [deletingMessage, setDeletingMessage] = useState(false);
+  const deleteInFlightRef = useRef(false);
   const pendingVotePollIds = usePollStore((state) => state.pendingVotePollIds);
   const setPendingVote = usePollStore((state) => state.setPendingVote);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -322,6 +328,11 @@ export function MessageBubble({
     : `rounded-2xl ${isFirstInGroup ? 'rounded-tl-sm' : 'rounded-l-lg'}`;
 
   const timeTone = 'text-slate-500';
+  const bundleItems = Array.isArray(bundledMessages) && bundledMessages.length > 1 ? bundledMessages : null;
+  const bundleCaption =
+    bundleItems
+      ?.map((item) => String(item.content || '').trim())
+      .find((text) => text.length > 0) || '';
   const directFileUrl = message.fileUrl || message.attachment?.url || '#';
   const attachmentName = message.attachment?.fileName || 'Attachment';
   const attachmentMimeType = message.attachment?.mimeType || '';
@@ -332,7 +343,7 @@ export function MessageBubble({
   const attachmentSize = formatAttachmentSize(message.attachment?.size);
   const hasDownloadTarget = !!String(message.attachment?.fileId || '').trim() || directFileUrl !== '#';
   const canOpenAttachment = directFileUrl !== '#';
-  const copyableText = getCopyableMessageText(message);
+  const copyableText = bundleCaption || getCopyableMessageText(message);
   const canCopyMessage = !message.deleted && copyableText.length > 0;
   const canManagePollActions =
     !!message.poll &&
@@ -344,6 +355,32 @@ export function MessageBubble({
     setContextMenu(null);
     if (!canCopyMessage) return;
     await copyMessageText(copyableText);
+  };
+
+  const closeDeleteModal = () => {
+    // Closing while delete is in flight keeps the request running in the background.
+    setDeleteOpen(false);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteInFlightRef.current || deletingMessage) return;
+    deleteInFlightRef.current = true;
+    setDeletingMessage(true);
+
+    const deletePromise =
+      message.type === 'poll'
+        ? Promise.resolve(onDeletePoll?.())
+        : Promise.resolve(onDelete?.());
+
+    void deletePromise
+      .catch((error) => {
+        console.warn('Failed to delete message', error);
+      })
+      .finally(() => {
+        deleteInFlightRef.current = false;
+        setDeletingMessage(false);
+        setDeleteOpen(false);
+      });
   };
 
   useEffect(() => {
@@ -423,15 +460,31 @@ export function MessageBubble({
   return (
     <>
       <div
-        className={`group my-1.5 flex ${isOwn ? 'justify-end' : 'justify-start'} transition-all duration-200 ${
+        className={`group my-1.5 flex w-full ${isOwn ? 'justify-end' : 'justify-start'} transition-all duration-200 ${
           mounted ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0'
-        } ${menuOpen ? 'relative z-[200]' : ''}`}
+        } ${menuOpen ? 'relative z-[200]' : ''} ${
+          selectionVisible && !message.deleted ? 'cursor-pointer' : ''
+        }`}
+        onClick={(event) => {
+          if (!selectionVisible || message.deleted) return;
+          const target = event.target as HTMLElement;
+          if (target.closest('a, button, input, textarea, video, audio, [role="button"]')) return;
+          onToggleSelect?.();
+        }}
       >
         <div className={`flex max-w-[86%] gap-2 ${isOwn ? 'flex-row-reverse items-end' : 'flex-row items-start'}`}>
           <button
             type="button"
             disabled={!sender || !showAvatar}
-            className={`h-8 w-8 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm disabled:cursor-default ${showAvatar ? 'opacity-100' : 'opacity-0'} ${isOwn ? 'mb-1' : 'mt-0.5'}`}
+            onClick={(event) => {
+              if (!selectionVisible || message.deleted) return;
+              event.preventDefault();
+              event.stopPropagation();
+              onToggleSelect?.();
+            }}
+            className={`h-8 w-8 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm disabled:cursor-default ${showAvatar ? 'opacity-100' : 'opacity-0'} ${isOwn ? 'mb-1' : 'mt-0.5'} ${
+              selectionVisible && !message.deleted ? 'cursor-pointer' : ''
+            }`}
             title={sender?.name || 'User'}
             aria-label={sender?.name ? `${sender.name} profile` : 'User profile'}
           >
@@ -442,6 +495,7 @@ export function MessageBubble({
             />
           </button>
           <div className="relative min-w-0">
+            {!message.deleted && !selectionVisible ? (
             <div
               className={`absolute top-2.5 z-30 ${isOwn ? 'right-2' : 'left-full ml-2'}`}
               ref={menuRef}
@@ -612,26 +666,22 @@ export function MessageBubble({
                 </div>
               ) : null}
             </div>
+            ) : null}
 
             <div
               ref={bubbleRef}
               onContextMenu={(event) => {
+                if (message.deleted || selectionVisible) return;
                 event.preventDefault();
                 setContextMenu({ x: event.clientX, y: event.clientY });
-              }}
-              onClick={(event) => {
-                if (!selectionVisible || message.deleted) return;
-                const target = event.target as HTMLElement;
-                if (target.closest('a, button, input, textarea, video, [role="button"]')) return;
-                onToggleSelect?.();
               }}
               className={`communication-message-bubble relative max-w-full border px-3.5 py-2 transition-all duration-200 ${
                 selectionVisible && !message.deleted ? 'cursor-pointer' : 'hover:-translate-y-0.5'
               } ${
                 selected ? 'ring-2 ring-[#c9daf8] ring-offset-2 ring-offset-[#f6f8fb]' : ''
-              } ${bubbleBase} ${bubbleShapeClass} ${isOwn ? 'communication-message-bubble-own pr-12' : 'communication-message-bubble-peer'} ${message.deleted ? 'communication-message-bubble-deleted' : ''}`}
+              } ${bubbleBase} ${bubbleShapeClass} ${isOwn ? `communication-message-bubble-own${message.deleted || selectionVisible ? '' : ' pr-12'}` : 'communication-message-bubble-peer'} ${message.deleted ? 'communication-message-bubble-deleted' : ''}`}
             >
-              {selectionVisible ? (
+              {selectionVisible && !message.deleted ? (
                 <div className={`absolute ${isOwn ? '-left-11 top-3' : '-left-11 top-3'}`}>
                   <MessageSelectionCheckbox
                     checked={selected}
@@ -714,32 +764,53 @@ export function MessageBubble({
                 </div>
               ) : null}
 
-              {!message.deleted && (message.type === 'image' || message.type === 'file' || message.type === 'attachment') && (message.attachment || message.fileUrl) ? (
+              {!message.deleted && bundleItems ? (
+                <div className="space-y-2">
+                  {showSenderName && !isOwn && sender?.name ? (
+                    <div className="text-[11px] font-semibold text-slate-600">{sender.name}</div>
+                  ) : null}
+                  <BundledAttachments
+                    messages={bundleItems}
+                    caption={bundleCaption}
+                    renderLinkedText={renderLinkedText}
+                  />
+                </div>
+              ) : null}
+
+              {!message.deleted && !bundleItems && (message.type === 'image' || message.type === 'file' || message.type === 'attachment') && (message.attachment || message.fileUrl) ? (
                 <div className="space-y-2">
                   {showSenderName && !isOwn && sender?.name ? (
                     <div className="text-[11px] font-semibold text-slate-600">{sender.name}</div>
                   ) : null}
 
                   {isImageAttachment ? (
-                    <div className="w-full max-w-[300px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_26px_rgba(15,23,42,0.10)]">
+                    <div className="relative w-full max-w-[300px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_26px_rgba(15,23,42,0.10)]">
                       <div className="group/image relative">
                         <button
                           type="button"
                           onClick={() => {
-                            if (canOpenAttachment) {
+                            if (canOpenAttachment && !message.pending) {
                               setImagePreviewOpen(true);
                             }
                           }}
                           className="block w-full cursor-zoom-in"
                           aria-label={`Preview ${attachmentName}`}
-                          disabled={!canOpenAttachment}
+                          disabled={!canOpenAttachment || !!message.pending}
                         >
                           <img
-                            src={directFileUrl}
+                            src={message.localPreviewUrl || directFileUrl}
                             alt={attachmentName}
                             className="h-44 w-full bg-slate-100 object-cover"
                           />
                         </button>
+                        {message.pending ? (
+                          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/35">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-800 shadow">
+                              <Loader2 size={12} className="animate-spin text-brand-red" />
+                              Uploading…
+                            </span>
+                          </div>
+                        ) : null}
                         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent opacity-0 transition-opacity duration-200 group-hover/image:opacity-100" />
                         <div className="absolute right-3 top-3 flex items-center gap-2 opacity-0 transition-all duration-200 group-hover/image:opacity-100">
                           <button
@@ -772,13 +843,21 @@ export function MessageBubble({
                   ) : null}
 
                   {isVideoAttachment ? (
-                    <div className="w-full max-w-[320px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_26px_rgba(15,23,42,0.10)]">
+                    <div className="relative w-full max-w-[320px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_26px_rgba(15,23,42,0.10)]">
                       <video
-                        src={directFileUrl}
-                        controls
+                        src={message.localPreviewUrl || directFileUrl}
+                        controls={!message.pending}
                         preload="metadata"
                         className="h-52 w-full bg-slate-950 object-cover"
                       />
+                      {message.pending ? (
+                        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/35">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-800 shadow">
+                            <Loader2 size={12} className="animate-spin text-brand-red" />
+                            Uploading…
+                          </span>
+                        </div>
+                      ) : null}
                       <div className="flex items-center gap-3 px-3 py-3 text-slate-900">
                         <div className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${attachmentMeta.iconClass}`}>
                           <FileText size={18} />
@@ -851,7 +930,15 @@ export function MessageBubble({
                   ) : null}
 
                   {!isImageAttachment && !isVideoAttachment && !isAudioAttachment ? (
-                    <div className="w-full min-w-[260px] max-w-[340px] rounded-2xl border border-slate-200 bg-white p-3 text-left text-slate-900 shadow-sm">
+                    <div className="relative w-full min-w-[260px] max-w-[340px] rounded-2xl border border-slate-200 bg-white p-3 text-left text-slate-900 shadow-sm">
+                      {message.pending ? (
+                        <div className="absolute inset-0 z-[1] flex items-center justify-center rounded-2xl bg-white/70">
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-800 shadow-sm">
+                            <Loader2 size={12} className="animate-spin text-brand-red" />
+                            Uploading…
+                          </span>
+                        </div>
+                      ) : null}
                       <div className="flex items-start gap-3">
                         <div className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${attachmentMeta.iconClass}`}>
                           <FileText size={18} />
@@ -891,24 +978,33 @@ export function MessageBubble({
               ) : null}
 
               <div className={`communication-message-time mt-1 flex items-center justify-end gap-1.5 text-[11px] leading-none ${timeTone}`}>
-                {!message.deleted && message.editedAt ? (
-                  <span className="text-[10px] opacity-80">edited</span>
-                ) : null}
-                <span>{formatTime(message.createdAt)}</span>
-                {isOwn && message.tick ? (
-                  <span
-                    className={
-                      message.tick.state === 'seen'
-                        ? 'inline-flex items-center text-blue-600'
-                        : message.tick.state === 'delivered'
-                          ? 'inline-flex items-center text-slate-400'
-                          : 'inline-flex items-center text-slate-400'
-                    }
-                    title={`Status: ${message.tick.state}`}
-                  >
-                    {message.tick.state === 'seen' ? <Eye size={12} /> : message.tick.state === 'delivered' ? <CheckCheck size={13} /> : <Check size={13} />}
+                {message.pending ? (
+                  <span className="inline-flex items-center gap-1.5 font-medium text-brand-red">
+                    <Loader2 size={12} className="animate-spin" />
+                    Uploading…
                   </span>
-                ) : null}
+                ) : (
+                  <>
+                    {!message.deleted && message.editedAt ? (
+                      <span className="text-[10px] opacity-80">edited</span>
+                    ) : null}
+                    <span>{formatTime(message.createdAt)}</span>
+                    {isOwn && message.tick ? (
+                      <span
+                        className={
+                          message.tick.state === 'seen'
+                            ? 'inline-flex items-center text-blue-600'
+                            : message.tick.state === 'delivered'
+                              ? 'inline-flex items-center text-slate-400'
+                              : 'inline-flex items-center text-slate-400'
+                        }
+                        title={`Status: ${message.tick.state}`}
+                      >
+                        {message.tick.state === 'seen' ? <Eye size={12} /> : message.tick.state === 'delivered' ? <CheckCheck size={13} /> : <Check size={13} />}
+                      </span>
+                    ) : null}
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -918,30 +1014,39 @@ export function MessageBubble({
       <MessageActionModal
         open={deleteOpen}
         title={message.type === 'poll' ? 'Delete poll' : 'Delete message'}
-        description={message.type === 'poll' ? 'Are you sure you want to delete this poll?' : 'Are you sure you want to delete this message?'}
-        onClose={() => setDeleteOpen(false)}
+        description={
+          message.type === 'poll'
+            ? 'Are you sure you want to delete this poll?'
+            : 'Are you sure you want to delete this message?'
+        }
+        onClose={closeDeleteModal}
       >
         <div className="flex items-center justify-end gap-2">
           <button
             type="button"
-            onClick={() => setDeleteOpen(false)}
+            onClick={closeDeleteModal}
             className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
-            Cancel
+            {deletingMessage ? 'Close' : 'Cancel'}
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (message.type === 'poll') {
-                void onDeletePoll?.();
-              } else {
-                onDelete?.();
-              }
-              setDeleteOpen(false);
-            }}
-            className="rounded-xl border border-red-300 bg-red-300 px-4 py-2 text-sm font-semibold text-red-900 hover:bg-red-400"
+            onClick={handleConfirmDelete}
+            disabled={deletingMessage}
+            className={`inline-flex min-w-[5.5rem] items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+              deletingMessage
+                ? 'cursor-wait border-red-300 bg-red-300 text-red-900'
+                : 'border-red-300 bg-red-300 text-red-900 hover:bg-red-400'
+            }`}
           >
-            Delete
+            {deletingMessage ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                Deleting…
+              </>
+            ) : (
+              'Delete'
+            )}
           </button>
         </div>
       </MessageActionModal>
