@@ -19,6 +19,8 @@ import {
 type SpacesTaskCreateRecurrenceFieldsProps = {
   taskRecurrence: TaskCreateRecurrenceDraft;
   setTaskRecurrence: React.Dispatch<React.SetStateAction<TaskCreateRecurrenceDraft>>;
+  embedded?: boolean;
+  disabled?: boolean;
 };
 
 const MONTH_DAY_OPTIONS = Array.from({ length: 31 }, (_, index) => {
@@ -41,6 +43,8 @@ const MERIDIEM_OPTIONS = ['AM', 'PM'];
 const SpacesTaskCreateRecurrenceFields: React.FC<SpacesTaskCreateRecurrenceFieldsProps> = ({
   taskRecurrence,
   setTaskRecurrence,
+  embedded = false,
+  disabled = false,
 }) => {
   const normalizedDraft = React.useMemo(
     () => normalizeCreateTaskRecurrenceDraft(taskRecurrence),
@@ -101,25 +105,9 @@ const SpacesTaskCreateRecurrenceFields: React.FC<SpacesTaskCreateRecurrenceField
         ? 'week(s)'
         : 'month(s)';
 
-  return (
-    <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-[11px] font-medium uppercase tracking-[0.05em] text-slate-700">Repeating Task</div>
-        <label className="relative inline-flex cursor-pointer items-center">
-          <input
-            type="checkbox"
-            checked={normalizedDraft.enabled}
-            onChange={(event) => toggleEnabled(event.target.checked)}
-            className="peer sr-only"
-          />
-          <span className="h-7 w-12 rounded-full bg-[#ccc] transition peer-checked:bg-brand-red" />
-          <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
-        </label>
-      </div>
-
-      {normalizedDraft.enabled ? (
-        <div className="mt-3 border-t border-slate-200 pt-3">
-          <div className="space-y-4">
+  const recurrenceFields = (
+    <div className={embedded ? '' : 'mt-3 border-t border-slate-200 pt-3'}>
+      <div className="space-y-4">
             <div>
               <label className="rt-section-label">Frequency</label>
               <div className="rt-frequency-tabs mt-2">
@@ -380,7 +368,40 @@ const SpacesTaskCreateRecurrenceFields: React.FC<SpacesTaskCreateRecurrenceField
               </div>
             </div>
           </div>
-        </div>
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-3.5">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Repeat schedule</div>
+        <p className="mt-1 text-[12px] leading-5 text-slate-500">Set how often this task should be recreated.</p>
+        <fieldset disabled={disabled} className="mt-3 disabled:opacity-60">
+          {recurrenceFields}
+        </fieldset>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[11px] font-medium uppercase tracking-[0.05em] text-slate-700">Repeating Task</div>
+        <label className="relative inline-flex cursor-pointer items-center">
+          <input
+            type="checkbox"
+            checked={normalizedDraft.enabled}
+            onChange={(event) => toggleEnabled(event.target.checked)}
+            disabled={disabled}
+            className="peer sr-only"
+          />
+          <span className="h-7 w-12 rounded-full bg-[#ccc] transition peer-checked:bg-brand-red" />
+          <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
+        </label>
+      </div>
+
+      {normalizedDraft.enabled ? (
+        recurrenceFields
       ) : (
         <div className="mt-3 border-t border-slate-200 pt-3 text-[13px] leading-[1.5] text-slate-400">
           Turn on repeating task to configure a recurring schedule.

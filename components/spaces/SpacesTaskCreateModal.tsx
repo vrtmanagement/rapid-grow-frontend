@@ -4,10 +4,8 @@ import { Paperclip, Plus, X } from 'lucide-react';
 import { FileDropZone } from '../ui/FileDropZone';
 import { CREATE_INPUT_CLASS, ThemedDatePicker, ThemedSelect } from './SpacesFormControls';
 import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
-import SpacesTaskPlannerFields from './SpacesTaskPlannerFields';
-import SpacesTaskCreateRecurrenceFields from './SpacesTaskCreateRecurrenceFields';
-import SpacesWeeklyReminderFields from './SpacesWeeklyReminderFields';
-import { EMAIL_REMINDER_GAP_OPTIONS } from './spacesEmailReminderOptions';
+import SpacesTaskAutomationSection from './SpacesTaskAutomationSection';
+import { applyTaskAutomationMode, deriveTaskAutomationMode } from './taskAutomationMode';
 import { MAX_DOCUMENT_BYTES, MAX_TASK_ATTACHMENTS } from './monthGoalsHelpers';
 
 const formatAttachmentSize = (size: number) => {
@@ -287,6 +285,26 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
 
   if (!open) return null;
 
+  const automationMode = deriveTaskAutomationMode({
+    emailChecklistEnabled,
+    taskRecurrenceEnabled: taskRecurrence.enabled,
+  });
+
+  const handleAutomationModeChange = (nextMode: typeof automationMode) => {
+    applyTaskAutomationMode(
+      nextMode,
+      {
+        setEmailChecklistEnabled,
+        setAdditionalChecklistTitles,
+        setEmailChecklistExternalPerson,
+        setExternalAssigneeEmail,
+        setExternalAssigneeName,
+        setRepeatEveryWeek,
+      },
+      { setTaskRecurrence },
+    );
+  };
+
   return createPortal(
     <>
       <style>{`
@@ -358,7 +376,7 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                   <div>
                     <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Assignee</label>
                     {emailChecklistEnabled && emailChecklistExternalPerson ? (
-                      <div className="flex h-[52px] items-center rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 text-[14px] text-emerald-800">
+                      <div className="flex h-[52px] items-center rounded-2xl border border-red-200 bg-red-50/60 px-4 text-[14px] text-red-800">
                         Assigned via email below
                       </div>
                     ) : (
@@ -510,176 +528,37 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                   </FileDropZone>
                 </div>
 
-                {canUseEmailChecklist ? <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-700">Automated Mail Checklist</div>
-                      <p className="mt-1 text-[12px] leading-5 text-slate-500">Email assigned work and repeat only unfinished items.</p>
-                    </div>
-                    <label className="relative inline-flex cursor-pointer items-center">
-                      <input
-                        type="checkbox"
-                        checked={emailChecklistEnabled}
-                        onChange={(event) => {
-                          const enabled = event.target.checked;
-                          setEmailChecklistEnabled(enabled);
-                          if (!enabled) {
-                            setAdditionalChecklistTitles([]);
-                            setEmailChecklistExternalPerson(false);
-                            setExternalAssigneeEmail('');
-                            setExternalAssigneeName('');
-                            setRepeatEveryWeek(false);
-                          }
-                        }}
-                        className="peer sr-only"
-                      />
-                      <span className="h-7 w-12 rounded-full bg-slate-200 transition peer-checked:bg-emerald-600" />
-                      <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
-                    </label>
-                  </div>
-
-                  {emailChecklistEnabled ? (
-                    <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
-                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3">
-                        <div>
-                          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-700">Repeat Occurrences</div>
-                          <p className="mt-1 text-[11px] text-slate-500">Reactivates this task on the selected repeat interval.</p>
-                        </div>
-                        <label className="relative inline-flex cursor-pointer items-center">
-                          <input type="checkbox" checked={repeatEveryWeek} onChange={(event) => setRepeatEveryWeek(event.target.checked)} className="peer sr-only" />
-                          <span className="h-6 w-10 rounded-full bg-slate-200 transition peer-checked:bg-emerald-600" />
-                          <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
-                        </label>
-                      </div>
-
-                      <div className="rounded-xl border border-slate-200 bg-white p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-700">Send to external person</div>
-                            <p className="mt-1 text-[11px] leading-5 text-slate-500">Assign by email instead of picking a team member.</p>
-                          </div>
-                          <label className="relative inline-flex cursor-pointer items-center">
-                            <input
-                              type="checkbox"
-                              checked={emailChecklistExternalPerson}
-                              onChange={(event) => {
-                                const enabled = event.target.checked;
-                                setEmailChecklistExternalPerson(enabled);
-                                if (enabled) {
-                                  setAssigneeId('');
-                                } else {
-                                  setExternalAssigneeEmail('');
-                                  setExternalAssigneeName('');
-                                }
-                              }}
-                              className="peer sr-only"
-                            />
-                            <span className="h-6 w-10 rounded-full bg-slate-200 transition peer-checked:bg-emerald-600" />
-                            <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
-                          </label>
-                        </div>
-
-                        {emailChecklistExternalPerson ? (
-                          <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-                            <div>
-                              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Recipient email *</label>
-                              <input
-                                type="email"
-                                value={externalAssigneeEmail}
-                                onChange={(event) => setExternalAssigneeEmail(event.target.value)}
-                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
-                                placeholder="person@example.com"
-                              />
-                            </div>
-                            <div>
-                              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Recipient name</label>
-                              <input
-                                value={externalAssigneeName}
-                                onChange={(event) => setExternalAssigneeName(event.target.value)}
-                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-[13px] outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
-                                placeholder="Optional — used in the email greeting"
-                              />
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-
-                      {repeatEveryWeek ? (
-                        <SpacesWeeklyReminderFields
-                          repeatCadence={repeatCadence}
-                          setRepeatCadence={setRepeatCadence}
-                          repeatWeekDays={repeatWeekDays}
-                          setRepeatWeekDays={setRepeatWeekDays}
-                          repeatWeekTime={repeatWeekTime}
-                          setRepeatWeekTime={setRepeatWeekTime}
-                          repeatFromDate={repeatFromDate}
-                          setRepeatFromDate={setRepeatFromDate}
-                          repeatToDate={repeatToDate}
-                          setRepeatToDate={setRepeatToDate}
-                          fieldName="create-weekly-occurrences"
-                        />
-                      ) : (
-                        <div>
-                          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Email Reminder Gap</label>
-                          <ThemedSelect
-                            value={reminderIntervalHours}
-                            onChange={setReminderIntervalHours}
-                            options={EMAIL_REMINDER_GAP_OPTIONS}
-                            compact={true}
-                            fullWidthCompact={true}
-                          />
-                        </div>
-                      )}
-
-                      <div>
-                        <div className="flex items-center justify-between gap-2">
-                          <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Checklist Tasks</label>
-                          <span className="text-[11px] text-slate-400">{1 + additionalChecklistTitles.length}/5</span>
-                        </div>
-                        <div className="mt-2 rounded-xl border border-emerald-100 bg-white px-3 py-2 text-[12px] text-slate-600">
-                          1. {title.trim() || 'Enter the task name above'}
-                        </div>
-                        <div className="mt-2 space-y-2">
-                          {additionalChecklistTitles.map((taskTitle: string, index: number) => (
-                            <div key={`checklist-title-${index}`} className="flex items-center gap-2">
-                              <input
-                                value={taskTitle}
-                                onChange={(event) => {
-                                  const next = [...additionalChecklistTitles];
-                                  next[index] = event.target.value;
-                                  setAdditionalChecklistTitles(next);
-                                }}
-                                className="h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-[13px] outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
-                                placeholder={`Checklist task ${index + 2}`}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setAdditionalChecklistTitles(additionalChecklistTitles.filter((_: string, itemIndex: number) => itemIndex !== index))}
-                                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-100"
-                                aria-label={`Remove checklist task ${index + 2}`}
-                              >
-                                <X size={14} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                        {additionalChecklistTitles.length < 4 ? (
-                          <button
-                            type="button"
-                            onClick={() => setAdditionalChecklistTitles([...additionalChecklistTitles, ''])}
-                            className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-700 hover:text-emerald-800"
-                          >
-                            <Plus size={13} /> Add checklist task
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
-                </div> : null}
-
-                <SpacesTaskCreateRecurrenceFields
+                <SpacesTaskAutomationSection
+                  canUseEmailChecklist={canUseEmailChecklist}
+                  mode={automationMode}
+                  onModeChange={handleAutomationModeChange}
+                  taskTitle={title}
+                  emailChecklistExternalPerson={emailChecklistExternalPerson}
+                  setEmailChecklistExternalPerson={setEmailChecklistExternalPerson}
+                  externalAssigneeEmail={externalAssigneeEmail}
+                  setExternalAssigneeEmail={setExternalAssigneeEmail}
+                  externalAssigneeName={externalAssigneeName}
+                  setExternalAssigneeName={setExternalAssigneeName}
+                  onExternalAssigneeSelect={() => setAssigneeId('')}
+                  additionalChecklistTitles={additionalChecklistTitles}
+                  setAdditionalChecklistTitles={setAdditionalChecklistTitles}
+                  reminderIntervalHours={reminderIntervalHours}
+                  setReminderIntervalHours={setReminderIntervalHours}
+                  repeatEveryWeek={repeatEveryWeek}
+                  setRepeatEveryWeek={setRepeatEveryWeek}
+                  repeatCadence={repeatCadence}
+                  setRepeatCadence={setRepeatCadence}
+                  repeatWeekDays={repeatWeekDays}
+                  setRepeatWeekDays={setRepeatWeekDays}
+                  repeatWeekTime={repeatWeekTime}
+                  setRepeatWeekTime={setRepeatWeekTime}
+                  repeatFromDate={repeatFromDate}
+                  setRepeatFromDate={setRepeatFromDate}
+                  repeatToDate={repeatToDate}
+                  setRepeatToDate={setRepeatToDate}
                   taskRecurrence={taskRecurrence}
                   setTaskRecurrence={setTaskRecurrence}
+                  weeklyFieldName="create-weekly-occurrences"
                 />
               </div>
             </div>

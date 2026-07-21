@@ -17,12 +17,10 @@ import {
   ThemedSelect,
 } from './SpacesFormControls';
 import SpacesTaskPlannerFields from './SpacesTaskPlannerFields';
-import SpacesTaskCreateRecurrenceFields from './SpacesTaskCreateRecurrenceFields';
+import SpacesTaskAutomationSection from './SpacesTaskAutomationSection';
+import { applyTaskAutomationMode, deriveTaskAutomationMode } from './taskAutomationMode';
 import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
 import type { SelectOption, SpacesTask, TaskCreateRecurrenceDraft, WeeklyTaskGroup } from '../../types/spaces';
-
-import SpacesWeeklyReminderFields from './SpacesWeeklyReminderFields';
-import { EMAIL_REMINDER_GAP_OPTIONS } from './spacesEmailReminderOptions';
 
 type SpacesTaskModalsProps = Pick<
   SpacesViewController,
@@ -1099,132 +1097,54 @@ const SpacesTaskModals: React.FC<SpacesTaskModalsProps> = (props) => {
                             </FileDropZone>
                           </div>
 
-                          {canUseEmailChecklist ? (
-                            <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-700">Automated Mail Checklist</div>
-                                  <p className="mt-1 text-[12px] leading-5 text-slate-500">Email assigned work and repeat only unfinished items.</p>
-                                </div>
-                                <label className="relative inline-flex cursor-pointer items-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={editingEmailChecklistEnabled}
-                                    onChange={(event) => {
-                                      const enabled = event.target.checked;
-                                     setEditingEmailChecklistEnabled(enabled);
-                                     if (!enabled) {
-                                       setEditingAdditionalChecklistTitles([]);
-                                       setEditingRepeatEveryWeek(false);
-                                     }
-                                    }}
-                                    disabled={editingTaskMode === 'view'}
-                                    className="peer sr-only"
-                                  />
-                                  <span className="h-7 w-12 rounded-full bg-slate-200 transition peer-checked:bg-emerald-600" />
-                                  <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-checked:translate-x-5" />
-                                </label>
-                              </div>
-
-                              {editingEmailChecklistEnabled ? (
-                                <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
-                                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3">
-                                    <div>
-                                      <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-700">Repeat Occurrences</div>
-                                      <p className="mt-1 text-[11px] text-slate-500">Reactivates this task on the selected repeat interval.</p>
-                                    </div>
-                                    <label className="relative inline-flex cursor-pointer items-center">
-                                      <input type="checkbox" checked={editingRepeatEveryWeek} onChange={(event) => setEditingRepeatEveryWeek(event.target.checked)} disabled={editingTaskMode === 'view'} className="peer sr-only" />
-                                      <span className="h-6 w-10 rounded-full bg-slate-200 transition peer-checked:bg-emerald-600" />
-                                      <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
-                                    </label>
-                                  </div>
-                                  {editingRepeatEveryWeek ? (
-                                    <SpacesWeeklyReminderFields
-                                      repeatCadence={editingRepeatCadence}
-                                      setRepeatCadence={setEditingRepeatCadence}
-                                      repeatWeekDays={editingRepeatWeekDays}
-                                      setRepeatWeekDays={setEditingRepeatWeekDays}
-                                      repeatWeekTime={editingRepeatWeekTime}
-                                      setRepeatWeekTime={setEditingRepeatWeekTime}
-                                      repeatFromDate={editingRepeatFromDate}
-                                      setRepeatFromDate={setEditingRepeatFromDate}
-                                      repeatToDate={editingRepeatToDate}
-                                      setRepeatToDate={setEditingRepeatToDate}
-                                      disabled={editingTaskMode === 'view'}
-                                      fieldName="edit-weekly-occurrences"
-                                    />
-                                  ) : (
-                                    <div>
-                                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Email Reminder Gap</label>
-                                      <ThemedSelect
-                                        value={editingReminderIntervalHours}
-                                        onChange={setEditingReminderIntervalHours}
-                                        options={EMAIL_REMINDER_GAP_OPTIONS}
-                                        compact={true}
-                                        fullWidthCompact={true}
-                                        disabled={editingTaskMode === 'view'}
-                                      />
-                                    </div>
-                                  )}
-
-                                  <div>
-                                    <div className="flex items-center justify-between gap-2">
-                                      <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Checklist Tasks</label>
-                                      <span className="text-[11px] text-slate-400">{1 + editingAdditionalChecklistTitles.length}/5</span>
-                                    </div>
-                                    <div className="mt-2 rounded-xl border border-emerald-100 bg-white px-3 py-2 text-[12px] text-slate-600">
-                                      1. {String(editingTaskDraft.title || '').trim() || 'Enter the task name above'}
-                                    </div>
-                                    <div className="mt-2 space-y-2">
-                                      {editingAdditionalChecklistTitles.map((taskTitle: string, index: number) => (
-                                        <div key={`edit-checklist-title-${index}`} className="flex items-center gap-2">
-                                          <input
-                                            value={taskTitle}
-                                            onChange={(event) => {
-                                              const next = [...editingAdditionalChecklistTitles];
-                                              next[index] = event.target.value;
-                                              setEditingAdditionalChecklistTitles(next);
-                                            }}
-                                            disabled={editingTaskMode === 'view'}
-                                            className="h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-[13px] outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 disabled:bg-slate-50"
-                                            placeholder={`Checklist task ${index + 2}`}
-                                          />
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              setEditingAdditionalChecklistTitles(
-                                                editingAdditionalChecklistTitles.filter((_: string, itemIndex: number) => itemIndex !== index),
-                                              )
-                                            }
-                                            disabled={editingTaskMode === 'view'}
-                                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 disabled:opacity-60"
-                                            aria-label={`Remove checklist task ${index + 2}`}
-                                          >
-                                            <X size={14} />
-                                          </button>
-                                        </div>
-                                      ))}
-                                    </div>
-                                    {editingAdditionalChecklistTitles.length < 4 ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditingAdditionalChecklistTitles([...editingAdditionalChecklistTitles, ''])}
-                                        disabled={editingTaskMode === 'view'}
-                                        className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-700 hover:text-emerald-800 disabled:opacity-60"
-                                      >
-                                        <Plus size={13} /> Add checklist task
-                                      </button>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              ) : null}
-                            </div>
-                          ) : null}
-
-                          <SpacesTaskCreateRecurrenceFields
+                          <SpacesTaskAutomationSection
+                            canUseEmailChecklist={canUseEmailChecklist}
+                            disabled={editingTaskMode === 'view'}
+                            mode={deriveTaskAutomationMode({
+                              emailChecklistEnabled: editingEmailChecklistEnabled,
+                              taskRecurrenceEnabled: editingTaskRecurrence.enabled,
+                            })}
+                            onModeChange={(nextMode) =>
+                              applyTaskAutomationMode(
+                                nextMode,
+                                {
+                                  setEmailChecklistEnabled: setEditingEmailChecklistEnabled,
+                                  setAdditionalChecklistTitles: setEditingAdditionalChecklistTitles,
+                                  setEmailChecklistExternalPerson: () => {},
+                                  setExternalAssigneeEmail: () => {},
+                                  setExternalAssigneeName: () => {},
+                                  setRepeatEveryWeek: setEditingRepeatEveryWeek,
+                                },
+                                { setTaskRecurrence: setEditingTaskRecurrence },
+                              )
+                            }
+                            taskTitle={String(editingTaskDraft.title || editingTask.title || '')}
+                            emailChecklistExternalPerson={false}
+                            setEmailChecklistExternalPerson={() => {}}
+                            externalAssigneeEmail=""
+                            setExternalAssigneeEmail={() => {}}
+                            externalAssigneeName=""
+                            setExternalAssigneeName={() => {}}
+                            additionalChecklistTitles={editingAdditionalChecklistTitles}
+                            setAdditionalChecklistTitles={setEditingAdditionalChecklistTitles}
+                            reminderIntervalHours={editingReminderIntervalHours}
+                            setReminderIntervalHours={setEditingReminderIntervalHours}
+                            repeatEveryWeek={editingRepeatEveryWeek}
+                            setRepeatEveryWeek={setEditingRepeatEveryWeek}
+                            repeatCadence={editingRepeatCadence}
+                            setRepeatCadence={setEditingRepeatCadence}
+                            repeatWeekDays={editingRepeatWeekDays}
+                            setRepeatWeekDays={setEditingRepeatWeekDays}
+                            repeatWeekTime={editingRepeatWeekTime}
+                            setRepeatWeekTime={setEditingRepeatWeekTime}
+                            repeatFromDate={editingRepeatFromDate}
+                            setRepeatFromDate={setEditingRepeatFromDate}
+                            repeatToDate={editingRepeatToDate}
+                            setRepeatToDate={setEditingRepeatToDate}
                             taskRecurrence={editingTaskRecurrence}
                             setTaskRecurrence={setEditingTaskRecurrence}
+                            showExternalAssignee={false}
+                            weeklyFieldName="edit-weekly-occurrences"
                           />
                         </div>
                       </div>
