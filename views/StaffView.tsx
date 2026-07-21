@@ -16,6 +16,7 @@ import {
 } from '../services/dailyReviewReminderSettings';
 import { PlanningState } from '../types';
 import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } from '../utils/avatar';
+import { AvatarPreviewEntity, AvatarPreviewModal } from '../communication/components/AvatarPreviewModal';
 import AddEmployeeView from './AddEmployeeView';
 import InviteEmployeeView from './InviteEmployeeView';
 import PageSectionSubnav from '../components/layout/PageSectionSubnav';
@@ -141,7 +142,7 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<EmployeeRow | null>(null);
-  const [viewingProfile, setViewingProfile] = useState<EmployeeRow | null>(null);
+  const [previewEntity, setPreviewEntity] = useState<AvatarPreviewEntity | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<EmployeeRow>>({});
   const [deleting, setDeleting] = useState<EmployeeRow | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -170,7 +171,6 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
 
   const canCreateEmployee = mode === 'manager' && hasPermission('EMPLOYEE_CREATE') && !!state;
   const canInviteEmployee = mode === 'manager' && hasPermission('EMPLOYEE_INVITE');
-  const canViewProfile = isAdmin || isTeamLead;
   const reminderDirty =
     reminderDraft.enabled !== reminderSettings.enabled || reminderDraft.time !== reminderSettings.time;
   const reminderTimeSelection = useMemo(
@@ -179,6 +179,17 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   );
   const isCurrentUserRow = (row: EmployeeRow) =>
     Boolean((backendEmpId && row.empId === backendEmpId) || (backendUserId && row._id === backendUserId));
+
+  const openStaffPreview = (row: EmployeeRow) => {
+    const statusLabel = row.status
+      ? row.status.charAt(0).toUpperCase() + row.status.slice(1).toLowerCase()
+      : undefined;
+    setPreviewEntity({
+      name: row.empName,
+      avatar: row.avatar,
+      subtitle: row.designation || statusLabel,
+    });
+  };
 
   const departmentOptions = useMemo(
     () =>
@@ -790,21 +801,17 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
                   return (
                     <tr
                       key={row._id}
-                      className={`border-b border-slate-100 transition hover:bg-slate-50/40 ${
-                        canViewProfile ? 'cursor-pointer' : ''
-                      }`}
-                      onClick={() => {
-                        if (canViewProfile) {
-                          setOpenActionMenuRowId(null);
-                          setViewingProfile(row);
-                        }
-                      }}
+                      className="border-b border-slate-100 transition hover:bg-slate-50/40"
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-11 w-11 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
+                          <button
+                            type="button"
+                            onClick={() => openStaffPreview(row)}
+                            className="h-11 w-11 cursor-pointer overflow-hidden rounded-full border border-slate-200 bg-slate-50"
+                          >
                             <img src={avatarSrc} alt={row.empName} className="h-full w-full object-cover" />
-                          </div>
+                          </button>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <div className="truncate text-[14px] font-medium text-slate-900">{row.empName}</div>
@@ -1157,82 +1164,11 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
         </div>
       ) : null}
 
-      {viewingProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white p-7 shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-[22px] font-semibold tracking-[-0.02em] text-slate-900">View Profile</h3>
-                <p className="mt-1 text-[14px] text-slate-500">
-                  Staff profile details for {viewingProfile.empName}.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setViewingProfile(null)}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="grid gap-6 md:grid-cols-[120px_minmax(0,1fr)]">
-              <div className="flex justify-center md:block">
-                <div className="h-24 w-24 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
-                  <img
-                    src={getDisplayAvatarUrl(viewingProfile.avatar, viewingProfile.empName)}
-                    alt={viewingProfile.empName}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="border-b border-slate-100 pb-4">
-                  <h4 className="text-[28px] font-semibold leading-tight text-slate-900">
-                    {viewingProfile.empName}
-                  </h4>
-                  <div className="mt-3 flex flex-wrap items-center gap-3">
-                    <span
-                      className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] ${getRoleBadgeClass(
-                        viewingProfile.role,
-                      )}`}
-                    >
-                      {formatRoleLabel(viewingProfile.role)}
-                    </span>
-                    <span
-                      className={`inline-flex min-w-[68px] items-center justify-center rounded-full px-3 py-1 text-[11px] font-medium capitalize ${getStatusBadgeClass(
-                        viewingProfile.status,
-                      )}`}
-                    >
-                      {viewingProfile.status || '--'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {[
-                    ['Employee ID', viewingProfile.empId || '--'],
-                    ['Designation', viewingProfile.designation || '--'],
-                    ['Department', viewingProfile.department || '--'],
-                    ['Phone', viewingProfile.phone || '--'],
-                    ['Email', viewingProfile.email || '--'],
-                  ].map(([label, value]) => (
-                    <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3">
-                      <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                        {label}
-                      </p>
-                      <p className="mt-1.5 break-words text-[15px] font-medium text-slate-900">
-                        {value}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <AvatarPreviewModal
+        open={!!previewEntity}
+        entity={previewEntity}
+        onClose={() => setPreviewEntity(null)}
+      />
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">

@@ -581,6 +581,9 @@ const App: React.FC = () => {
     try {
       if (saved) {
         const parsed = JSON.parse(saved);
+        if (parsed.uiConfig?.reflectionTitle === 'Review Matrix') {
+          parsed.uiConfig.reflectionTitle = 'Daily Reflection';
+        }
         // Migration: remove legacy default \"Rapid Grow execution framework\" project if present
         if (Array.isArray(parsed.workspaces)) {
           parsed.workspaces = parsed.workspaces.map((ws: any) => ({

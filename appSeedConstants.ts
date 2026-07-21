@@ -28,7 +28,7 @@ export const DEFAULT_UI_CONFIG: UIConfig = {
   weeklySub: 'Split monthly goals into weekly action items.',
   dailyTitle: 'Daily Tasks',
   dailySub: 'Split weekly tasks into daily actions.',
-  reflectionTitle: 'Review Matrix',
+  reflectionTitle: 'Daily Reflection',
   reflectionSub: 'Daily Structured Debriefing.',
   profileTitle: 'Core Identity',
   profileSub: 'Strategic Personnel Identification.',
