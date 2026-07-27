@@ -1,24 +1,17 @@
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import {
   ArrowDownUp,
   Folder,
   FolderPlus,
   HardDriveUpload,
-  ImageIcon,
   LayoutGrid,
   List,
   Search,
-  X,
 } from 'lucide-react';
-import ConfirmDialog from '../../components/ui/ConfirmDialog';
-import Toast from '../../components/ui/Toast';
-import { apiListConversations, apiListUsers } from '../../communication/api';
-import type { ForwardRecipientOption } from '../../communication/components/forward/types';
-import { getStoredAuth, mapListConversationsApiRowToSummary, mapListUsersApiRowToChatUser } from '../../communication/context/communicationContextHelpers';
 import { FileDropZone } from '../../components/ui/FileDropZone';
-import { DriveProvider, useDrive } from '../context/DriveContext';
+import Toast from '../../components/ui/Toast';
+import { DriveProvider } from '../context/DriveContext';
 import DriveBreadcrumbs from '../components/DriveBreadcrumbs';
-import DriveDialog from '../components/DriveDialog';
 import DriveFileForwardModal from '../components/DriveFileForwardModal';
 import DriveFileSelectionBar from '../components/DriveFileSelectionBar';
 import DriveEntriesPanel from '../components/DriveEntriesPanel';
@@ -26,127 +19,23 @@ import DriveFilesTable from '../components/DriveFilesTable';
 import DriveFolderGrid from '../components/DriveFolderGrid';
 import DriveNoteViewer from '../components/DriveNoteViewer';
 import DriveUploadModal from '../components/DriveUploadModal';
+import {
+  DriveCreateFolderDrawer,
+  DriveMoveFolderDialog,
+  DriveRenameFolderDialog,
+} from '../components/DriveFolderDialogs';
+import DriveEntryFormDialog from '../components/DriveEntryFormDialog';
+import { DriveMoveFileDialog, DriveRenameFileDialog } from '../components/DriveFileActionDialogs';
+import DriveDeleteConfirmDialogs from '../components/DriveDeleteConfirmDialogs';
 import { apiForwardDriveFiles } from '../services/driveApi';
-import type {
-  DriveEntry,
-  DriveEntryType,
-  DriveFile,
-  DriveFolder,
-  DriveFolderStorageMode,
-  DriveFolderVisibility,
-  DriveSortOption,
-} from '../types';
-
-type ToastState = {
-  message: string;
-  type: 'success' | 'error';
-} | null;
-
-function buildFolderTreeOptions(
-  treeFolders: DriveFolder[],
-  targetFolder?: DriveFolder | DriveFile | null,
-  isFolderMove = false,
-) {
-  return treeFolders.filter((folder) => {
-    if (!targetFolder || !isFolderMove) return true;
-    if (folder.id === targetFolder.id) return false;
-    return !folder.breadcrumb.some((crumb) => crumb.id === targetFolder.id);
-  });
-}
-
-async function copyTextToClipboard(value: string): Promise<boolean> {
-  if (!value) return false;
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(value);
-      return true;
-    }
-  } catch {
-    // Fall back for browsers without clipboard permissions support.
-  }
-
-  try {
-    const textarea = document.createElement('textarea');
-    textarea.value = value;
-    textarea.setAttribute('readonly', '');
-    textarea.style.position = 'fixed';
-    textarea.style.left = '-9999px';
-    document.body.appendChild(textarea);
-    textarea.select();
-    const copied = document.execCommand('copy');
-    document.body.removeChild(textarea);
-    return copied;
-  } catch {
-    return false;
-  }
-}
-
-function DriveDestinationPicker({
-  value,
-  onChange,
-  options,
-  rootLabel,
-}: {
-  value: string;
-  onChange: (nextValue: string) => void;
-  options: DriveFolder[];
-  rootLabel: string;
-}) {
-  const destinations = [
-    {
-      id: '',
-      label: rootLabel,
-      path: 'Move this item back to the main shared drive.',
-    },
-    ...options.map((folder) => ({
-      id: folder.id,
-      label: folder.name,
-      path: folder.breadcrumb.map((item) => item.name).join(' / '),
-    })),
-  ];
-
-  return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      <div className="max-h-[20rem] overflow-y-auto">
-        {destinations.map((destination) => {
-          const active = value === destination.id;
-          return (
-            <button
-              key={destination.id || 'root'}
-              type="button"
-              onClick={() => onChange(destination.id)}
-              className={`flex w-full items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 text-left transition last:border-b-0 ${
-                active ? 'bg-red-50' : 'hover:bg-slate-50'
-              }`}
-            >
-              <div className="min-w-0">
-                <div className={`text-sm font-semibold ${active ? 'text-brand-red' : 'text-slate-900'}`}>
-                  {destination.label}
-                </div>
-                <div className="mt-1 text-xs leading-5 text-slate-500">{destination.path}</div>
-              </div>
-              <span
-                className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border ${
-                  active ? 'border-brand-red bg-brand-red' : 'border-slate-300 bg-white'
-                }`}
-                aria-hidden="true"
-              />
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+import { useDriveWorkspaceController } from '../hooks/useDriveWorkspaceController';
+import type { DriveSortOption } from '../types';
 
 function DriveWorkspace() {
+  const dw = useDriveWorkspaceController();
   const {
-    currentFolder,
     currentFolderId,
     folders,
-    files,
-    entries,
-    treeFolders,
     searchInput,
     setSearchInput,
     sort,
@@ -162,535 +51,106 @@ function DriveWorkspace() {
     loadMoreFolders,
     loadMoreFiles,
     refresh,
-    createFolder,
-    renameFolder,
-    moveFolder,
-    deleteFolder,
-    renameFile,
-    moveFile,
-    deleteFile,
+    toast,
+    setToast,
+    uploadSeedFiles,
+    setUploadSeedFiles,
+    folderDialogMode,
+    setFolderDialogMode,
+    folderFormName,
+    setFolderFormName,
+    folderFormDescription,
+    setFolderFormDescription,
+    folderStorageMode,
+    setFolderStorageMode,
+    folderVisibility,
+    setFolderVisibility,
+    setRenameFolderTarget,
+    moveFolderTarget,
+    setMoveFolderTarget,
+    moveFolderDestination,
+    setMoveFolderDestination,
+    deleteFolderTarget,
+    setDeleteFolderTarget,
+    renameFileTarget,
+    setRenameFileTarget,
+    renameFileName,
+    setRenameFileName,
+    moveFileTarget,
+    setMoveFileTarget,
+    moveFileDestination,
+    setMoveFileDestination,
+    deleteFileTarget,
+    setDeleteFileTarget,
+    deleteFileBatchTargets,
+    setDeleteFileBatchTargets,
+    entryDialogMode,
+    editingEntry,
+    setActiveNoteEntryId,
+    entryTitle,
+    setEntryTitle,
+    entryDescription,
+    setEntryDescription,
+    entryLinkUrl,
+    setEntryLinkUrl,
+    entryContentText,
+    setEntryContentText,
+    deleteEntryTarget,
+    setDeleteEntryTarget,
+    submitting,
+    folderLayout,
+    setFolderLayout,
+    fileSelectionMode,
+    setFileSelectionMode,
+    selectedFileIds,
+    setSelectedFileIds,
+    forwardModalOpen,
+    setForwardModalOpen,
+    setForwardFileIds,
+    forwardRecipients,
+    forwardRecipientsLoading,
+    forwardRecipientsError,
+    breadcrumbItems,
+    currentFolderLabel,
+    folderOptionsForMove,
+    fileOptionsForMove,
+    currentStorageMode,
+    createParentIsPrivate,
+    renameParentIsPrivate,
+    supportsLinks,
+    supportsText,
+    supportsFiles,
+    visibleEntries,
+    visibleFiles,
+    shouldShowEntries,
+    shouldShowFilesSection,
+    activeNoteEntry,
+    visibleFileIds,
+    selectedVisibleFiles,
+    forwardFiles,
+    allVisibleFilesSelected,
+    enableFileSelection,
+    clearFileSelection,
+    openForwardForFiles,
+    openCreateFolderDialog,
+    resetFolderDialog,
+    resetEntryDialog,
+    openCreateEntryDialog,
+    openEditEntryDialog,
+    openNoteEntry,
+    getActiveEntryType,
+    handleCreateOrRenameFolder,
+    handleMoveFolder,
+    handleDeleteFolder,
+    handleRenameFile,
+    handleMoveFile,
+    handleDeleteFile,
+    handleDeleteSelectedFiles,
+    handleCreateOrUpdateEntry,
+    handleDeleteEntry,
+    handleCopyEntryLink,
     downloadFile,
-    createEntry,
-    updateEntry,
-    deleteEntry,
-  } = useDrive();
-
-  const [toast, setToast] = useState<ToastState>(null);
-  const [uploadSeedFiles, setUploadSeedFiles] = useState<File[] | null>(null);
-  const [folderDialogMode, setFolderDialogMode] = useState<'create' | 'rename' | null>(null);
-  const [folderFormName, setFolderFormName] = useState('');
-  const [folderFormDescription, setFolderFormDescription] = useState('');
-  const [folderStorageMode, setFolderStorageMode] = useState<DriveFolderStorageMode>('general');
-  const [folderVisibility, setFolderVisibility] = useState<DriveFolderVisibility>('public');
-  const [renameFolderTarget, setRenameFolderTarget] = useState<DriveFolder | null>(null);
-  const [moveFolderTarget, setMoveFolderTarget] = useState<DriveFolder | null>(null);
-  const [moveFolderDestination, setMoveFolderDestination] = useState<string>('');
-  const [deleteFolderTarget, setDeleteFolderTarget] = useState<DriveFolder | null>(null);
-  const [renameFileTarget, setRenameFileTarget] = useState<DriveFile | null>(null);
-  const [renameFileName, setRenameFileName] = useState('');
-  const [moveFileTarget, setMoveFileTarget] = useState<DriveFile | null>(null);
-  const [moveFileDestination, setMoveFileDestination] = useState<string>('');
-  const [deleteFileTarget, setDeleteFileTarget] = useState<DriveFile | null>(null);
-  const [deleteFileBatchTargets, setDeleteFileBatchTargets] = useState<DriveFile[]>([]);
-  const [entryDialogMode, setEntryDialogMode] = useState<'create-link' | 'create-text' | 'edit' | null>(null);
-  const [editingEntry, setEditingEntry] = useState<DriveEntry | null>(null);
-  const [activeNoteEntryId, setActiveNoteEntryId] = useState<string | null>(null);
-  const [entryTitle, setEntryTitle] = useState('');
-  const [entryDescription, setEntryDescription] = useState('');
-  const [entryLinkUrl, setEntryLinkUrl] = useState('');
-  const [entryContentText, setEntryContentText] = useState('');
-  const [deleteEntryTarget, setDeleteEntryTarget] = useState<DriveEntry | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [folderLayout, setFolderLayout] = useState<'grid' | 'list'>('grid');
-  const [fileSelectionMode, setFileSelectionMode] = useState(false);
-  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
-  const [forwardFileIds, setForwardFileIds] = useState<string[]>([]);
-  const [forwardModalOpen, setForwardModalOpen] = useState(false);
-  const [forwardRecipients, setForwardRecipients] = useState<ForwardRecipientOption[]>([]);
-  const [forwardRecipientsLoading, setForwardRecipientsLoading] = useState(false);
-  const [forwardRecipientsError, setForwardRecipientsError] = useState<string | null>(null);
-
-  const breadcrumbItems = currentFolder?.breadcrumb || [];
-  const currentFolderLabel = currentFolder?.name || 'Shared Drive';
-  const folderOptionsForMove = useMemo(
-    () => buildFolderTreeOptions(treeFolders, moveFolderTarget, true),
-    [moveFolderTarget, treeFolders],
-  );
-  const fileOptionsForMove = useMemo(
-    () => buildFolderTreeOptions(treeFolders, moveFileTarget, false),
-    [moveFileTarget, treeFolders],
-  );
-  const currentStorageMode = currentFolder?.storageMode || 'general';
-  const createParentIsPrivate = currentFolder?.visibility === 'private';
-  const renameParentFolder = useMemo(
-    () =>
-      renameFolderTarget?.parentFolder
-        ? treeFolders.find((folder) => folder.id === renameFolderTarget.parentFolder) || null
-        : null,
-    [renameFolderTarget, treeFolders],
-  );
-  const renameParentIsPrivate = renameParentFolder?.visibility === 'private';
-  const supportsLinks = currentStorageMode === 'links' || currentStorageMode === 'mixed';
-  const supportsText = currentStorageMode === 'text' || currentStorageMode === 'mixed';
-  const supportsFiles = currentStorageMode === 'general' || currentStorageMode === 'mixed' || currentStorageMode === 'images';
-  const visibleEntries = useMemo(() => {
-    if (currentStorageMode === 'links') return entries.filter((entry) => entry.entryType === 'link');
-    if (currentStorageMode === 'text') return entries.filter((entry) => entry.entryType === 'text');
-    if (currentStorageMode === 'mixed') return entries;
-    return [];
-  }, [currentStorageMode, entries]);
-  const visibleFiles = useMemo(() => {
-    if (currentStorageMode === 'images') {
-      return files.filter((file) => file.fileCategory === 'image');
-    }
-    if (!supportsFiles) return [];
-    return files;
-  }, [currentStorageMode, files, supportsFiles]);
-  const shouldShowEntries = Boolean(
-    currentFolderId &&
-      (currentStorageMode === 'links' || currentStorageMode === 'text' || currentStorageMode === 'mixed'),
-  );
-  const shouldShowFilesSection = supportsFiles;
-  const activeNoteEntry = useMemo(
-    () => visibleEntries.find((entry) => entry.id === activeNoteEntryId && entry.entryType === 'text') || null,
-    [activeNoteEntryId, visibleEntries],
-  );
-  const visibleFileIds = useMemo(() => visibleFiles.map((file) => file.id), [visibleFiles]);
-  const selectedVisibleFiles = useMemo(
-    () => visibleFiles.filter((file) => selectedFileIds.includes(file.id)),
-    [selectedFileIds, visibleFiles],
-  );
-  const forwardFiles = useMemo(
-    () => visibleFiles.filter((file) => forwardFileIds.includes(file.id)),
-    [forwardFileIds, visibleFiles],
-  );
-  const allVisibleFilesSelected = Boolean(
-    visibleFiles.length && visibleFiles.every((file) => selectedFileIds.includes(file.id)),
-  );
-
-  React.useEffect(() => {
-    setSelectedFileIds((prev) => prev.filter((fileId) => visibleFileIds.includes(fileId)));
-    setForwardFileIds((prev) => prev.filter((fileId) => visibleFileIds.includes(fileId)));
-  }, [visibleFileIds]);
-
-  React.useEffect(() => {
-    if (!selectedFileIds.length) {
-      setFileSelectionMode(false);
-    }
-  }, [selectedFileIds]);
-
-  React.useEffect(() => {
-    if (activeNoteEntryId && !visibleEntries.some((entry) => entry.id === activeNoteEntryId && entry.entryType === 'text')) {
-      setActiveNoteEntryId(null);
-    }
-  }, [activeNoteEntryId, visibleEntries]);
-
-  React.useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 2800);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
-  async function loadForwardRecipients() {
-    setForwardRecipientsLoading(true);
-    setForwardRecipientsError(null);
-    try {
-      const [usersResponse, conversationsResponse] = await Promise.all([
-        apiListUsers(),
-        apiListConversations(),
-      ]);
-      const users = (usersResponse.users || []).map(mapListUsersApiRowToChatUser);
-      const conversations = (conversationsResponse.conversations || []).map(mapListConversationsApiRowToSummary);
-      const auth = getStoredAuth();
-      const currentUserId = String(auth?.employee?._id || auth?.employee?.empId || '').trim();
-
-      const recentConversationOptions: ForwardRecipientOption[] = conversations.map((conversation) => {
-        if (conversation.type === 'dm' && conversation.otherUser) {
-          return {
-            id: `recent-${conversation.conversationKey}`,
-            recipientId: `conversation:${conversation.conversationKey}`,
-            title: conversation.otherUser.name,
-            subtitle: conversation.lastMessagePreview || 'Direct message',
-            avatar: conversation.otherUser.avatar || conversation.avatar,
-            kind: 'conversation',
-            section: 'recent',
-            department: conversation.otherUser.department,
-          };
-        }
-
-        return {
-          id: `recent-${conversation.conversationKey}`,
-          recipientId: `conversation:${conversation.conversationKey}`,
-          title: conversation.title,
-          subtitle: conversation.lastMessagePreview || 'Team channel',
-          avatar: conversation.avatar,
-          kind: 'conversation',
-          section: 'recent',
-        };
-      });
-
-      const channelOptions: ForwardRecipientOption[] = conversations
-        .filter((conversation) => conversation.type === 'channel')
-        .map((conversation) => ({
-          id: `channel-${conversation.conversationKey}`,
-          recipientId: `conversation:${conversation.conversationKey}`,
-          title: conversation.title,
-          subtitle: `${conversation.memberIds?.length || 0} members`,
-          avatar: conversation.avatar,
-          kind: 'conversation' as const,
-          section: 'channels' as const,
-        }));
-
-      const employeeOptions: ForwardRecipientOption[] = users
-        .filter((user) => user.id !== currentUserId && user.empId !== currentUserId)
-        .map((user) => ({
-          id: `user-${user.id}`,
-          recipientId: `user:${user.id}`,
-          title: user.name,
-          subtitle: [user.designation, user.department].filter(Boolean).join(' - ') || user.role,
-          avatar: user.avatar,
-          kind: 'user' as const,
-          section: 'employees' as const,
-          department: user.department,
-        }));
-
-      const uniqueByRecipientId = new Map<string, ForwardRecipientOption>();
-      [...recentConversationOptions, ...channelOptions, ...employeeOptions].forEach((option) => {
-        if (!uniqueByRecipientId.has(option.recipientId)) {
-          uniqueByRecipientId.set(option.recipientId, option);
-        }
-      });
-
-      setForwardRecipients(Array.from(uniqueByRecipientId.values()));
-    } catch (nextError) {
-      setForwardRecipientsError(nextError instanceof Error ? nextError.message : 'Failed to load chats');
-    } finally {
-      setForwardRecipientsLoading(false);
-    }
-  }
-
-  function enableFileSelection(file: DriveFile) {
-    setFileSelectionMode(true);
-    setSelectedFileIds((prev) => (prev.includes(file.id) ? prev : [...prev, file.id]));
-  }
-
-  function clearFileSelection() {
-    setFileSelectionMode(false);
-    setSelectedFileIds([]);
-  }
-
-  function openForwardForFiles(fileIds: string[]) {
-    const nextIds = Array.from(new Set(fileIds.filter(Boolean)));
-    if (!nextIds.length) return;
-    setForwardFileIds(nextIds);
-    setForwardModalOpen(true);
-    if (!forwardRecipients.length && !forwardRecipientsLoading) {
-      void loadForwardRecipients();
-    }
-  }
-
-  function openCreateFolderDialog() {
-    setFolderDialogMode('create');
-    setFolderFormName('');
-    setFolderFormDescription('');
-    setFolderStorageMode('general');
-    setFolderVisibility(createParentIsPrivate ? 'private' : 'public');
-  }
-
-  function resetFolderDialog() {
-    setFolderDialogMode(null);
-    setRenameFolderTarget(null);
-    setFolderFormName('');
-    setFolderFormDescription('');
-    setFolderStorageMode('general');
-    setFolderVisibility('public');
-  }
-
-  function resetEntryDialog() {
-    setEntryDialogMode(null);
-    setEditingEntry(null);
-    setEntryTitle('');
-    setEntryDescription('');
-    setEntryLinkUrl('');
-    setEntryContentText('');
-  }
-
-  function openCreateEntryDialog(type: DriveEntryType) {
-    setEditingEntry(null);
-    setEntryTitle('');
-    setEntryDescription('');
-    setEntryLinkUrl('');
-    setEntryContentText('');
-    setEntryDialogMode(type === 'link' ? 'create-link' : 'create-text');
-  }
-
-  function openEditEntryDialog(entry: DriveEntry) {
-    setEditingEntry(entry);
-    setEntryTitle(entry.title);
-    setEntryDescription(entry.description || '');
-    setEntryLinkUrl(entry.linkUrl || '');
-    setEntryContentText(entry.contentText || '');
-    setEntryDialogMode('edit');
-  }
-
-  function openNoteEntry(entry: DriveEntry) {
-    if (entry.entryType !== 'text') return;
-    setActiveNoteEntryId(entry.id);
-  }
-
-  function getActiveEntryType(): DriveEntryType {
-    if (entryDialogMode === 'create-link') return 'link';
-    if (entryDialogMode === 'create-text') return 'text';
-    return editingEntry?.entryType || 'text';
-  }
-
-  async function handleCreateOrRenameFolder() {
-    if (!folderFormName.trim()) {
-      setToast({ message: 'Folder name is required.', type: 'error' });
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      if (folderDialogMode === 'create') {
-        await createFolder({
-          name: folderFormName.trim(),
-          description: folderFormDescription.trim(),
-          storageMode: folderStorageMode,
-          visibility: folderVisibility,
-          parentFolder: currentFolderId,
-        });
-        setToast({ message: 'Folder created.', type: 'success' });
-      } else if (renameFolderTarget) {
-        await renameFolder(renameFolderTarget.id, {
-          name: folderFormName.trim(),
-          description: folderFormDescription.trim(),
-          storageMode: folderStorageMode,
-          visibility: folderVisibility,
-        });
-        setToast({ message: 'Folder updated.', type: 'success' });
-      }
-      resetFolderDialog();
-    } catch (nextError) {
-      setToast({
-        message: nextError instanceof Error ? nextError.message : 'Failed to save folder',
-        type: 'error',
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleMoveFolder() {
-    if (!moveFolderTarget) return;
-    setSubmitting(true);
-    try {
-      await moveFolder({
-        folderId: moveFolderTarget.id,
-        parentFolder: moveFolderDestination || null,
-      });
-      setToast({ message: 'Folder moved.', type: 'success' });
-      setMoveFolderTarget(null);
-      setMoveFolderDestination('');
-    } catch (nextError) {
-      setToast({
-        message: nextError instanceof Error ? nextError.message : 'Failed to move folder',
-        type: 'error',
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleDeleteFolder() {
-    if (!deleteFolderTarget) return;
-    setSubmitting(true);
-    try {
-      const result = await deleteFolder(deleteFolderTarget.id);
-      setToast({
-        message: `Folder deleted with ${result.deletedFileCount} files removed.`,
-        type: 'success',
-      });
-      setDeleteFolderTarget(null);
-    } catch (nextError) {
-      setToast({
-        message: nextError instanceof Error ? nextError.message : 'Failed to delete folder',
-        type: 'error',
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleRenameFile() {
-    if (!renameFileTarget || !renameFileName.trim()) {
-      setToast({ message: 'File name is required.', type: 'error' });
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await renameFile(renameFileTarget.id, renameFileName.trim());
-      setToast({ message: 'File renamed.', type: 'success' });
-      setRenameFileTarget(null);
-      setRenameFileName('');
-    } catch (nextError) {
-      setToast({
-        message: nextError instanceof Error ? nextError.message : 'Failed to rename file',
-        type: 'error',
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleMoveFile() {
-    if (!moveFileTarget) return;
-    setSubmitting(true);
-    try {
-      await moveFile({
-        fileId: moveFileTarget.id,
-        folderId: moveFileDestination || null,
-      });
-      setToast({ message: 'File moved.', type: 'success' });
-      setMoveFileTarget(null);
-      setMoveFileDestination('');
-    } catch (nextError) {
-      setToast({
-        message: nextError instanceof Error ? nextError.message : 'Failed to move file',
-        type: 'error',
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleDeleteFile() {
-    if (!deleteFileTarget) return;
-    setSubmitting(true);
-    try {
-      await deleteFile(deleteFileTarget.id);
-      setToast({ message: 'File deleted.', type: 'success' });
-      setDeleteFileTarget(null);
-    } catch (nextError) {
-      setToast({
-        message: nextError instanceof Error ? nextError.message : 'Failed to delete file',
-        type: 'error',
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleDeleteSelectedFiles() {
-    if (!deleteFileBatchTargets.length) return;
-    setSubmitting(true);
-    try {
-      for (const file of deleteFileBatchTargets) {
-        await deleteFile(file.id);
-      }
-      clearFileSelection();
-      setDeleteFileBatchTargets([]);
-      setToast({
-        message:
-          deleteFileBatchTargets.length === 1
-            ? 'File deleted.'
-            : `${deleteFileBatchTargets.length} files deleted.`,
-        type: 'success',
-      });
-    } catch (nextError) {
-      setToast({
-        message: nextError instanceof Error ? nextError.message : 'Failed to delete selected files',
-        type: 'error',
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleCreateOrUpdateEntry() {
-    if (!currentFolderId && !editingEntry) {
-      setToast({ message: 'Open a folder first.', type: 'error' });
-      return;
-    }
-    if (!entryTitle.trim()) {
-      setToast({ message: 'Title is required.', type: 'error' });
-      return;
-    }
-
-    const entryType = getActiveEntryType();
-    if (entryType === 'link' && !entryLinkUrl.trim()) {
-      setToast({ message: 'Link URL is required.', type: 'error' });
-      return;
-    }
-    if (entryType === 'text' && !entryContentText.trim()) {
-      setToast({ message: 'Text content is required.', type: 'error' });
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      if (editingEntry) {
-        await updateEntry(editingEntry.id, {
-          title: entryTitle.trim(),
-          description: entryType === 'text' ? entryDescription.trim() : '',
-          linkUrl: entryType === 'link' ? entryLinkUrl.trim() : undefined,
-          contentText: entryType === 'text' ? entryContentText.trim() : undefined,
-        });
-        setToast({ message: 'Saved item updated.', type: 'success' });
-      } else {
-        await createEntry({
-          folderId: currentFolderId as string,
-          entryType,
-          title: entryTitle.trim(),
-          description: entryType === 'text' ? entryDescription.trim() : '',
-          linkUrl: entryType === 'link' ? entryLinkUrl.trim() : undefined,
-          contentText: entryType === 'text' ? entryContentText.trim() : undefined,
-        });
-        setToast({ message: entryType === 'link' ? 'Link saved.' : 'Note saved.', type: 'success' });
-      }
-      if (entryType === 'text') {
-        setActiveNoteEntryId(editingEntry?.id || activeNoteEntryId);
-      }
-      resetEntryDialog();
-    } catch (nextError) {
-      setToast({
-        message: nextError instanceof Error ? nextError.message : 'Failed to save item',
-        type: 'error',
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleDeleteEntry() {
-    if (!deleteEntryTarget) return;
-    setSubmitting(true);
-    try {
-      await deleteEntry(deleteEntryTarget.id);
-      if (activeNoteEntryId === deleteEntryTarget.id) {
-        setActiveNoteEntryId(null);
-      }
-      setToast({ message: 'Saved item deleted.', type: 'success' });
-      setDeleteEntryTarget(null);
-    } catch (nextError) {
-      setToast({
-        message: nextError instanceof Error ? nextError.message : 'Failed to delete item',
-        type: 'error',
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleCopyEntryLink(entry: DriveEntry) {
-    const copied = await copyTextToClipboard(entry.linkUrl || '');
-    setToast({
-      message: copied ? 'Link copied to clipboard.' : 'Could not copy the link.',
-      type: copied ? 'success' : 'error',
-    });
-    return copied;
-  }
+  } = dw;
 
   return (
     <FileDropZone
@@ -712,6 +172,10 @@ function DriveWorkspace() {
           </div>
         ) : null}
 
+        {breadcrumbItems.length ? (
+          <DriveBreadcrumbs items={breadcrumbItems} onNavigate={openFolder} />
+        ) : null}
+
         <div className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white px-5 py-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
@@ -731,11 +195,6 @@ function DriveWorkspace() {
                 <p className="mt-1.5 max-w-[34rem] text-sm leading-6 text-slate-500">
                   Upload, organize, preview, and share company files in one centralized workspace.
                 </p>
-                {breadcrumbItems.length ? (
-                  <div className="mt-2.5">
-                    <DriveBreadcrumbs items={breadcrumbItems} onNavigate={openFolder} />
-                  </div>
-                ) : null}
               </div>
             </div>
 
@@ -951,398 +410,100 @@ function DriveWorkspace() {
       </div>
 
       {folderDialogMode === 'create' ? (
-        <div className="fixed inset-0 z-[1000] bg-slate-950/35 backdrop-blur-[2px]">
-          <div className="flex h-full justify-end">
-            <div className="flex h-full w-full max-w-[32rem] flex-col border-l border-slate-200 bg-white">
-              <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(255,245,245,0.98))] px-6 py-6">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-red">RapidGrow Drive</p>
-                  <h3 className="mt-2 text-3xl font-semibold text-slate-900">Create Folder</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Add a new folder inside {currentFolderLabel}.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={resetFolderDialog}
-                  className="rounded-xl border border-slate-200 bg-white p-2 text-slate-500 transition hover:border-red-200 hover:text-brand-red"
-                  aria-label="Close create folder drawer"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
-                <input
-                  value={folderFormName}
-                  onChange={(event) => setFolderFormName(event.target.value)}
-                  placeholder="Folder name"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-                />
-                <textarea
-                  value={folderFormDescription}
-                  onChange={(event) => setFolderFormDescription(event.target.value)}
-                  placeholder="Description"
-                  rows={5}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-                />
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700">Folder use</label>
-                  <select
-                    value={folderStorageMode}
-                    onChange={(event) => setFolderStorageMode(event.target.value as DriveFolderStorageMode)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-                  >
-                    <option value="general">General files</option>
-                    <option value="images">Images workspace</option>
-                    <option value="links">Links workspace</option>
-                    <option value="text">Text notes workspace</option>
-                    <option value="mixed">Mixed workspace</option>
-                  </select>
-                  <p className="text-xs leading-5 text-slate-400">
-                    {folderStorageMode === 'general' && 'Best for standard file uploads and shared documents.'}
-                    {folderStorageMode === 'images' && 'Keeps this folder focused on image uploads, references, and creative assets only.'}
-                    {folderStorageMode === 'links' && 'Adds an in-folder link saver so teams can keep curated URLs together.'}
-                    {folderStorageMode === 'text' && 'Adds an in-folder note area for storing plain text, drafts, and written references.'}
-                    {folderStorageMode === 'mixed' && 'Supports files, saved links, and text notes in the same workspace.'}
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700">Visibility</label>
-                  <select
-                    value={folderVisibility}
-                    onChange={(event) => setFolderVisibility(event.target.value as DriveFolderVisibility)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-                  >
-                    <option value="public" disabled={createParentIsPrivate}>
-                      Public folder
-                    </option>
-                    <option value="private">Private folder</option>
-                  </select>
-                  <p className="text-xs leading-5 text-slate-400">
-                    {createParentIsPrivate
-                      ? 'This folder must stay private because it is being created inside a private folder.'
-                      : folderVisibility === 'public'
-                        ? 'Visible to every employee who has access to Drive.'
-                        : 'Visible only to you, including everything stored inside this folder.'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
-                <button
-                  type="button"
-                  onClick={resetFolderDialog}
-                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={submitting}
-                  onClick={() => void handleCreateOrRenameFolder()}
-                  className="inline-flex items-center gap-2 rounded-xl bg-brand-red px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-600 disabled:opacity-60"
-                >
-                  {folderStorageMode === 'images' ? <ImageIcon size={15} /> : <FolderPlus size={15} />}
-                  {submitting ? 'Saving...' : 'Create Folder'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <DriveCreateFolderDrawer
+          currentFolderLabel={currentFolderLabel}
+          createParentIsPrivate={createParentIsPrivate}
+          folderFormName={folderFormName}
+          setFolderFormName={setFolderFormName}
+          folderFormDescription={folderFormDescription}
+          setFolderFormDescription={setFolderFormDescription}
+          folderStorageMode={folderStorageMode}
+          setFolderStorageMode={setFolderStorageMode}
+          folderVisibility={folderVisibility}
+          setFolderVisibility={setFolderVisibility}
+          submitting={submitting}
+          onClose={resetFolderDialog}
+          onSubmit={() => void handleCreateOrRenameFolder()}
+        />
       ) : null}
 
       {folderDialogMode === 'rename' ? (
-        <DriveDialog
-          title="Rename Folder"
-          description="Update the folder name or description."
+        <DriveRenameFolderDialog
+          renameParentIsPrivate={renameParentIsPrivate}
+          folderFormName={folderFormName}
+          setFolderFormName={setFolderFormName}
+          folderFormDescription={folderFormDescription}
+          setFolderFormDescription={setFolderFormDescription}
+          folderStorageMode={folderStorageMode}
+          setFolderStorageMode={setFolderStorageMode}
+          folderVisibility={folderVisibility}
+          setFolderVisibility={setFolderVisibility}
+          submitting={submitting}
           onClose={resetFolderDialog}
-          footer={(
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={resetFolderDialog}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => void handleCreateOrRenameFolder()}
-                className="rounded-xl bg-brand-red px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-600 disabled:opacity-60"
-              >
-                {submitting ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
-          )}
-        >
-          <div className="space-y-4">
-            <input
-              value={folderFormName}
-              onChange={(event) => setFolderFormName(event.target.value)}
-              placeholder="Folder name"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-            />
-            <textarea
-              value={folderFormDescription}
-              onChange={(event) => setFolderFormDescription(event.target.value)}
-              placeholder="Description"
-              rows={4}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-            />
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Folder use</label>
-              <select
-                value={folderStorageMode}
-                onChange={(event) => setFolderStorageMode(event.target.value as DriveFolderStorageMode)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-              >
-                <option value="general">General files</option>
-                <option value="images">Images workspace</option>
-                <option value="links">Links workspace</option>
-                <option value="text">Text notes workspace</option>
-                <option value="mixed">Mixed workspace</option>
-              </select>
-              <p className="text-xs leading-5 text-slate-400">
-                {folderStorageMode === 'general' && 'Best for standard file uploads and shared documents.'}
-                {folderStorageMode === 'images' && 'Keeps this folder focused on image uploads, references, and creative assets only.'}
-                {folderStorageMode === 'links' && 'Adds an in-folder link saver so teams can keep curated URLs together.'}
-                {folderStorageMode === 'text' && 'Adds an in-folder note area for storing plain text, drafts, and written references.'}
-                {folderStorageMode === 'mixed' && 'Supports files, saved links, and text notes in the same workspace.'}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Visibility</label>
-              <select
-                value={folderVisibility}
-                onChange={(event) => setFolderVisibility(event.target.value as DriveFolderVisibility)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-              >
-                <option value="public" disabled={renameParentIsPrivate}>
-                  Public folder
-                </option>
-                <option value="private">Private folder</option>
-              </select>
-              <p className="text-xs leading-5 text-slate-400">
-                {renameParentIsPrivate
-                  ? 'This folder must stay private because its parent folder is private.'
-                  : folderVisibility === 'public'
-                    ? 'Visible to every employee who has access to Drive.'
-                    : 'Visible only to you, including everything stored inside this folder.'}
-              </p>
-            </div>
-          </div>
-        </DriveDialog>
+          onSubmit={() => void handleCreateOrRenameFolder()}
+        />
       ) : null}
 
       {entryDialogMode ? (
-        <DriveDialog
-          title={
-            editingEntry
-              ? editingEntry.entryType === 'link'
-                ? 'Edit Link'
-                : 'Edit Note'
-              : getActiveEntryType() === 'link'
-              ? 'Save Link'
-              : 'Save Note'
-          }
-          description={
-            editingEntry
-              ? 'Update the stored item for this folder.'
-              : getActiveEntryType() === 'link'
-              ? `Save a reusable link inside ${currentFolderLabel}.`
-              : `Save a text note inside ${currentFolderLabel}.`
-          }
+        <DriveEntryFormDialog
+          editingEntry={editingEntry}
+          activeEntryType={getActiveEntryType()}
+          currentFolderLabel={currentFolderLabel}
+          entryTitle={entryTitle}
+          setEntryTitle={setEntryTitle}
+          entryLinkUrl={entryLinkUrl}
+          setEntryLinkUrl={setEntryLinkUrl}
+          entryDescription={entryDescription}
+          setEntryDescription={setEntryDescription}
+          entryContentText={entryContentText}
+          setEntryContentText={setEntryContentText}
+          submitting={submitting}
           onClose={resetEntryDialog}
-          footer={(
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={resetEntryDialog}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => void handleCreateOrUpdateEntry()}
-                className="rounded-xl bg-brand-red px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-600 disabled:opacity-60"
-              >
-                {submitting ? 'Saving...' : editingEntry ? 'Save Changes' : getActiveEntryType() === 'link' ? 'Save Link' : 'Save Note'}
-              </button>
-            </div>
-          )}
-        >
-          <div className="space-y-4">
-            <input
-              value={entryTitle}
-              onChange={(event) => setEntryTitle(event.target.value)}
-              placeholder={getActiveEntryType() === 'link' ? 'Link title' : 'Note title'}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-            />
-            {getActiveEntryType() === 'link' ? (
-              <input
-                value={entryLinkUrl}
-                onChange={(event) => setEntryLinkUrl(event.target.value)}
-                placeholder="https://example.com"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-              />
-            ) : (
-              <>
-                <textarea
-                  value={entryDescription}
-                  onChange={(event) => setEntryDescription(event.target.value)}
-                  placeholder="Short description"
-                  rows={3}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-                />
-                <textarea
-                  value={entryContentText}
-                  onChange={(event) => setEntryContentText(event.target.value)}
-                  placeholder="Write or paste your note here"
-                  rows={8}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-                />
-              </>
-            )}
-          </div>
-        </DriveDialog>
+          onSubmit={() => void handleCreateOrUpdateEntry()}
+        />
       ) : null}
 
       {moveFolderTarget ? (
-        <DriveDialog
-          title={`Move ${moveFolderTarget.name}`}
-          description="Choose a new destination folder for this folder and everything inside it."
+        <DriveMoveFolderDialog
+          moveFolderTarget={moveFolderTarget}
+          moveFolderDestination={moveFolderDestination}
+          setMoveFolderDestination={setMoveFolderDestination}
+          folderOptionsForMove={folderOptionsForMove}
+          submitting={submitting}
           onClose={() => {
             setMoveFolderTarget(null);
             setMoveFolderDestination('');
           }}
-          footer={(
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setMoveFolderTarget(null);
-                  setMoveFolderDestination('');
-                }}
-                className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => void handleMoveFolder()}
-                className="rounded-2xl bg-brand-red px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-600 disabled:opacity-60"
-              >
-                {submitting ? 'Moving...' : 'Move Folder'}
-              </button>
-            </div>
-          )}
-        >
-          <select
-            value={moveFolderDestination}
-            onChange={(event) => setMoveFolderDestination(event.target.value)}
-            className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-          >
-            <option value="">Shared Drive (root)</option>
-            {folderOptionsForMove.map((folder) => (
-              <option key={folder.id} value={folder.id}>
-                {folder.breadcrumb.map((item) => item.name).join(' / ')}
-              </option>
-            ))}
-          </select>
-        </DriveDialog>
+          onSubmit={() => void handleMoveFolder()}
+        />
       ) : null}
 
       {renameFileTarget ? (
-        <DriveDialog
-          title="Rename File"
-          description="Update the file name shown across the company drive."
+        <DriveRenameFileDialog
+          renameFileName={renameFileName}
+          setRenameFileName={setRenameFileName}
+          submitting={submitting}
           onClose={() => {
             setRenameFileTarget(null);
             setRenameFileName('');
           }}
-          footer={(
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setRenameFileTarget(null);
-                  setRenameFileName('');
-                }}
-                className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => void handleRenameFile()}
-                className="rounded-2xl bg-brand-red px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-600 disabled:opacity-60"
-              >
-                {submitting ? 'Saving...' : 'Rename File'}
-              </button>
-            </div>
-          )}
-        >
-          <input
-            value={renameFileName}
-            onChange={(event) => setRenameFileName(event.target.value)}
-            placeholder="File name"
-            className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5 outline-none focus:border-red-300"
-          />
-        </DriveDialog>
+          onSubmit={() => void handleRenameFile()}
+        />
       ) : null}
 
       {moveFileTarget ? (
-        <DriveDialog
-          title="Move File"
-          description="Choose a destination folder for this file."
+        <DriveMoveFileDialog
+          moveFileTarget={moveFileTarget}
+          moveFileDestination={moveFileDestination}
+          setMoveFileDestination={setMoveFileDestination}
+          fileOptionsForMove={fileOptionsForMove}
+          submitting={submitting}
           onClose={() => {
             setMoveFileTarget(null);
             setMoveFileDestination('');
           }}
-          footer={(
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setMoveFileTarget(null);
-                  setMoveFileDestination('');
-                }}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => void handleMoveFile()}
-                className="rounded-xl bg-brand-red px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-600 disabled:opacity-60"
-              >
-                {submitting ? 'Moving...' : 'Move File'}
-              </button>
-            </div>
-          )}
-        >
-          <div className="space-y-4">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Selected file</div>
-              <div className="mt-2 break-all text-sm font-semibold text-slate-900">
-                {moveFileTarget.fileName}
-              </div>
-            </div>
-            <DriveDestinationPicker
-              value={moveFileDestination}
-              onChange={setMoveFileDestination}
-              options={fileOptionsForMove}
-              rootLabel="Shared Drive (root)"
-            />
-          </div>
-        </DriveDialog>
+          onSubmit={() => void handleMoveFile()}
+        />
       ) : null}
 
       {uploadSeedFiles !== null ? (
@@ -1384,53 +545,21 @@ function DriveWorkspace() {
         />
       ) : null}
 
-      {deleteFolderTarget ? (
-        <ConfirmDialog
-          title="Delete folder?"
-          description="This permanently removes the folder, every nested subfolder, and all files inside it from the shared drive."
-          confirmLabel={submitting ? 'Deleting...' : 'Delete'}
-          disabled={submitting}
-          onCancel={() => setDeleteFolderTarget(null)}
-          onConfirm={() => void handleDeleteFolder()}
-        />
-      ) : null}
-
-      {deleteFileTarget ? (
-        <ConfirmDialog
-          title="Delete file?"
-          description="This permanently removes the file from the shared drive for everyone in the organization."
-          confirmLabel={submitting ? 'Deleting...' : 'Delete'}
-          disabled={submitting}
-          onCancel={() => setDeleteFileTarget(null)}
-          onConfirm={() => void handleDeleteFile()}
-        />
-      ) : null}
-
-      {deleteFileBatchTargets.length ? (
-        <ConfirmDialog
-          title={deleteFileBatchTargets.length === 1 ? 'Delete file?' : 'Delete selected files?'}
-          description={
-            deleteFileBatchTargets.length === 1
-              ? 'This permanently removes the file from the shared drive for everyone in the organization.'
-              : `This permanently removes ${deleteFileBatchTargets.length} files from the shared drive for everyone in the organization.`
-          }
-          confirmLabel={submitting ? 'Deleting...' : 'Delete'}
-          disabled={submitting}
-          onCancel={() => setDeleteFileBatchTargets([])}
-          onConfirm={() => void handleDeleteSelectedFiles()}
-        />
-      ) : null}
-
-      {deleteEntryTarget ? (
-        <ConfirmDialog
-          title={deleteEntryTarget.entryType === 'link' ? 'Delete link?' : 'Delete note?'}
-          description="This permanently removes the saved item from the current folder."
-          confirmLabel={submitting ? 'Deleting...' : 'Delete'}
-          disabled={submitting}
-          onCancel={() => setDeleteEntryTarget(null)}
-          onConfirm={() => void handleDeleteEntry()}
-        />
-      ) : null}
+      <DriveDeleteConfirmDialogs
+        deleteFolderTarget={deleteFolderTarget}
+        onCancelDeleteFolder={() => setDeleteFolderTarget(null)}
+        onConfirmDeleteFolder={() => void handleDeleteFolder()}
+        deleteFileTarget={deleteFileTarget}
+        onCancelDeleteFile={() => setDeleteFileTarget(null)}
+        onConfirmDeleteFile={() => void handleDeleteFile()}
+        deleteFileBatchTargets={deleteFileBatchTargets}
+        onCancelDeleteFileBatch={() => setDeleteFileBatchTargets([])}
+        onConfirmDeleteFileBatch={() => void handleDeleteSelectedFiles()}
+        deleteEntryTarget={deleteEntryTarget}
+        onCancelDeleteEntry={() => setDeleteEntryTarget(null)}
+        onConfirmDeleteEntry={() => void handleDeleteEntry()}
+        submitting={submitting}
+      />
 
       {toast ? <Toast message={toast.message} type={toast.type} /> : null}
     </FileDropZone>

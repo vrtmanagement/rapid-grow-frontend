@@ -1,0 +1,85 @@
+App.tsx(511,13): error TS2769: No overload matches this call.
+communication/components/BundledAttachments.tsx(201,36): error TS2322: Type '{ key: string; message: ChatMessage; }' is not assignable to type '{ message: ChatMessage; }'.
+communication/components/NotificationStack.tsx(20,11): error TS2322: Type '{ key: string; notification: ChatNotification; onClose: () => void; onClick: () => void; }' is not assignable to type '{ notification: ChatNotification; onClose: () => void; onClick: () => void; }'.
+communication/components/PollMessage.tsx(29,24): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+communication/components/PollMessage.tsx(71,13): error TS2322: Type '{ key: string; option: ChatPollOption; selected: any; interactive: boolean; showResults: boolean; onClick: () => void; }' is not assignable to type '{ option: ChatPollOption; selected: boolean; interactive: boolean; showResults: boolean; onClick: () => void; }'.
+communication/context/CommunicationContext.tsx(1344,17): error TS2339: Property 'conversationKey' does not exist on type 'unknown'.
+communication/context/CommunicationContext.tsx(1344,44): error TS2339: Property 'poll' does not exist on type 'unknown'.
+communication/context/CommunicationContext.tsx(1345,40): error TS2339: Property 'poll' does not exist on type 'unknown'.
+communication/context/CommunicationContext.tsx(1347,38): error TS2339: Property 'conversationKey' does not exist on type 'unknown'.
+communication/context/CommunicationContext.tsx(1354,17): error TS2339: Property 'conversationKey' does not exist on type 'unknown'.
+communication/context/CommunicationContext.tsx(1354,44): error TS2339: Property 'poll' does not exist on type 'unknown'.
+communication/context/CommunicationContext.tsx(1355,40): error TS2339: Property 'poll' does not exist on type 'unknown'.
+communication/context/CommunicationContext.tsx(1357,38): error TS2339: Property 'conversationKey' does not exist on type 'unknown'.
+communication/context/CommunicationContext.tsx(1364,42): error TS2339: Property 'pollId' does not exist on type 'unknown'.
+components/attendance/AttendancePresenceChart.tsx(374,68): error TS2339: Property 'minutes' does not exist on type 'unknown'.
+components/attendance/AttendancePresenceChart.tsx(374,103): error TS2339: Property 'minutes' does not exist on type 'unknown'.
+components/attendance/AttendancePresenceChart.tsx(393,66): error TS2339: Property 'minutes' does not exist on type 'unknown'.
+components/attendance/AttendancePresenceChart.tsx(393,99): error TS2339: Property 'minutes' does not exist on type 'unknown'.
+components/attendance/AttendancePresenceChart.tsx(452,34): error TS2339: Property 'date' does not exist on type 'unknown'.
+components/attendance/AttendancePresenceChart.tsx(466,37): error TS2339: Property 'sessions' does not exist on type 'unknown'.
+components/attendance/AttendancePresenceChart.tsx(474,32): error TS2339: Property 'date' does not exist on type 'unknown'.
+components/project-charter/ProjectCharterFormModal.tsx(19,71): error TS2345: Argument of type 'string' is not assignable to parameter of type '"phase1" | "phase2" | "phase3" | "phase4" | "phase5" | "phase6" | "phase0" | "phase7"'.
+components/project-charter/projectCharterUtils.ts(52,11): error TS2304: Cannot find name 'ProjectPhases'.
+components/project-charter/projectCharterUtils.ts(86,38): error TS2304: Cannot find name 'ProjectPhases'.
+components/project-charter/projectCharterUtils.ts(86,83): error TS2304: Cannot find name 'ProjectPhases'.
+components/project-charter/projectCharterUtils.ts(644,5): error TS2322: Type '{ [k: string]: unknown; }' is not assignable to type 'ProjectPhases'.
+components/project-charter/ProjectDetails.tsx(699,50): error TS2345: Argument of type 'string' is not assignable to parameter of type '"phase1" | "phase2" | "phase3" | "phase4" | "phase5" | "phase6" | "phase0" | "phase7"'.
+components/project-charter/TeamHierarchy.tsx(99,33): error TS2322: Type '{ key: string; member: any; }' is not assignable to type '{ member: ProjectTeamMember; }'.
+components/project-charter/TeamHierarchy.tsx(116,29): error TS2322: Type '{ key: string; member: any; }' is not assignable to type '{ member: ProjectTeamMember; }'.
+components/search/GlobalSearchModal.tsx(30,25): error TS2339: Property 'results' does not exist on type 'unknown'.
+components/spaces/SpacesMonthGoalsSection.tsx(208,13): error TS2322: Type 'string' is not assignable to type 'TaskFilterMode'.
+components/spaces/SpacesMonthGoalsSection.tsx(209,13): error TS2322: Type 'string' is not assignable to type '"" | TaskStatus'.
+components/spaces/SpacesMonthGoalsSection.tsx(220,13): error TS2322: Type 'string' is not assignable to type 'TaskFilterMode'.
+components/spaces/SpacesMonthGoalsSection.tsx(221,13): error TS2322: Type 'string' is not assignable to type '"" | TaskStatus'.
+components/spaces/SpacesTaskModals.tsx(894,54): error TS2552: Cannot find name 'setRejectTaskModal'. Did you mean 'rejectTaskModal'?
+components/spaces/SpacesTopPrioritiesPanel.tsx(45,92): error TS2769: No overload matches this call.
+components/tasks/TaskEnhancementsPanel.tsx(41,28): error TS2339: Property 'estimatedHours' does not exist on type 'unknown'.
+components/tasks/TaskEnhancementsPanel.tsx(42,25): error TS2339: Property 'actualHours' does not exist on type 'unknown'.
+config/api.ts(7,37): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+drive/components/DriveFilesTable.tsx(667,17): error TS2322: Type '{ key: string; file: DriveFile; selected: any; selectionMode: boolean; onDownload: (file: DriveFile) => void; onRename: (file: DriveFile) => void; onMove: (file: DriveFile) => void; onDelete: (file: DriveFile) => void; onSelect: (file: DriveFile) => void; onForward: (file: DriveFile) => void; onToggleFileSelection: ...' is not assignable to type '{ file: DriveFile; selected: boolean; selectionMode: boolean; onDownload: (file: DriveFile) => void; onRename: (file: DriveFile) => void; onMove: (file: DriveFile) => void; onDelete: (file: DriveFile) => void; onSelect: (file: DriveFile) => void; onForward: (file: DriveFile) => void; onToggleFileSelection: (fileId: ...'.
+hooks/spaces/useSpacesViewController.ts(2276,45): error TS2339: Property 'estimatedHours' does not exist on type 'SpacesTask'.
+hooks/spaces/useSpacesViewController.ts(2277,42): error TS2339: Property 'actualHours' does not exist on type 'SpacesTask'.
+hooks/useCachedQuery.ts(13,9): error TS2503: Cannot find namespace 'React'.
+realtime/socket.ts(18,66): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+realtime/socket.ts(19,54): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+views/AiSettingsView.tsx(16,16): error TS2339: Property 'settings' does not exist on type 'unknown'.
+views/AiSettingsView.tsx(16,53): error TS2339: Property 'settings' does not exist on type 'unknown'.
+views/AttendanceView.tsx(456,22): error TS2352: Conversion of type 'Record<string, unknown>' to type 'AttendanceSummaryResponse' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+views/AttendanceView.tsx(480,12): error TS2352: Conversion of type 'Record<string, unknown>' to type 'LeaveBalanceOverviewResponse' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+views/AttendanceView.tsx(485,28): error TS2352: Conversion of type 'Record<string, unknown>' to type 'TeamAttendanceSummary' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+views/BillingSettingsView.tsx(27,37): error TS2339: Property 'billing' does not exist on type 'unknown'.
+views/contentViewShared.tsx(408,88): error TS2551: Property 'scrollTop' does not exist on type 'Window | HTMLElement'. Did you mean 'scrollTo'?
+views/contentViewShared.tsx(416,15): error TS2551: Property 'scrollTop' does not exist on type 'Window | HTMLElement'. Did you mean 'scrollTo'?
+views/contentViewShared.tsx(844,32): error TS2322: Type '{ key: ContentType; type: ContentType; count: number; }' is not assignable to type '{ type: ContentType; count: number; compact?: boolean; dense?: boolean; }'.
+views/contentViewShared.tsx(854,32): error TS2322: Type '{ key: ContentType; type: ContentType; count: number; compact: true; }' is not assignable to type '{ type: ContentType; count: number; compact?: boolean; dense?: boolean; }'.
+views/contentViewShared.tsx(863,30): error TS2322: Type '{ key: ContentType; type: ContentType; count: number; compact: true; dense: true; }' is not assignable to type '{ type: ContentType; count: number; compact?: boolean; dense?: boolean; }'.
+views/DailyView.tsx(220,15): error TS2322: Type 'SpacesTask[]' is not assignable to type 'SpacesTaskSummary[]'.
+views/DataPrivacyView.tsx(19,45): error TS2339: Property 'jobs' does not exist on type 'unknown'.
+views/DataPrivacyView.tsx(20,56): error TS2339: Property 'request' does not exist on type 'unknown'.
+views/EmployeeDashboardView.tsx(367,34): error TS2339: Property 'employeeId' does not exist on type 'unknown'.
+views/EmployeeDashboardView.tsx(368,28): error TS2339: Property 'name' does not exist on type 'unknown'.
+views/EmployeeDashboardView.tsx(369,35): error TS2339: Property 'weeklyScore' does not exist on type 'unknown'.
+views/EmployeeDashboardView.tsx(370,30): error TS2339: Property 'trend' does not exist on type 'unknown'.
+views/EmployeeDashboardView.tsx(371,34): error TS2339: Property 'trendDelta' does not exist on type 'unknown'.
+views/EmployeeDashboardView.tsx(372,37): error TS2339: Property 'tasksAssigned' does not exist on type 'unknown'.
+views/EmployeeDashboardView.tsx(373,38): error TS2339: Property 'tasksCompleted' does not exist on type 'unknown'.
+views/EmployeeDashboardView.tsx(374,40): error TS2339: Property 'onTimePercentage' does not exist on type 'unknown'.
+views/EmployeeDashboardView.tsx(375,40): error TS2339: Property 'consistencyScore' does not exist on type 'unknown'.
+views/EmployeeDashboardView.tsx(377,17): error TS2339: Property 'qualityScore' does not exist on type 'unknown'.
+views/EmployeeDashboardView.tsx(377,50): error TS2339: Property 'qualityScore' does not exist on type 'unknown'.
+views/EmployeeDashboardView.tsx(379,28): error TS2339: Property 'qualityScore' does not exist on type 'unknown'.
+views/EmployeeDashboardView.tsx(487,95): error TS2769: No overload matches this call.
+views/EmployeeDashboardView.tsx(672,18): error TS2304: Cannot find name 'getAuthHeaders'.
+views/EmployeeProfileView.tsx(345,47): error TS2339: Property 'employees' does not exist on type 'unknown'.
+views/EmployeeProfileView.tsx(345,65): error TS2339: Property 'employees' does not exist on type 'unknown'.
+views/OrgChartView.tsx(48,45): error TS2339: Property 'employees' does not exist on type 'unknown'.
+views/OrgChartView.tsx(48,63): error TS2339: Property 'employees' does not exist on type 'unknown'.
+views/OrgChartView.tsx(122,19): error TS2322: Type '{ key: string; employee: any; employees: any; selectedId: string; onSelect: any; }' is not assignable to type '{ employee: Employee; employees: Employee[]; selectedId: string; onSelect: (id: string) => void; }'.
+views/OrgChartView.tsx(196,17): error TS2322: Type '{ key: string; employee: Employee; employees: Employee[]; selectedId: string; onSelect: (id: string) => void; }' is not assignable to type '{ employee: Employee; employees: Employee[]; selectedId: string; onSelect: (id: string) => void; }'.
+views/SkillGapAnalysisView.tsx(103,42): error TS2322: Type '{ key: any; gap: any; }' is not assignable to type '{ gap: GapRow; }'.
+views/StaffView.tsx(202,36): error TS2339: Property 'localeCompare' does not exist on type 'unknown'.
+views/StrengthsDashboardView.tsx(123,60): error TS2322: Type '{ key: any; row: any; }' is not assignable to type '{ row: { name: string; avgLevel: number; people: number; }; }'.
+views/StrengthsDashboardView.tsx(136,61): error TS2322: Type '{ key: any; employee: any; }' is not assignable to type '{ employee: EmployeeStrength; }'.
+views/SuperAdminView.tsx(25,37): error TS2339: Property 'tenants' does not exist on type 'unknown'.
+views/WorkspaceSignupView.tsx(131,14): error TS2304: Cannot find name 'ErrorAlert'.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type DependencyList } from 'react';
 import { peekApiCache, writeApiCache, DEFAULT_API_CACHE_TTL_MS } from '../services/apiCache';
 
 type UseCachedQueryOptions = {
@@ -10,7 +10,7 @@ type UseCachedQueryOptions = {
 
 export function useCachedQuery<T>(
   fetcher: () => Promise<T>,
-  deps: React.DependencyList,
+  deps: DependencyList,
   options: UseCachedQueryOptions,
 ) {
   const { cacheKey, enabled = true, ttlMs = DEFAULT_API_CACHE_TTL_MS, url } = options;

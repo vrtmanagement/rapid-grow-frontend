@@ -1,7 +1,14 @@
 import React from 'react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
-import { AttendanceSummaryResponse, Range, getHoursColor } from './attendanceUtils';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, LabelList } from 'recharts';
+import {
+  AttendanceDay,
+  AttendanceSummaryResponse,
+  LeaveRequest,
+  Range,
+  getHoursColor,
+} from './attendanceUtils';
 import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
+import { fetchHolidays, CompanyHoliday } from './attendanceOpsApi';
 
 interface Props {
   summary: AttendanceSummaryResponse | null;
@@ -10,6 +17,27 @@ interface Props {
   range?: Range;
   variant?: 'employee' | 'manager';
   todayMinutes?: number;
+  leaves?: LeaveRequest[];
+  monthlyPaidLeaves?: number;
+}
+
+const SUNDAY_BAR_COLOR = '#a5b4fc';
+const HOLIDAY_BAR_COLOR = '#c4b5fd';
+const LEAVE_BAR_COLOR = '#7dd3fc';
+const SPECIAL_BAR_HOURS = 9;
+
+function leaveCoversDateKey(leave: LeaveRequest, dateKey: string) {
+  if (String(leave.status || '').toUpperCase() !== 'APPROVED') return false;
+  const startKey = String(leave.startDate || '').slice(0, 10);
+  const endKey = String(leave.endDate || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startKey) || !/^\d{4}-\d{2}-\d{2}$/.test(endKey)) {
+    const start = new Date(leave.startDate);
+    const end = new Date(leave.endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+    const day = new Date(`${dateKey}T12:00:00`);
+    return day >= new Date(start.toDateString()) && day <= new Date(end.toDateString());
+  }
+  return dateKey >= startKey && dateKey <= endKey;
 }
 
 const AttendancePresenceChart: React.FC<Props> = ({
@@ -19,9 +47,13 @@ const AttendancePresenceChart: React.FC<Props> = ({
   range = 'month',
   variant = 'manager',
   todayMinutes = 0,
+  leaves = [],
+  monthlyPaidLeaves = 1,
 }) => {
   const isEmployeeVariant = variant === 'employee';
   const breakBarColor = '#fbbf24';
+  const [holidays, setHolidays] = React.useState<CompanyHoliday[]>([]);
+
   const getDatePartsInAttendanceTimezone = (value: Date | string) => {
     const parsed = value instanceof Date ? value : new Date(value);
     const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -43,6 +75,115 @@ const AttendancePresenceChart: React.FC<Props> = ({
     const { year, month, day } = getDatePartsInAttendanceTimezone(value);
     return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   };
+
+  const getWeekdayShort = (dateKey: string) =>
+    new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      timeZone: 'Asia/Kolkata',
+    }).format(new Date(`${dateKey}T12:00:00+05:30`));
+
+  const isSundayDateKey = (dateKey: string) => getWeekdayShort(dateKey) === 'Sun';
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const yearSource =
+      selectedMonth ||
+      (summary?.days?.length ? String(summary.days[0]?.date || '').slice(0, 7) : '') ||
+      getDateKeyInAttendanceTimezone(new Date()).slice(0, 7);
+    const year = Number(String(yearSource).slice(0, 4));
+    if (!Number.isFinite(year)) return;
+
+    fetchHolidays(year)
+      .then((rows) => {
+        if (!cancelled) setHolidays(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => {
+        if (!cancelled) setHolidays([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMonth, summary?.days, summary?.start]);
+
+  const holidayByDate = React.useMemo(() => {
+    const map = new Map<string, CompanyHoliday>();
+    holidays.forEach((holiday) => {
+      if (holiday?.dateKey) map.set(holiday.dateKey, holiday);
+    });
+    return map;
+  }, [holidays]);
+
+  const resolveSpecialDay = (
+    dateKey: string,
+    options?: { treatLeaveAsPaid?: boolean },
+  ) => {
+    if (isSundayDateKey(dateKey)) {
+      return {
+        kind: 'sunday' as const,
+        label: '-- sunday --',
+        color: SUNDAY_BAR_COLOR,
+      };
+    }
+
+    const holiday = holidayByDate.get(dateKey);
+    if (holiday) {
+      return {
+        kind: 'holiday' as const,
+        label: '-- holiday --',
+        color: HOLIDAY_BAR_COLOR,
+      };
+    }
+
+    if (options?.treatLeaveAsPaid) {
+      const leave = leaves.find((item) => leaveCoversDateKey(item, dateKey));
+      if (leave) {
+        return {
+          kind: 'leave' as const,
+          label: '-- Leave --',
+          color: LEAVE_BAR_COLOR,
+        };
+      }
+    }
+
+    return null;
+  };
+
+  const renderVerticalBarLabel = React.useCallback((props: {
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    value?: string | number;
+  }) => {
+    const label = String(props.value || '').trim();
+    if (!label) return <g />;
+
+    const x = Number(props.x || 0);
+    const y = Number(props.y || 0);
+    const width = Math.max(Number(props.width || 0), 1);
+    const height = Math.max(Number(props.height || 0), 1);
+    const cx = x + width / 2;
+    const cy = y + height / 2;
+    const fontSize = label.length > 18 ? 8 : label.length > 12 ? 9 : 10;
+
+    return (
+      <text
+        x={cx}
+        y={cy}
+        fill="#312e81"
+        fontSize={fontSize}
+        fontWeight={700}
+        letterSpacing="0.02em"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        transform={`rotate(-90 ${cx} ${cy})`}
+        style={{ pointerEvents: 'none' }}
+      >
+        {label}
+      </text>
+    );
+  }, []);
 
   const getMonthValueFromDate = (value?: string) => {
     if (!value) return '';
@@ -214,8 +355,8 @@ const AttendancePresenceChart: React.FC<Props> = ({
     getMonthValueFromDate(summary?.start)
   );
 
-  const recordedDays = new Map(
-    (summary?.days ?? []).map((day) => [day.date, day]),
+  const recordedDays = new Map<string, AttendanceDay>(
+    (summary?.days ?? []).map((day) => [day.date, day] as const),
   );
 
   const todayDateKey = getDateKeyInAttendanceTimezone(new Date());
@@ -230,12 +371,53 @@ const AttendancePresenceChart: React.FC<Props> = ({
     ? Array.from(new Set([...datesToShowBase, todayDateKey])).sort()
     : datesToShowBase;
 
+  const paidLeaveDateKeys = React.useMemo(() => {
+    const allowance = Math.max(0, Math.min(31, Number(monthlyPaidLeaves) || 0));
+    const candidateLeaveDays = datesToShow.filter((dateKey) => {
+      if (isSundayDateKey(dateKey)) return false;
+      if (holidayByDate.has(dateKey)) return false;
+      const day = recordedDays.get(dateKey);
+      const liveMinutes = dateKey === todayDateKey ? Math.max(day?.minutes || 0, todayMinutes) : day?.minutes || 0;
+      if (liveMinutes > 0) return false;
+      return leaves.some((item) => leaveCoversDateKey(item, dateKey));
+    });
+    return new Set([...candidateLeaveDays].sort().slice(0, allowance));
+  }, [
+    datesToShow,
+    holidayByDate,
+    leaves,
+    monthlyPaidLeaves,
+    recordedDays,
+    todayDateKey,
+    todayMinutes,
+  ]);
+
   const chartData =
     datesToShow.map((dateKey) => {
       const dayLabel = formatChartDayLabel(dateKey);
       const d = recordedDays.get(dateKey);
       const liveMinutes = dateKey === todayDateKey ? Math.max(d?.minutes || 0, todayMinutes) : d?.minutes || 0;
-      const isSunday = new Date(`${dateKey}T00:00:00`).getDay() === 0;
+      const special = resolveSpecialDay(dateKey, {
+        treatLeaveAsPaid: paidLeaveDateKeys.has(dateKey),
+      });
+      const sundayWorked = special?.kind === 'sunday' && liveMinutes > 0;
+
+      // Non-worked special days keep fixed color + label. Worked Sundays use hours color + sunday label.
+      if (special && !sundayWorked) {
+        return {
+          date: formatFullDate(dateKey),
+          dayLabel,
+          hours: SPECIAL_BAR_HOURS,
+          actualHours: 0,
+          color: special.color,
+          loginTime: special.label,
+          logoutTime: special.label,
+          statusLabel: 'Status',
+          attendanceState: special.label,
+          barLabel: special.label,
+          isSpecialDay: true,
+        };
+      }
 
       if (!d) {
         if (dateKey === todayDateKey && liveMinutes > 0) {
@@ -249,24 +431,44 @@ const AttendancePresenceChart: React.FC<Props> = ({
             loginTime: 'N/A',
             logoutTime: 'Active now',
             statusLabel: 'Status',
-            attendanceState: 'Present',
+            attendanceState: sundayWorked ? '-- sunday --' : 'Present',
+            barLabel: sundayWorked ? '-- sunday --' : '',
+            isSpecialDay: false,
           };
         }
 
         return {
           date: formatFullDate(dateKey),
           dayLabel,
-          hours: 9,
+          hours: SPECIAL_BAR_HOURS,
           actualHours: 0,
-          color: isSunday ? '#cbd5e1' : '#94a3b8',
-          loginTime: isSunday ? 'Off day' : 'Absent',
-          logoutTime: isSunday ? 'Off day' : 'Absent',
+          color: '#94a3b8',
+          loginTime: 'Absent',
+          logoutTime: 'Absent',
           statusLabel: 'Status',
-          attendanceState: isSunday ? 'Off day' : 'Absent',
+          attendanceState: 'Absent',
+          barLabel: '-- absent --',
+          isSpecialDay: true,
         };
       }
 
       const hours = liveMinutes / 60;
+      if (liveMinutes <= 0) {
+        return {
+          date: formatFullDate(d.date),
+          dayLabel,
+          hours: SPECIAL_BAR_HOURS,
+          actualHours: 0,
+          color: '#94a3b8',
+          loginTime: 'Absent',
+          logoutTime: 'Absent',
+          statusLabel: 'Status',
+          attendanceState: 'Absent',
+          barLabel: '-- absent --',
+          isSpecialDay: true,
+        };
+      }
+
       const sortedSessions = [...(d.sessions || [])].sort((a, b) => (
         new Date(a.loginTime).getTime() - new Date(b.loginTime).getTime()
       ));
@@ -287,11 +489,17 @@ const AttendancePresenceChart: React.FC<Props> = ({
             ? 'Active now'
           : formatTime(lastSession?.effectiveLogoutTime || lastSession?.logoutTime),
         statusLabel: isOpenSession ? 'Status' : 'Logout time',
-        attendanceState: isBreakSession ? 'On break' : 'Present',
+        attendanceState: sundayWorked
+          ? '-- sunday --'
+          : isBreakSession
+            ? 'On break'
+            : 'Present',
+        barLabel: sundayWorked ? '-- sunday --' : '',
+        isSpecialDay: false,
       };
     }) ?? [];
 
-  const recordedEntries = chartData.filter((entry) => (entry.actualHours ?? 0) > 0);
+  const recordedEntries = chartData.filter((entry) => (entry.actualHours ?? 0) > 0 && !entry.isSpecialDay);
   const fullDays = recordedEntries.filter((entry) => (entry.actualHours ?? 0) >= 8).length;
   const shortDays = recordedEntries.filter((entry) => (entry.actualHours ?? 0) > 0 && (entry.actualHours ?? 0) < 8).length;
   const absentDays = chartData.filter((entry) => entry.attendanceState === 'Absent').length;
@@ -384,7 +592,11 @@ const AttendancePresenceChart: React.FC<Props> = ({
                           </div>
                           <div className="flex items-center justify-between gap-4">
                             <span>Hours</span>
-                            <span className="font-semibold text-slate-900">{entry?.actualHours?.toFixed?.(2) ?? entry?.hours?.toFixed?.(2) ?? '0.00'}h</span>
+                            <span className="font-semibold text-slate-900">
+                              {entry?.isSpecialDay
+                                ? entry?.attendanceState || 'Off'
+                                : `${entry?.actualHours?.toFixed?.(2) ?? entry?.hours?.toFixed?.(2) ?? '0.00'}h`}
+                            </span>
                           </div>
                           <div className="flex items-center justify-between gap-4">
                             <span>Login time</span>
@@ -405,7 +617,14 @@ const AttendancePresenceChart: React.FC<Props> = ({
                     fontSize: 12,
                   }}
                 />
-                <Bar dataKey="hours" radius={[10, 10, 0, 0]} barSize={range === 'day' ? 48 : 24} minPointSize={8}>
+                <Bar
+                  dataKey="hours"
+                  radius={[10, 10, 0, 0]}
+                  barSize={range === 'day' ? 48 : 24}
+                  minPointSize={8}
+                  isAnimationActive={false}
+                >
+                  <LabelList dataKey="barLabel" content={renderVerticalBarLabel} position="center" />
                   {chartData.map((entry, index) => (
                     <Cell key={index} fill={entry.color} />
                   ))}
@@ -418,7 +637,13 @@ const AttendancePresenceChart: React.FC<Props> = ({
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[12px] text-slate-500">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-slate-300" /> Off day
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: SUNDAY_BAR_COLOR }} /> Sunday
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: HOLIDAY_BAR_COLOR }} /> Holiday
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: LEAVE_BAR_COLOR }} /> Leave
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-slate-400" /> Absent
@@ -512,7 +737,11 @@ const AttendancePresenceChart: React.FC<Props> = ({
                         </div>
                         <div className="flex items-center justify-between gap-4">
                           <span>Hours</span>
-                          <span className="font-semibold text-slate-900">{entry?.actualHours?.toFixed?.(2) ?? entry?.hours?.toFixed?.(2) ?? '0.00'}h</span>
+                          <span className="font-semibold text-slate-900">
+                            {entry?.isSpecialDay
+                              ? entry?.attendanceState || 'Off'
+                              : `${entry?.actualHours?.toFixed?.(2) ?? entry?.hours?.toFixed?.(2) ?? '0.00'}h`}
+                          </span>
                         </div>
                         <div className="flex items-center justify-between gap-4">
                           <span>Login time</span>
@@ -533,7 +762,14 @@ const AttendancePresenceChart: React.FC<Props> = ({
                   fontSize: 12,
                 }}
               />
-              <Bar dataKey="hours" radius={[8, 8, 0, 0]} barSize={32} minPointSize={8}>
+              <Bar
+                dataKey="hours"
+                radius={[8, 8, 0, 0]}
+                barSize={32}
+                minPointSize={8}
+                isAnimationActive={false}
+              >
+                <LabelList dataKey="barLabel" content={renderVerticalBarLabel} position="center" />
                 {chartData.map((entry, index) => (
                   <Cell key={index} fill={entry.color} />
                 ))}

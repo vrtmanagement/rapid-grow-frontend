@@ -228,7 +228,7 @@ export default function DriveFolderGrid({
 
   function renderActions(folder: DriveFolder) {
     return (
-      <div className="ml-3 flex items-center gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="ml-3 flex items-center gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100" onClick={(e) => e.stopPropagation()}>
         <IconActionButton label="Rename folder" onClick={() => onRename(folder)}>
           <Pencil size={15} />
         </IconActionButton>
@@ -283,7 +283,8 @@ export default function DriveFolderGrid({
     return (
       <article
         key={folder.id}
-        className="group flex h-full min-h-[164px] flex-col overflow-visible rounded-xl border border-slate-200 bg-white transition hover:border-red-200"
+        onClick={() => onOpen(folder)}
+        className="group flex h-full min-h-[164px] cursor-pointer flex-col overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-red-200 hover:shadow-md"
       >
         <div className="flex flex-1 items-start justify-between gap-3 px-5 pt-4 pb-3">
           <button
@@ -340,7 +341,8 @@ export default function DriveFolderGrid({
     return (
       <article
         key={folder.id}
-        className="group flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4 transition hover:border-red-200"
+        onClick={() => onOpen(folder)}
+        className="group flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition hover:border-red-200 hover:shadow-md"
       >
         <button
           type="button"

@@ -1,230 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, CheckCheck, CheckSquare, Copy, CornerUpLeft, Download, ExternalLink, Eye, FileText, Forward, Loader2, MoreVertical, PencilLine, Pin, PinOff, Trash2, X } from 'lucide-react';
+import { Check, CheckCheck, Eye, Forward, Loader2 } from 'lucide-react';
 import { ChatMessage, ChatUser } from '../types';
-import { MessageActionModal } from './MessageActionModal';
-import { apiDownloadCommunicationFile, apiExportPollResults } from '../api';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
 import { MessageSelectionCheckbox } from './forward/MessageSelectionCheckbox';
 import { PollMessage } from './PollMessage';
 import { usePollStore } from '../stores/usePollStore';
 import { BundledAttachments } from './BundledAttachments';
-
-function formatTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: 'Asia/Kolkata',
-  });
-}
-
-function formatAttachmentSize(size?: number) {
-  if (!size || Number.isNaN(size)) return null;
-
-  if (size < 1024) return `${size} B`;
-
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let value = size / 1024;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-}
-
-function getFileExtension(fileName: string) {
-  const normalized = String(fileName || '').trim();
-  if (!normalized.includes('.')) return '';
-  return normalized.split('.').pop()?.toUpperCase().slice(0, 5) || '';
-}
-
-function getAttachmentKind(fileName: string, mimeType: string) {
-  const normalizedMime = String(mimeType || '').toLowerCase();
-  const normalizedName = String(fileName || '').toLowerCase();
-  const extension = getFileExtension(fileName);
-
-  if (normalizedMime.startsWith('image/')) {
-    return {
-      category: 'image',
-      label: 'Image',
-      badge: extension || 'IMG',
-      badgeClass: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-      iconClass: 'bg-emerald-50 text-emerald-700',
-    } as const;
-  }
-
-  if (normalizedMime.startsWith('video/')) {
-    return {
-      category: 'video',
-      label: 'Video',
-      badge: extension || 'VID',
-      badgeClass: 'border-violet-100 bg-violet-50 text-violet-700',
-      iconClass: 'bg-violet-50 text-violet-700',
-    } as const;
-  }
-
-  if (normalizedMime.startsWith('audio/')) {
-    return {
-      category: 'audio',
-      label: 'Audio',
-      badge: extension || 'AUD',
-      badgeClass: 'border-sky-100 bg-sky-50 text-sky-700',
-      iconClass: 'bg-sky-50 text-sky-700',
-    } as const;
-  }
-
-  if (normalizedMime === 'application/pdf' || normalizedName.endsWith('.pdf')) {
-    return {
-      category: 'document',
-      label: 'PDF document',
-      badge: 'PDF',
-      badgeClass: 'border-rose-100 bg-rose-50 text-rose-700',
-      iconClass: 'bg-rose-50 text-rose-700',
-    } as const;
-  }
-
-  if (
-    normalizedMime.includes('presentation') ||
-    normalizedMime.includes('powerpoint') ||
-    normalizedName.endsWith('.ppt') ||
-    normalizedName.endsWith('.pptx')
-  ) {
-    return {
-      category: 'document',
-      label: 'Presentation',
-      badge: extension || 'PPT',
-      badgeClass: 'border-amber-100 bg-amber-50 text-amber-700',
-      iconClass: 'bg-amber-50 text-amber-700',
-    } as const;
-  }
-
-  if (
-    normalizedMime.includes('spreadsheet') ||
-    normalizedMime.includes('excel') ||
-    normalizedName.endsWith('.xls') ||
-    normalizedName.endsWith('.xlsx') ||
-    normalizedName.endsWith('.csv')
-  ) {
-    return {
-      category: 'document',
-      label: 'Spreadsheet',
-      badge: extension || 'XLS',
-      badgeClass: 'border-lime-100 bg-lime-50 text-lime-700',
-      iconClass: 'bg-lime-50 text-lime-700',
-    } as const;
-  }
-
-  if (
-    normalizedMime.startsWith('text/') ||
-    normalizedMime.includes('json') ||
-    normalizedMime.includes('xml') ||
-    normalizedName.endsWith('.html') ||
-    normalizedName.endsWith('.htm') ||
-    normalizedName.endsWith('.css') ||
-    normalizedName.endsWith('.js')
-  ) {
-    return {
-      category: 'document',
-      label: 'Document',
-      badge: extension || 'TXT',
-      badgeClass: 'border-cyan-100 bg-cyan-50 text-cyan-700',
-      iconClass: 'bg-cyan-50 text-cyan-700',
-    } as const;
-  }
-
-  if (
-    normalizedMime.includes('zip') ||
-    normalizedMime.includes('rar') ||
-    normalizedMime.includes('7z') ||
-    normalizedName.endsWith('.zip') ||
-    normalizedName.endsWith('.rar') ||
-    normalizedName.endsWith('.7z')
-  ) {
-    return {
-      category: 'archive',
-      label: 'Archive',
-      badge: extension || 'ZIP',
-      badgeClass: 'border-slate-200 bg-slate-100 text-slate-700',
-      iconClass: 'bg-slate-100 text-slate-700',
-    } as const;
-  }
-
-  return {
-    category: 'file',
-    label: 'File',
-    badge: extension || 'FILE',
-    badgeClass: 'border-slate-200 bg-slate-100 text-slate-700',
-    iconClass: 'bg-slate-100 text-slate-700',
-  } as const;
-}
-
-function getCopyableMessageText(message: ChatMessage): string {
-  if (message.deleted) return '';
-  const content = String(message.content ?? '');
-  if (message.type === 'text') {
-    return content;
-  }
-  if (content.length > 0) {
-    return content;
-  }
-  if (message.attachment?.fileName) {
-    return message.attachment.fileName;
-  }
-  if (message.fileUrl) {
-    return message.fileUrl;
-  }
-  return '';
-}
-
-async function copyMessageText(text: string): Promise<boolean> {
-  if (!text) return false;
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // fall through to legacy copy
-  }
-  try {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.setAttribute('readonly', '');
-    textarea.style.position = 'fixed';
-    textarea.style.left = '-9999px';
-    document.body.appendChild(textarea);
-    textarea.select();
-    const copied = document.execCommand('copy');
-    document.body.removeChild(textarea);
-    return copied;
-  } catch {
-    return false;
-  }
-}
-
-function renderLinkedText(text: string) {
-  const parts = String(text || '').split(/(https?:\/\/[^\s]+)/g);
-  return parts.map((part, index) => {
-    if (/^https?:\/\/[^\s]+$/i.test(part)) {
-      return (
-        <a
-          key={`${part}-${index}`}
-          href={part}
-          target="_blank"
-          rel="noreferrer"
-          className="communication-message-link text-blue-700 underline decoration-blue-500 underline-offset-2 hover:text-blue-800"
-        >
-          {part}
-        </a>
-      );
-    }
-    return <React.Fragment key={`${index}-${part.slice(0, 8)}`}>{part}</React.Fragment>;
-  });
-}
+import { apiDownloadCommunicationFile } from '../api';
+import {
+  copyMessageText,
+  formatAttachmentSize,
+  formatTime,
+  getAttachmentKind,
+  getCopyableMessageText,
+  renderLinkedText,
+} from './messageBubble/messageBubbleHelpers';
+import { MessageBubbleActionsMenu } from './messageBubble/MessageBubbleActionsMenu';
+import { MessageBubbleContextMenu } from './messageBubble/MessageBubbleContextMenu';
+import { MessageAttachmentContent } from './messageBubble/MessageAttachmentContent';
+import { MessageImagePreview } from './messageBubble/MessageImagePreview';
+import { MessageDeleteModal } from './messageBubble/MessageDeleteModal';
 
 export function MessageBubble({
   message,
@@ -503,176 +298,28 @@ export function MessageBubble({
           </button>
           <div className="relative min-w-0">
             {!message.deleted && !selectionVisible ? (
-            <div
-              className={`absolute top-2.5 z-30 ${isOwn ? 'right-2' : 'left-full ml-2'}`}
-              ref={menuRef}
-            >
-              <button
-                type="button"
-                className={`inline-flex h-8 w-8 items-center justify-center rounded-full border shadow-sm transition-all ${
-                  menuOpen
-                    ? 'border-slate-200 bg-white text-slate-700 opacity-100 shadow-sm'
-                    : 'invisible border-slate-200 bg-white text-slate-600 opacity-0 translate-y-1 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 hover:bg-white'
-                }`}
-                onClick={() => setMenuOpen((v) => !v)}
-                aria-label="Message actions"
-              >
-                <MoreVertical size={14} />
-              </button>
-              {menuOpen ? (
-                <div
-                  className={`absolute z-[210] w-[144px] rounded-xl border border-slate-200 bg-white py-1 shadow-xl transition-all duration-100 ${
-                    isOwn ? 'right-0' : 'left-0'
-                  } ${
-                    menuPlacement === 'top'
-                      ? 'bottom-full mb-1.5 origin-bottom-right'
-                      : menuPlacement === 'bottom'
-                        ? 'top-full mt-1.5 origin-top-right'
-                        : 'top-8 origin-top-right'
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onReply?.();
-                    }}
-                    disabled={!!message.deleted}
-                    className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <CornerUpLeft size={13} />
-                    Reply
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onSelect?.();
-                    }}
-                    disabled={!!message.deleted}
-                    className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <CheckSquare size={13} />
-                    Select
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onForward?.();
-                    }}
-                    disabled={!!message.deleted || message.type === 'poll'}
-                    className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <Forward size={13} />
-                    Forward
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void handleCopyMessage();
-                    }}
-                    disabled={!canCopyMessage}
-                    className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <Copy size={13} />
-                    Copy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onPin?.();
-                    }}
-                    disabled={!!message.deleted}
-                    className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {isPinned ? <PinOff size={13} /> : <Pin size={13} />}
-                    {isPinned ? 'Unpin' : 'Pin'}
-                  </button>
-                  {message.poll && canManagePollActions && message.poll.isActive ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        void onClosePoll?.();
-                      }}
-                      className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-amber-700 hover:bg-amber-50"
-                    >
-                      <PinOff size={13} />
-                      Close poll
-                    </button>
-                  ) : null}
-                  {message.poll && canManagePollActions ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        void apiExportPollResults(message.poll!.id);
-                      }}
-                      className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      <Download size={13} />
-                      Export
-                    </button>
-                  ) : null}
-                  {isImageAttachment && canOpenAttachment ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        triggerOpen();
-                      }}
-                      className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      <ExternalLink size={13} />
-                      Open in new tab
-                    </button>
-                  ) : null}
-                  {isOwn ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onEdit?.();
-                      }}
-                      disabled={!!message.deleted || message.type !== 'text'}
-                      className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <PencilLine size={13} />
-                      Edit
-                    </button>
-                  ) : null}
-                  {isOwn ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        setDeleteOpen(true);
-                      }}
-                      disabled={!!message.deleted || (message.type === 'poll' && !canManagePollActions)}
-                      className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <Trash2 size={13} />
-                      Delete
-                    </button>
-                  ) : message.poll && canManagePollActions ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        setDeleteOpen(true);
-                      }}
-                      disabled={!!message.deleted}
-                      className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <Trash2 size={13} />
-                      Delete
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
+              <MessageBubbleActionsMenu
+                menuRef={menuRef}
+                isOwn={isOwn}
+                menuOpen={menuOpen}
+                setMenuOpen={setMenuOpen}
+                menuPlacement={menuPlacement}
+                message={message}
+                canCopyMessage={canCopyMessage}
+                canManagePollActions={canManagePollActions}
+                isPinned={isPinned}
+                isImageAttachment={isImageAttachment}
+                canOpenAttachment={canOpenAttachment}
+                onReply={onReply}
+                onSelect={onSelect}
+                onForward={onForward}
+                onPin={onPin}
+                onEdit={onEdit}
+                onClosePoll={onClosePoll}
+                handleCopyMessage={handleCopyMessage}
+                triggerOpen={triggerOpen}
+                setDeleteOpen={setDeleteOpen}
+              />
             ) : null}
 
             <div
@@ -785,203 +432,25 @@ export function MessageBubble({
               ) : null}
 
               {!message.deleted && !bundleItems && (message.type === 'image' || message.type === 'file' || message.type === 'attachment') && (message.attachment || message.fileUrl) ? (
-                <div className="space-y-2">
-                  {showSenderName && !isOwn && sender?.name ? (
-                    <div className="text-[11px] font-semibold text-slate-600">{sender.name}</div>
-                  ) : null}
-
-                  {isImageAttachment ? (
-                    <div className="relative w-full max-w-[300px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_26px_rgba(15,23,42,0.10)]">
-                      <div className="group/image relative">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (canOpenAttachment && !message.pending) {
-                              setImagePreviewOpen(true);
-                            }
-                          }}
-                          className="block w-full cursor-zoom-in"
-                          aria-label={`Preview ${attachmentName}`}
-                          disabled={!canOpenAttachment || !!message.pending}
-                        >
-                          <img
-                            src={message.localPreviewUrl || directFileUrl}
-                            alt={attachmentName}
-                            className="h-44 w-full bg-slate-100 object-cover"
-                          />
-                        </button>
-                        {message.pending ? (
-                          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/35">
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-800 shadow">
-                              <Loader2 size={12} className="animate-spin text-brand-red" />
-                              Uploading…
-                            </span>
-                          </div>
-                        ) : null}
-                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent opacity-0 transition-opacity duration-200 group-hover/image:opacity-100" />
-                        <div className="absolute right-3 top-3 flex items-center gap-2 opacity-0 transition-all duration-200 group-hover/image:opacity-100">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void triggerDownload();
-                            }}
-                            title={`Download ${attachmentName}`}
-                            aria-label={`Download ${attachmentName}`}
-                            disabled={!hasDownloadTarget || actionLoading === 'download'}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/60 bg-white/95 text-slate-700 shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {actionLoading === 'download' ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 px-3 py-2.5 text-slate-900">
-                        <div className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-[11px] font-bold tracking-[0.18em] ${attachmentMeta.badgeClass}`}>
-                          {attachmentMeta.badge}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-[13px] font-semibold">{attachmentName}</div>
-                          <div className="text-[11px] text-slate-500">
-                            {[attachmentMeta.label, attachmentSize].filter(Boolean).join(' | ')}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {isVideoAttachment ? (
-                    <div className="relative w-full max-w-[320px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_26px_rgba(15,23,42,0.10)]">
-                      <video
-                        src={message.localPreviewUrl || directFileUrl}
-                        controls={!message.pending}
-                        preload="metadata"
-                        className="h-52 w-full bg-slate-950 object-cover"
-                      />
-                      {message.pending ? (
-                        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/35">
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-800 shadow">
-                            <Loader2 size={12} className="animate-spin text-brand-red" />
-                            Uploading…
-                          </span>
-                        </div>
-                      ) : null}
-                      <div className="flex items-center gap-3 px-3 py-3 text-slate-900">
-                        <div className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${attachmentMeta.iconClass}`}>
-                          <FileText size={18} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-[13px] font-semibold">{attachmentName}</div>
-                          <div className="text-[11px] text-slate-500">
-                            {[attachmentMeta.label, attachmentSize].filter(Boolean).join(' | ')}
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={triggerOpen}
-                            disabled={!canOpenAttachment}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                            title={`Open ${attachmentName}`}
-                          >
-                            <Eye size={15} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={triggerDownload}
-                            disabled={!hasDownloadTarget || actionLoading === 'download'}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                            title={`Download ${attachmentName}`}
-                          >
-                            {actionLoading === 'download' ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {isAudioAttachment ? (
-                    <div className="w-full min-w-[260px] max-w-[320px] rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
-                      <div className="mb-3 flex items-center gap-3">
-                        <div className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${attachmentMeta.iconClass}`}>
-                          <FileText size={18} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-[13px] font-semibold text-slate-900">{attachmentName}</div>
-                          <div className="text-[11px] text-slate-500">
-                            {[attachmentMeta.label, attachmentSize].filter(Boolean).join(' | ')}
-                          </div>
-                        </div>
-                      </div>
-                      <audio src={directFileUrl} controls className="w-full" preload="metadata" />
-                      <div className="mt-3 flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={triggerOpen}
-                          disabled={!canOpenAttachment}
-                          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Eye size={14} />
-                          Open
-                        </button>
-                        <button
-                          type="button"
-                          onClick={triggerDownload}
-                          disabled={!hasDownloadTarget || actionLoading === 'download'}
-                          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {actionLoading === 'download' ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                          Download
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {!isImageAttachment && !isVideoAttachment && !isAudioAttachment ? (
-                    <div className="relative w-full min-w-[260px] max-w-[340px] rounded-2xl border border-slate-200 bg-white p-3 text-left text-slate-900 shadow-sm">
-                      {message.pending ? (
-                        <div className="absolute inset-0 z-[1] flex items-center justify-center rounded-2xl bg-white/70">
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-800 shadow-sm">
-                            <Loader2 size={12} className="animate-spin text-brand-red" />
-                            Uploading…
-                          </span>
-                        </div>
-                      ) : null}
-                      <div className="flex items-start gap-3">
-                        <div className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${attachmentMeta.iconClass}`}>
-                          <FileText size={18} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="truncate text-[13px] font-semibold">{attachmentName}</div>
-                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-[0.16em] ${attachmentMeta.badgeClass}`}>
-                              {attachmentMeta.badge}
-                            </span>
-                          </div>
-                          <div className="mt-1 text-[11px] text-slate-500">
-                            {[attachmentMeta.label, attachmentSize].filter(Boolean).join(' | ')}
-                          </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={triggerDownload}
-                              disabled={!hasDownloadTarget || actionLoading === 'download'}
-                              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {actionLoading === 'download' ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                              Download
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {message.content ? (
-                    <div className="whitespace-pre-wrap break-words text-[14px] leading-5">
-                      {renderLinkedText(message.content)}
-                    </div>
-                  ) : null}
-                </div>
+                <MessageAttachmentContent
+                  message={message}
+                  isOwn={isOwn}
+                  senderName={sender?.name}
+                  showSenderName={showSenderName}
+                  isImageAttachment={isImageAttachment}
+                  isVideoAttachment={isVideoAttachment}
+                  isAudioAttachment={isAudioAttachment}
+                  attachmentName={attachmentName}
+                  attachmentMeta={attachmentMeta}
+                  attachmentSize={attachmentSize}
+                  directFileUrl={directFileUrl}
+                  canOpenAttachment={canOpenAttachment}
+                  hasDownloadTarget={hasDownloadTarget}
+                  actionLoading={actionLoading}
+                  setImagePreviewOpen={setImagePreviewOpen}
+                  triggerDownload={triggerDownload}
+                  triggerOpen={triggerOpen}
+                />
               ) : null}
 
               <div className={`communication-message-time mt-1 flex items-center justify-end gap-1.5 text-[11px] leading-none ${timeTone}`}>
@@ -1018,195 +487,38 @@ export function MessageBubble({
         </div>
       </div>
 
-      <MessageActionModal
+      <MessageDeleteModal
         open={deleteOpen}
-        title={message.type === 'poll' ? 'Delete poll' : 'Delete message'}
-        description={
-          message.type === 'poll'
-            ? 'Are you sure you want to delete this poll?'
-            : 'Are you sure you want to delete this message?'
-        }
+        message={message}
+        deletingMessage={deletingMessage}
         onClose={closeDeleteModal}
-      >
-        <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={closeDeleteModal}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            {deletingMessage ? 'Close' : 'Cancel'}
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirmDelete}
-            disabled={deletingMessage}
-            className={`inline-flex min-w-[5.5rem] items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-              deletingMessage
-                ? 'cursor-wait border-red-300 bg-red-300 text-red-900'
-                : 'border-red-300 bg-red-300 text-red-900 hover:bg-red-400'
-            }`}
-          >
-            {deletingMessage ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                Deleting…
-              </>
-            ) : (
-              'Delete'
-            )}
-          </button>
-        </div>
-      </MessageActionModal>
+        onConfirm={handleConfirmDelete}
+      />
 
       {isImageAttachment && canOpenAttachment && imagePreviewOpen ? (
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/97 p-4 backdrop-blur-2xl"
-          onClick={() => setImagePreviewOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Preview ${attachmentName}`}
-        >
-          <div
-            className="relative w-full max-w-6xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setImagePreviewOpen(false)}
-              className="absolute right-3 top-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/45 text-white transition hover:bg-black/65"
-              aria-label="Close image preview"
-            >
-              <X size={18} />
-            </button>
-            <img
-              src={directFileUrl}
-              alt={attachmentName}
-              className="mx-auto block max-h-[90vh] max-w-full object-contain"
-            />
-          </div>
-        </div>
+        <MessageImagePreview
+          attachmentName={attachmentName}
+          directFileUrl={directFileUrl}
+          onClose={() => setImagePreviewOpen(false)}
+        />
       ) : null}
 
       {contextMenu ? (
-        <div
-          className="fixed z-[100] min-w-[168px] overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 shadow-[0_24px_50px_rgba(15,23,42,0.18)]"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              setContextMenu(null);
-              onReply?.();
-            }}
-            disabled={!!message.deleted}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <CornerUpLeft size={15} />
-            Reply
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setContextMenu(null);
-              onSelect?.();
-            }}
-            disabled={!!message.deleted}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <CheckSquare size={15} />
-            Select
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setContextMenu(null);
-              onForward?.();
-            }}
-            disabled={!!message.deleted || message.type === 'poll'}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Forward size={15} />
-            Forward
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              void handleCopyMessage();
-            }}
-            disabled={!canCopyMessage}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Copy size={15} />
-            Copy
-          </button>
-          {isOwn ? (
-            <button
-              type="button"
-              onClick={() => {
-                setContextMenu(null);
-                onEdit?.();
-              }}
-              disabled={!!message.deleted || message.type !== 'text'}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <PencilLine size={15} />
-              Edit
-            </button>
-          ) : null}
-          {isOwn ? (
-            <button
-              type="button"
-              onClick={() => {
-                setContextMenu(null);
-                setDeleteOpen(true);
-              }}
-              disabled={!!message.deleted || (message.type === 'poll' && !canManagePollActions)}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Trash2 size={15} />
-              Delete
-            </button>
-          ) : message.poll && canManagePollActions ? (
-            <>
-              {message.poll.isActive ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setContextMenu(null);
-                    void onClosePoll?.();
-                  }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-amber-700 hover:bg-amber-50"
-                >
-                  <PinOff size={15} />
-                  Close poll
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => {
-                  setContextMenu(null);
-                  void apiExportPollResults(message.poll!.id);
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-              >
-                <Download size={15} />
-                Export
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setContextMenu(null);
-                  setDeleteOpen(true);
-                }}
-                disabled={!!message.deleted}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Trash2 size={15} />
-                Delete
-              </button>
-            </>
-          ) : null}
-        </div>
+        <MessageBubbleContextMenu
+          contextMenu={contextMenu}
+          setContextMenu={setContextMenu}
+          message={message}
+          isOwn={isOwn}
+          canCopyMessage={canCopyMessage}
+          canManagePollActions={canManagePollActions}
+          onReply={onReply}
+          onSelect={onSelect}
+          onForward={onForward}
+          onEdit={onEdit}
+          onClosePoll={onClosePoll}
+          handleCopyMessage={handleCopyMessage}
+          setDeleteOpen={setDeleteOpen}
+        />
       ) : null}
     </>
   );

@@ -158,6 +158,7 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
     setCommentToDeleteId,
     deleteTaskModal,
     rejectTaskModal,
+    setRejectTaskModal,
     rejectFeedbackDraft,
     setRejectFeedbackDraft,
     rejectingTask,
@@ -432,6 +433,7 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         bulkSaving={props.bulkSaving}
         deleteSelectedTasks={props.deleteSelectedTasks}
         rejectTaskModal={rejectTaskModal}
+        setRejectTaskModal={setRejectTaskModal}
         rejectFeedbackDraft={rejectFeedbackDraft}
         setRejectFeedbackDraft={setRejectFeedbackDraft}
         rejectingTask={rejectingTask}

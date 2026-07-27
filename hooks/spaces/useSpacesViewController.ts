@@ -1,2980 +1,403 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { API_BASE, getAuthHeaders, getStoredAuthSession } from '../../config/api';
-import { peekApiCache } from '../../services/apiCache';
-import { fetchTabEndpoint } from '../../services/tabSessionCache';
-import { useDebounce } from '../useDebounce';
-import {
-  fetchSpacesList,
-  SPACES_PLANNER_FETCH_LIMIT,
-  SPACES_TASKS_PAGE_SIZE,
-} from '../../services/spacesApi';
-import { QUARTER_LABELS } from '../../appSeedConstants';
-import { Goal, WorkspaceTask } from '../../types';
-import { saveGoal } from '../../services/goalApi';
-import { getSocket } from '../../realtime/socket';
-import { parseDateValue } from '../../components/spaces/SpacesFormControls';
-import type { CreateMonthGoalTaskPayload } from '../../components/spaces/SpacesMonthGoalAddForm';
-import {
-  buildMonthGoalCustomFields,
-  MonthGoalContext,
-  MonthGoalTaskDraft,
-  validateMonthGoalTaskDraft,
-} from '../../components/spaces/monthGoalsHelpers';
-import type {
-  BackendRole,
-  EmployeeOption,
-  ProjectOption,
-  SpacesColumn,
-  SpacesMode,
-  SpacesTask,
-  SpacesViewProps,
-  TaskCreateRecurrenceDraft,
-  TaskFilterMode,
-  TaskPriority,
-  TaskStatus,
-  WeeklyTaskGroup,
-} from '../../types/spaces';
-import {
-  buildCreateTaskRecurrencePayload,
-  buildDefaultTaskCreateRecurrenceDraft,
-  clampRecurrenceOccurrences,
-  formatChecklistIntervalLabel,
-  NO_VISION_SELECTOR_VALUE,
-} from '../../utils/spaces/taskRecurrence';
-import {
-  consumeSpacesTaskFocus,
-  peekSpacesTaskFocus,
-  spacesTaskRowElementId,
-} from '../../utils/spaces/taskNavigation';
-import {
-  findScrollableContainer,
-  forceDownloadDocument,
-  getDayDisplay,
-  getLoggedInEmployee,
-  getReviewerLabel,
-  getWeekBreadcrumb,
-  getWeekStartDate,
-  canChangeStatusForView,
-  canCommentOnTaskForView,
-  canDeleteTaskForView,
-  canEditDueDateForView,
-  canEditTaskForView,
-  canValidateTaskForView,
-  buildTopPriorityTasksForAssignee,
-  buildWeeklyTaskCustomFields,
-  buildWeeklyTaskGroups,
-  createDaysForWeekHelper,
-  ensureWeeklyGroupPersistedHelper,
-  handleAddColumnHelper,
-  getTaskRowClassesForView,
-  isTaskLockedForView,
-  shouldHideAdminTaskFromViewer,
-  isTaskAssignedToViewer,
-  isSubmittedStatus,
-  normalizeRole,
-  normalizeTaskForUi,
-  isRecurringSeriesActive,
-  isRecurringSeriesTask,
-  projectCharterPayloadFromBackendProject,
-  assigneeOptionsForTaskHelper,
-  toggleDailyHelper,
-  upsertTaskByIdHelper,
-} from '../../views/spacesViewHelpers';
+import { API_BASE, getAuthHeaders } from '../../config/api';
+import type { MonthGoalContext } from '../../components/spaces/monthGoalsHelpers';
+import type { SpacesViewProps } from '../../types/spaces';
+import { forceDownloadDocument, getDayDisplay, getLoggedInEmployee } from '../../views/spacesViewHelpers';
+import { useSpacesBootstrap } from './useSpacesBootstrap';
+import { useSpacesFilterState } from './useSpacesFilterState';
+import { useSpacesFilters } from './useSpacesFilters';
+import { useSpacesTasks } from './useSpacesTasks';
+import { useSpacesWeeklyPlanner } from './useSpacesWeeklyPlanner';
+import { useSpacesModals } from './useSpacesModals';
+import { useSpacesTaskCreate } from './useSpacesTaskCreate';
+import { useSpacesTaskSubmit } from './useSpacesTaskSubmit';
 
-type AiAssignProgressState = {
-  requestId: string;
-  created: number;
-  total: number;
-  phase: 'uploading' | 'creating' | 'completed';
-};
-
+/**
+ * Thin composition root for the Spaces view. Owns only the handful of state
+ * values shared across domains (error banner, month-goal create context) and
+ * a few refs, then wires together the extracted domain hooks below. The
+ * returned object's shape is identical to the original monolithic
+ * useSpacesViewController so existing Spaces views keep working unchanged.
+ */
 export const useSpacesViewController = ({ mode, state, updateState }: SpacesViewProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const taskHubRootRef = useRef<HTMLDivElement | null>(null);
-  const skipFilterPageResetRef = useRef(false);
   const aiAssignRequestIdRef = useRef('');
-  const generateId = () =>
-    (typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? (crypto.randomUUID() as string)
-      : Math.random().toString(36).slice(2));
   const me = useMemo(() => getLoggedInEmployee(), []);
-  const [projects, setProjects] = useState<ProjectOption[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(false);
-  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
-  const [employeesLoading, setEmployeesLoading] = useState(false);
-  const [columns, setColumns] = useState<SpacesColumn[]>([]);
-  const [tasks, setTasks] = useState<SpacesTask[]>([]);
-  const [spacesLoading, setSpacesLoading] = useState(false);
-  const [markingTasksViewed, setMarkingTasksViewed] = useState(false);
-  const [title, setTitle] = useState('');
-  const [assigneeId, setAssigneeId] = useState(me.id || '');
-  const [dueDate, setDueDate] = useState('');
-  const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<TaskPriority>('medium');
-  const [status, setStatus] = useState<TaskStatus>('todo');
-  const [emailChecklistEnabled, setEmailChecklistEnabled] = useState(false);
-  const [emailChecklistExternalPerson, setEmailChecklistExternalPerson] = useState(false);
-  const [externalAssigneeEmail, setExternalAssigneeEmail] = useState('');
-  const [externalAssigneeName, setExternalAssigneeName] = useState('');
-  const [additionalChecklistTitles, setAdditionalChecklistTitles] = useState<string[]>([]);
-  const [reminderIntervalHours, setReminderIntervalHours] = useState('24');
-  const [repeatEveryWeek, setRepeatEveryWeek] = useState(false);
-  const [repeatCadence, setRepeatCadence] = useState('week');
-  const [repeatWeekDays, setRepeatWeekDays] = useState<string[]>([String(new Date().getDay())]);
-  const [repeatWeekTime, setRepeatWeekTime] = useState('09:00');
-  const [repeatFromDate, setRepeatFromDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [repeatToDate, setRepeatToDate] = useState(() => {
-    const end = new Date();
-    end.setDate(end.getDate() + 28);
-    return end.toISOString().slice(0, 10);
-  });
-  const [taskRecurrence, setTaskRecurrence] = useState<TaskCreateRecurrenceDraft>(() => buildDefaultTaskCreateRecurrenceDraft());
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-  const [taskDocumentFiles, setTaskDocumentFiles] = useState<File[]>([]);
-  const [aiAssigning, setAiAssigning] = useState(false);
-  const [aiAssignFileName, setAiAssignFileName] = useState('');
-  const [aiAssignProgress, setAiAssignProgress] = useState<AiAssignProgressState | null>(null);
-  const [uploadingTaskDocument, setUploadingTaskDocument] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [monthGoalSaving, setMonthGoalSaving] = useState(false);
-  const [stoppingRecurrenceTaskId, setStoppingRecurrenceTaskId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isTaskCreateModalOpen, setIsTaskCreateModalOpen] = useState(false);
-  const [createTaskPlannerEnabled, setCreateTaskPlannerEnabled] = useState(false);
-  const [createTaskPlannerQuarterId, setCreateTaskPlannerQuarterId] = useState('');
-  const [createTaskPlannerMonthId, setCreateTaskPlannerMonthId] = useState('');
-  const [createTaskPlannerWeekId, setCreateTaskPlannerWeekId] = useState('');
-  const [createTaskPlannerDayId, setCreateTaskPlannerDayId] = useState('');
   const [createTaskMonthGoalContext, setCreateTaskMonthGoalContext] = useState<MonthGoalContext | null>(null);
-  const [weeklyError, setWeeklyError] = useState('');
-  const [selectedDayByWeek, setSelectedDayByWeek] = useState<Record<string, string>>({});
-  const [selectedWeeklyProjectId, setSelectedWeeklyProjectId] = useState('');
-  const [selectedWeeklyQuarterId, setSelectedWeeklyQuarterId] = useState('');
-  const [selectedWeeklyMonthId, setSelectedWeeklyMonthId] = useState('');
-  const [selectedWeeklyGroupId, setSelectedWeeklyGroupId] = useState('');
-  const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
-  const [commentDraft, setCommentDraft] = useState('');
-  const [submittingComment, setSubmittingComment] = useState(false);
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editCommentDraft, setEditCommentDraft] = useState('');
-  const [commentToDeleteId, setCommentToDeleteId] = useState<string | null>(null);
-  const [modalStatus, setModalStatus] = useState<TaskStatus>('todo');
-  const [activeColumnMenuId, setActiveColumnMenuId] = useState<string | null>(null);
-  const [isRenamingColumnId, setIsRenamingColumnId] = useState<string | null>(null);
-  const [renameDraft, setRenameDraft] = useState('');
-  const [columnToDelete, setColumnToDelete] = useState<SpacesColumn | null>(null);
-  const [deleteTaskModal, setDeleteTaskModal] = useState<SpacesTask | null>(null);
-  const [rejectTaskModal, setRejectTaskModal] = useState<SpacesTask | null>(null);
-  const [rejectFeedbackDraft, setRejectFeedbackDraft] = useState('');
-  const [rejectingTask, setRejectingTask] = useState(false);
-  const initialTaskFocus = useMemo(() => peekSpacesTaskFocus(), []);
-  const [taskFilterMode, setTaskFilterMode] = useState<TaskFilterMode>(
-    () => initialTaskFocus?.filterMode || 'me',
-  );
-  const [taskAssigneeFilterId, setTaskAssigneeFilterId] = useState('');
-  const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | ''>(
-    () => initialTaskFocus?.statusFilter ?? '',
-  );
-  const [taskSearch, setTaskSearch] = useState(() => initialTaskFocus?.search || '');
-  const debouncedTaskSearch = useDebounce(taskSearch.trim(), 250);
-  const [taskPage, setTaskPage] = useState(() =>
-    Number(initialTaskFocus?.page) > 0 ? Number(initialTaskFocus.page) : 1,
-  );
-  const [focusedTaskId, setFocusedTaskId] = useState(() => String(initialTaskFocus?.taskId || ''));
-  const [taskListTotal, setTaskListTotal] = useState(0);
-  const [taskListTotalPages, setTaskListTotalPages] = useState(1);
-  const [plannerTasks, setPlannerTasks] = useState<SpacesTask[]>([]);
-  const [editingTask, setEditingTask] = useState<SpacesTask | null>(null);
-  const [editingTaskMode, setEditingTaskMode] = useState<'view' | 'edit'>('view');
-  const [editingTaskDraft, setEditingTaskDraft] = useState<Partial<SpacesTask>>({});
-  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
-  const [bulkStatus, setBulkStatus] = useState<TaskStatus>('todo');
-  const [bulkAssigneeId, setBulkAssigneeId] = useState('');
-  const [bulkDueDate, setBulkDueDate] = useState('');
-  const [bulkTouched, setBulkTouched] = useState({ status: false, assigneeId: false, dueDate: false });
-  const [bulkSaving, setBulkSaving] = useState(false);
-  const [bulkReminderIntervalHours, setBulkReminderIntervalHours] = useState('24');
-  const [checklistNotice, setChecklistNotice] = useState('');
-  const [bulkDeleteTaskModalOpen, setBulkDeleteTaskModalOpen] = useState(false);
-  const projectNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    projects.forEach((p) => map.set(p.id, p.name));
-    return map;
-  }, [projects]);
 
-  const yearlyVisionMetaById = useMemo(() => {
-    const map = new Map<string, { title: string; details: string }>();
-    (state?.yearlyGoals || []).forEach((goal, index) => {
-      const title = String(goal.text || '').trim() || `Vision ${String(index + 1).padStart(2, '0')}`;
-      const details = String(goal.details || '').trim();
-      map.set(goal.id, { title, details });
-    });
-    return map;
-  }, [state]);
+  const filters = useSpacesFilterState();
 
-  const employeeNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    employees.forEach((e) => map.set(e.empId, e.empName));
-    if (me.id && me.name) {
-      map.set(me.id, me.name);
-    }
-    return map;
-  }, [employees, me.id, me.name]);
-
-  const canAssignTo = (emp: EmployeeOption | null): boolean => {
-    if (!emp) return true;
-    if (emp.empId === me.id) return true;
-    const viewerRole = normalizeRole(me.role);
-    const targetRole = normalizeRole(emp.role || 'EMPLOYEE');
-
-    if (viewerRole === 'EMPLOYEE') {
-      // Employee: can only assign tasks to themselves.
-      return false;
-    }
-
-    if (viewerRole === 'TEAM_LEAD') {
-      // Team lead: cannot assign tasks to admins / super admins
-      return targetRole !== 'ADMIN' && targetRole !== 'SUPER_ADMIN';
-    }
-
-    // Admin / Super Admin: can assign to anyone
-    return true;
-  };
-
-  const assignableEmployees = useMemo(() => {
-    const map = new Map<string, EmployeeOption>();
-    employees.forEach((emp) => {
-      map.set(emp.empId, emp);
-    });
-    if (me.id) {
-      map.set(me.id, {
-        empId: me.id,
-        empName: me.name || 'You',
-        avatar: me.avatar || '',
-        role: me.role || 'EMPLOYEE',
-      });
-    }
-    return Array.from(map.values()).filter((emp) => canAssignTo(emp));
-  }, [employees, me.id, me.name, me.role]);
-
-  const employeeById = useMemo(() => {
-    const map = new Map<string, EmployeeOption>();
-    employees.forEach((emp) => map.set(emp.empId, emp));
-    if (me.id) {
-      map.set(me.id, {
-        empId: me.id,
-        empName: me.name || 'You',
-        avatar: me.avatar || '',
-        role: me.role || 'EMPLOYEE',
-      });
-    }
-    return map;
-  }, [employees, me.id, me.name, me.role]);
-
-  const createAssigneeOptions = useMemo(
-    () => [
-      { value: '', label: 'Unassigned' },
-      ...assignableEmployees.map((employee) => ({
-        value: employee.empId,
-        label: employee.empId === me.id ? `${employee.empName} (You)` : employee.empName || 'Unknown User',
-      })),
-    ],
-    [assignableEmployees, me.id],
-  );
-  const viewerRole = normalizeRole(me.role);
-  const canManageWeeklyRows = viewerRole === 'SUPER_ADMIN' || viewerRole === 'ADMIN' || viewerRole === 'TEAM_LEAD';
-  const canPickMonthGoalSchedule = true;
-  const canPickMonthGoalAssignee = canManageWeeklyRows;
-  const allowedMonthGoalAssigneeIds = useMemo(
-    () => new Set(assignableEmployees.map((employee) => employee.empId)),
-    [assignableEmployees],
-  );
-  const canBulkManageTasks = (mode === 'manager' && canManageWeeklyRows) || mode === 'employee';
-  const canToggleWeeklyDay = canManageWeeklyRows || mode === 'employee';
-  const assignmentHint =
-    viewerRole === 'SUPER_ADMIN' || viewerRole === 'ADMIN'
-      ? 'Admin: you can assign tasks to anyone.'
-      : viewerRole === 'TEAM_LEAD'
-        ? 'Team Lead: assign to yourself or employees.'
-        : 'Employee: assign tasks only to yourself.';
-
-  const priorityOptions = useMemo(
-    () => [
-      { value: 'low', label: 'Low' },
-      { value: 'medium', label: 'Medium' },
-      { value: 'high', label: 'High' },
-    ],
-    [],
-  );
-
-  const statusOptions = useMemo(() => {
-    const baseOptions = [
-      { value: 'todo', label: 'To Do' },
-      { value: 'doing', label: 'Doing' },
-      { value: 'review', label: 'Submitted' },
-      { value: 'blocked', label: 'Blocked' },
-    ];
-
-    if (mode === 'employee') {
-      return baseOptions;
-    }
-
-    return [
-      ...baseOptions.slice(0, 3),
-      { value: 'done', label: 'Done' },
-      baseOptions[3],
-    ];
-  }, [mode]);
-
-  const taskStatusFilterOptions = useMemo(
-    () => [
-      { value: '', label: 'All statuses' },
-      { value: 'todo', label: 'To Do' },
-      { value: 'doing', label: 'Doing' },
-      { value: 'review', label: 'Submitted' },
-      { value: 'done', label: 'Done' },
-      { value: 'blocked', label: 'Blocked' },
-    ],
-    [],
-  );
-
-  const projectSelectOptions = useMemo(
-    () => [
-      { value: '', label: 'No project' },
-      ...projects.map((project) => ({ value: project.id, label: project.name })),
-    ],
-    [projects],
-  );
-  const weeklyProjectOptions = useMemo(
-    () => [
-      {
-        value: NO_VISION_SELECTOR_VALUE,
-        label: 'No vision',
-        description: 'Create and manage task hub work without linking it to the Vision planner.',
-      },
-      ...(state?.yearlyGoals || [])
-        .filter((goal) => String(goal.id || '').trim())
-        .map((goal, index) => ({
-          value: goal.id,
-          label: String(goal.text || '').trim() || `Vision ${String(index + 1).padStart(2, '0')}`,
-          description: String(goal.details || '').trim() || 'Yearly vision',
-        })),
-    ],
-    [state],
-  );
-
-  const assigneeOptionsForTask = (currentAssigneeId?: string): EmployeeOption[] =>
-    assigneeOptionsForTaskHelper(assignableEmployees, employeeById, currentAssigneeId);
-
-  const upsertTaskById = (prev: SpacesTask[], incoming: SpacesTask): SpacesTask[] =>
-    upsertTaskByIdHelper(prev, incoming);
-
-  const syncProjectTaskInState = useCallback(
-    (projectId: string | undefined, projectTaskId: string | undefined, updates: Partial<WorkspaceTask>) => {
-      if (!updateState || !projectId || !projectTaskId) return;
-
-      updateState((prev) => ({
-        ...prev,
-        workspaces: prev.workspaces.map((workspace) => ({
-          ...workspace,
-          projects: workspace.projects.map((project) => {
-            if (project.id !== projectId) return project;
-
-            let changed = false;
-            const nextTasks = (project.tasks || []).map((task) => {
-              if (task.id !== projectTaskId) return task;
-              changed = true;
-              return { ...task, ...updates };
-            });
-
-            return changed ? { ...project, tasks: nextTasks } : project;
-          }),
-        })),
-      }));
-    },
-    [updateState],
-  );
-
-  const appendProjectTaskToState = useCallback(
-    (projectId: string | undefined, task: WorkspaceTask) => {
-      if (!updateState || !projectId) return;
-
-      updateState((prev) => ({
-        ...prev,
-        workspaces: prev.workspaces.map((workspace) => ({
-          ...workspace,
-          projects: workspace.projects.map((project) => {
-            if (project.id !== projectId) return project;
-            if ((project.tasks || []).some((existingTask) => existingTask.id === task.id)) {
-              return project;
-            }
-            return {
-              ...project,
-              tasks: [...(project.tasks || []), task],
-            };
-          }),
-        })),
-      }));
-    },
-    [updateState],
-  );
-
-  const removeProjectTaskFromState = useCallback(
-    (projectId: string | undefined, projectTaskId: string | undefined) => {
-      if (!updateState || !projectId || !projectTaskId) return;
-
-      updateState((prev) => ({
-        ...prev,
-        workspaces: prev.workspaces.map((workspace) => ({
-          ...workspace,
-          projects: workspace.projects.map((project) => {
-            if (project.id !== projectId) return project;
-            const nextTasks = (project.tasks || []).filter((task) => task.id !== projectTaskId);
-            if (nextTasks.length === (project.tasks || []).length) {
-              return project;
-            }
-            return {
-              ...project,
-              tasks: nextTasks,
-            };
-          }),
-        })),
-      }));
-    },
-    [updateState],
-  );
-
-  const buildSpacesListQuery = useCallback(
-    (page: number) => ({
-      page,
-      limit: SPACES_TASKS_PAGE_SIZE,
-      filter: taskFilterMode,
-      status: taskStatusFilter || undefined,
-      search: debouncedTaskSearch || undefined,
-      assigneeId: undefined,
-      mode,
-      scope: 'list' as const,
-      sync: page === 1 ? ('1' as const) : ('0' as const),
-    }),
-    [taskFilterMode, taskStatusFilter, debouncedTaskSearch, taskAssigneeFilterId, canManageWeeklyRows, mode],
-  );
-
-  const loadSpaces = async (options: { silent?: boolean; force?: boolean; page?: number } = {}) => {
-    const force = options.force === true;
-    const page = options.page ?? taskPage;
-    const query = buildSpacesListQuery(page);
-    const cacheKey = `${API_BASE}/spaces?page=${query.page}&limit=${query.limit}&filter=${query.filter || ''}&status=${query.status || ''}&search=${query.search || ''}&assigneeId=${query.assigneeId || ''}&mode=${query.mode}&scope=list`;
-    const hasCache = !force && !!peekApiCache(cacheKey);
-    if (!options.silent && !hasCache) setSpacesLoading(true);
-    setError(null);
-    try {
-      const data = await fetchSpacesList(query, { force, tabKey: 'spaces' });
-      setColumns(Array.isArray(data?.columns) ? data.columns : []);
-      setTasks(
-        Array.isArray(data?.tasks)
-          ? data.tasks.map((task: SpacesTask) => normalizeTaskForUi(task))
-          : [],
-      );
-      setTaskListTotal(Number(data?.total || 0));
-      setTaskListTotalPages(Math.max(1, Number(data?.totalPages || 1)));
-    } catch (e: any) {
-      if (!options.silent) setError(e?.message || 'Failed to load spaces');
-    } finally {
-      if (!options.silent) setSpacesLoading(false);
-    }
-  };
-
-  const loadPlannerTasks = async (options: { force?: boolean } = {}) => {
-    try {
-      const data = await fetchSpacesList(
-        {
-          page: 1,
-          limit: SPACES_PLANNER_FETCH_LIMIT,
-          scope: 'planner',
-          mode,
-          sync: '0',
-        },
-        { force: options.force },
-      );
-      setPlannerTasks(
-        Array.isArray(data?.tasks)
-          ? data.tasks.map((task: SpacesTask) => normalizeTaskForUi(task))
-          : [],
-      );
-    } catch {
-      setPlannerTasks([]);
-    }
-  };
-
-  useEffect(() => {
-    void loadPlannerTasks();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
-
-  useEffect(() => {
-    void loadSpaces({ page: taskPage });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskPage, taskFilterMode, taskStatusFilter, debouncedTaskSearch, taskAssigneeFilterId, mode]);
-
-  useEffect(() => {
-    if (taskListTotalPages <= 1 || taskPage >= taskListTotalPages) return;
-
-    void fetchSpacesList(buildSpacesListQuery(taskPage + 1)).catch(() => {
-      // Best-effort prefetch only; keep the current UX unchanged on failure.
-    });
-  }, [buildSpacesListQuery, taskPage, taskListTotalPages]);
-
-  useEffect(() => {
-    const onRefresh = () => {
-      void loadSpaces({ force: true });
-      void loadPlannerTasks({ force: true });
-    };
-    const onAiTasksCreated = (event: Event) => {
-      const detail = (event as CustomEvent).detail;
-      if (Array.isArray(detail) && detail.length) {
-        const incoming = detail.map((task: SpacesTask) => normalizeTaskForUi(task));
-        setTasks((prev) => incoming.reduce((next, task) => upsertTaskById(next, task), prev));
-        return;
-      }
-      void loadSpaces();
-    };
-    window.addEventListener('rapidgrow:spaces-refresh', onRefresh);
-    window.addEventListener('rapidgrow:ai-tasks-created', onAiTasksCreated as EventListener);
-    return () => {
-      window.removeEventListener('rapidgrow:spaces-refresh', onRefresh);
-      window.removeEventListener('rapidgrow:ai-tasks-created', onAiTasksCreated as EventListener);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!me.id) return;
-    const unreadCount = tasks.filter(
-      (task) => task.assigneeId === me.id && task.isViewed === false && task.status !== 'done',
-    ).length;
-    window.dispatchEvent(
-      new CustomEvent('rapidgrow:task-count-sync', {
-        detail: { userId: me.id, unreadCount },
-      }),
-    );
-  }, [tasks, me.id]);
-
-  useEffect(() => {
-    const hasUnreadAssignedTasks = tasks.some(
-      (task) => task.assigneeId === me.id && task.isViewed === false,
-    );
-
-    if (!me.id || !hasUnreadAssignedTasks || markingTasksViewed) return;
-
-    let cancelled = false;
-
-    const markAssignedTasksAsViewed = async () => {
-      setMarkingTasksViewed(true);
-      try {
-        const res = await fetch(`${API_BASE}/tasks/mark-as-viewed`, {
-          method: 'PUT',
-          headers: getAuthHeaders(),
-        });
-        if (!res.ok) {
-          throw new Error('Failed to mark tasks as viewed');
-        }
-        if (!cancelled) {
-          setTasks((prev) =>
-            prev.map((task) =>
-              task.assigneeId === me.id ? { ...task, isViewed: true } : task,
-            ),
-          );
-        }
-      } catch (e) {
-        console.error('Failed to mark assigned tasks as viewed', e);
-      } finally {
-        if (!cancelled) {
-          setMarkingTasksViewed(false);
-        }
-      }
-    };
-
-    markAssignedTasksAsViewed();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [tasks, me.id, markingTasksViewed]);
-
-  useEffect(() => {
-    const socket = getSocket();
-    const onSpacesChanged = (payload: any) => {
-      const action = payload?.action as string | undefined;
-
-      if (payload?.columns && (action === 'column_added' || action === 'column_deleted')) {
-        const cols = Array.isArray(payload.columns) ? payload.columns : [];
-        setColumns(cols);
-        if (action === 'column_deleted' && payload?.columnId) {
-          const deletedId = String(payload.columnId);
-          setTasks((prev) =>
-            prev.map((t) => {
-              const cf = t.customFields || {};
-              if (!(deletedId in cf)) return t;
-              const { [deletedId]: _omit, ...rest } = cf;
-              return { ...t, customFields: rest };
-            }),
-          );
-        }
-        return;
-      }
-
-      if (action === 'ai_assign_progress') {
-        const requestId = String(payload?.requestId || '').trim();
-        if (!requestId || requestId !== aiAssignRequestIdRef.current) {
-          return;
-        }
-
-        const total = Number(payload?.total || 0);
-        const created = Number(payload?.created || 0);
-        const phase =
-          payload?.phase === 'completed'
-            ? 'completed'
-            : payload?.phase === 'progress'
-              ? 'creating'
-              : 'uploading';
-
-        setAiAssignProgress((prev) => ({
-          requestId,
-          total: total > 0 ? total : prev?.total || 0,
-          created: Math.max(created, prev?.created || 0),
-          phase,
-        }));
-        return;
-      }
-
-      if (action === 'ai_assign_tasks_created' && Array.isArray(payload?.tasks)) {
-        const incoming = payload.tasks.map((task: SpacesTask) => normalizeTaskForUi(task));
-        setTasks((prev) => incoming.reduce((next, task) => upsertTaskById(next, task), prev));
-        return;
-      }
-
-      if (action === 'task_created' && payload?.task) {
-        const task = normalizeTaskForUi(payload.task as SpacesTask);
-        setTasks((prev) => upsertTaskById(prev, task));
-        return;
-      }
-
-      if (action === 'task_updated' && payload?.task) {
-        const task = normalizeTaskForUi(payload.task as SpacesTask);
-        setTasks((prev) => prev.map((t) => (t.taskId === task.taskId ? task : t)));
-        return;
-      }
-
-      if (action === 'task_deleted' && payload?.taskId) {
-        const taskId = String(payload.taskId);
-        setTasks((prev) => prev.filter((t) => t.taskId !== taskId));
-        return;
-      }
-
-      if (
-        (action === 'comment_added' || action === 'comment_updated' || action === 'comment_deleted') &&
-        payload?.taskId &&
-        payload?.comments
-      ) {
-        const taskId = String(payload.taskId);
-        const comments = Array.isArray(payload.comments) ? payload.comments : [];
-        setTasks((prev) =>
-          prev.map((t) => (t.taskId === taskId ? ({ ...t, comments } as SpacesTask) : t)),
-        );
-        return;
-      }
-    };
-
-    // Keep legacy event (no payload) but no API refresh: we'll ignore it.
-    const noop = () => {};
-    socket.on('spaces:task_created', noop);
-    socket.on('spaces:changed', onSpacesChanged);
-    return () => {
-      socket.off('spaces:task_created', noop);
-      socket.off('spaces:changed', onSpacesChanged);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const loadProjects = async () => {
-      setProjectsLoading(true);
-      try {
-        if (mode === 'employee') {
-          if (!me.id) {
-            setProjects([]);
-            return;
-          }
-          const data = await fetchTabEndpoint<unknown[]>(
-            'spaces',
-            `/project-charters/assigned/${me.id}?summary=1`,
-          ).catch(() => []);
-          if (!data) {
-            setProjects([]);
-            return;
-          }
-          const list = Array.isArray(data) ? data : [];
-          setProjects(
-            list
-              .map((p: any) => ({
-                id: p.clientProjectId,
-                name: p.name,
-                vision: String(p.goalStatement || p.description || p.problemStatement || p.businessCase || '').trim(),
-              }))
-              .filter((p: ProjectOption) => p.id && p.name),
-          );
-        } else {
-          const data = await fetchTabEndpoint<unknown[]>('spaces', '/project-charters?summary=1').catch(() => []);
-          if (!data) {
-            setProjects([]);
-            return;
-          }
-          const list = Array.isArray(data) ? data : [];
-          setProjects(
-            list
-              .map((p: any) => ({
-                id: p.clientProjectId,
-                name: p.name,
-                vision: String(p.goalStatement || p.description || p.problemStatement || p.businessCase || '').trim(),
-              }))
-              .filter((p: ProjectOption) => p.id && p.name),
-          );
-        }
-      } catch (e) {
-        console.error('Failed to load projects for Spaces', e);
-        setProjects([]);
-      } finally {
-        setProjectsLoading(false);
-      }
-    };
-
-    loadProjects();
-  }, [mode, me.id]);
-
-  useEffect(() => {
-    const loadEmployees = async () => {
-      setEmployeesLoading(true);
-      try {
-        const data = await fetchTabEndpoint<unknown[]>('spaces', '/employees').catch(() => []);
-        if (!data) {
-          setEmployees([]);
-          return;
-        }
-        const list = Array.isArray(data) ? data : [];
-        setEmployees(
-          list
-            .map((e: any) => ({
-              empId: e.empId,
-              empName: e.empName,
-              avatar: String(e.avatar || '').trim(),
-              role: (e.role || 'EMPLOYEE') as BackendRole,
-            }))
-            .filter((e: EmployeeOption) => e.empId && e.empName),
-        );
-      } catch (e) {
-        console.error('Failed to load employees for Spaces', e);
-        setEmployees([]);
-      } finally {
-        setEmployeesLoading(false);
-      }
-    };
-
-    loadEmployees();
-  }, []);
-
-  const patchTask = async (taskId: string, updates: Partial<SpacesTask>) => {
-    setError(null);
-    const existing = tasks.find((t) => t.taskId === taskId) || null;
-    const normalizedUpdates = { ...updates };
-    if (normalizedUpdates.status === 'done' && mode === 'employee') {
-      normalizedUpdates.status = 'review';
-    }
-    const optimisticUpdates = Object.prototype.hasOwnProperty.call(normalizedUpdates, 'status')
-      ? { ...normalizedUpdates, updatedAt: new Date().toISOString() }
-      : normalizedUpdates;
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.taskId === taskId ? ({ ...t, ...optimisticUpdates } as SpacesTask) : t,
-      ),
-    );
-    setPlannerTasks((prev) =>
-      prev.map((t) =>
-        t.taskId === taskId ? ({ ...t, ...optimisticUpdates } as SpacesTask) : t,
-      ),
-    );
-    try {
-      const res = await fetch(`${API_BASE}/spaces/tasks/${taskId}`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(normalizedUpdates),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to update task');
-      }
-      const updated = await res.json();
-      const normalizedUpdated = normalizeTaskForUi(updated as SpacesTask);
-      setTasks((prev) => prev.map((t) => (t.taskId === taskId ? normalizedUpdated : t)));
-      setPlannerTasks((prev) => prev.map((t) => (t.taskId === taskId ? normalizedUpdated : t)));
-
-      // If this task is linked to a project task, sync updates into the project charter as well
-      if (existing?.projectId && existing?.projectTaskId) {
-        try {
-          const resProj = await fetch(`${API_BASE}/project-charters/${existing.projectId}`, {
-            headers: getAuthHeaders(),
-          });
-          if (resProj.ok) {
-            const proj = await resProj.json();
-            const existingTasks: any[] = Array.isArray(proj?.tasks) ? proj.tasks : [];
-            const updatedTasks = existingTasks.map((pt: any) => {
-              if (pt.id !== existing.projectTaskId) return pt;
-              return {
-                ...pt,
-                title: normalizedUpdates.title ?? pt.title,
-                status: normalizedUpdates.status ?? pt.status,
-                priority: normalizedUpdates.priority ?? pt.priority,
-                assigneeId: normalizedUpdates.assigneeId ?? pt.assigneeId,
-                dueDate: normalizedUpdates.dueDate ?? pt.dueDate,
-                updatedAt: new Date().toISOString(),
-              };
-            });
-            const payload = projectCharterPayloadFromBackendProject(proj, updatedTasks);
-            await fetch(`${API_BASE}/project-charters`, {
-              method: 'POST',
-              headers: getAuthHeaders(),
-              body: JSON.stringify(payload),
-            });
-          }
-        } catch (e) {
-          console.error('Failed to sync Spaces task to project charter', e);
-        }
-      }
-
-      syncProjectTaskInState(
-        normalizedUpdated.projectId || existing?.projectId,
-        normalizedUpdated.projectTaskId || existing?.projectTaskId,
-        {
-          title: normalizedUpdated.title,
-          description: normalizedUpdated.description,
-          status: normalizedUpdated.status,
-          priority: normalizedUpdated.priority,
-          assigneeId: normalizedUpdated.assigneeId || undefined,
-          dueDate: normalizedUpdated.dueDate || undefined,
-          updatedAt: normalizedUpdated.updatedAt || new Date().toISOString(),
-        },
-      );
-      return true;
-    } catch (e: any) {
-      setError(e?.message || 'Failed to update task');
-      loadSpaces();
-      void loadPlannerTasks({ force: true });
-      return false;
-    }
-  };
-
-  const stopTaskRecurrence = async (task: SpacesTask) => {
-    if (!isRecurringSeriesTask(task) || !isRecurringSeriesActive(tasks, task)) return false;
-    setStoppingRecurrenceTaskId(task.taskId);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/spaces/tasks/${task.taskId}/recurrence/stop`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to stop repeating task');
-      }
-
-      const sourceTaskId = String(data.sourceTaskId || '').trim();
-      if (sourceTaskId) {
-        setTasks((prev) =>
-          prev.map((item) => {
-            if (item.taskId !== sourceTaskId) return item;
-            return normalizeTaskForUi({
-              ...item,
-              recurrence: {
-                ...(item.recurrence || {}),
-                enabled: false,
-                nextRunAt: null,
-              },
-            });
-          }),
-        );
-      } else if (data.task) {
-        const normalized = normalizeTaskForUi(data.task as SpacesTask);
-        setTasks((prev) => upsertTaskById(prev, normalized));
-      }
-
-      return true;
-    } catch (e: any) {
-      setError(e?.message || 'Failed to stop repeating task');
-      await loadSpaces({ silent: true, page: taskPage });
-      void loadPlannerTasks();
-      return false;
-    } finally {
-      setStoppingRecurrenceTaskId(null);
-    }
-  };
-
-  const stopTaskEmailChecklist = async (task: SpacesTask) => {
-    const hasChecklist = Boolean(task.emailChecklist?.enabled);
-    if (!hasChecklist) return false;
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/spaces/tasks/${encodeURIComponent(task.taskId)}/checklist/stop`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to stop checklist reminders');
-      }
-
-      await loadSpaces({ silent: true, force: true, page: taskPage });
-      void loadPlannerTasks({ force: true });
-      return true;
-    } catch (e: any) {
-      setError(e?.message || 'Failed to stop checklist reminders');
-      await loadSpaces({ silent: true, force: true, page: taskPage });
-      void loadPlannerTasks({ force: true });
-      return false;
-    }
-  };
-
-  const stopTaskWeeklyRepeat = async (task: SpacesTask) => {
-    setError(null);
-    try {
-      const res = await fetch(
-        `${API_BASE}/spaces/tasks/${encodeURIComponent(task.taskId)}/checklist/stop`,
-        {
-          method: 'POST',
-          headers: getAuthHeaders(),
-        },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to stop repeating task');
-      }
-
-      const stoppedAt =
-        data.task?.emailChecklist?.repeatStoppedAt || new Date().toISOString();
-      // Only this task's series root — never other repeating tasks.
-      const seriesRootId = String(
-        task.parentTaskId || task.recurrence?.sourceTaskId || task.taskId || '',
-      ).trim();
-
-      setTasks((prev) =>
-        prev.map((item) => {
-          const itemRootId = String(
-            item.parentTaskId || item.recurrence?.sourceTaskId || item.taskId || '',
-          ).trim();
-          if (!seriesRootId || itemRootId !== seriesRootId) return item;
-
-          const nextChecklist = {
-            ...(item.emailChecklist || {}),
-            ...(item.taskId === task.taskId ? data.task?.emailChecklist || {} : {}),
-            enabled: false,
-            repeatEveryWeek: false,
-            nextReminderAt: null,
-            remainingOccurrences: 0,
-            repeatStoppedAt: stoppedAt,
-          };
-
-          return normalizeTaskForUi({
-            ...item,
-            emailChecklist: nextChecklist,
-          });
-        }),
-      );
-
-      await loadSpaces({ silent: true, force: true, page: taskPage });
-      void loadPlannerTasks({ force: true });
-      return true;
-    } catch (e: any) {
-      setError(e?.message || 'Failed to stop repeating task');
-      await loadSpaces({ silent: true, force: true, page: taskPage });
-      void loadPlannerTasks({ force: true });
-      return false;
-    }
-  };
-
-  const deleteTask = async (taskId: string, options?: { bulk?: boolean; deleteScope?: 'single' | 'future' }) => {
-    setError(null);
-    const normalizedTaskId = String(taskId || '').trim();
-    if (!normalizedTaskId) return false;
-
-    const existing = tasks.find((task) => task.taskId === normalizedTaskId) || null;
-
-    try {
-      const res = await fetch(`${API_BASE}/spaces/tasks/${encodeURIComponent(normalizedTaskId)}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          deleteScope: options?.deleteScope || 'single',
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to delete task');
-      }
-
-      const deletedTaskIds = Array.isArray(data?.deletedTaskIds)
-        ? data.deletedTaskIds.map((value: unknown) => String(value || '').trim()).filter(Boolean)
-        : [normalizedTaskId];
-      const sourceTaskId = String(data?.sourceTaskId || '').trim();
-
-      setTasks((prev) => {
-        const next = prev.filter((task) => !deletedTaskIds.includes(task.taskId));
-        if (!sourceTaskId || deletedTaskIds.includes(sourceTaskId)) {
-          return next;
-        }
-        return next.map((task) =>
-          task.taskId === sourceTaskId
-            ? normalizeTaskForUi({
-                ...task,
-                recurrence: {
-                  ...(task.recurrence || {}),
-                  enabled: false,
-                  nextRunAt: null,
-                },
-              })
-            : task,
-        );
-      });
-      if (existing?.projectId && existing?.projectTaskId) {
-        removeProjectTaskFromState(existing.projectId, existing.projectTaskId);
-        try {
-          const resProject = await fetch(`${API_BASE}/project-charters/${existing.projectId}`, {
-            headers: getAuthHeaders(),
-          });
-          if (resProject.ok) {
-            const backendProject = await resProject.json().catch(() => ({}));
-            const existingProjectTasks = Array.isArray(backendProject?.tasks) ? backendProject.tasks : [];
-            const updatedProjectTasks = existingProjectTasks.filter(
-              (projectTask: any) =>
-                String(projectTask?.id || '').trim() !== String(existing.projectTaskId || '').trim(),
-            );
-            await fetch(`${API_BASE}/project-charters`, {
-              method: 'POST',
-              headers: getAuthHeaders(),
-              body: JSON.stringify(
-                projectCharterPayloadFromBackendProject(backendProject, updatedProjectTasks),
-              ),
-            });
-          }
-        } catch (projectSyncError) {
-          console.error('Failed to sync project task deletion', projectSyncError);
-        }
-      }
-
-      return true;
-    } catch (e: any) {
-      setError(e?.message || 'Failed to delete task');
-      if (!options?.bulk) {
-        await loadSpaces({ silent: true, page: taskPage });
-      void loadPlannerTasks();
-      }
-      return false;
-    }
-  };
-
-  const addTaskComment = async (taskId: string, text: string) => {
-    const res = await fetch(`${API_BASE}/spaces/tasks/${taskId}/comments`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ text }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data.message || 'Failed to add comment');
-    }
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.taskId === taskId
-          ? { ...t, comments: Array.isArray(data.comments) ? data.comments : [] }
-          : t,
-      ),
-    );
-  };
-
-  const handleAddColumn = async () => handleAddColumnHelper({ setError, setColumns });
-
-  const resetCreateTaskForm = useCallback(
-    (plannerDefaults?: { plannerEnabled?: boolean; quarterId?: string; monthId?: string; weekId?: string; dayId?: string }) => {
-      setTitle('');
-      setDescription('');
-      setAssigneeId(me.id || '');
-      setDueDate('');
-      setPriority('medium');
-      setStatus('todo');
-      setEmailChecklistEnabled(false);
-      setEmailChecklistExternalPerson(false);
-      setExternalAssigneeEmail('');
-      setExternalAssigneeName('');
-      setAdditionalChecklistTitles([]);
-      setReminderIntervalHours('24');
-      setRepeatEveryWeek(false);
-      setRepeatCadence('week');
-      setRepeatWeekDays([String(new Date().getDay())]);
-      setRepeatWeekTime('09:00');
-      {
-        const today = new Date().toISOString().slice(0, 10);
-        const end = new Date();
-        end.setDate(end.getDate() + 28);
-        setRepeatFromDate(today);
-        setRepeatToDate(end.toISOString().slice(0, 10));
-      }
-      setTaskRecurrence(buildDefaultTaskCreateRecurrenceDraft());
-      setSelectedProjectId('');
-      setTaskDocumentFiles([]);
-      setCreateTaskPlannerEnabled(Boolean(plannerDefaults?.plannerEnabled));
-      setCreateTaskPlannerQuarterId(plannerDefaults?.quarterId || '');
-      setCreateTaskPlannerMonthId(plannerDefaults?.monthId || '');
-      setCreateTaskPlannerWeekId(plannerDefaults?.weekId || '');
-      setCreateTaskPlannerDayId(plannerDefaults?.dayId || '');
-      setCreateTaskMonthGoalContext(null);
-    },
-    [me.id],
-  );
-
-  const uploadTaskDocument = useCallback(async (file: File | null) => {
-    if (!file) return null;
-    const maxDocumentBytes = 10 * 1024 * 1024;
-    if (file.size > maxDocumentBytes) {
-      throw new Error(`"${file.name}" file size is more than 10 MB.`);
-    }
-    setUploadingTaskDocument(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const session = getStoredAuthSession();
-      const token = typeof session?.token === 'string' ? session.token : '';
-      const resUpload = await fetch(`${API_BASE}/spaces/tasks/upload-document`, {
-        method: 'POST',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: formData,
-      });
-      const uploaded = await resUpload.json().catch(() => ({}));
-      if (!resUpload.ok) {
-        const errorText = String(uploaded.error || uploaded.message || 'Failed to upload task document');
-        if (/file size too large|more than 10/i.test(errorText)) {
-          throw new Error(`"${file.name}" file size is more than 10 MB.`);
-        }
-        throw new Error(uploaded.message || errorText);
-      }
-      return {
-        documentUrl: String(uploaded.documentUrl || ''),
-        documentName: String(uploaded.documentName || file.name || ''),
-        documentMimeType: String(uploaded.documentMimeType || file.type || ''),
-      };
-    } finally {
-      setUploadingTaskDocument(false);
-    }
-  }, []);
-
-  const uploadTaskDocuments = useCallback(async (files: File[]) => {
-    const normalized = Array.isArray(files) ? files.slice(0, 10) : [];
-    const uploaded: Array<{ url: string; name: string; mimeType: string }> = [];
-    for (const file of normalized) {
-      const doc = await uploadTaskDocument(file);
-      if (!doc) continue;
-      uploaded.push({
-        url: String(doc.documentUrl || ''),
-        name: String(doc.documentName || file.name || ''),
-        mimeType: String(doc.documentMimeType || file.type || ''),
-      });
-    }
-    return uploaded;
-  }, [uploadTaskDocument]);
-
-  const buildTaskRecurrencePayload = useCallback(() => {
-    if (!taskRecurrence.enabled) return undefined;
-    return buildCreateTaskRecurrencePayload(taskRecurrence);
-  }, [taskRecurrence]);
-
-  const handleAiAssignPdfUpload = useCallback(async (file: File | null) => {
-    if (!file || aiAssigning) return;
-    const requestId = generateId();
-    setError(null);
-    setAiAssigning(true);
-    setAiAssignFileName(file.name || 'PDF');
-    aiAssignRequestIdRef.current = requestId;
-    setAiAssignProgress({
-      requestId,
-      created: 0,
-      total: 0,
-      phase: 'uploading',
-    });
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('requestId', requestId);
-      const session = getStoredAuthSession();
-      const token = typeof session?.token === 'string' ? session.token : '';
-      const response = await fetch(`${API_BASE}/ai-assign/upload`, {
-        method: 'POST',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: formData,
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to run AI Assign');
-      }
-
-      const createdTasks = Array.isArray(data?.tasks)
-        ? data.tasks.map((task: SpacesTask) => normalizeTaskForUi(task))
-        : [];
-      setAiAssignProgress((prev) =>
-        prev?.requestId === requestId
-          ? {
-              requestId,
-              created: createdTasks.length,
-              total: prev.total || createdTasks.length,
-              phase: 'completed',
-            }
-          : prev
-      );
-      setTasks((prev) => createdTasks.reduce((next, task) => upsertTaskById(next, task), prev));
-      if (!createdTasks.length && data?.message) {
-        setError(String(data.message));
-      }
-    } catch (e: any) {
-      setError(e?.message || 'Failed to run AI Assign');
-    } finally {
-      setAiAssigning(false);
-      setAiAssignFileName('');
-      setAiAssignProgress(null);
-      aiAssignRequestIdRef.current = '';
-    }
-  }, [aiAssigning]);
-
-  const createTaskInternal = useCallback(async (params: {
-    title: string;
-    description: string;
-    assigneeId: string;
-    dueDate: string;
-    priority: TaskPriority;
-    status: TaskStatus;
-    reminderIntervalHours: string;
-    projectId: string;
-    taskDocumentFiles?: File[];
-    uploadedDocuments?: Array<{ url: string; name: string; mimeType: string }>;
-    plannerDay?: Goal | null;
-    plannerGroup?: WeeklyTaskGroup | null;
-    monthGoalContext?: MonthGoalContext | null;
-    emailChecklistEnabled?: boolean;
-    repeatEveryWeek?: boolean;
-    repeatCadence?: string;
-    repeatWeekDays?: number[];
-    repeatWeekTime?: string;
-    repeatFromDate?: string;
-    repeatToDate?: string;
-    externalAssigneeEmail?: string;
-    externalAssigneeName?: string;
-    recurrence?: Record<string, unknown>;
-  }) => {
-    const cleanTitle = params.title.trim();
-    if (!cleanTitle) {
-      throw new Error('Task title is required.');
-    }
-    const now = new Date().toISOString();
-    const projectTaskId = `t-${generateId()}`;
-    const descriptionText = params.description.trim();
-    const requestedStatus =
-      mode === 'employee' && params.status === 'done' ? ('review' as TaskStatus) : params.status;
-    const project = params.projectId
-      ? projects.find((p) => p.id === params.projectId) || null
-      : null;
-
-    const uploadedDocuments =
-      Array.isArray(params.uploadedDocuments) && params.uploadedDocuments.length
-        ? params.uploadedDocuments
-        : await uploadTaskDocuments(params.taskDocumentFiles || []);
-    const primaryDocument = uploadedDocuments[0] || null;
-
-    if (project) {
-      const resProj = await fetch(`${API_BASE}/project-charters/${project.id}`, {
-        headers: getAuthHeaders(),
-      });
-      if (!resProj.ok) {
-        throw new Error('Failed to load project details');
-      }
-      const proj = await resProj.json();
-      const existingTasks: any[] = Array.isArray(proj?.tasks) ? proj.tasks : [];
-      const newWorkspaceTask = {
-        id: projectTaskId,
-        title: cleanTitle,
-        description: descriptionText,
-        status: requestedStatus,
-        reminderIntervalHours: Number(params.reminderIntervalHours),
-        priority: params.priority,
-        createdBy: me.id || 'employee',
-        createdByRole: me.role || 'EMPLOYEE',
-        assigneeId: params.assigneeId || undefined,
-        dueDate: params.dueDate || undefined,
-        createdAt: now,
-        updatedAt: now,
-      };
-      const updatedTasks = [...existingTasks, newWorkspaceTask];
-      const payload = projectCharterPayloadFromBackendProject(proj, updatedTasks);
-
-      const resSave = await fetch(`${API_BASE}/project-charters`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(payload),
-      });
-      if (!resSave.ok) {
-        const data = await resSave.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to create task under project');
-      }
-
-      appendProjectTaskToState(project.id, newWorkspaceTask);
-    }
-
-    const plannerDescription =
-      descriptionText ||
-      (params.monthGoalContext
-        ? `Created from Month goal: ${params.monthGoalContext.monthLabel} > ${params.monthGoalContext.weekLabel} > ${params.monthGoalContext.dayLabel}`
-        : params.plannerGroup
-          ? `Created from Daily plan: ${params.plannerGroup.week.text || 'Weekly Goal'}`
-          : '');
-
-    const customFields = {
-      ...(params.monthGoalContext
-        ? buildMonthGoalCustomFields(params.monthGoalContext)
-        : params.plannerDay && params.plannerGroup
-          ? buildWeeklyTaskCustomFields(params.plannerDay, params.plannerGroup)
-          : {}),
-      ...(params.externalAssigneeName
-        ? { externalAssigneeName: params.externalAssigneeName.trim() }
-        : {}),
-    };
-
-    const resolvedAssigneeId = params.externalAssigneeEmail?.trim()
-      ? params.externalAssigneeEmail.trim().toLowerCase()
-      : params.assigneeId;
-
-    const res = await fetch(`${API_BASE}/spaces/tasks`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        title: cleanTitle,
-        description: plannerDescription,
-        documentUrl: primaryDocument?.url || '',
-        documentName: primaryDocument?.name || '',
-        documentMimeType: primaryDocument?.mimeType || '',
-        documents: uploadedDocuments,
-        projectId: project?.id || '',
-        projectTaskId: project ? projectTaskId : undefined,
-        assigneeId: resolvedAssigneeId,
-        externalAssigneeEmail: params.externalAssigneeEmail?.trim().toLowerCase() || undefined,
-        externalAssigneeName: params.externalAssigneeName?.trim() || undefined,
-        dueDate: params.dueDate,
-        priority: params.priority,
-        status: requestedStatus,
-        emailChecklistEnabled: params.emailChecklistEnabled === true,
-        repeatEveryWeek: params.repeatEveryWeek === true,
-        repeatCadence: params.repeatCadence,
-        repeatWeekDay: Array.isArray(params.repeatWeekDays) && params.repeatWeekDays.length
-          ? params.repeatWeekDays[0]
-          : undefined,
-        repeatWeekDays: params.repeatWeekDays,
-        repeatWeekTime: params.repeatWeekTime,
-        repeatFromDate: params.repeatFromDate,
-        repeatToDate: params.repeatToDate,
-        reminderIntervalHours: Number(params.reminderIntervalHours) || 24,
-        recurrence: params.recurrence,
-        customFields: Object.keys(customFields).length ? customFields : undefined,
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data.message || 'Failed to create task');
-    }
-
-    const checklistEmail = data?.checklistEmail;
-    const normalizedTask = normalizeTaskForUi(data as SpacesTask);
-    setTasks((prev) => upsertTaskById(prev, normalizedTask));
-    return checklistEmail ? { ...normalizedTask, checklistEmail } : normalizedTask;
-  }, [appendProjectTaskToState, me.id, me.role, mode, projects, uploadTaskDocuments]);
-
-  const createMonthGoalTask = useCallback(
-    async (params: CreateMonthGoalTaskPayload) => {
-      const draft: MonthGoalTaskDraft = {
-        title: params.title,
-        description: params.description,
-        assigneeId: canPickMonthGoalAssignee ? params.assigneeId : me.id || '',
-        taskDocumentFile: params.taskDocumentFile,
-        monthKey: params.context.monthKey,
-        weekKey: params.context.weekKey,
-        dayKey: params.context.dayKey,
-      };
-
-      const validationErrors = validateMonthGoalTaskDraft(draft, {
-        canPickSchedule: true,
-        canPickAssignee: canPickMonthGoalAssignee,
-        employeeId: me.id || '',
-        allowedAssigneeIds: allowedMonthGoalAssigneeIds,
-      });
-      if (validationErrors.length) {
-        throw new Error(validationErrors[0]);
-      }
-
-      setMonthGoalSaving(true);
-      setError(null);
-      try {
-        await createTaskInternal({
-          title: params.title.trim(),
-          description: params.description.trim(),
-          assigneeId: canPickMonthGoalAssignee ? params.assigneeId : me.id || '',
-          dueDate: params.context.dayDate,
-          priority: 'medium',
-          status: 'todo',
-          reminderIntervalHours: '24',
-          projectId: '',
-          taskDocumentFiles: params.taskDocumentFile ? [params.taskDocumentFile] : [],
-          monthGoalContext: params.context,
-        });
-      } finally {
-        setMonthGoalSaving(false);
-      }
-    },
-    [allowedMonthGoalAssigneeIds, canPickMonthGoalAssignee, createTaskInternal, me.id],
-  );
-
-  const teamMemberIds = useMemo(
-    () => new Set(assignableEmployees.map((emp) => emp.empId)),
-    [assignableEmployees],
-  );
-
-  const visibleTasks = useMemo(
-    () => plannerTasks.filter((t) => !shouldHideAdminTaskFromViewer(t, me, employeeById, teamMemberIds)),
-    [plannerTasks, me, employeeById, teamMemberIds],
-  );
-
-  const visibleListTasks = useMemo(
-    () =>
-      taskFilterMode === 'all'
-        ? tasks
-        : tasks.filter((t) => !shouldHideAdminTaskFromViewer(t, me, employeeById, teamMemberIds)),
-    [tasks, me, employeeById, teamMemberIds, taskFilterMode],
-  );
-
-  const taskBelongsToMe = useCallback(
-    (task: SpacesTask) => isTaskAssignedToViewer(task, me.id),
-    [me.id],
-  );
-  const canUseAssigneeFilter = mode === 'manager' && canManageWeeklyRows;
-  const taskAssigneeFilterOptions = useMemo(
-    () =>
-      assignableEmployees.map((employee) => ({
-        value: employee.empId,
-        label: employee.empId === me.id ? `${employee.empName} (You)` : employee.empName || 'Unknown User',
-      })),
-    [assignableEmployees, me.id],
-  );
-
-  useEffect(() => {
-    if (!canUseAssigneeFilter || !me.id) return;
-    setTaskAssigneeFilterId((current) => (current ? current : me.id));
-  }, [canUseAssigneeFilter, me.id]);
-
-  const filteredTasks = visibleListTasks;
-  const sortedTasks = useMemo(() => {
-    const statusRank = (status?: string) => {
-      const value = String(status || 'todo').trim().toLowerCase();
-      if (value === 'todo') return 0;
-      if (value === 'doing') return 1;
-      if (value === 'review') return 2;
-      if (value === 'blocked') return 3;
-      if (value === 'done') return 4;
-      return 5;
-    };
-    // Keep incomplete/review tasks above done tasks even after local status patches.
-    return [...filteredTasks].sort((left, right) => {
-      const statusDiff = statusRank(left.status) - statusRank(right.status);
-      if (statusDiff !== 0) return statusDiff;
-      return new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime();
-    });
-  }, [filteredTasks]);
-
-  const monthGoalSourceTasks = useMemo(() => {
-    let list = visibleTasks;
-    if (mode === 'employee' && me.id) {
-      list = list.filter((task) => isTaskAssignedToViewer(task, me.id));
-    } else if (canUseAssigneeFilter && taskAssigneeFilterId) {
-      list = list.filter((task) => String(task.assigneeId || '').trim() === taskAssigneeFilterId);
-    }
-    return list;
-  }, [visibleTasks, mode, me.id, canUseAssigneeFilter, taskAssigneeFilterId]);
-
-  const topPriorityTasks = useMemo(() => {
-    const assigneeTarget =
-      canUseAssigneeFilter && taskAssigneeFilterId ? taskAssigneeFilterId : me.id;
-    if (!assigneeTarget) return [];
-
-    const mergedTasksById = new Map<string, SpacesTask>();
-    for (const task of visibleTasks) {
-      if (!task?.taskId) continue;
-      mergedTasksById.set(task.taskId, task);
-    }
-    for (const task of visibleListTasks) {
-      if (!task?.taskId) continue;
-      mergedTasksById.set(task.taskId, task);
-    }
-    const mergedTasks = Array.from(mergedTasksById.values());
-
-    const pool = mergedTasks.filter((task) => {
-      if (canUseAssigneeFilter && taskAssigneeFilterId) {
-        return String(task.assigneeId || '').trim() === taskAssigneeFilterId;
-      }
-      return taskBelongsToMe(task);
-    });
-
-    return buildTopPriorityTasksForAssignee(pool, assigneeTarget);
-  }, [visibleTasks, visibleListTasks, me.id, taskBelongsToMe, canUseAssigneeFilter, taskAssigneeFilterId]);
-
-  const weeklyTaskGroups = useMemo<WeeklyTaskGroup[]>(
-    () => buildWeeklyTaskGroups(state, visibleTasks, parseDateValue),
-    [state, visibleTasks],
-  );
-  const isNoVisionSelected = selectedWeeklyProjectId === NO_VISION_SELECTOR_VALUE;
-  const noVisionWeeklyGroups = useMemo<WeeklyTaskGroup[]>(() => {
-    if (!weeklyTaskGroups.length) return [];
-    const uniqueGroups = new Map<string, WeeklyTaskGroup>();
-
-    weeklyTaskGroups.forEach((group) => {
-      const baseKey = [
-        group.quarterLabel,
-        group.monthLabel,
-        group.weekLabel,
-        group.weekRangeLabel,
-      ].join('::');
-      if (uniqueGroups.has(baseKey)) return;
-
-      const quarterId = group.quarterId;
-      const monthId = group.monthId;
-      const syntheticWeekId = `${NO_VISION_SELECTOR_VALUE}::${quarterId}::${monthId}::${group.weekLabel}::${group.weekRangeLabel}`;
-      const syntheticWeek = {
-        ...group.week,
-        id: syntheticWeekId,
-        parentId: monthId,
-        text: String(group.week.text || '').trim() || 'Weekly goal',
-      };
-      const syntheticDays = group.days.map((day, index) => ({
-        ...day,
-        id: `${syntheticWeekId}::day-${index + 1}`,
-        parentId: syntheticWeekId,
-        text: String(day.text || '').trim() || `Day ${index + 1}`,
-      }));
-
-      uniqueGroups.set(baseKey, {
-        ...group,
-        year: undefined,
-        quarter: undefined,
-        month: undefined,
-        yearId: NO_VISION_SELECTOR_VALUE,
-        quarterId,
-        monthId,
-        weekId: syntheticWeekId,
-        week: syntheticWeek,
-        days: syntheticDays,
-        breadcrumbLabel: [group.quarterLabel, group.monthLabel, group.weekLabel].join(' > '),
-        weekSelectionKey: syntheticWeekId,
-      });
-    });
-
-    return Array.from(uniqueGroups.values()).sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime());
-  }, [weeklyTaskGroups]);
-  const activeWeeklyGroups = isNoVisionSelected ? noVisionWeeklyGroups : weeklyTaskGroups;
-
-  const defaultNoVisionWeeklyTaskGroup = useMemo(() => {
-    if (!noVisionWeeklyGroups.length) return null;
-    const today = new Date();
-    return (
-      noVisionWeeklyGroups.find((group) => group.weekEnd.getTime() >= today.getTime()) ||
-      noVisionWeeklyGroups[noVisionWeeklyGroups.length - 1] ||
-      noVisionWeeklyGroups[0]
-    );
-  }, [noVisionWeeklyGroups]);
-
-  const getWeekBreadcrumbForView = (weekId: string): string => getWeekBreadcrumb(state, weekId);
-  const getWeekStartDateForView = (week: Goal, days: Goal[]): Date =>
-    getWeekStartDate(week, days, tasks, parseDateValue);
-
-  const defaultWeeklyTaskGroup = useMemo(() => {
-    if (!weeklyTaskGroups.length) return null;
-    const today = new Date();
-    return (
-      weeklyTaskGroups.find((group) => group.weekEnd.getTime() >= today.getTime()) ||
-      weeklyTaskGroups[weeklyTaskGroups.length - 1] ||
-      weeklyTaskGroups[0]
-    );
-  }, [weeklyTaskGroups]);
-
-  const defaultWeeklyTaskGroupForSelectedProject = useMemo(() => {
-    if (selectedWeeklyProjectId === NO_VISION_SELECTOR_VALUE) {
-      return (
-        noVisionWeeklyGroups.find(
-          (group) =>
-            (!selectedWeeklyQuarterId || group.quarterId === selectedWeeklyQuarterId) &&
-            (!selectedWeeklyMonthId || group.monthId === selectedWeeklyMonthId) &&
-            (!selectedWeeklyGroupId || group.weekSelectionKey === selectedWeeklyGroupId),
-        ) ||
-        defaultNoVisionWeeklyTaskGroup ||
-        defaultWeeklyTaskGroup
-      );
-    }
-    const activeYearId =
-      selectedWeeklyProjectId ||
-      defaultWeeklyTaskGroup?.yearId ||
-      state?.yearlyGoals?.[0]?.id ||
-      '';
-    const scopedGroups = weeklyTaskGroups.filter((group) => group.yearId === activeYearId);
-    if (!scopedGroups.length) return defaultWeeklyTaskGroup;
-    const today = new Date();
-    return (
-      scopedGroups.find((group) => group.weekEnd.getTime() >= today.getTime()) ||
-      scopedGroups[scopedGroups.length - 1] ||
-      scopedGroups[0]
-    );
-  }, [defaultNoVisionWeeklyTaskGroup, defaultWeeklyTaskGroup, noVisionWeeklyGroups, selectedWeeklyGroupId, selectedWeeklyMonthId, selectedWeeklyProjectId, selectedWeeklyQuarterId, state, weeklyTaskGroups]);
-
-  const weeklyQuarterOptions = useMemo(() => {
-    const selectedQuarterGoal = (state?.quarterlyGoals || []).find((quarter) => quarter.id === selectedWeeklyQuarterId);
-    const activeYearId =
-      selectedWeeklyProjectId === NO_VISION_SELECTOR_VALUE
-        ? String(selectedQuarterGoal?.parentId || defaultWeeklyTaskGroup?.yearId || state?.yearlyGoals?.[0]?.id || '')
-        : selectedWeeklyProjectId ||
-      defaultWeeklyTaskGroupForSelectedProject?.yearId ||
-      state?.yearlyGoals?.[0]?.id ||
-      '';
-    const quarterGoals = (state?.quarterlyGoals || []).filter((quarter) => quarter.parentId === activeYearId);
-    return QUARTER_LABELS.map((quarterLabel, index) => {
-      const quarter = quarterGoals.find((item) => String(item.timeline || '').trim().toUpperCase() === quarterLabel);
-      const label = quarterLabel;
-      const quarterNumber = index + 1;
-      const startMonth = ((quarterNumber - 1) * 3) + 1;
-      const endMonth = startMonth + 2;
-      const quarterSummary = String(quarter?.text || quarter?.details || '').trim() || 'Quarter plan';
-      return {
-        value: quarter?.id || `${activeYearId || 'year'}-${quarterLabel.toLowerCase()}`,
-        label,
-        caption: `Months ${startMonth}-${endMonth}`,
-        description: quarterSummary,
-      };
-    });
-  }, [defaultWeeklyTaskGroup?.yearId, defaultWeeklyTaskGroupForSelectedProject?.yearId, selectedWeeklyProjectId, selectedWeeklyQuarterId, state]);
-
-  useEffect(() => {
-    if (!weeklyProjectOptions.length) {
-      setSelectedWeeklyProjectId('');
-      return;
-    }
-
-    setSelectedWeeklyProjectId((prev) => {
-      if (prev && weeklyProjectOptions.some((option) => option.value === prev)) {
-        return prev;
-      }
-      if (
-        defaultWeeklyTaskGroupForSelectedProject?.yearId &&
-        weeklyProjectOptions.some((option) => option.value === defaultWeeklyTaskGroupForSelectedProject.yearId)
-      ) {
-        return defaultWeeklyTaskGroupForSelectedProject.yearId;
-      }
-      return weeklyProjectOptions[0]?.value || '';
-    });
-  }, [defaultWeeklyTaskGroupForSelectedProject, weeklyProjectOptions]);
-
-  useEffect(() => {
-    if (!weeklyQuarterOptions.length) {
-      setSelectedWeeklyQuarterId('');
-      return;
-    }
-
-    setSelectedWeeklyQuarterId((prev) => {
-      if (prev && weeklyQuarterOptions.some((option) => option.value === prev)) {
-        return prev;
-      }
-      if (
-        defaultWeeklyTaskGroupForSelectedProject?.quarterId &&
-        weeklyQuarterOptions.some((option) => option.value === defaultWeeklyTaskGroupForSelectedProject.quarterId)
-      ) {
-        return defaultWeeklyTaskGroupForSelectedProject.quarterId;
-      }
-      return weeklyQuarterOptions[0]?.value || '';
-    });
-  }, [defaultWeeklyTaskGroupForSelectedProject, weeklyQuarterOptions]);
-
-  const weeklyMonthOptions = useMemo(() => {
-    const quarterMonths = (state?.monthlyGoals || [])
-      .filter((month) => month.parentId === selectedWeeklyQuarterId)
-      .sort((a, b) => {
-        const aOrder = Number(String(a.timeline || '').replace(/[^0-9]/g, '')) || 0;
-        const bOrder = Number(String(b.timeline || '').replace(/[^0-9]/g, '')) || 0;
-        return aOrder - bOrder;
-      });
-    const selectedVision = yearlyVisionMetaById.get(selectedWeeklyProjectId);
-    const selectedVisionTitle =
-      selectedWeeklyProjectId === NO_VISION_SELECTOR_VALUE ? 'No vision' : selectedVision?.title || 'Selected vision';
-    const selectedVisionDetails =
-      selectedWeeklyProjectId === NO_VISION_SELECTOR_VALUE
-        ? 'Not linked to the Vision planner'
-        : selectedVision?.details || selectedVisionTitle;
-    const selectedQuarterLabel =
-      weeklyQuarterOptions.find((option) => option.value === selectedWeeklyQuarterId)?.label || 'Q1';
-    const selectedQuarterNumber = Number(String(selectedQuarterLabel).replace(/[^0-9]/g, '')) || 1;
-    return quarterMonths.slice(0, 3).map((month, index) => {
-      const absoluteMonthNumber = ((selectedQuarterNumber - 1) * 3) + index + 1;
-      const calendarMonthName = new Date(Number(state?.currentYear) || new Date().getFullYear(), absoluteMonthNumber - 1, 1).toLocaleDateString(undefined, { month: 'long' });
-      return {
-        value: month.id,
-        label: `M${absoluteMonthNumber}`,
-        caption: calendarMonthName,
-        description: selectedVisionDetails || selectedVisionTitle,
-      };
-    });
-  }, [selectedWeeklyProjectId, selectedWeeklyQuarterId, state, weeklyQuarterOptions, yearlyVisionMetaById]);
-
-  useEffect(() => {
-    if (!weeklyMonthOptions.length) {
-      setSelectedWeeklyMonthId('');
-      return;
-    }
-
-    setSelectedWeeklyMonthId((prev) => {
-      if (prev && weeklyMonthOptions.some((option) => option.value === prev)) {
-        return prev;
-      }
-      if (
-        defaultWeeklyTaskGroupForSelectedProject?.quarterId === selectedWeeklyQuarterId &&
-        weeklyMonthOptions.some((option) => option.value === defaultWeeklyTaskGroupForSelectedProject.monthId)
-      ) {
-        return defaultWeeklyTaskGroupForSelectedProject.monthId;
-      }
-      return weeklyMonthOptions[0]?.value || '';
-    });
-  }, [defaultWeeklyTaskGroupForSelectedProject, selectedWeeklyQuarterId, weeklyMonthOptions]);
-
-  const weeklyWeekOptions = useMemo(() => {
-    const groupsForMonth = activeWeeklyGroups.filter((group) => group.monthId === selectedWeeklyMonthId);
-    const uniqueOptions = new Map<
-      string,
-      { value: string; label: string; caption: string; description: string; isPlaceholderWeek?: boolean }
-    >();
-
-    groupsForMonth.forEach((group) => {
-      const optionKey = `${group.weekLabel}::${group.weekRangeLabel}`;
-      const nextOption = {
-        value: group.weekSelectionKey,
-        label: group.weekLabel,
-        caption: group.weekRangeLabel,
-        description: group.week.text || yearlyVisionMetaById.get(selectedWeeklyProjectId)?.details || 'Weekly goal',
-        isPlaceholderWeek: group.isPlaceholderWeek,
-      };
-      const existingOption = uniqueOptions.get(optionKey);
-
-      if (
-        !existingOption ||
-        (existingOption.isPlaceholderWeek && !nextOption.isPlaceholderWeek) ||
-        (existingOption.description === 'Weekly goal' && nextOption.description !== 'Weekly goal')
-      ) {
-        uniqueOptions.set(optionKey, nextOption);
-      }
-    });
-
-    return Array.from(uniqueOptions.values()).map(({ isPlaceholderWeek: _omit, ...option }) => option);
-  }, [activeWeeklyGroups, selectedWeeklyMonthId, selectedWeeklyProjectId, yearlyVisionMetaById]);
-
-  const selectedWeeklyWeekId = useMemo(() => {
-    if (!weeklyWeekOptions.length) return '';
-    if (selectedWeeklyGroupId && weeklyWeekOptions.some((option) => option.value === selectedWeeklyGroupId)) {
-      return selectedWeeklyGroupId;
-    }
-    return weeklyWeekOptions[0]?.value || '';
-  }, [selectedWeeklyGroupId, weeklyWeekOptions]);
-
-  useEffect(() => {
-    if (!weeklyWeekOptions.length) {
-      setSelectedWeeklyGroupId('');
-      return;
-    }
-
-    setSelectedWeeklyGroupId((prev) => {
-      if (prev && weeklyWeekOptions.some((option) => option.value === prev)) {
-        return prev;
-      }
-      if (
-        defaultWeeklyTaskGroupForSelectedProject?.monthId === selectedWeeklyMonthId &&
-        weeklyWeekOptions.some((option) => option.value === defaultWeeklyTaskGroupForSelectedProject.weekSelectionKey)
-      ) {
-        return defaultWeeklyTaskGroupForSelectedProject.weekSelectionKey;
-      }
-      return weeklyWeekOptions[0]?.value || '';
-    });
-  }, [defaultWeeklyTaskGroupForSelectedProject, selectedWeeklyMonthId, weeklyWeekOptions]);
-
-  const selectedWeeklyTaskGroup = useMemo(
-    () =>
-      activeWeeklyGroups.find(
-        (group) =>
-          (isNoVisionSelected || group.yearId === selectedWeeklyProjectId) &&
-          group.quarterId === selectedWeeklyQuarterId &&
-          group.monthId === selectedWeeklyMonthId &&
-          group.weekSelectionKey === selectedWeeklyWeekId,
-      ) ||
-      activeWeeklyGroups.find(
-        (group) =>
-          (isNoVisionSelected || group.yearId === selectedWeeklyProjectId) &&
-          group.quarterId === selectedWeeklyQuarterId &&
-          group.monthId === selectedWeeklyMonthId &&
-          group.weekSelectionKey === weeklyWeekOptions[0]?.value,
-      ) ||
-      null,
-    [activeWeeklyGroups, isNoVisionSelected, selectedWeeklyMonthId, selectedWeeklyProjectId, selectedWeeklyQuarterId, selectedWeeklyWeekId, weeklyWeekOptions],
-  );
-  const selectedWeeklyDay = useMemo(() => {
-    if (!selectedWeeklyTaskGroup?.days?.length) return null;
-    const explicitSelectedDayId = selectedDayByWeek[selectedWeeklyTaskGroup.weekId] || '';
-    const today = new Date();
-    const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-    const todayDay =
-      selectedWeeklyTaskGroup.days.find((day, index) => {
-        const dayDate = new Date(selectedWeeklyTaskGroup.weekStart);
-        dayDate.setDate(selectedWeeklyTaskGroup.weekStart.getDate() + index);
-        const normalizedDay = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate()).getTime();
-        return normalizedDay === normalizedToday;
-      }) || null;
-    const selectedDayId = explicitSelectedDayId || todayDay?.id || selectedWeeklyTaskGroup.days[0]?.id || '';
-    return selectedWeeklyTaskGroup.days.find((day) => day.id === selectedDayId) || todayDay || selectedWeeklyTaskGroup.days[0] || null;
-  }, [selectedDayByWeek, selectedWeeklyTaskGroup]);
-  const activeQuarterOption = weeklyQuarterOptions.find((option) => option.value === selectedWeeklyQuarterId) || null;
-  const activeMonthOption = weeklyMonthOptions.find((option) => option.value === selectedWeeklyMonthId) || null;
-  const activeWeekOption = weeklyWeekOptions.find((option) => option.value === selectedWeeklyWeekId) || null;
-
-  const handleWeeklyProjectChange = useCallback(
-    (visionId: string) => {
-      setSelectedWeeklyProjectId(visionId);
-      if (visionId === NO_VISION_SELECTOR_VALUE) return;
-      setSelectedWeeklyQuarterId('');
-      setSelectedWeeklyMonthId('');
-      setSelectedWeeklyGroupId('');
-    },
-    [],
-  );
-
-  const handleWeeklyQuarterChange = useCallback(
-    (quarterId: string) => {
-      if (quarterId === selectedWeeklyQuarterId) return;
-      setSelectedWeeklyQuarterId(quarterId);
-      setSelectedWeeklyMonthId('');
-      setSelectedWeeklyGroupId('');
-    },
-    [selectedWeeklyQuarterId],
-  );
-
-  const handleWeeklyMonthChange = useCallback(
-    (monthId: string) => {
-      setSelectedWeeklyMonthId(monthId);
-      setSelectedWeeklyGroupId('');
-    },
-    [],
-  );
-
-  const handleWeeklyWeekChange = useCallback((weekId: string) => {
-    setSelectedWeeklyGroupId(weekId);
-  }, []);
-
-  const plannerWeekOptions = useMemo(
-    () =>
-      activeWeeklyGroups.map((group) => ({
-        value: group.weekSelectionKey,
-        label: `${group.weekSummaryLabel} · ${group.weekRangeLabel}`,
-      })),
-    [activeWeeklyGroups],
-  );
-
-  const selectedPlannerWeekGroup = useMemo(
-    () => activeWeeklyGroups.find((group) => group.weekSelectionKey === createTaskPlannerWeekId) || null,
-    [activeWeeklyGroups, createTaskPlannerWeekId],
-  );
-
-  const plannerDayOptions = useMemo(() => {
-    if (!selectedPlannerWeekGroup?.days?.length) return [];
-    return selectedPlannerWeekGroup.days.map((day, idx) => {
-      const info = getDayDisplay(selectedPlannerWeekGroup.weekStart, idx);
-      return {
-        value: day.id,
-        label: `${info.weekday} · ${info.dateText}`,
-      };
-    });
-  }, [getDayDisplay, selectedPlannerWeekGroup]);
-
-  const plannerSummary = useMemo(() => {
-    if (createTaskMonthGoalContext) {
-      return `${createTaskMonthGoalContext.monthLabel} · ${createTaskMonthGoalContext.weekLabel} · ${createTaskMonthGoalContext.dayLabel}`;
-    }
-    if (!selectedPlannerWeekGroup) return '';
-    const selectedPlannerDay =
-      selectedPlannerWeekGroup.days.find((day) => day.id === createTaskPlannerDayId) ||
-      selectedPlannerWeekGroup.days[0] ||
-      null;
-    if (!selectedPlannerDay) return `${selectedPlannerWeekGroup.weekSummaryLabel} · ${selectedPlannerWeekGroup.weekRangeLabel}`;
-    const dayIndex = selectedPlannerWeekGroup.days.findIndex((day) => day.id === selectedPlannerDay.id);
-    const dayInfo = getDayDisplay(selectedPlannerWeekGroup.weekStart, Math.max(dayIndex, 0));
-    return `${selectedPlannerWeekGroup.weekSummaryLabel} · ${dayInfo.weekday} ${dayInfo.dateText}`;
-  }, [createTaskMonthGoalContext, createTaskPlannerDayId, getDayDisplay, selectedPlannerWeekGroup]);
-
-  const openTaskCreateModal = useCallback(
-    (plannerDefaults?: {
-      plannerEnabled?: boolean;
-      weeklyGroup?: WeeklyTaskGroup | null;
-      day?: Goal | null;
-      monthGoalContext?: MonthGoalContext;
-    }) => {
-      setError(null);
-      if (plannerDefaults?.monthGoalContext) {
-        setCreateTaskMonthGoalContext(plannerDefaults.monthGoalContext);
-        resetCreateTaskForm({ plannerEnabled: false });
-        setDueDate(plannerDefaults.monthGoalContext.dayDate || '');
-        setIsTaskCreateModalOpen(true);
-        return;
-      }
-
-      setCreateTaskMonthGoalContext(null);
-      const defaultWeekId =
-        plannerDefaults?.weeklyGroup?.weekSelectionKey ||
-        selectedWeeklyTaskGroup?.weekSelectionKey ||
-        plannerWeekOptions[0]?.value ||
-        '';
-      const selectedGroup =
-        weeklyTaskGroups.find((group) => group.weekSelectionKey === defaultWeekId) || selectedWeeklyTaskGroup || null;
-      const defaultDayId =
-        plannerDefaults?.day?.id ||
-        (selectedGroup?.days.find((day) => day.id === selectedWeeklyDay?.id)?.id || selectedGroup?.days[0]?.id || '');
-      resetCreateTaskForm({
-        plannerEnabled: Boolean(plannerDefaults?.plannerEnabled) && !isNoVisionSelected,
-        weekId: defaultWeekId,
-        dayId: defaultDayId,
-      });
-      setIsTaskCreateModalOpen(true);
-    },
-    [isNoVisionSelected, plannerWeekOptions, resetCreateTaskForm, selectedWeeklyDay?.id, selectedWeeklyTaskGroup, weeklyTaskGroups],
-  );
-
-  const closeTaskCreateModal = useCallback((options?: { keepError?: boolean }) => {
-    setIsTaskCreateModalOpen(false);
-    if (!options?.keepError) setError(null);
-    resetCreateTaskForm();
-    setUploadingTaskDocument(false);
-    setSaving(false);
-  }, [resetCreateTaskForm]);
-
-  useEffect(() => {
-    if (!location.state || !(location.state as { openCreateTask?: boolean }).openCreateTask) return;
-    openTaskCreateModal();
-    navigate(location.pathname, { replace: true, state: {} });
-  }, [location.pathname, location.state, navigate, openTaskCreateModal]);
-
-  useEffect(() => {
-    if (!createTaskPlannerEnabled) return;
-    if (!plannerWeekOptions.length) {
-      setCreateTaskPlannerWeekId('');
-      setCreateTaskPlannerDayId('');
-      return;
-    }
-    setCreateTaskPlannerWeekId((prev) => prev || selectedWeeklyTaskGroup?.weekSelectionKey || plannerWeekOptions[0]?.value || '');
-  }, [createTaskPlannerEnabled, plannerWeekOptions, selectedWeeklyTaskGroup]);
-
-  useEffect(() => {
-    if (!createTaskPlannerEnabled) return;
-    if (!selectedPlannerWeekGroup?.days?.length) {
-      setCreateTaskPlannerDayId('');
-      return;
-    }
-    setCreateTaskPlannerDayId((prev) => {
-      if (prev && selectedPlannerWeekGroup.days.some((day) => day.id === prev)) {
-        return prev;
-      }
-      return selectedPlannerWeekGroup.days[0]?.id || '';
-    });
-  }, [createTaskPlannerEnabled, selectedPlannerWeekGroup]);
-
-  const formatWeeklyPeriodSummaryLabel = (label: string | undefined, type: 'quarter' | 'month' | 'week') => {
-    const trimmed = String(label || '').trim();
-    if (!trimmed) {
-      if (type === 'quarter') return 'Quarter ?';
-      if (type === 'month') return 'Month ?';
-      return 'Week ?';
-    }
-
-    const prefix = type === 'quarter' ? 'Q' : type === 'month' ? 'M' : 'W';
-    const match = trimmed.match(new RegExp(`^${prefix}(\\d+)$`, 'i'));
-    if (!match) return trimmed;
-
-    const word = type === 'quarter' ? 'Quarter' : type === 'month' ? 'Month' : 'Week';
-    return `${word} ${match[1]}`;
-  };
-
-  const weeklyPeriodPicker = useMemo(
-    () => ({
-      summary:
-        `${formatWeeklyPeriodSummaryLabel(activeQuarterOption?.label, 'quarter')} / ${formatWeeklyPeriodSummaryLabel(activeMonthOption?.label, 'month')} / ${formatWeeklyPeriodSummaryLabel(activeWeekOption?.label, 'week')}`,
-      detail: selectedWeeklyTaskGroup
-        ? `${selectedWeeklyTaskGroup.weekRangeLabel} - ${selectedWeeklyTaskGroup.week.text || 'Weekly goal'}`
-        : activeMonthOption
-          ? `Choose a week inside ${activeQuarterOption?.label || 'selected quarter'} ${activeMonthOption.label}`
-          : 'Choose a quarter, month, and week',
-      projectOptions: weeklyProjectOptions
-        .filter((option) => option.value !== NO_VISION_SELECTOR_VALUE)
-        .map((option) => ({
-          value: option.value,
-          label: option.label,
-          description: option.description,
-        })),
-      selectedProject: selectedWeeklyProjectId,
-      onProjectChange: handleWeeklyProjectChange,
-      quarterOptions: weeklyQuarterOptions,
-      selectedQuarter: selectedWeeklyQuarterId,
-      onQuarterChange: handleWeeklyQuarterChange,
-      monthOptions: weeklyMonthOptions,
-      selectedMonth: selectedWeeklyMonthId,
-      onMonthChange: handleWeeklyMonthChange,
-      weekOptions: weeklyWeekOptions,
-      selectedWeek: selectedWeeklyWeekId,
-      onWeekChange: handleWeeklyWeekChange,
-      disabled: !weeklyQuarterOptions.length,
-    }),
-    [
-      activeMonthOption,
-      activeQuarterOption,
-      activeWeekOption,
-      formatWeeklyPeriodSummaryLabel,
-      handleWeeklyProjectChange,
-      handleWeeklyMonthChange,
-      handleWeeklyQuarterChange,
-      handleWeeklyWeekChange,
-      weeklyProjectOptions,
-      selectedWeeklyProjectId,
-      selectedWeeklyDay,
-      selectedWeeklyTaskGroup,
-      selectedWeeklyWeekId,
-      selectedWeeklyMonthId,
-      selectedWeeklyQuarterId,
-      weeklyMonthOptions,
-      weeklyProjectOptions,
-      weeklyQuarterOptions,
-      weeklyWeekOptions,
-    ],
-  );
-
-  const createDaysForWeek = async (weekId: string) =>
-    createDaysForWeekHelper({
-      weekId,
-      state,
-      updateState,
-      canManageWeeklyRows,
-      saveGoalFn: saveGoal,
-      setWeeklyError,
-    });
-
-  const toggleDaily = (id: string) =>
-    (async () => {
-      if (!selectedWeeklyTaskGroup) return;
-      const prepared = await ensureWeeklyGroupPersistedHelper({
-        weeklyGroup: selectedWeeklyTaskGroup,
-        state,
-        updateState,
-        saveGoalFn: saveGoal,
-        setWeeklyError,
-      });
-      if (!prepared) return;
-      toggleDailyHelper({
-        id,
-        state,
-        updateState,
-        canManageWeeklyRows: canToggleWeeklyDay,
-        saveGoalFn: saveGoal,
-        setWeeklyError,
-      });
-    })();
-
-  const handleCreate = async () => {
-    const cleanTitle = title.trim();
-    if (!cleanTitle) return;
-    if (taskDocumentFiles.length > 10) {
-      setError('Only 10 files are allowed.');
-      return;
-    }
-    const oversizedFile = taskDocumentFiles.find((file) => file.size > 10 * 1024 * 1024);
-    if (oversizedFile) {
-      setError(`"${oversizedFile.name}" file size is more than 10 MB.`);
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    setWeeklyError('');
-    try {
-      let plannerDay: Goal | null = null;
-      let plannerGroup: WeeklyTaskGroup | null = null;
-      const monthGoalContext = createTaskMonthGoalContext;
-
-      if (!monthGoalContext && createTaskPlannerEnabled) {
-        const selectedGroup =
-          activeWeeklyGroups.find((group) => group.weekSelectionKey === createTaskPlannerWeekId) ||
-          selectedWeeklyTaskGroup ||
-          null;
-        if (!selectedGroup) {
-          throw new Error('Select a planner week before creating this task.');
-        }
-        if (isNoVisionSelected) {
-          plannerGroup = selectedGroup;
-        } else {
-          const preparedGroup = await ensureWeeklyGroupPersistedHelper({
-            weeklyGroup: selectedGroup,
-            state,
-            updateState,
-            saveGoalFn: saveGoal,
-            setWeeklyError,
-          });
-          if (!preparedGroup) return;
-          plannerGroup = {
-            ...selectedGroup,
-            week: preparedGroup.week,
-            days: preparedGroup.days,
-          };
-        }
-        plannerDay =
-          plannerGroup?.days.find((day) => day.id === createTaskPlannerDayId) ||
-          plannerGroup?.days[0] ||
-          null;
-        if (!plannerDay) {
-          throw new Error('Select a planner day before creating this task.');
-        }
-      }
-
-      if (emailChecklistEnabled && emailChecklistExternalPerson) {
-        const normalizedEmail = externalAssigneeEmail.trim().toLowerCase();
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-          throw new Error('Enter a valid email address for the external assignee.');
-        }
-      } else if (emailChecklistEnabled && !assigneeId) {
-        throw new Error('Select an assignee before enabling checklist email reminders.');
-      }
-
-      const resolvedAssigneeId = emailChecklistEnabled && emailChecklistExternalPerson
-        ? externalAssigneeEmail.trim().toLowerCase()
-        : assigneeId;
-      const resolvedExternalName = emailChecklistEnabled && emailChecklistExternalPerson
-        ? externalAssigneeName.trim()
-        : '';
-
-      const checklistTitles = emailChecklistEnabled
-        ? [cleanTitle, ...additionalChecklistTitles.map((item) => item.trim()).filter(Boolean)].slice(0, 5)
-        : [cleanTitle];
-      const recurrence = buildTaskRecurrencePayload();
-      if (taskRecurrence.enabled && taskRecurrence.frequency === 'weekly' && !taskRecurrence.weekDays.length) {
-        throw new Error('Select at least one day for a weekly repeating task.');
-      }
-      if (
-        recurrence?.enabled &&
-        recurrence.ends?.type === 'after' &&
-        recurrence.ends.occurrences != null &&
-        clampRecurrenceOccurrences(recurrence.ends.occurrences) < 1
-      ) {
-        throw new Error('Enter at least one occurrence for the recurrence end rule.');
-      }
-      if (
-        emailChecklistEnabled &&
-        repeatEveryWeek &&
-        (!repeatFromDate || !repeatToDate)
-      ) {
-        throw new Error('Select from and to dates for the repeat schedule.');
-      }
-      if (
-        emailChecklistEnabled &&
-        repeatEveryWeek &&
-        repeatFromDate &&
-        repeatToDate &&
-        repeatToDate < repeatFromDate
-      ) {
-        throw new Error('To date must be on or after the from date.');
-      }
-      if (
-        emailChecklistEnabled &&
-        repeatEveryWeek &&
-        repeatCadence === 'week' &&
-        (!Array.isArray(repeatWeekDays) || repeatWeekDays.length < 1)
-      ) {
-        throw new Error('Select at least one week day for the repeat schedule.');
-      }
-      const normalizedRepeatWeekDays = (Array.isArray(repeatWeekDays) ? repeatWeekDays : [])
-        .map((day) => Number(day))
-        .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
-        .slice(0, 6);
-      const createdTasks: SpacesTask[] = [];
-      let checklistEmailWarning = '';
-      let checklistEmailSuccess = '';
-
-      const uploadedDocuments = await uploadTaskDocuments(taskDocumentFiles);
-
-      for (let index = 0; index < checklistTitles.length; index += 1) {
-        const createdTask = await createTaskInternal({
-          title: checklistTitles[index],
-          description,
-          assigneeId: resolvedAssigneeId,
-          externalAssigneeEmail: emailChecklistEnabled && emailChecklistExternalPerson
-            ? resolvedAssigneeId
-            : undefined,
-          externalAssigneeName: resolvedExternalName || undefined,
-          dueDate,
-          priority,
-          status,
-          reminderIntervalHours,
-          projectId: selectedProjectId,
-          uploadedDocuments,
-          plannerDay,
-          plannerGroup,
-          monthGoalContext,
-          emailChecklistEnabled: false,
-          repeatEveryWeek,
-          repeatCadence,
-          repeatWeekDays: normalizedRepeatWeekDays,
-          repeatWeekTime,
-          repeatFromDate,
-          repeatToDate,
-          recurrence,
-        });
-        createdTasks.push(createdTask);
-      }
-
-      if (emailChecklistEnabled && createdTasks.length > 0) {
-        try {
-          const response = await fetch(`${API_BASE}/spaces/tasks/send-checklist`, {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify({
-              taskIds: createdTasks.map((task) => task.taskId),
-              taskDetails: createdTasks.map((task) => ({
-                taskId: task.taskId,
-                title: task.title,
-                description: String(task.description || description || '').trim(),
-                dueDate: String(task.dueDate || dueDate || '').trim(),
-                priority: task.priority || priority,
-                status: task.status || status,
-                assigneeId: task.assigneeId || resolvedAssigneeId,
-                assigneeName: String(task.assigneeName || resolvedExternalName || '').trim(),
-                projectId: String(task.projectId || selectedProjectId || '').trim(),
-                createdByName: String(task.createdByName || me.name || '').trim(),
-                estimatedHours: Number(task.estimatedHours || 0),
-                actualHours: Number(task.actualHours || 0),
-                documentUrl: task.documentUrl || uploadedDocuments[0]?.url || '',
-                documentName: task.documentName || uploadedDocuments[0]?.name || '',
-                documentMimeType: task.documentMimeType || uploadedDocuments[0]?.mimeType || '',
-                documents:
-                  Array.isArray(task.documents) && task.documents.length
-                    ? task.documents
-                    : uploadedDocuments,
-              })),
-              reminderIntervalHours: Number(reminderIntervalHours),
-              repeatEveryWeek,
-              repeatCadence,
-              repeatWeekDay: normalizedRepeatWeekDays[0],
-              repeatWeekDays: normalizedRepeatWeekDays,
-              repeatWeekTime,
-              repeatFromDate,
-              repeatToDate,
-              repeatOccurrences: null,
-              scheduleOnly: repeatEveryWeek === true,
-            }),
-          });
-          const data = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            checklistEmailWarning =
-              data.message || 'Tasks were created, but the checklist email could not be scheduled.';
-          } else if (repeatEveryWeek) {
-            const nextAt = data.nextReminderAt
-              ? new Date(data.nextReminderAt).toLocaleString('en-US', {
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })
-              : '';
-            checklistEmailSuccess =
-              createdTasks.length === 1
-                ? `Task scheduled. Mail will send${nextAt ? ` on ${nextAt}` : ' at the selected time'}.`
-                : `${createdTasks.length} tasks scheduled. Mail will send${nextAt ? ` starting ${nextAt}` : ' at the selected times'}.`;
-          } else if (!data.emailsSent) {
-            checklistEmailWarning =
-              data.message ||
-              'Tasks were created, but no checklist email was sent. Check the assignee email address and mail credentials.';
-          } else {
-            checklistEmailSuccess =
-              createdTasks.length === 1
-                ? 'Checklist email sent to the assignee. Reminder emails will follow at your selected interval.'
-                : `Checklist email sent for ${data.emailsSent} assignee(s). Reminder emails will follow at your selected interval.`;
-          }
-        } catch (emailErr: any) {
-          checklistEmailWarning =
-            emailErr?.message || 'Tasks were created, but the checklist email could not be scheduled.';
-        }
-      }
-
-      closeTaskCreateModal({ keepError: !!checklistEmailWarning });
-      if (checklistEmailWarning) setError(checklistEmailWarning);
-      else if (checklistEmailSuccess) setChecklistNotice(checklistEmailSuccess);
-      
-      if (emailChecklistEnabled && createdTasks.length > 0) {
-        await loadSpaces({ silent: true, force: true, page: taskPage });
-      }
-    } catch (e: any) {
-      setError(e?.message || 'Failed to create task');
-    } finally {
-      setUploadingTaskDocument(false);
-      setSaving(false);
-    }
-  };
-  const TASKS_PER_PAGE = SPACES_TASKS_PAGE_SIZE;
-  const totalTaskPages = taskListTotalPages;
-  const paginatedTasks = sortedTasks;
-  const visibleTaskPages = useMemo(() => {
-    const radius = 2;
-    const start = Math.max(1, taskPage - radius);
-    const end = Math.min(totalTaskPages, taskPage + radius);
-    const pages: number[] = [];
-    for (let page = start; page <= end; page += 1) pages.push(page);
-    return pages;
-  }, [taskPage, totalTaskPages]);
-
-  const filterPageResetReadyRef = useRef(false);
-  useEffect(() => {
-    if (!filterPageResetReadyRef.current) {
-      filterPageResetReadyRef.current = true;
-      if (skipFilterPageResetRef.current || initialTaskFocus?.taskId) {
-        skipFilterPageResetRef.current = false;
-        return;
-      }
-      return;
-    }
-    if (skipFilterPageResetRef.current) {
-      skipFilterPageResetRef.current = false;
-      return;
-    }
-    setTaskPage(1);
-  }, [taskFilterMode, taskStatusFilter, debouncedTaskSearch, taskAssigneeFilterId, mode]);
-
-  useEffect(() => {
-    setTaskPage((prev) => Math.min(prev, totalTaskPages));
-  }, [totalTaskPages]);
-
-  useEffect(() => {
-    setSelectedDayByWeek((prev) => {
-      if (!weeklyTaskGroups.length) return prev;
-      const today = new Date();
-      const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-      let changed = false;
-      const next = { ...prev };
-      weeklyTaskGroups.forEach(({ week, weekStart, days }) => {
-        if (!days.length) return;
-        const selected = next[week.id];
-        if (!selected || !days.some((d) => d.id === selected)) {
-          const todayDay =
-            days.find((day, index) => {
-              const dayDate = new Date(weekStart);
-              dayDate.setDate(weekStart.getDate() + index);
-              const normalizedDay = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate()).getTime();
-              return normalizedDay === normalizedToday;
-            }) || null;
-          next[week.id] = todayDay?.id || days[0].id;
-          changed = true;
-        }
-      });
-      return changed ? next : prev;
-    });
-  }, [weeklyTaskGroups]);
-
-  const isTaskLocked = (t: SpacesTask): boolean => isTaskLockedForView(t, me, mode);
-  const getTaskRowClasses = (t: SpacesTask): string => getTaskRowClassesForView(t, me, mode);
-  const canEditTask = (t: SpacesTask): boolean => canEditTaskForView(t, me, mode);
-  const canValidateTask = (t: SpacesTask): boolean => canValidateTaskForView(t, mode, me, employeeById);
-  const canCommentOnTask = (t: SpacesTask): boolean => canCommentOnTaskForView(t, mode, me, canEditTask, canValidateTask);
-  const canDeleteTask = (t: SpacesTask): boolean => canDeleteTaskForView(t, me, mode);
-  const canEditDueDate = (t: SpacesTask): boolean => canEditDueDateForView(t, isTaskLocked, canEditTask);
-  const canChangeStatus = (t: SpacesTask): boolean => canChangeStatusForView(t, mode, me, isTaskLocked, canEditTask);
-  const canSelectTask = (t: SpacesTask): boolean =>
-    canBulkManageTasks && !isTaskLocked(t) && (canEditTask(t) || canDeleteTask(t) || canChangeStatus(t));
-
-  useEffect(() => {
-    setSelectedTaskIds((prev) => {
-      if (!prev.length) return prev;
-      const availableIds = new Set(tasks.map((task) => task.taskId));
-      const next = prev.filter((taskId) => availableIds.has(taskId));
-      return next.length === prev.length ? prev : next;
-    });
-  }, [tasks]);
-
-  useEffect(() => {
-    if (canBulkManageTasks) return;
-    setSelectedTaskIds([]);
-  }, [canBulkManageTasks]);
-
-  const selectedTasks = useMemo(
-    () => selectedTaskIds.map((taskId) => tasks.find((task) => task.taskId === taskId)).filter((task): task is SpacesTask => !!task),
-    [selectedTaskIds, tasks],
-  );
-
-  const bulkAssigneeOptions = useMemo(() => {
-    const optionMap = new Map<string, EmployeeOption>();
-    assignableEmployees.forEach((employee) => optionMap.set(employee.empId, employee));
-    selectedTasks.forEach((task) => {
-      const assigneeId = String(task.assigneeId || '').trim();
-      if (!assigneeId || optionMap.has(assigneeId)) return;
-      const employee = employeeById.get(assigneeId);
-      optionMap.set(
-        assigneeId,
-        employee || { empId: assigneeId, empName: task.assigneeName || assigneeId, role: 'EMPLOYEE' },
-      );
-    });
-    return [
-      { value: '', label: 'Unassigned' },
-      ...Array.from(optionMap.values()).map((employee) => ({
-        value: employee.empId,
-        label: employee.empId === me.id ? `${employee.empName || 'You'} (You)` : employee.empName || employee.empId,
-      })),
-    ];
-  }, [assignableEmployees, employeeById, me.id, selectedTasks]);
-
-  useEffect(() => {
-    if (!selectedTaskIds.length) {
-      setBulkStatus('todo');
-      setBulkAssigneeId('');
-      setBulkDueDate('');
-      setBulkTouched({ status: false, assigneeId: false, dueDate: false });
-      return;
-    }
-
-    const currentSelected = selectedTaskIds
-      .map((taskId) => tasks.find((task) => task.taskId === taskId))
-      .filter((task): task is SpacesTask => !!task);
-
-    const pickSharedValue = <T,>(getter: (task: SpacesTask) => T): T | undefined => {
-      if (!currentSelected.length) return undefined;
-      const firstValue = getter(currentSelected[0]);
-      return currentSelected.every((task) => getter(task) === firstValue) ? firstValue : undefined;
-    };
-
-    setBulkStatus((pickSharedValue((task) => task.status || 'todo') ?? 'todo') as TaskStatus);
-    setBulkAssigneeId(pickSharedValue((task) => task.assigneeId || '') ?? '');
-    setBulkDueDate(pickSharedValue((task) => task.dueDate || '') ?? '');
-    setBulkTouched({ status: false, assigneeId: false, dueDate: false });
-  }, [selectedTaskIds]);
-
-  const toggleTaskSelection = (task: SpacesTask) => {
-    if (!canSelectTask(task)) return;
-    setSelectedTaskIds((prev) =>
-      prev.includes(task.taskId)
-        ? prev.filter((taskId) => taskId !== task.taskId)
-        : [...prev, task.taskId],
-    );
-  };
-
-  const clearSelectedTasks = () => {
-    setSelectedTaskIds([]);
-    setBulkAssigneeId('');
-    setBulkDueDate('');
-    setBulkStatus('todo');
-    setBulkTouched({ status: false, assigneeId: false, dueDate: false });
-    setChecklistNotice('');
-  };
-
-  const applyBulkTaskUpdate = async (updates: Partial<SpacesTask>) => {
-    if (!selectedTasks.length || bulkSaving) return;
-
-    const hasStatusUpdate = Object.prototype.hasOwnProperty.call(updates, 'status');
-    const hasAssigneeUpdate = Object.prototype.hasOwnProperty.call(updates, 'assigneeId');
-    const hasDueDateUpdate = Object.prototype.hasOwnProperty.call(updates, 'dueDate');
-    const eligibleTasks = selectedTasks
-      .filter((task) => canSelectTask(task))
-      .map((task) => {
-        const taskUpdates: Partial<SpacesTask> = {};
-        if (hasStatusUpdate && canChangeStatus(task)) taskUpdates.status = updates.status;
-        if (hasAssigneeUpdate && canEditTask(task)) taskUpdates.assigneeId = updates.assigneeId;
-        if (hasDueDateUpdate && canEditDueDate(task)) taskUpdates.dueDate = updates.dueDate;
-        return { task, updates: taskUpdates };
-      })
-      .filter((entry) => Object.keys(entry.updates).length > 0);
-
-    if (!eligibleTasks.length) {
-      setError('No selected tasks can receive these changes.');
-      return;
-    }
-
-    setBulkSaving(true);
-    setError(null);
-    try {
-      for (const entry of eligibleTasks) {
-        const ok = await patchTask(entry.task.taskId, entry.updates);
-        if (!ok) {
-          throw new Error('One or more selected tasks could not be updated.');
-        }
-      }
-      clearSelectedTasks();
-    } catch (e: any) {
-      setError(e?.message || 'Failed to update selected tasks');
-    } finally {
-      setBulkSaving(false);
-    }
-  };
-
-  const saveBulkTaskChanges = async () => {
-    const updates: Partial<SpacesTask> = {};
-    if (bulkTouched.status) updates.status = bulkStatus;
-    if (bulkTouched.assigneeId) updates.assigneeId = bulkAssigneeId;
-    if (bulkTouched.dueDate) updates.dueDate = bulkDueDate;
-
-    if (!Object.keys(updates).length) {
-      setError('Choose a status, assignee, or due date change before saving.');
-      return;
-    }
-
-    await applyBulkTaskUpdate(updates);
-  };
-
-  const sendSelectedTaskChecklist = async () => {
-    if (!selectedTasks.length || bulkSaving) return;
-    const taskIds = selectedTasks
-      .filter((task) => canSelectTask(task) && task.assigneeId && task.status !== 'done')
-      .map((task) => task.taskId);
-    if (!taskIds.length) {
-      setError('Choose unfinished tasks that have an assignee before sending a checklist.');
-      return;
-    }
-
-    setBulkSaving(true);
-    setError(null);
-    setChecklistNotice('');
-    try {
-      const response = await fetch(`${API_BASE}/spaces/tasks/send-checklist`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          taskIds,
-          reminderIntervalHours: Number(bulkReminderIntervalHours),
-        }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.message || 'Failed to send task checklist');
-      setChecklistNotice(data.emailsSent > 0
-        ? `Sent ${data.emailsSent} checklist email(s) for ${data.tasksScheduled || taskIds.length} task(s). Reminders repeat every ${formatChecklistIntervalLabel(data.reminderIntervalHours || bulkReminderIntervalHours)} for unfinished tasks.`
-        : (data.message || `Checklist reminders were scheduled for ${data.tasksScheduled || taskIds.length} task(s), but no email was sent. Check the employee email address and mail credentials.`),
-      );
-    } catch (e: any) {
-      setError(e?.message || 'Failed to send task checklist');
-    } finally {
-      setBulkSaving(false);
-    }
-  };
-
-  const deleteSelectedTasks = async () => {
-    if (!selectedTasks.length || bulkSaving) return;
-
-    const deletableTasks = selectedTasks.filter((task) => canDeleteTask(task));
-    if (!deletableTasks.length) {
-      setError('No selected tasks can be deleted.');
-      return;
-    }
-
-    setDeleteTaskModal(null);
-    setBulkDeleteTaskModalOpen(false);
-    setBulkSaving(true);
-    setError(null);
-    setChecklistNotice(`Deleting ${deletableTasks.length} selected task${deletableTasks.length === 1 ? '' : 's'} in background...`);
-
-    let failedCount = 0;
-    try {
-      // Process deletions in small batches so requests run in parallel without overwhelming the API.
-      const CONCURRENCY = 6;
-      for (let index = 0; index < deletableTasks.length; index += CONCURRENCY) {
-        const chunk = deletableTasks.slice(index, index + CONCURRENCY);
-        const results = await Promise.all(
-          chunk.map((task) => deleteTask(task.taskId, { bulk: true })),
-        );
-        failedCount += results.filter((ok) => !ok).length;
-      }
-
-      if (failedCount > 0) {
-        throw new Error(
-          failedCount === deletableTasks.length
-            ? 'Failed to delete selected tasks.'
-            : `Failed to delete ${failedCount} of ${deletableTasks.length} selected task(s).`,
-        );
-      }
-      clearSelectedTasks();
-      setChecklistNotice(
-        `Deleted ${deletableTasks.length} selected task${deletableTasks.length === 1 ? '' : 's'}.`,
-      );
-    } catch (e: any) {
-      setError(e?.message || 'Failed to delete selected tasks');
-      await loadSpaces({ silent: true, page: taskPage });
-      void loadPlannerTasks();
-    } finally {
-      setBulkSaving(false);
-    }
-  };
-
-  const handleApproveTask = async (t: SpacesTask) => {
-    if (!canValidateTask(t) || t.status === 'done') return;
-    await patchTask(t.taskId, { status: 'done' });
-  };
-
-  const handleRejectTask = async (t: SpacesTask) => {
-    if (!canValidateTask(t)) return;
-    setRejectTaskModal(t);
-    setRejectFeedbackDraft('');
-  };
-
-  const confirmRejectTask = async () => {
-    if (!rejectTaskModal || rejectingTask) return;
-
-    const feedback = rejectFeedbackDraft.trim();
-    if (!feedback) {
-      setError('Please enter rejection feedback before sending the task back.');
-      return;
-    }
-
-    const fallbackStatus =
-      rejectTaskModal.submittedFromStatus && !isSubmittedStatus(rejectTaskModal.submittedFromStatus)
-        ? (rejectTaskModal.submittedFromStatus as TaskStatus)
-        : ('todo' as TaskStatus);
-
-    try {
-      setRejectingTask(true);
-      setError(null);
-      const updated = await patchTask(rejectTaskModal.taskId, { status: fallbackStatus });
-      if (!updated) return;
-
-      await addTaskComment(
-        rejectTaskModal.taskId,
-        `Task rejected by ${getReviewerLabel(me.role)}: ${feedback}`,
-      );
-      setRejectTaskModal(null);
-      setRejectFeedbackDraft('');
-    } catch (e: any) {
-      setError(e?.message || 'Failed to reject task');
-    } finally {
-      setRejectingTask(false);
-    }
-  };
-
-  const activeCommentTask = useMemo(
-    () => sortedTasks.find((t) => t.taskId === commentTaskId) || null,
-    [sortedTasks, commentTaskId],
-  );
-
-  useEffect(() => {
-    // Restore focus target when returning from task detail (filters/page seeded from session).
-    const focus = consumeSpacesTaskFocus();
-    if (!focus?.taskId) return;
-    skipFilterPageResetRef.current = true;
-    setFocusedTaskId(focus.taskId);
-    if (Number(focus.page) > 0) {
-      setTaskPage(Number(focus.page));
-    }
-    if (focus.filterMode) {
-      setTaskFilterMode(focus.filterMode);
-    }
-    if (focus.statusFilter !== undefined) {
-      setTaskStatusFilter(focus.statusFilter);
-    }
-    if (focus.search !== undefined) {
-      setTaskSearch(focus.search);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!focusedTaskId || spacesLoading) return;
-    const row = document.getElementById(spacesTaskRowElementId(focusedTaskId));
-    if (!row) {
-      const missTimer = window.setTimeout(() => setFocusedTaskId(''), 3000);
-      return () => window.clearTimeout(missTimer);
-    }
-
-    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    const clearFocusTimer = window.setTimeout(() => setFocusedTaskId(''), 2200);
-    return () => window.clearTimeout(clearFocusTimer);
-  }, [focusedTaskId, spacesLoading, paginatedTasks, taskPage, taskFilterMode, taskStatusFilter, debouncedTaskSearch]);
-
-  useEffect(() => {
-    // Only reset on portal mode changes — never after returning to a focused task row.
-    if (peekSpacesTaskFocus()?.taskId || focusedTaskId) return;
-    const runScrollReset = () => {
-      const scrollContainer = findScrollableContainer(taskHubRootRef.current);
-      if (scrollContainer === window) {
-        window.scrollTo({ top: 0, behavior: 'auto' });
-      } else {
-        scrollContainer.scrollTo({ top: 0, behavior: 'auto' });
-      }
-    };
-
-    runScrollReset();
-    const rafId = window.requestAnimationFrame(runScrollReset);
-    return () => window.cancelAnimationFrame(rafId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
-
-  const handleAddComment = async () => {
-    if (!activeCommentTask || !canCommentOnTask(activeCommentTask) || submittingComment) return;
-    const text = commentDraft.trim();
-    if (!text) return;
-    setError(null);
-    try {
-      setSubmittingComment(true);
-      // If employee is viewing their portal, allow status change together with comment
-      if (mode === 'employee' && modalStatus && modalStatus !== activeCommentTask.status) {
-        await patchTask(activeCommentTask.taskId, { status: modalStatus });
-      }
-
-      const res = await fetch(`${API_BASE}/spaces/tasks/${activeCommentTask.taskId}/comments`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to add comment');
-      }
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.taskId === activeCommentTask.taskId
-            ? { ...t, comments: Array.isArray(data.comments) ? data.comments : [] }
-            : t,
-        ),
-      );
-      setCommentDraft('');
-    } catch (e: any) {
-      setError(e?.message || 'Failed to add comment');
-    } finally {
-      setSubmittingComment(false);
-    }
-  };
-
-  const mainSectionsProps = {
-    assignmentHint,
+  const bootstrap = useSpacesBootstrap({
+    mode,
+    state,
     me,
-    title,
-    setTitle,
-    assigneeId,
-    setAssigneeId,
-    createAssigneeOptions,
-    employeesLoading,
-    employeeNameById,
-    dueDate,
-    setDueDate,
-    priority,
-    setPriority,
-    priorityOptions,
-    status,
-    setStatus,
-    emailChecklistEnabled,
-    setEmailChecklistEnabled,
-    emailChecklistExternalPerson,
-    setEmailChecklistExternalPerson,
-    externalAssigneeEmail,
-    setExternalAssigneeEmail,
-    externalAssigneeName,
-    setExternalAssigneeName,
-    additionalChecklistTitles,
-    setAdditionalChecklistTitles,
-    reminderIntervalHours,
-    setReminderIntervalHours,
-    repeatEveryWeek,
-    setRepeatEveryWeek,
-    repeatCadence,
-    setRepeatCadence,
-    repeatWeekDays,
-    setRepeatWeekDays,
-    repeatWeekTime,
-    setRepeatWeekTime,
-    repeatFromDate,
-    setRepeatFromDate,
-    repeatToDate,
-    setRepeatToDate,
-    taskRecurrence,
-    setTaskRecurrence,
-    statusOptions,
-    description,
-    setDescription,
-    selectedProjectId,
-    setSelectedProjectId,
-    projectSelectOptions,
-    projectsLoading,
-    setTaskDocumentFiles,
-    taskDocumentFiles,
-    handleCreate,
-    saving,
-    uploadingTaskDocument,
-    aiAssigning,
-    aiAssignFileName,
-    aiAssignCreatedCount: aiAssignProgress?.created || 0,
-    aiAssignTotalCount: aiAssignProgress?.total || 0,
-    handleAiAssignPdfUpload,
-    error,
-    isTaskCreateModalOpen,
-    openTaskCreateModal,
-    closeTaskCreateModal,
-    createTaskPlannerEnabled,
-    setCreateTaskPlannerEnabled,
-    createTaskPlannerWeekId,
-    setCreateTaskPlannerWeekId,
-    plannerWeekOptions,
-    createTaskPlannerDayId,
-    setCreateTaskPlannerDayId,
-    plannerDayOptions,
-    plannerSummary,
-    hideWeeklyPlannerInCreateModal: Boolean(createTaskMonthGoalContext),
-    topPriorityTasks,
-    patchTask,
-    onCreateMonthGoalTask: createMonthGoalTask,
-    canPickMonthGoalSchedule,
-    canPickMonthGoalAssignee,
-    employeeId: me.id || '',
-    allowedAssigneeIds: allowedMonthGoalAssigneeIds,
-    monthGoalSaving,
-    monthGoalUploading: uploadingTaskDocument,
-    stopTaskRecurrence,
-    stopTaskEmailChecklist,
-    stopTaskWeeklyRepeat,
-    stoppingRecurrenceTaskId,
-    deleteTask,
-    weeklyError,
+    taskPage: filters.taskPage,
+    taskFilterMode: filters.taskFilterMode,
+    taskStatusFilter: filters.taskStatusFilter,
+    debouncedTaskSearch: filters.debouncedTaskSearch,
+    taskAssigneeFilterId: filters.taskAssigneeFilterId,
+    setError,
+    aiAssignRequestIdRef,
+  });
+
+  const views = useSpacesFilters({
+    mode,
+    me,
+    employeeById: bootstrap.employeeById,
+    assignableEmployees: bootstrap.assignableEmployees,
+    canUseAssigneeFilter: bootstrap.canUseAssigneeFilter,
+    tasks: bootstrap.tasks,
+    plannerTasks: bootstrap.plannerTasks,
+    taskListTotalPages: bootstrap.taskListTotalPages,
+    spacesLoading: bootstrap.spacesLoading,
+    taskHubRootRef,
+    initialTaskFocus: filters.initialTaskFocus,
+    taskFilterMode: filters.taskFilterMode,
+    setTaskFilterMode: filters.setTaskFilterMode,
+    taskAssigneeFilterId: filters.taskAssigneeFilterId,
+    setTaskAssigneeFilterId: filters.setTaskAssigneeFilterId,
+    taskStatusFilter: filters.taskStatusFilter,
+    setTaskStatusFilter: filters.setTaskStatusFilter,
+    taskSearch: filters.taskSearch,
+    setTaskSearch: filters.setTaskSearch,
+    debouncedTaskSearch: filters.debouncedTaskSearch,
+    taskPage: filters.taskPage,
+    setTaskPage: filters.setTaskPage,
+    focusedTaskId: filters.focusedTaskId,
+    setFocusedTaskId: filters.setFocusedTaskId,
+  });
+
+  const tasksHook = useSpacesTasks({
+    mode,
+    me,
+    tasks: bootstrap.tasks,
+    setTasks: bootstrap.setTasks,
+    setPlannerTasks: bootstrap.setPlannerTasks,
+    employeeById: bootstrap.employeeById,
+    updateState,
+    taskPage: filters.taskPage,
+    loadSpaces: bootstrap.loadSpaces,
+    loadPlannerTasks: bootstrap.loadPlannerTasks,
+    setError,
+    sortedTasks: views.sortedTasks,
+    canBulkManageTasks: bootstrap.canBulkManageTasks,
+  });
+
+  const weekly = useSpacesWeeklyPlanner({
     state,
     updateState,
-    selectedWeeklyDay,
-    selectedWeeklyTaskGroup,
-    weeklyTaskGroups,
-    weeklyPeriodPicker,
-    getWeekBreadcrumb: getWeekBreadcrumbForView,
-    getWeekStartDate: getWeekStartDateForView,
-    getDayDisplay,
-    setSelectedDayByWeek,
-    tasks,
-    monthGoalSourceTasks,
-    canUseAssigneeFilter,
-    taskAssigneeFilterId,
-    setTaskAssigneeFilterId,
-    taskAssigneeFilterOptions,
-      toggleDaily,
-      canManageWeeklyRows,
-      canToggleWeeklyDay,
-    createDaysForWeek,
-    setTaskFilterMode,
-    taskFilterMode,
-    taskStatusFilter,
-    taskStatusFilterOptions,
-    setTaskStatusFilter,
-    taskSearch,
-    setTaskSearch,
-    columns,
-    isRenamingColumnId,
-    renameDraft,
-    setRenameDraft,
-    setIsRenamingColumnId,
-    setActiveColumnMenuId,
-    sortedTasks,
-    setColumns,
+    visibleTasks: views.visibleTasks,
+    weeklyProjectOptions: bootstrap.weeklyProjectOptions,
+    yearlyVisionMetaById: bootstrap.yearlyVisionMetaById,
+    createTaskMonthGoalContext,
+    canManageWeeklyRows: bootstrap.canManageWeeklyRows,
+    canToggleWeeklyDay: bootstrap.canToggleWeeklyDay,
+  });
+
+  const modals = useSpacesModals({
+    me,
+    tasks: bootstrap.tasks,
+    assignableEmployees: bootstrap.assignableEmployees,
+    employeeById: bootstrap.employeeById,
+    canBulkManageTasks: bootstrap.canBulkManageTasks,
+    canSelectTask: tasksHook.canSelectTask,
+    canChangeStatus: tasksHook.canChangeStatus,
+    canEditTask: tasksHook.canEditTask,
+    canEditDueDate: tasksHook.canEditDueDate,
+    canDeleteTask: tasksHook.canDeleteTask,
+    patchTask: tasksHook.patchTask,
+    deleteTask: tasksHook.deleteTask,
+    loadSpaces: bootstrap.loadSpaces,
+    loadPlannerTasks: bootstrap.loadPlannerTasks,
+    taskPage: filters.taskPage,
     setError,
-    activeColumnMenuId,
-    setColumnToDelete,
-    handleAddColumn,
-    spacesLoading,
-    paginatedTasks,
-    canEditTask,
-    isTaskLocked,
-    getTaskRowClasses,
-    projectNameById,
+  });
+
+  const taskCreate = useSpacesTaskCreate({
     mode,
-    assigneeOptionsForTask,
-    canEditDueDate,
-    canChangeStatus,
-    forceDownloadDocument,
-    canCommentOnTask,
-    setCommentTaskId,
-    setModalStatus,
-    canValidateTask,
-    canDeleteTask,
-    handleApproveTask,
-    handleRejectTask,
+    me,
+    projects: bootstrap.projects,
+    appendProjectTaskToState: tasksHook.appendProjectTaskToState,
     navigate,
-    setEditingTask,
-    setEditingTaskMode,
-    setEditingTaskDraft,
-    setDeleteTaskModal,
-    selectedTaskIds,
-    selectedTaskCount: selectedTasks.length,
-    canBulkManageTasks,
-    bulkSaving,
-    bulkReminderIntervalHours,
-    setBulkReminderIntervalHours,
-    checklistNotice,
-    sendSelectedTaskChecklist,
-    bulkStatus,
-    setBulkStatus,
-    bulkAssigneeId,
-    setBulkAssigneeId,
-    bulkDueDate,
-    setBulkDueDate,
-    bulkTouched,
-    setBulkTouched,
-    toggleTaskSelection,
-    clearSelectedTasks,
-    saveBulkTaskChanges,
-    bulkDeleteTaskModalOpen,
-    setBulkDeleteTaskModalOpen,
-    deleteSelectedTasks,
-    canSelectTask,
-    taskPage,
-    TASKS_PER_PAGE,
-    taskListTotal,
-    setTaskPage,
-    visibleTaskPages,
-    totalTaskPages,
-    focusedTaskId,
+    location,
+    setTasks: bootstrap.setTasks,
+    canPickMonthGoalAssignee: bootstrap.canPickMonthGoalAssignee,
+    allowedMonthGoalAssigneeIds: bootstrap.allowedMonthGoalAssigneeIds,
+    aiAssignRequestIdRef,
+    aiAssignProgress: bootstrap.aiAssignProgress,
+    setAiAssignProgress: bootstrap.setAiAssignProgress,
+    setError,
+    setCreateTaskMonthGoalContext,
+    weeklyTaskGroups: weekly.weeklyTaskGroups,
+    selectedWeeklyTaskGroup: weekly.selectedWeeklyTaskGroup,
+    selectedWeeklyDay: weekly.selectedWeeklyDay,
+    isNoVisionSelected: weekly.isNoVisionSelected,
+    plannerWeekOptions: weekly.plannerWeekOptions,
+    setCreateTaskPlannerEnabled: weekly.setCreateTaskPlannerEnabled,
+    setCreateTaskPlannerQuarterId: weekly.setCreateTaskPlannerQuarterId,
+    setCreateTaskPlannerMonthId: weekly.setCreateTaskPlannerMonthId,
+    setCreateTaskPlannerWeekId: weekly.setCreateTaskPlannerWeekId,
+    setCreateTaskPlannerDayId: weekly.setCreateTaskPlannerDayId,
+  });
+
+  const taskSubmit = useSpacesTaskSubmit({
+    me,
+    state,
+    updateState,
+    taskPage: filters.taskPage,
+    loadSpaces: bootstrap.loadSpaces,
+    setError,
+    setChecklistNotice: modals.setChecklistNotice,
+    setWeeklyError: weekly.setWeeklyError,
+    setSaving: taskCreate.setSaving,
+    setUploadingTaskDocument: taskCreate.setUploadingTaskDocument,
+    title: taskCreate.title,
+    description: taskCreate.description,
+    assigneeId: taskCreate.assigneeId,
+    dueDate: taskCreate.dueDate,
+    priority: taskCreate.priority,
+    status: taskCreate.status,
+    reminderIntervalHours: taskCreate.reminderIntervalHours,
+    selectedProjectId: taskCreate.selectedProjectId,
+    taskDocumentFiles: taskCreate.taskDocumentFiles,
+    emailChecklistEnabled: taskCreate.emailChecklistEnabled,
+    emailChecklistExternalPerson: taskCreate.emailChecklistExternalPerson,
+    externalAssigneeEmail: taskCreate.externalAssigneeEmail,
+    externalAssigneeName: taskCreate.externalAssigneeName,
+    additionalChecklistTitles: taskCreate.additionalChecklistTitles,
+    taskRecurrence: taskCreate.taskRecurrence,
+    repeatEveryWeek: taskCreate.repeatEveryWeek,
+    repeatCadence: taskCreate.repeatCadence,
+    repeatWeekDays: taskCreate.repeatWeekDays,
+    repeatWeekTime: taskCreate.repeatWeekTime,
+    repeatFromDate: taskCreate.repeatFromDate,
+    repeatToDate: taskCreate.repeatToDate,
+    createTaskMonthGoalContext,
+    createTaskPlannerEnabled: weekly.createTaskPlannerEnabled,
+    createTaskPlannerWeekId: weekly.createTaskPlannerWeekId,
+    createTaskPlannerDayId: weekly.createTaskPlannerDayId,
+    activeWeeklyGroups: weekly.activeWeeklyGroups,
+    selectedWeeklyTaskGroup: weekly.selectedWeeklyTaskGroup,
+    isNoVisionSelected: weekly.isNoVisionSelected,
+    uploadTaskDocuments: taskCreate.uploadTaskDocuments,
+    buildTaskRecurrencePayload: taskCreate.buildTaskRecurrencePayload,
+    createTaskInternal: taskCreate.createTaskInternal,
+    closeTaskCreateModal: taskCreate.closeTaskCreateModal,
+  });
+
+  const mainSectionsProps = {
+    assignmentHint: bootstrap.assignmentHint,
+    me,
+    title: taskCreate.title,
+    setTitle: taskCreate.setTitle,
+    assigneeId: taskCreate.assigneeId,
+    setAssigneeId: taskCreate.setAssigneeId,
+    createAssigneeOptions: bootstrap.createAssigneeOptions,
+    employeesLoading: bootstrap.employeesLoading,
+    employeeNameById: bootstrap.employeeNameById,
+    dueDate: taskCreate.dueDate,
+    setDueDate: taskCreate.setDueDate,
+    priority: taskCreate.priority,
+    setPriority: taskCreate.setPriority,
+    priorityOptions: bootstrap.priorityOptions,
+    status: taskCreate.status,
+    setStatus: taskCreate.setStatus,
+    emailChecklistEnabled: taskCreate.emailChecklistEnabled,
+    setEmailChecklistEnabled: taskCreate.setEmailChecklistEnabled,
+    emailChecklistExternalPerson: taskCreate.emailChecklistExternalPerson,
+    setEmailChecklistExternalPerson: taskCreate.setEmailChecklistExternalPerson,
+    externalAssigneeEmail: taskCreate.externalAssigneeEmail,
+    setExternalAssigneeEmail: taskCreate.setExternalAssigneeEmail,
+    externalAssigneeName: taskCreate.externalAssigneeName,
+    setExternalAssigneeName: taskCreate.setExternalAssigneeName,
+    additionalChecklistTitles: taskCreate.additionalChecklistTitles,
+    setAdditionalChecklistTitles: taskCreate.setAdditionalChecklistTitles,
+    reminderIntervalHours: taskCreate.reminderIntervalHours,
+    setReminderIntervalHours: taskCreate.setReminderIntervalHours,
+    repeatEveryWeek: taskCreate.repeatEveryWeek,
+    setRepeatEveryWeek: taskCreate.setRepeatEveryWeek,
+    repeatCadence: taskCreate.repeatCadence,
+    setRepeatCadence: taskCreate.setRepeatCadence,
+    repeatWeekDays: taskCreate.repeatWeekDays,
+    setRepeatWeekDays: taskCreate.setRepeatWeekDays,
+    repeatWeekTime: taskCreate.repeatWeekTime,
+    setRepeatWeekTime: taskCreate.setRepeatWeekTime,
+    repeatFromDate: taskCreate.repeatFromDate,
+    setRepeatFromDate: taskCreate.setRepeatFromDate,
+    repeatToDate: taskCreate.repeatToDate,
+    setRepeatToDate: taskCreate.setRepeatToDate,
+    taskRecurrence: taskCreate.taskRecurrence,
+    setTaskRecurrence: taskCreate.setTaskRecurrence,
+    statusOptions: bootstrap.statusOptions,
+    description: taskCreate.description,
+    setDescription: taskCreate.setDescription,
+    selectedProjectId: taskCreate.selectedProjectId,
+    setSelectedProjectId: taskCreate.setSelectedProjectId,
+    projectSelectOptions: bootstrap.projectSelectOptions,
+    projectsLoading: bootstrap.projectsLoading,
+    setTaskDocumentFiles: taskCreate.setTaskDocumentFiles,
+    taskDocumentFiles: taskCreate.taskDocumentFiles,
+    handleCreate: taskSubmit.handleCreate,
+    saving: taskCreate.saving,
+    uploadingTaskDocument: taskCreate.uploadingTaskDocument,
+    aiAssigning: taskCreate.aiAssigning,
+    aiAssignFileName: taskCreate.aiAssignFileName,
+    aiAssignCreatedCount: taskCreate.aiAssignProgress?.created || 0,
+    aiAssignTotalCount: taskCreate.aiAssignProgress?.total || 0,
+    handleAiAssignPdfUpload: taskCreate.handleAiAssignPdfUpload,
+    error,
+    isTaskCreateModalOpen: taskCreate.isTaskCreateModalOpen,
+    openTaskCreateModal: taskCreate.openTaskCreateModal,
+    closeTaskCreateModal: taskCreate.closeTaskCreateModal,
+    createTaskPlannerEnabled: weekly.createTaskPlannerEnabled,
+    setCreateTaskPlannerEnabled: weekly.setCreateTaskPlannerEnabled,
+    createTaskPlannerWeekId: weekly.createTaskPlannerWeekId,
+    setCreateTaskPlannerWeekId: weekly.setCreateTaskPlannerWeekId,
+    plannerWeekOptions: weekly.plannerWeekOptions,
+    createTaskPlannerDayId: weekly.createTaskPlannerDayId,
+    setCreateTaskPlannerDayId: weekly.setCreateTaskPlannerDayId,
+    plannerDayOptions: weekly.plannerDayOptions,
+    plannerSummary: weekly.plannerSummary,
+    hideWeeklyPlannerInCreateModal: Boolean(createTaskMonthGoalContext),
+    topPriorityTasks: views.topPriorityTasks,
+    patchTask: tasksHook.patchTask,
+    onCreateMonthGoalTask: taskCreate.createMonthGoalTask,
+    canPickMonthGoalSchedule: bootstrap.canPickMonthGoalSchedule,
+    canPickMonthGoalAssignee: bootstrap.canPickMonthGoalAssignee,
+    employeeId: me.id || '',
+    allowedAssigneeIds: bootstrap.allowedMonthGoalAssigneeIds,
+    monthGoalSaving: taskCreate.monthGoalSaving,
+    monthGoalUploading: taskCreate.uploadingTaskDocument,
+    stopTaskRecurrence: tasksHook.stopTaskRecurrence,
+    stopTaskEmailChecklist: tasksHook.stopTaskEmailChecklist,
+    stopTaskWeeklyRepeat: tasksHook.stopTaskWeeklyRepeat,
+    stoppingRecurrenceTaskId: tasksHook.stoppingRecurrenceTaskId,
+    deleteTask: tasksHook.deleteTask,
+    weeklyError: weekly.weeklyError,
+    state,
+    updateState,
+    selectedWeeklyDay: weekly.selectedWeeklyDay,
+    selectedWeeklyTaskGroup: weekly.selectedWeeklyTaskGroup,
+    weeklyTaskGroups: weekly.weeklyTaskGroups,
+    weeklyPeriodPicker: weekly.weeklyPeriodPicker,
+    getWeekBreadcrumb: weekly.getWeekBreadcrumbForView,
+    getWeekStartDate: weekly.getWeekStartDateForView,
+    getDayDisplay,
+    setSelectedDayByWeek: weekly.setSelectedDayByWeek,
+    tasks: bootstrap.tasks,
+    monthGoalSourceTasks: views.monthGoalSourceTasks,
+    canUseAssigneeFilter: bootstrap.canUseAssigneeFilter,
+    taskAssigneeFilterId: filters.taskAssigneeFilterId,
+    setTaskAssigneeFilterId: filters.setTaskAssigneeFilterId,
+    taskAssigneeFilterOptions: views.taskAssigneeFilterOptions,
+    toggleDaily: weekly.toggleDaily,
+    canManageWeeklyRows: bootstrap.canManageWeeklyRows,
+    canToggleWeeklyDay: bootstrap.canToggleWeeklyDay,
+    createDaysForWeek: weekly.createDaysForWeek,
+    setTaskFilterMode: filters.setTaskFilterMode,
+    taskFilterMode: filters.taskFilterMode,
+    taskStatusFilter: filters.taskStatusFilter,
+    taskStatusFilterOptions: bootstrap.taskStatusFilterOptions,
+    setTaskStatusFilter: filters.setTaskStatusFilter,
+    taskSearch: filters.taskSearch,
+    setTaskSearch: filters.setTaskSearch,
+    columns: bootstrap.columns,
+    isRenamingColumnId: modals.isRenamingColumnId,
+    renameDraft: modals.renameDraft,
+    setRenameDraft: modals.setRenameDraft,
+    setIsRenamingColumnId: modals.setIsRenamingColumnId,
+    setActiveColumnMenuId: modals.setActiveColumnMenuId,
+    sortedTasks: views.sortedTasks,
+    setColumns: bootstrap.setColumns,
+    setError,
+    activeColumnMenuId: modals.activeColumnMenuId,
+    setColumnToDelete: modals.setColumnToDelete,
+    handleAddColumn: bootstrap.handleAddColumn,
+    spacesLoading: bootstrap.spacesLoading,
+    paginatedTasks: views.paginatedTasks,
+    canEditTask: tasksHook.canEditTask,
+    isTaskLocked: tasksHook.isTaskLocked,
+    getTaskRowClasses: tasksHook.getTaskRowClasses,
+    projectNameById: bootstrap.projectNameById,
+    mode,
+    assigneeOptionsForTask: bootstrap.assigneeOptionsForTask,
+    canEditDueDate: tasksHook.canEditDueDate,
+    canChangeStatus: tasksHook.canChangeStatus,
+    forceDownloadDocument,
+    canCommentOnTask: tasksHook.canCommentOnTask,
+    setCommentTaskId: tasksHook.setCommentTaskId,
+    setModalStatus: tasksHook.setModalStatus,
+    canValidateTask: tasksHook.canValidateTask,
+    canDeleteTask: tasksHook.canDeleteTask,
+    handleApproveTask: tasksHook.handleApproveTask,
+    handleRejectTask: tasksHook.handleRejectTask,
+    navigate,
+    setEditingTask: modals.setEditingTask,
+    setEditingTaskMode: modals.setEditingTaskMode,
+    setEditingTaskDraft: modals.setEditingTaskDraft,
+    setDeleteTaskModal: modals.setDeleteTaskModal,
+    selectedTaskIds: modals.selectedTaskIds,
+    selectedTaskCount: modals.selectedTasks.length,
+    canBulkManageTasks: bootstrap.canBulkManageTasks,
+    bulkSaving: modals.bulkSaving,
+    bulkReminderIntervalHours: modals.bulkReminderIntervalHours,
+    setBulkReminderIntervalHours: modals.setBulkReminderIntervalHours,
+    checklistNotice: modals.checklistNotice,
+    sendSelectedTaskChecklist: modals.sendSelectedTaskChecklist,
+    bulkStatus: modals.bulkStatus,
+    setBulkStatus: modals.setBulkStatus,
+    bulkAssigneeId: modals.bulkAssigneeId,
+    setBulkAssigneeId: modals.setBulkAssigneeId,
+    bulkDueDate: modals.bulkDueDate,
+    setBulkDueDate: modals.setBulkDueDate,
+    bulkTouched: modals.bulkTouched,
+    setBulkTouched: modals.setBulkTouched,
+    toggleTaskSelection: modals.toggleTaskSelection,
+    clearSelectedTasks: modals.clearSelectedTasks,
+    saveBulkTaskChanges: modals.saveBulkTaskChanges,
+    bulkDeleteTaskModalOpen: modals.bulkDeleteTaskModalOpen,
+    setBulkDeleteTaskModalOpen: modals.setBulkDeleteTaskModalOpen,
+    deleteSelectedTasks: modals.deleteSelectedTasks,
+    canSelectTask: tasksHook.canSelectTask,
+    taskPage: filters.taskPage,
+    TASKS_PER_PAGE: views.TASKS_PER_PAGE,
+    taskListTotal: bootstrap.taskListTotal,
+    setTaskPage: filters.setTaskPage,
+    visibleTaskPages: views.visibleTaskPages,
+    totalTaskPages: views.totalTaskPages,
+    focusedTaskId: filters.focusedTaskId,
     API_BASE,
     getAuthHeaders,
-    activeCommentTask,
-    setCommentDraft,
-    commentDraft,
-    editingCommentId,
-    setEditingCommentId,
-    editCommentDraft,
-    setEditCommentDraft,
-    setTasks,
-    modalStatus,
-    handleAddComment,
-    submittingComment,
-    columnToDelete,
-    commentToDeleteId,
-    setCommentToDeleteId,
-    deleteTaskModal,
-    rejectTaskModal,
-    rejectFeedbackDraft,
-    setRejectFeedbackDraft,
-    rejectingTask,
-    confirmRejectTask,
-    editingTask,
-    editingTaskMode,
-    editingTaskDraft,
-    assignableEmployees,
-    bulkAssigneeOptions,
+    activeCommentTask: tasksHook.activeCommentTask,
+    setCommentDraft: tasksHook.setCommentDraft,
+    commentDraft: tasksHook.commentDraft,
+    editingCommentId: tasksHook.editingCommentId,
+    setEditingCommentId: tasksHook.setEditingCommentId,
+    editCommentDraft: tasksHook.editCommentDraft,
+    setEditCommentDraft: tasksHook.setEditCommentDraft,
+    setTasks: bootstrap.setTasks,
+    modalStatus: tasksHook.modalStatus,
+    handleAddComment: tasksHook.handleAddComment,
+    submittingComment: tasksHook.submittingComment,
+    columnToDelete: modals.columnToDelete,
+    commentToDeleteId: tasksHook.commentToDeleteId,
+    setCommentToDeleteId: tasksHook.setCommentToDeleteId,
+    deleteTaskModal: modals.deleteTaskModal,
+    rejectTaskModal: tasksHook.rejectTaskModal,
+    setRejectTaskModal: tasksHook.setRejectTaskModal,
+    rejectFeedbackDraft: tasksHook.rejectFeedbackDraft,
+    setRejectFeedbackDraft: tasksHook.setRejectFeedbackDraft,
+    rejectingTask: tasksHook.rejectingTask,
+    confirmRejectTask: tasksHook.confirmRejectTask,
+    editingTask: modals.editingTask,
+    editingTaskMode: modals.editingTaskMode,
+    editingTaskDraft: modals.editingTaskDraft,
+    assignableEmployees: bootstrap.assignableEmployees,
+    bulkAssigneeOptions: modals.bulkAssigneeOptions,
   };
 
   return {

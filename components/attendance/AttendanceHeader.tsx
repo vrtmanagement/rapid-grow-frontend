@@ -2,16 +2,18 @@ import React from 'react';
 import { PageHeaderSkeleton, SkeletonBlock } from '../ui/Skeleton';
 
 interface Props {
-  activeView: 'attendance' | 'leave' | 'late';
+  activeView: 'attendance' | 'leave' | 'late' | 'reports';
   subtitle: string;
   loading?: boolean;
   actions?: React.ReactNode;
+  portalMode?: 'employee' | 'manager';
 }
 
 const AttendanceHeader: React.FC<Props> = ({
   activeView,
   loading = false,
   actions = null,
+  portalMode = 'manager',
 }) => {
   if (loading) {
     return (
@@ -24,7 +26,12 @@ const AttendanceHeader: React.FC<Props> = ({
     );
   }
 
-  if (activeView === 'attendance') {
+  if (activeView === 'attendance' || activeView === 'reports') {
+    return null;
+  }
+
+  // Employee late page has its own "Request help" title inside the section.
+  if (activeView === 'late' && portalMode === 'employee') {
     return null;
   }
 
