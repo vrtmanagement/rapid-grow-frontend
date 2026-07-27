@@ -7,9 +7,6 @@ import {
   LateLoginPolicy,
   LeaveRequest,
   Range,
-  formatMinutes,
-  getBadgeColorsByMinutes,
-  getHoursColor,
 } from './attendanceUtils';
 import AttendanceSummaryCards from './AttendanceSummaryCards';
 import AttendancePresenceChart from './AttendancePresenceChart';
@@ -17,13 +14,20 @@ import AttendanceLiveSession from './AttendanceLiveSession';
 import AttendanceQuickRequestCard from './AttendanceQuickRequestCard';
 import {
   resolveAttendanceLocationLabel,
-  type TeamAttendanceActivityType,
-  type TeamAttendanceLogEntry,
-  type TeamAttendanceMemberActivity,
   type TeamAttendanceSummary,
 } from './attendanceViewUtils';
-import { Check, Coffee, LogIn, LogOut, Play, RefreshCw, X } from 'lucide-react';
-import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT } from '../../utils/avatar';
+import { PROFILE_AVATAR_UPDATED_EVENT } from '../../utils/avatar';
+import AttendanceWeekGlanceCard from './AttendanceWeekGlanceCard';
+import AttendanceTeamActivityCard from './AttendanceTeamActivityCard';
+import AttendanceTodayActivityCard from './AttendanceTodayActivityCard';
+import AttendanceLogTable from './AttendanceLogTable';
+import {
+  formatSessionTime,
+  getAttendanceTimezoneDate,
+  getHalfDayActivityLabel,
+  resolveRowMeta,
+  TodayActivityEvent,
+} from './attendanceOverviewGridUtils';
 
 interface AttendanceOverviewGridProps {
   summary: AttendanceSummaryResponse | null;
@@ -62,6 +66,8 @@ interface AttendanceOverviewGridProps {
   onOpenTeamAttendance: () => void;
   lateLoginPolicy: LateLoginPolicy | null;
   leaveBalanceOverview?: LeaveBalanceOverviewResponse | null;
+  myLeaves?: LeaveRequest[];
+  onOpenLateRequests?: () => void;
 }
 
 const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
@@ -98,14 +104,11 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
   onOpenTeamAttendance,
   lateLoginPolicy,
   leaveBalanceOverview = null,
+  myLeaves = [],
+  onOpenLateRequests,
 }) => {
   const isEmployeePortal = portalMode === 'employee';
   const isManagerPortal = portalMode === 'manager';
-  const DURATION_PROGRESS_MAX_HOURS = 10;
-  const breakStatusColors = React.useMemo(
-    () => ({ bg: '#fef3c7', text: '#b45309', solid: '#fbbf24' }),
-    [],
-  );
   const [teamActivityNow, setTeamActivityNow] = React.useState(() => Date.now());
   const teamActivityMembers = React.useMemo(() => teamAttendanceSummary?.members ?? [], [teamAttendanceSummary?.members]);
   const teamActivityEntries = React.useMemo(() => teamAttendanceSummary?.activityLog ?? [], [teamAttendanceSummary?.activityLog]);
@@ -201,21 +204,6 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
   const displayRows = React.useMemo(() => sortedDaysDesc.slice(0, 6), [sortedDaysDesc]);
   const [resolvedRowLocations, setResolvedRowLocations] = React.useState<Record<string, string>>({});
 
-  const getAttendanceTimezoneDate = React.useCallback((value?: string | Date) => {
-    const parsed = value ? new Date(value) : new Date();
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      timeZone: 'Asia/Kolkata',
-    });
-    const parts = formatter.formatToParts(parsed);
-    const year = Number(parts.find((part) => part.type === 'year')?.value || 0);
-    const month = Number(parts.find((part) => part.type === 'month')?.value || 0);
-    const day = Number(parts.find((part) => part.type === 'day')?.value || 0);
-    return new Date(year, month - 1, day);
-  }, []);
-
   const lastSevenDays = React.useMemo(() => {
     const today = getAttendanceTimezoneDate();
     const dayOfWeek = today.getDay();
@@ -237,18 +225,6 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
     return items;
   }, [getAttendanceTimezoneDate, recordsByDate]);
 
-  const formatSessionTime = React.useCallback((value?: string | Date | null) => {
-    if (!value) return '--';
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return '--';
-    return parsed.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'Asia/Kolkata',
-    });
-  }, []);
-
   const todayActivityKey = React.useMemo(() => {
     const today = getAttendanceTimezoneDate();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -269,20 +245,9 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
     return [...sourceSessions, activeSession];
   }, [activeSession, recordsByDate, todayActivityKey]);
 
-  const getHalfDayActivityLabel = React.useCallback((value?: string | null) => {
-    return value === 'SECOND_HALF' ? 'Second Half' : value === 'FIRST_HALF' ? 'First Half' : 'Half-day';
-  }, []);
-
   const todayActivityEvents = React.useMemo(() => {
     const sourceSessions = todayActivitySessions;
-    const leaveEvents: Array<{
-      id: string;
-      title: string;
-      detail: string;
-      occurredAt: number;
-      breakDurationSeconds?: number;
-      icon: 'login' | 'break' | 'resume' | 'logout' | 'leave-approved' | 'leave-pending' | 'leave-rejected';
-    }> = [];
+    const leaveEvents: TodayActivityEvent[] = [];
 
     if (todayHalfDayActivityRequest) {
       const activityTimestamp = todayHalfDayActivityRequest.status === 'PENDING'
@@ -319,14 +284,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
 
     return [...leaveEvents, ...sourceSessions
       .flatMap((session) => {
-        const sessionEvents: Array<{
-          id: string;
-          title: string;
-          detail: string;
-          occurredAt: number;
-          breakDurationSeconds?: number;
-          icon: 'login' | 'break' | 'resume' | 'logout' | 'leave-approved' | 'leave-pending' | 'leave-rejected';
-        }> = [];
+        const sessionEvents: TodayActivityEvent[] = [];
 
         const loginDate = new Date(session.loginTime);
         if (!Number.isNaN(loginDate.getTime())) {
@@ -387,86 +345,6 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
       .sort((a, b) => b.occurredAt - a.occurredAt);
   }, [formatSessionTime, getHalfDayActivityLabel, todayActivitySessions, todayHalfDayActivityRequest]);
 
-  const getTodayActivityIcon = React.useCallback((icon: 'login' | 'break' | 'resume' | 'logout' | 'leave-approved' | 'leave-pending' | 'leave-rejected') => {
-    if (icon === 'login') return <LogIn size={14} className="text-emerald-600" />;
-    if (icon === 'break') return <Coffee size={14} className="text-amber-500" />;
-    if (icon === 'resume') return <Play size={14} className="text-sky-600" />;
-    if (icon === 'leave-approved') return <Check size={14} className="text-emerald-600" />;
-    if (icon === 'leave-pending') return <Coffee size={14} className="text-amber-500" />;
-    if (icon === 'leave-rejected') return <X size={14} className="text-rose-500" />;
-    return <LogOut size={14} className="text-rose-500" />;
-  }, []);
-
-  const formatTeamSnapshotTime = React.useCallback((value?: string | null) => {
-    if (!value) return '—';
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return '—';
-    return parsed.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'Asia/Kolkata',
-    });
-  }, []);
-
-  const getTeamActivityStatusMeta = React.useCallback((activityType: TeamAttendanceActivityType, status: TeamAttendanceLogEntry['status']) => {
-    if (activityType === 'checked_in') {
-      return {
-        label: 'Logged in',
-        chipClass: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100',
-        dotClass: 'bg-emerald-500',
-      };
-    }
-    if (activityType === 'break_started') {
-      return {
-        label: 'Break started',
-        chipClass: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-100',
-        dotClass: 'bg-amber-500',
-      };
-    }
-    if (activityType === 'work_resumed') {
-      return {
-        label: 'Work resumed',
-        chipClass: 'bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-100',
-        dotClass: 'bg-sky-500',
-      };
-    }
-    if (activityType === 'checked_out' || status === 'checked_out') {
-      return {
-        label: 'Logged out',
-        chipClass: 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200',
-        dotClass: 'bg-slate-400',
-      };
-    }
-    return {
-      label: 'Logged out',
-      chipClass: 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200',
-      dotClass: 'bg-slate-300',
-    };
-  }, []);
-
-  const getCurrentViewerActivityMeta = React.useCallback((empId?: string) => {
-    if (!isManagerPortal || !currentViewerEmpId || !empId || currentViewerEmpId !== empId) {
-      return null;
-    }
-
-    return {
-      label: 'You',
-      className: 'bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-100',
-    };
-  }, [currentViewerEmpId, isManagerPortal]);
-
-  const formatTeamActivityDuration = React.useCallback((totalSeconds: number) => {
-    const safeSeconds = Math.max(0, totalSeconds);
-    const hours = Math.floor(safeSeconds / 3600);
-    const minutes = Math.floor((safeSeconds % 3600) / 60);
-    const seconds = safeSeconds % 60;
-    if (hours > 0) {
-      return `${hours}h ${String(minutes).padStart(2, '0')}m`;
-    }
-    return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
-  }, []);
-
   const weeklyTotals = React.useMemo(() => {
     const totalMinutes = lastSevenDays.reduce((total, item) => total + (item.record?.minutes || 0), 0);
     const workDays = lastSevenDays.filter((item) => !item.weekend).length;
@@ -480,61 +358,6 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
       remainingMinutes: Math.max(0, targetMinutes - totalMinutes),
     };
   }, [lastSevenDays]);
-
-  const formatDayLabel = React.useCallback(
-    (date: Date, options?: Intl.DateTimeFormatOptions) =>
-      date.toLocaleDateString('en-US', {
-        timeZone: 'Asia/Kolkata',
-        ...options,
-      }),
-    [],
-  );
-
-  const resolveRowMeta = React.useCallback((day: AttendanceDay) => {
-    const sortedSessions = [...(day.sessions || [])].sort((a, b) => (
-      new Date(a.loginTime).getTime() - new Date(b.loginTime).getTime()
-    ));
-    const firstSession = sortedSessions[0];
-    const lastSession = sortedSessions[sortedSessions.length - 1];
-    const isOpenSession = !!lastSession && !lastSession.logoutTime;
-    const isBreakSession = isOpenSession && !!lastSession?.isOnBreak;
-    const badge = isBreakSession ? breakStatusColors : getBadgeColorsByMinutes(day.minutes);
-    const hours = day.minutes / 60;
-    const status = isBreakSession
-      ? 'On break'
-      : isOpenSession
-        ? 'In progress'
-      : hours >= 8
-        ? 'Present'
-        : hours >= 7.5
-          ? 'Half day'
-          : 'Under target';
-
-    return {
-      firstSession,
-      lastSession,
-      isBreakSession,
-      isOpenSession,
-      badge,
-      status,
-      location: firstSession?.location || lastSession?.location || 'Not set',
-    };
-  }, [breakStatusColors]);
-
-  const getDurationProgressWidth = React.useCallback((minutes: number) => {
-    const hours = minutes / 60;
-    return Math.max(0, Math.min(100, (hours / DURATION_PROGRESS_MAX_HOURS) * 100));
-  }, []);
-
-  const formatAttendanceLogDuration = React.useCallback((minutes: number) => {
-    const safeMinutes = Math.max(0, Math.round(minutes));
-    const hours = Math.floor(safeMinutes / 60);
-    const remainingMinutes = safeMinutes % 60;
-
-    if (hours === 0) return `${remainingMinutes}m`;
-    if (remainingMinutes === 0) return `${hours}h`;
-    return `${hours}h ${remainingMinutes}m`;
-  }, []);
 
   React.useEffect(() => {
     if (displayRows.length === 0) return undefined;
@@ -585,105 +408,11 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
               range={range}
               variant="employee"
               todayMinutes={todayMinutes}
+              leaves={myLeaves}
+              monthlyPaidLeaves={leaveBalanceOverview?.policy?.monthlyPaidLeaves ?? 1}
             />
 
-            <div className="rounded-[34px] border border-slate-200 bg-white p-7">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h4 className="text-[1.15rem] font-semibold leading-none text-slate-950">Week at a glance</h4>
-                  <p className="mt-2 text-sm text-slate-500">
-                    {lastSevenDays.length
-                      ? `${formatDayLabel(lastSevenDays[0].date, { month: 'short', day: 'numeric' })} - ${formatDayLabel(lastSevenDays[lastSevenDays.length - 1].date, { month: 'short', day: 'numeric' })}`
-                      : 'Current week snapshot'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-slate-50">
-                    <div
-                      className="absolute inset-0 rounded-full"
-                      style={{
-                        background: `conic-gradient(#10b981 ${weeklyTotals.progress}%, #e2e8f0 ${weeklyTotals.progress}% 100%)`,
-                      }}
-                    />
-                    <div className="absolute inset-[5px] rounded-full bg-white" />
-                    <span className="relative text-xs font-semibold text-slate-700">{weeklyTotals.progress}%</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-semibold text-slate-900">{(weeklyTotals.totalMinutes / 60).toFixed(1)}h</p>
-                    <p className="text-sm text-slate-500">of {(weeklyTotals.targetMinutes / 60).toFixed(0)}h</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-                {lastSevenDays.map((item) => {
-                  const minutes = item.record?.minutes || 0;
-                  const hours = minutes / 60;
-                  const openSession = (item.record?.sessions || []).find((session) => !session.logoutTime);
-                  const isOpenSession = !!openSession;
-                  const isBreakSession = !!openSession?.isOnBreak;
-                  const hasAttendance = minutes > 0 || isOpenSession;
-                  const badgeColors = isBreakSession
-                    ? breakStatusColors
-                    : hasAttendance
-                    ? getBadgeColorsByMinutes(minutes)
-                    : item.weekend
-                      ? { bg: '#eef2f7', text: '#64748b' }
-                      : { bg: '#e2e8f0', text: '#64748b' };
-                  const label = hasAttendance
-                    ? `${hours.toFixed(1)}h`
-                    : item.weekend
-                      ? 'Off'
-                      : 'Absent';
-                  const stateLabel = hasAttendance
-                    ? isBreakSession
-                      ? 'On break'
-                      : isOpenSession
-                        ? 'Active'
-                      : hours >= 8
-                        ? 'Full day'
-                        : 'Short'
-                    : item.weekend
-                      ? 'Weekend'
-                      : 'Absent';
-
-                  return (
-                    <div key={item.key} className="text-center">
-                      <p className="text-xs font-semibold text-slate-400">
-                        {formatDayLabel(item.date, { weekday: 'short' })}
-                      </p>
-                      <div
-                        className="mt-3 rounded-[18px] px-2 py-4"
-                        style={{ backgroundColor: badgeColors.bg, color: badgeColors.text }}
-                      >
-                        <p className="text-[0.95rem] font-semibold">{label}</p>
-                        <p className="mt-1 text-[11px] font-medium opacity-85">{stateLabel}</p>
-                        <p className="mt-1 text-xs">
-                          {formatDayLabel(item.date, { day: 'numeric' })}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-7">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-semibold uppercase tracking-[0.12em] text-slate-500">Weekly progress</span>
-                  <span className="font-semibold text-emerald-600">{weeklyTotals.progress}% complete</span>
-                </div>
-                <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-green-400"
-                    style={{ width: `${weeklyTotals.progress}%` }}
-                  />
-                </div>
-                <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
-                  <span>{formatMinutes(weeklyTotals.totalMinutes)} logged</span>
-                  <span>{formatMinutes(weeklyTotals.remainingMinutes)} remaining</span>
-                </div>
-              </div>
-            </div>
+            <AttendanceWeekGlanceCard lastSevenDays={lastSevenDays} weeklyTotals={weeklyTotals} />
           </div>
 
           <div className="space-y-6 lg:col-span-4">
@@ -704,6 +433,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
               loading={attendancePageLoading}
               hideLocationDetails={!isEmployeePortal}
               lateLoginPolicy={lateLoginPolicy}
+              onOpenLateRequests={onOpenLateRequests}
             />
 
             {isEmployeePortal ? (
@@ -743,338 +473,36 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
               </div>
             ) : null}
             {isManagerPortal && canReviewTeamAttendance ? (
-              <div className="mt-8 overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_18px_40px_-28px_rgba(15,23,42,0.35)]">
-                <div className="flex items-center justify-between gap-3 bg-slate-200 px-5 py-4">
-                  <div className="min-w-0">
-                    <h4 className="truncate text-[1.15rem] font-semibold leading-none text-slate-950">Team Activity</h4>
-                  </div>
-                  <div className="flex shrink-0 flex-nowrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={onOpenTeamAttendance}
-                      className="inline-flex items-center whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-700"
-                    >
-                      Open
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onRefreshTeamActivity}
-                      disabled={teamAttendanceSummaryLoading}
-                      className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <RefreshCw size={13} className={teamAttendanceSummaryLoading ? 'animate-spin' : ''} />
-                      Refresh
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 py-3">
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 sm:text-sm">
-                    {teamClockedInCount} logged in
-                  </span>
-                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 sm:text-sm">
-                    {teamOnBreakCount} on break
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500 sm:ml-auto sm:text-sm">
-                    {teamInactiveCount} absent
-                  </span>
-                </div>
-
-                {teamAttendanceSummaryLoading ? (
-                  <div className="space-y-0">
-                    {Array.from({ length: 5 }).map((_, index) => (
-                      <div key={index} className="flex items-center gap-3 px-4 py-3">
-                        <div className="h-10 w-10 rounded-2xl bg-slate-100" />
-                        <div className="min-w-0 flex-1">
-                          <div className="h-3.5 w-36 rounded bg-slate-100" />
-                          <div className="mt-2 h-2.5 w-32 rounded bg-slate-100" />
-                          <div className="mt-2.5 h-1.5 w-16 rounded-full bg-slate-100" />
-                        </div>
-                        <div className="w-16">
-                          <div className="h-3.5 w-12 rounded bg-slate-100" />
-                          <div className="mt-2 h-2.5 w-14 rounded bg-slate-100" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : teamActivityEntries.length === 0 ? (
-                  <div className="px-5 py-10 text-center text-sm text-slate-400">
-                    No team attendance activity is available right now.
-                  </div>
-                ) : (
-                  <>
-                    <div
-                      className={`min-h-0 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 ${
-                        teamActivityEntries.length > 5 ? 'max-h-[322px]' : ''
-                      }`}
-                    >
-                      <div className="divide-y divide-slate-100">
-                        {teamActivityEntries.map((member) => {
-                          const currentMemberState = teamActivityMemberByEmpId.get(member.empId);
-                          const statusMeta = getTeamActivityStatusMeta(member.activityType, member.status);
-                          const viewerMeta = getCurrentViewerActivityMeta(member.empId);
-                          const workingMinutes = Math.max(0, member.workingMinutes || 0);
-                          const workingHours = (workingMinutes / 60).toFixed(1);
-                          const progressWidth = member.status === 'absent'
-                            ? '0%'
-                            : `${Math.max(18, Math.min(100, (workingMinutes / (8 * 60)) * 100))}%`;
-                          const progressColor = member.status === 'absent'
-                            ? '#cbd5e1'
-                            : workingMinutes >= 270
-                              ? '#f59e0b'
-                              : '#ef4444';
-                          const activityTime = member.activityAt || null;
-                          const subLabel = [member.designation || member.department, member.location]
-                            .filter(Boolean)
-                            .join(' · ');
-                          const memberMetaLabel = member.designation || member.department || member.empId;
-                          const isCurrentLiveBreakRow =
-                            member.activityType === 'break_started' &&
-                            !!activityTime &&
-                            currentMemberState?.status === 'on_break' &&
-                            currentMemberState?.lastActivityType === 'break_started' &&
-                            currentMemberState?.lastActivityAt === activityTime;
-                          const activeBreakDuration = member.activityType === 'break_started' && !!activityTime
-                            ? isCurrentLiveBreakRow
-                              ? formatTeamActivityDuration(Math.max(0, Math.floor((teamActivityNow - new Date(activityTime).getTime()) / 1000)))
-                              : typeof member.breakDurationSeconds === 'number'
-                                ? formatTeamActivityDuration(member.breakDurationSeconds)
-                                : null
-                            : null;
-                          const isActiveBreakRow = !!activeBreakDuration;
-                          const avatarSrc = getDisplayAvatarUrl(teamAvatarByEmpId[member.empId] || member.avatar, member.empName);
-
-                          return (
-                            <div
-                              key={member.id || `${member.empId}-${activityTime || 'activity'}`}
-                              className="flex items-start gap-3 px-4 py-3 transition-colors duration-200 hover:bg-slate-200/80"
-                            >
-                              <div className="relative shrink-0">
-                                <div className="h-10 w-10 overflow-hidden rounded-2xl bg-slate-100">
-                                  <img src={avatarSrc} alt={member.empName} className="h-full w-full object-cover" />
-                                </div>
-                                <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${statusMeta.dotClass}`} />
-                              </div>
-
-                              <div className="min-w-0 flex-1 pt-px">
-                                <div className="flex min-w-0 items-center gap-2">
-                                  <p className="truncate text-[12px] font-semibold text-slate-900 sm:text-[14px]">{member.empName}</p>
-                                  {viewerMeta ? (
-                                    <span className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-semibold leading-none whitespace-nowrap ${viewerMeta.className}`}>
-                                      {viewerMeta.label}
-                                    </span>
-                                  ) : null}
-                                  <span className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-semibold leading-none whitespace-nowrap ${statusMeta.chipClass}`}>
-                                    {statusMeta.label}
-                                  </span>
-                                </div>
-
-                                <p className="mt-1 truncate text-[10px] font-medium text-slate-400 sm:text-[11px]">
-                                  {member.designation || member.department || member.empId}
-                                </p>
-
-                                <div className="mt-2 h-1.5 w-[108px] overflow-hidden rounded-full bg-slate-100 sm:w-[92px]">
-                                  <div
-                                    className="h-full rounded-full"
-                                    style={{ width: progressWidth, backgroundColor: progressColor }}
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="min-w-[72px] shrink-0 pl-2 pt-px text-right">
-                                <p className="text-[13px] font-semibold text-slate-800 sm:text-[15px]">{formatTeamSnapshotTime(activityTime)}</p>
-                                <p className={`mt-1 text-[11px] text-slate-400 sm:text-[12px] ${isActiveBreakRow ? 'hidden' : ''}`}>
-                                  {member.status === 'absent' ? '—' : `${workingHours}h today`}
-                                </p>
-                                {isActiveBreakRow && activeBreakDuration ? (
-                                  <p className="mt-1 font-mono text-[11px] font-semibold text-amber-600 sm:text-[12px]">
-                                    {activeBreakDuration}
-                                  </p>
-                                ) : null}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="border-t border-slate-100 px-5 py-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <p className="text-[13px] font-semibold text-slate-400 sm:text-sm">Team presence rate</p>
-                        <p className="text-[13px] font-semibold text-slate-700 sm:text-sm">{teamPresenceRate}%</p>
-                      </div>
-                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="h-full rounded-full bg-emerald-500"
-                          style={{ width: `${teamPresenceRate}%` }}
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
+              <AttendanceTeamActivityCard
+                onOpenTeamAttendance={onOpenTeamAttendance}
+                onRefreshTeamActivity={onRefreshTeamActivity}
+                teamAttendanceSummaryLoading={teamAttendanceSummaryLoading}
+                teamClockedInCount={teamClockedInCount}
+                teamOnBreakCount={teamOnBreakCount}
+                teamInactiveCount={teamInactiveCount}
+                teamActivityEntries={teamActivityEntries}
+                teamActivityMemberByEmpId={teamActivityMemberByEmpId}
+                teamAvatarByEmpId={teamAvatarByEmpId}
+                teamActivityNow={teamActivityNow}
+                teamPresenceRate={teamPresenceRate}
+                currentViewerEmpId={currentViewerEmpId}
+                isManagerPortal={isManagerPortal}
+              />
             ) : (
-              <div className="mt-8 rounded-[30px] border border-slate-200 bg-white py-4">
-                <div className="flex items-start justify-between gap-4 px-5">
-                  <div>
-                    <h4 className="text-[1.15rem] font-semibold leading-none text-slate-800">Today activity</h4>
-                  </div>
-                  <div className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-white">
-                    Live
-                  </div>
-                </div>
-
-                <div
-                  className={`mt-3 min-h-0 flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 ${
-                    todayActivityEvents.length > 4 ? 'max-h-[286px]' : ''
-                  }`}
-                >
-                  {todayActivityEvents.length === 0 ? (
-                    <div className="mx-5 rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-400">
-                      No attendance activity recorded for today yet.
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-slate-200">
-                      {todayActivityEvents.map((event) => {
-                        const activeBreakStartedAt = activeSession?.currentBreakStartedAt
-                          ? new Date(activeSession.currentBreakStartedAt).getTime()
-                          : null;
-                        const isActiveBreakEvent =
-                          event.icon === 'break' &&
-                          !!activeSession?.isOnBreak &&
-                          activeBreakStartedAt !== null &&
-                          activeBreakStartedAt === event.occurredAt;
-                        const liveBreakDuration = event.icon === 'break'
-                          ? isActiveBreakEvent
-                            ? formatTeamActivityDuration(Math.max(0, Math.floor((teamActivityNow - event.occurredAt) / 1000)))
-                            : typeof event.breakDurationSeconds === 'number'
-                              ? formatTeamActivityDuration(event.breakDurationSeconds)
-                              : null
-                          : null;
-
-                        return (
-                          <div
-                            key={event.id}
-                            className="flex items-center justify-between gap-4 px-5 py-3 transition-colors duration-200 hover:bg-slate-200/80 first:pt-0 last:pb-0"
-                          >
-                            <div className="flex min-w-0 flex-1 items-start gap-3">
-                              <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm">
-                                {getTodayActivityIcon(event.icon)}
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-[0.88rem] font-medium text-slate-900">{event.title}</p>
-                                <p className="mt-0.5 text-[11px] text-slate-500">{event.detail}</p>
-                              </div>
-                            </div>
-                            <div className="shrink-0 pl-4 text-right">
-                              <p className="text-[0.88rem] font-medium text-slate-900">
-                                {new Date(event.occurredAt).toLocaleTimeString('en-US', {
-                                  hour: 'numeric',
-                                  minute: '2-digit',
-                                  hour12: true,
-                                  timeZone: 'Asia/Kolkata',
-                                })}
-                              </p>
-                              {liveBreakDuration ? (
-                                <p className="mt-1 text-[0.82rem] font-semibold tabular-nums text-amber-600">
-                                  {liveBreakDuration}
-                                </p>
-                              ) : null}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <AttendanceTodayActivityCard
+                todayActivityEvents={todayActivityEvents}
+                activeSession={activeSession}
+                teamActivityNow={teamActivityNow}
+              />
             )}
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[34px] border border-slate-200 bg-white">
-          <div className="flex flex-col gap-4 bg-slate-200 px-5 py-5 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h4 className="text-[1.15rem] font-semibold leading-none text-slate-950">Attendance log</h4>
-              <p className="mt-2 text-sm text-slate-500">Detailed daily records from the current selection.</p>
-            </div>
-            <button
-              type="button"
-              onClick={onOpenHistory}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
-            >
-              Open full history
-            </button>
-          </div>
-
-          <div className="overflow-x-auto px-5 pb-7 pt-6">
-            <table className="min-w-full divide-y divide-slate-100">
-              <thead>
-                <tr className="text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                  <th className="pb-4 pr-4">Date</th>
-                  <th className="pb-4 pr-4">Login</th>
-                  <th className="pb-4 pr-4">Logout</th>
-                  <th className="pb-4 pr-4">Duration</th>
-                  <th className="pb-4 pr-4">Status</th>
-                  <th className="pb-4">Location</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {displayRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-10 text-center text-sm text-slate-400">
-                      No attendance records available.
-                    </td>
-                  </tr>
-                ) : (
-                  displayRows.map((day) => {
-                    const meta = resolveRowMeta(day);
-                    return (
-                      <tr key={day.date} className="text-sm text-slate-600 transition-colors duration-200 hover:bg-slate-200/80">
-                        <td className="py-4 pr-4 font-semibold text-slate-900">
-                          {formatDayLabel(new Date(`${day.date}T00:00:00`), { weekday: 'short', day: 'numeric', month: 'short' })}
-                        </td>
-                        <td className="py-4 pr-4">{formatSessionTime(meta.firstSession?.loginTime)}</td>
-                        <td className="py-4 pr-4">
-                          {meta.isBreakSession
-                            ? 'On break'
-                            : meta.isOpenSession
-                              ? 'Active now'
-                              : formatSessionTime(meta.lastSession?.effectiveLogoutTime || meta.lastSession?.logoutTime)}
-                        </td>
-                        <td className="py-4 pr-4">
-                          <div className="flex min-w-[156px] items-center gap-3">
-                            <div className="h-2 w-28 overflow-hidden rounded-full bg-slate-100">
-                              <div
-                                className="h-full rounded-full"
-                                style={{
-                                  width: `${getDurationProgressWidth(day.minutes)}%`,
-                                  backgroundColor: meta.isBreakSession ? breakStatusColors.solid : getHoursColor(day.minutes / 60),
-                                }}
-                              />
-                            </div>
-                            <span className="min-w-[42px] text-right font-semibold text-slate-900">
-                              {formatAttendanceLogDuration(day.minutes)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-4 pr-4">
-                          <span
-                            className="rounded-full px-2.5 py-1 text-xs font-semibold"
-                            style={{ backgroundColor: meta.badge.bg, color: meta.badge.text }}
-                          >
-                            {meta.status}
-                          </span>
-                        </td>
-                        <td className="py-4 text-slate-500">{resolvedRowLocations[day.date] || meta.location}</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <AttendanceLogTable
+          onOpenHistory={onOpenHistory}
+          displayRows={displayRows}
+          resolvedRowLocations={resolvedRowLocations}
+        />
       </div>
     );
   }
@@ -1098,6 +526,8 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
           selectedMonth={selectedMonth}
           range={range}
           todayMinutes={todayMinutes}
+          leaves={myLeaves}
+          monthlyPaidLeaves={leaveBalanceOverview?.policy?.monthlyPaidLeaves ?? 1}
         />
       </div>
 

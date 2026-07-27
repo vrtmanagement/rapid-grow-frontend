@@ -13,133 +13,27 @@ import SelectedWeekFilterBanner from '../components/planning/SelectedWeekFilterB
 import { saveGoal } from '../services/goalApi';
 import { useLocation } from 'react-router-dom';
 
+import {
+  type SpacesTaskSummary,
+  type EmployeeOption,
+  normalizeRole,
+  getLoggedInEmpId,
+  getLoggedInEmployeeMeta,
+  parseDateKey,
+  formatDateKey,
+  getSundayStart,
+  getAssignmentStatusBadge,
+  getAssignmentPriorityBadge,
+  formatAssignmentStatusLabel,
+  formatAssignmentPriorityLabel,
+} from './dailyViewHelpers';
+import { DailyViewLoading } from './DailyViewLoading';
+
 interface Props {
   state: PlanningState;
   updateState: (updater: (prev: PlanningState) => PlanningState) => void;
   loading?: boolean;
 }
-
-interface SpacesTaskSummary {
-  taskId: string;
-  title: string;
-  assigneeId: string;
-  dueDate: string;
-  priority: string;
-  status: string;
-  customFields?: Record<string, string>;
-}
-
-interface EmployeeOption {
-  empId: string;
-  empName: string;
-  role?: string;
-}
-
-type NormalizedRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | 'UNKNOWN';
-
-const normalizeRole = (role?: string): NormalizedRole => {
-  const value = String(role || '').toUpperCase();
-  if (value === 'SUPER_ADMIN') return 'SUPER_ADMIN';
-  if (value === 'ADMIN') return 'ADMIN';
-  if (value === 'TEAM_LEAD') return 'TEAM_LEAD';
-  if (value === 'EMPLOYEE') return 'EMPLOYEE';
-  return 'UNKNOWN';
-};
-
-function getLoggedInEmpId(): string {
-  try {
-    const raw = localStorage.getItem('rapidgrow-admin');
-    if (!raw) return '';
-    const parsed = JSON.parse(raw);
-    return parsed?.employee?.empId || '';
-  } catch {
-    return '';
-  }
-}
-
-function getLoggedInEmployeeMeta() {
-  const session = getStoredAuthSession();
-  const emp = session?.employee || {};
-  return {
-    empId: String(emp.empId || emp._id || ''),
-    empName: String(emp.empName || ''),
-    role: String(emp.role || '').toUpperCase(),
-  };
-}
-
-const parseDateKey = (raw: string): Date | null => {
-  const value = String(raw || '').trim();
-  if (!value) return null;
-  const isoDateMatch = /^\d{4}-\d{2}-\d{2}$/.test(value);
-  const parsed = isoDateMatch ? new Date(`${value}T00:00:00`) : new Date(value);
-  if (isNaN(parsed.getTime())) return null;
-  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
-};
-
-const formatDateKey = (date: Date): string => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const getSundayStart = (date: Date): Date => {
-  const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  normalized.setDate(normalized.getDate() - normalized.getDay());
-  return normalized;
-};
-
-const getAssignmentStatusBadge = (status?: string): string => {
-  switch (String(status || '').toLowerCase()) {
-    case 'doing':
-      return 'border-brand-cyan/30 bg-brand-cyan/10 text-brand-navy';
-    case 'review':
-      return 'border-brand-orange/30 bg-brand-orange/10 text-brand-brown';
-    case 'blocked':
-      return 'border-brand-red/25 bg-brand-red/10 text-brand-red';
-    case 'done':
-      return 'border-brand-green/30 bg-brand-green/10 text-brand-green';
-    default:
-      return 'border-slate-200 bg-slate-100 text-slate-700';
-  }
-};
-
-const getAssignmentPriorityBadge = (priority?: string): string => {
-  switch (String(priority || '').toLowerCase()) {
-    case 'high':
-      return 'border-brand-red/25 bg-brand-red/10 text-brand-red';
-    case 'low':
-      return 'border-brand-green/25 bg-brand-green/10 text-brand-green';
-    default:
-      return 'border-brand-orange/25 bg-brand-orange/10 text-brand-brown';
-  }
-};
-
-const formatAssignmentStatusLabel = (status?: string): string => {
-  switch (String(status || '').toLowerCase()) {
-    case 'doing':
-      return 'In Progress';
-    case 'review':
-      return 'In Review';
-    case 'blocked':
-      return 'Blocked';
-    case 'done':
-      return 'Done';
-    default:
-      return 'To Do';
-  }
-};
-
-const formatAssignmentPriorityLabel = (priority?: string): string => {
-  switch (String(priority || '').toLowerCase()) {
-    case 'high':
-      return 'High Priority';
-    case 'low':
-      return 'Low Priority';
-    default:
-      return 'Medium Priority';
-  }
-};
 
 const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => {
   const [topTasks, setTopTasks] = useState<SpacesTaskSummary[]>([]);
@@ -553,37 +447,7 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
   }, [isAdmin, visibleGroups]);
 
   if (loading) {
-    return (
-      <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
-        <VisionFlowNav subtitle={state.uiConfig.dailySub} />
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm animate-pulse">
-          <div className="flex items-center justify-between mb-4">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-6 w-28" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {Array.from({ length: 3 }).map((_, idx) => (
-              <div key={idx} className="rounded-xl border border-slate-100 p-4">
-                <Skeleton className="h-3 w-20 mb-2" />
-                <Skeleton className="h-6 w-16" />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm animate-pulse">
-          <Skeleton className="h-6 w-56 mb-4" />
-          <div className="space-y-3">
-            {Array.from({ length: 4 }).map((_, idx) => (
-              <div key={idx} className="rounded-xl border border-slate-100 p-4 space-y-2">
-                <Skeleton className="h-4 w-1/2" />
-                <SkeletonBlock className="h-8 w-full rounded-lg" />
-                <SkeletonBlock className="h-8 w-full rounded-lg" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+    return <DailyViewLoading subtitle={state.uiConfig.dailySub} />;
   }
 
   const totalVisibleDays = visibleGroups.reduce((sum, g) => sum + g.days.length, 0);
@@ -925,3 +789,4 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
 };
 
 export default DailyView;
+

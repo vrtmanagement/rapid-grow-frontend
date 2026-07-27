@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Copy, EllipsisVertical, ExternalLink, Eye, FileText, Globe, Link2, Pencil, Trash2 } from 'lucide-react';
+import { Check, ClipboardCopy, Copy, EllipsisVertical, ExternalLink, Eye, FileText, Globe, Link2, Pencil, Trash2 } from 'lucide-react';
 import type { DriveEntry } from '../types';
 
 type DriveEntriesPanelProps = {
@@ -213,14 +213,38 @@ export default function DriveEntriesPanel({
 }: DriveEntriesPanelProps) {
   const isLinksList = variant === 'links-list';
   const [copiedEntryId, setCopiedEntryId] = React.useState<string | null>(null);
+  const [copiedAll, setCopiedAll] = React.useState(false);
   const [openMenuEntryId, setOpenMenuEntryId] = React.useState<string | null>(null);
   const copyFeedbackTimeoutRef = React.useRef<number | null>(null);
+  const copyAllTimeoutRef = React.useRef<number | null>(null);
 
   React.useEffect(() => () => {
     if (copyFeedbackTimeoutRef.current !== null) {
       window.clearTimeout(copyFeedbackTimeoutRef.current);
     }
+    if (copyAllTimeoutRef.current !== null) {
+      window.clearTimeout(copyAllTimeoutRef.current);
+    }
   }, []);
+
+  async function handleCopyAllLinks() {
+    const linkEntries = entries.filter((e) => e.entryType === 'link' && e.linkUrl);
+    if (!linkEntries.length) return;
+    const text = linkEntries.map((e) => `${e.title}\n${e.linkUrl}`).join('\n\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedAll(true);
+      if (copyAllTimeoutRef.current !== null) {
+        window.clearTimeout(copyAllTimeoutRef.current);
+      }
+      copyAllTimeoutRef.current = window.setTimeout(() => {
+        setCopiedAll(false);
+        copyAllTimeoutRef.current = null;
+      }, 2000);
+    } catch {
+      // silently fail
+    }
+  }
 
   async function handleCopyLink(entry: DriveEntry) {
     if (!onCopyLink) return;
@@ -274,6 +298,16 @@ export default function DriveEntriesPanel({
       ) : entries.length ? (
         isLinksList ? (
           <>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => void handleCopyAllLinks()}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-700 transition hover:border-red-200 hover:text-brand-red"
+              >
+                {copiedAll ? <Check size={15} className="text-emerald-500" /> : <ClipboardCopy size={15} />}
+                {copiedAll ? 'Copied All Links!' : 'Copy All Links'}
+              </button>
+            </div>
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
               {entries.map((entry, index) => (
                 <article

@@ -1,5 +1,6 @@
 import {
   ProjectActivityItem,
+  ProjectPhases,
   ProjectPriority,
   ProjectStatus,
   ProjectTeamHierarchy,

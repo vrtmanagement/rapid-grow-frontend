@@ -1,15 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { CheckCircle2, Info } from 'lucide-react';
-import { API_BASE, getAuthHeaders } from '../../config/api';
-import { getSocket } from '../../realtime/socket';
 import {
-  LeaveAdminActivityItem,
   LeaveBalanceOverviewResponse,
-  LeaveLopEvaluation,
-  LeaveLopSummary,
-  LeavePolicyConfig,
   LeaveRequest,
-  LopPolicyConfig,
 } from './attendanceUtils';
 import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
 import { usePermissions } from '../../context/usePermissions';
@@ -20,44 +13,33 @@ import LeaveApplyForLeaveForm from './LeaveApplyForLeaveForm';
 import LeaveAdminLeaveOperationsSection from './LeaveAdminLeaveOperationsSection';
 import LeaveHistoryRecordsSection from './LeaveHistoryRecordsSection';
 import LeaveBalanceOverviewSection from './LeaveBalanceOverviewSection';
-import LeaveAdminPolicySection from './LeaveAdminPolicySection';
-import LeaveLopPolicySection from './LeaveLopPolicySection';
 import LeaveEmployeeLopSection from './LeaveEmployeeLopSection';
-import {
-  createLeaveAdjustment as createLeaveAdjustmentApi,
-  downloadLeaveReport,
-  fetchLeaveActivity,
-  fetchLeaveBalanceOverview,
-  fetchLeavePolicies,
-  saveLeavePolicy,
-} from './leaveBalanceApi';
-import {
-  applyLeaveLopAction,
-  fetchLopPolicy,
-  fetchMyLopSummary,
-  previewLeaveLop,
-  saveLopPolicy,
-} from './lopPolicyApi';
-import { LOP_HISTORY_FILTER_OPTIONS, LopHistoryFilter, matchesLopHistoryFilter } from './lopUtils';
+import { LOP_HISTORY_FILTER_OPTIONS, LopHistoryFilter } from './lopUtils';
 import FilterDropdown from './FilterDropdown';
 import {
-  REASON_SUGGESTIONS,
-  LEAVE_TYPE_OPTIONS,
-  ActivePopup,
   calculateLeaveDays,
   formatApprovalDate,
+  formatDecisionRole,
   getEmployeeIdFromLabel,
   getEmployeeNameFromLabel,
   getEmployeeRecordLabel,
   leaveDetailStatusThemes,
-  leaveMatchesMonth,
-  shiftMonthValue,
-  formatDecisionRole,
-  getMonthInputValue,
   normalizeDate,
 } from './leaveManagementPanelUtils';
-import type { FilterDropdownOption } from './FilterDropdown';
 import type { AttendanceEmployeeOption } from './attendanceViewUtils';
+import {
+  useCloseLeaveDropdownsOnOutsideClick,
+  useLeaveAdminOverviewFilters,
+  useLeaveHistoryFilters,
+} from './leaveManagementPanelFilterHooks';
+import {
+  useLeaveAdminSettings,
+  useLeaveApplyForm,
+  useLeaveLiveRefresh,
+  useLeaveLopSummary,
+  useLeaveOverviewData,
+  useLeaveToast,
+} from './leaveManagementPanelDataHooks';
 
 type LeavePanelSection = 'workspace' | 'insights' | 'policy';
 
@@ -121,52 +103,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
   loading = false,
 }) => {
   const { hasPermission } = usePermissions();
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
-  const [lopHistoryFilter, setLopHistoryFilter] = useState<LopHistoryFilter>('ALL');
-  const [lopHistoryFilterOpen, setLopHistoryFilterOpen] = useState(false);
-  const lopHistoryFilterRef = useRef<HTMLDivElement | null>(null);
-  const [lopPolicy, setLopPolicy] = useState<LopPolicyConfig | null>(null);
-  const [lopPolicySaving, setLopPolicySaving] = useState(false);
-  const [lopSummary, setLopSummary] = useState<LeaveLopSummary | null>(null);
-  const [lopSummaryLoading, setLopSummaryLoading] = useState(false);
-  const [lopPreviewLoading, setLopPreviewLoading] = useState(false);
-  const [lopEvaluation, setLopEvaluation] = useState<LeaveLopEvaluation | null>(null);
-  const [historyEmployeeFilter, setHistoryEmployeeFilter] = useState('');
-  const [historyMonthFilter, setHistoryMonthFilter] = useState('');
-  const [historyStatusPickerOpen, setHistoryStatusPickerOpen] = useState(false);
-  const [historyEmployeePickerOpen, setHistoryEmployeePickerOpen] = useState(false);
-  const [historyMonthPickerOpen, setHistoryMonthPickerOpen] = useState(false);
-  const [adminEmployeeFilter, setAdminEmployeeFilter] = useState('');
-  const [adminMonthFilter, setAdminMonthFilter] = useState('');
-  const [adminDirectoryEmployees, setAdminDirectoryEmployees] = useState<string[]>([]);
-  const [adminEmployeePickerOpen, setAdminEmployeePickerOpen] = useState(false);
-  const [adminMonthPickerOpen, setAdminMonthPickerOpen] = useState(false);
-  const [activePopup, setActivePopup] = useState<ActivePopup>(null);
-  const [toast, setToast] = useState<{ tone: 'success' | 'info'; message: string } | null>(null);
   const [selectedDetailLeave, setSelectedDetailLeave] = useState<LeaveRequest | null>(null);
-  const startFieldRef = useRef<HTMLDivElement | null>(null);
-  const endFieldRef = useRef<HTMLDivElement | null>(null);
-  const reasonFieldRef = useRef<HTMLDivElement | null>(null);
-  const typeFieldRef = useRef<HTMLDivElement | null>(null);
-  const historyStatusPickerRef = useRef<HTMLDivElement | null>(null);
-  const historyEmployeePickerRef = useRef<HTMLDivElement | null>(null);
-  const historyMonthPickerRef = useRef<HTMLDivElement | null>(null);
-  const adminEmployeePickerRef = useRef<HTMLDivElement | null>(null);
-  const adminMonthPickerRef = useRef<HTMLDivElement | null>(null);
-  const currentMonthValue = useMemo(() => getMonthInputValue(new Date()), []);
-  const [overviewPeriod, setOverviewPeriod] = useState<'month' | 'year'>('month');
-  const [overviewMonth, setOverviewMonth] = useState(currentMonthValue);
-  const [overviewYear, setOverviewYear] = useState(new Date().getFullYear());
-  const [overviewEmployeeEmpId, setOverviewEmployeeEmpId] = useState(currentEmployeeId || '');
-  const [overviewData, setOverviewData] = useState<LeaveBalanceOverviewResponse | null>(currentOverview);
-  const [overviewLoading, setOverviewLoading] = useState(currentOverviewLoading);
-  const [policyItems, setPolicyItems] = useState<LeavePolicyConfig[]>([]);
-  const [activityItems, setActivityItems] = useState<LeaveAdminActivityItem[]>([]);
-  const [policySaving, setPolicySaving] = useState(false);
-  const [adjustmentSaving, setAdjustmentSaving] = useState(false);
-  const [exportLoading, setExportLoading] = useState(false);
-  const latestOverviewRequestRef = useRef(0);
-  const overviewCacheRef = useRef(new Map<string, LeaveBalanceOverviewResponse>());
   const canManagePolicy = hasPermission('LEAVE_POLICY_MANAGE');
   const showWorkspaceSection = activeSection === 'workspace';
   const showInsightsSection = activeSection === 'insights';
@@ -189,20 +126,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
 
     return myLeaves;
   }, [approverLeaves, myLeaves, viewerRole]);
-  const { total: calculatedDays, invalid: hasInvalidRange } = useMemo(
-    () => calculateLeaveDays(leaveStart, leaveEnd, true, { type: leaveType }),
-    [leaveEnd, leaveStart, leaveType],
-  );
 
-  const filteredSuggestions = useMemo(() => {
-    const query = leaveReason.trim().toLowerCase();
-    if (!query) return REASON_SUGGESTIONS;
-    return REASON_SUGGESTIONS.filter((suggestion) => suggestion.toLowerCase().includes(query));
-  }, [leaveReason]);
-  const selectedLeaveTypeOption = useMemo(
-    () => LEAVE_TYPE_OPTIONS.find((option) => option.value === leaveType) || LEAVE_TYPE_OPTIONS[0],
-    [leaveType],
-  );
   const calendarLeaves = useMemo(
     () =>
       baseLeaves.filter((leave) => {
@@ -219,132 +143,6 @@ const LeaveManagementPanel: React.FC<Props> = ({
     [baseLeaves, currentEmployeeId, viewerRole],
   );
 
-  const filteredLeaves = useMemo(() => {
-    const selectedEmployeeId = getEmployeeIdFromLabel(historyEmployeeFilter);
-    const selectedEmployeeLabel = historyEmployeeFilter.trim().toLowerCase();
-
-    return baseLeaves.filter((leave) => {
-      if (statusFilter !== 'ALL' && leave.status !== statusFilter) return false;
-      if (!matchesLopHistoryFilter(leave, lopHistoryFilter)) return false;
-      if (historyMonthFilter && !leaveMatchesMonth(leave, historyMonthFilter)) return false;
-      if (!selectedEmployeeId && !selectedEmployeeLabel) return true;
-
-      const leaveEmpId = String(leave.empId || '').trim();
-      if (selectedEmployeeId) {
-        return leaveEmpId === selectedEmployeeId;
-      }
-
-      return getEmployeeRecordLabel(leave).toLowerCase() === selectedEmployeeLabel;
-    });
-  }, [baseLeaves, historyEmployeeFilter, historyMonthFilter, lopHistoryFilter, statusFilter]);
-
-  const adminOverviewLeaves = useMemo(() => {
-    const selectedEmployeeId = getEmployeeIdFromLabel(adminEmployeeFilter);
-    const selectedEmployeeLabel = adminEmployeeFilter.trim().toLowerCase();
-
-    return baseLeaves.filter((leave) => {
-      if (viewerRole !== 'admin') return true;
-      if (adminMonthFilter && !leaveMatchesMonth(leave, adminMonthFilter)) return false;
-      if (!selectedEmployeeId && !selectedEmployeeLabel) return true;
-
-      const leaveEmpId = String(leave.empId || '').trim();
-      if (selectedEmployeeId) {
-        return leaveEmpId === selectedEmployeeId;
-      }
-
-      return getEmployeeRecordLabel(leave).toLowerCase() === selectedEmployeeLabel;
-    });
-  }, [adminEmployeeFilter, adminMonthFilter, baseLeaves, viewerRole]);
-
-  const leaveStats = useMemo(
-    () => ({
-      total: adminOverviewLeaves.length,
-      approved: adminOverviewLeaves.filter((leave) => leave.status === 'APPROVED').length,
-      pending: adminOverviewLeaves.filter((leave) => leave.status === 'PENDING').length,
-      rejected: adminOverviewLeaves.filter((leave) => leave.status === 'REJECTED').length,
-      lop: adminOverviewLeaves.filter((leave) =>
-        matchesLopHistoryFilter(leave, 'LOP_LEAVES'),
-      ).length,
-    }),
-    [adminOverviewLeaves],
-  );
-
-  const lopHistoryFilterLabel =
-    LOP_HISTORY_FILTER_OPTIONS.find((option) => option.value === lopHistoryFilter)?.label ||
-    'All leaves';
-
-  const adminEmployeeOptions = useMemo(() => {
-    const uniqueEmployees = new Map<string, string>();
-
-    employeeDirectory.forEach((employeeLabel) => {
-      if (employeeLabel) {
-        uniqueEmployees.set(employeeLabel.toLowerCase(), employeeLabel);
-      }
-    });
-
-    adminDirectoryEmployees.forEach((employeeLabel) => {
-      if (employeeLabel) {
-        uniqueEmployees.set(employeeLabel.toLowerCase(), employeeLabel);
-      }
-    });
-
-    baseLeaves.forEach((leave) => {
-      const label = getEmployeeRecordLabel(leave);
-      if (label) {
-        uniqueEmployees.set(label.toLowerCase(), label);
-      }
-    });
-
-    return Array.from(uniqueEmployees.values()).sort((a, b) => a.localeCompare(b));
-  }, [adminDirectoryEmployees, baseLeaves, employeeDirectory]);
-
-  const adminMonthOptions = useMemo(() => {
-    const uniqueMonths = new Set<string>();
-
-    baseLeaves.forEach((leave) => {
-      const startDate = normalizeDate(leave.startDate);
-      const endDate = normalizeDate(leave.endDate);
-      if (!startDate || !endDate) return;
-
-      const cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-      const lastMonth = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
-
-      while (cursor <= lastMonth) {
-        uniqueMonths.add(getMonthInputValue(cursor));
-        cursor.setMonth(cursor.getMonth() + 1);
-      }
-    });
-
-    for (let offset = 0; offset < 12; offset += 1) {
-      uniqueMonths.add(shiftMonthValue(getMonthInputValue(new Date()), -offset));
-    }
-
-    const months = Array.from(uniqueMonths).sort((a, b) => b.localeCompare(a));
-    if (adminMonthFilter && !months.includes(adminMonthFilter)) {
-      months.unshift(adminMonthFilter);
-    }
-    return months;
-  }, [adminMonthFilter, baseLeaves]);
-
-  const historyEmployeeOptions = useMemo(() => {
-    const uniqueEmployees = new Map<string, string>();
-
-    adminEmployeeOptions.forEach((employeeLabel) => {
-      uniqueEmployees.set(employeeLabel.toLowerCase(), employeeLabel);
-    });
-
-    baseLeaves.forEach((leave) => {
-      const label = getEmployeeRecordLabel(leave);
-      if (label) {
-        uniqueEmployees.set(label.toLowerCase(), label);
-      }
-    });
-
-    return Array.from(uniqueEmployees.values())
-      .filter((label) => !(viewerRole === 'team_lead' && /^Emp ID:/i.test(label.trim())))
-      .sort((a, b) => a.localeCompare(b));
-  }, [adminEmployeeOptions, baseLeaves, viewerRole]);
-
   const currentEmployeeName = useMemo(() => {
     const fromDirectory = employeeDirectory
       .map((label) => ({
@@ -359,67 +157,6 @@ const LeaveManagementPanel: React.FC<Props> = ({
     return String(fromLeaves?.empName || '').trim();
   }, [baseLeaves, currentEmployeeId, employeeDirectory]);
 
-  const formatHistoryEmployeeOptionLabel = (label: string) => {
-    if (viewerRole !== 'team_lead') return label;
-    const name = getEmployeeNameFromLabel(label);
-    if (!name) return label;
-
-    const optionEmpId = getEmployeeIdFromLabel(label);
-    const isCurrentUser =
-      (optionEmpId && optionEmpId === currentEmployeeId) ||
-      (!!currentEmployeeName && name.toLowerCase() === currentEmployeeName.toLowerCase());
-
-    return isCurrentUser ? `${name} (you)` : name;
-  };
-
-  const historyMonthOptions = useMemo(() => {
-    const uniqueMonths = new Set<string>();
-
-    baseLeaves.forEach((leave) => {
-      const startDate = normalizeDate(leave.startDate);
-      const endDate = normalizeDate(leave.endDate);
-      if (!startDate || !endDate) return;
-
-      const cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-      const lastMonth = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
-
-      while (cursor <= lastMonth) {
-        uniqueMonths.add(getMonthInputValue(cursor));
-        cursor.setMonth(cursor.getMonth() + 1);
-      }
-    });
-
-    for (let offset = 0; offset < 12; offset += 1) {
-      uniqueMonths.add(shiftMonthValue(getMonthInputValue(new Date()), -offset));
-    }
-
-    return Array.from(uniqueMonths).sort((a, b) => b.localeCompare(a));
-  }, [baseLeaves]);
-
-  const historyStatusOptions: FilterDropdownOption[] = [
-    { value: 'ALL', label: 'All statuses' },
-    { value: 'PENDING', label: 'Pending' },
-    { value: 'APPROVED', label: 'Approved' },
-    { value: 'REJECTED', label: 'Rejected' },
-  ];
-  const showHistoryEmployeeFilter = viewerRole !== 'employee';
-  const getDecisionLabel = (leave: LeaveRequest) => {
-    if (viewerRole !== 'employee' || leave.status === 'PENDING') return '';
-    const roleLabel = formatDecisionRole(leave.decidedByRole);
-    if (!roleLabel) return '';
-    return `${leave.status === 'APPROVED' ? 'Approved' : 'Rejected'} by ${roleLabel}`;
-  };
-  const historyStatusLabel = historyStatusOptions.find((option) => option.value === statusFilter)?.label || 'All statuses';
-  const historyEmployeeLabel = historyEmployeeFilter
-    ? formatHistoryEmployeeOptionLabel(historyEmployeeFilter)
-    : 'All employees';
-  const historyMonthLabel = historyMonthFilter
-    ? new Date(`${historyMonthFilter}-01T00:00:00`).toLocaleDateString('en-US', {
-        month: 'long',
-        year: 'numeric',
-      })
-    : 'All months';
-
   const upcomingLeaves = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -433,443 +170,84 @@ const LeaveManagementPanel: React.FC<Props> = ({
       .slice(0, 4);
   }, [baseLeaves]);
 
-  useEffect(() => {
-    if (viewerRole === 'employee') {
-      setOverviewEmployeeEmpId(currentEmployeeId || '');
-      return;
-    }
+  const { toast, showToast } = useLeaveToast();
 
-    setOverviewEmployeeEmpId((current) => {
-      if (current && employeeOptions.some((employee) => employee.empId === current)) {
-        return current;
-      }
-      return employeeOptions[0]?.empId || currentEmployeeId || '';
-    });
-  }, [currentEmployeeId, employeeOptions, viewerRole]);
+  const adminFilters = useLeaveAdminOverviewFilters({ baseLeaves, viewerRole, employeeDirectory });
 
-  useEffect(() => {
-    if (!currentOverview) return;
-    if (viewerRole === 'employee' || (currentEmployeeId && overviewEmployeeEmpId === currentEmployeeId)) {
-      setOverviewData(currentOverview);
-    }
-  }, [currentEmployeeId, currentOverview, overviewEmployeeEmpId, viewerRole]);
+  const historyFilters = useLeaveHistoryFilters({
+    baseLeaves,
+    viewerRole,
+    currentEmployeeId,
+    currentEmployeeName,
+    adminEmployeeOptions: adminFilters.adminEmployeeOptions,
+  });
 
-  useEffect(() => {
-    setOverviewLoading(currentOverviewLoading);
-  }, [currentOverviewLoading]);
+  useCloseLeaveDropdownsOnOutsideClick({
+    adminEmployeePickerOpen: adminFilters.adminEmployeePickerOpen,
+    setAdminEmployeePickerOpen: adminFilters.setAdminEmployeePickerOpen,
+    adminEmployeePickerRef: adminFilters.adminEmployeePickerRef,
+    adminMonthPickerOpen: adminFilters.adminMonthPickerOpen,
+    setAdminMonthPickerOpen: adminFilters.setAdminMonthPickerOpen,
+    adminMonthPickerRef: adminFilters.adminMonthPickerRef,
+    historyStatusPickerOpen: historyFilters.historyStatusPickerOpen,
+    setHistoryStatusPickerOpen: historyFilters.setHistoryStatusPickerOpen,
+    historyStatusPickerRef: historyFilters.historyStatusPickerRef,
+    historyEmployeePickerOpen: historyFilters.historyEmployeePickerOpen,
+    setHistoryEmployeePickerOpen: historyFilters.setHistoryEmployeePickerOpen,
+    historyEmployeePickerRef: historyFilters.historyEmployeePickerRef,
+    historyMonthPickerOpen: historyFilters.historyMonthPickerOpen,
+    setHistoryMonthPickerOpen: historyFilters.setHistoryMonthPickerOpen,
+    historyMonthPickerRef: historyFilters.historyMonthPickerRef,
+  });
 
-  const loadOverview = useCallback(async (options?: { silent?: boolean }) => {
-    const silent = options?.silent === true;
-    const requestId = latestOverviewRequestRef.current + 1;
-    latestOverviewRequestRef.current = requestId;
+  const overview = useLeaveOverviewData({
+    viewerRole,
+    currentEmployeeId,
+    employeeOptions,
+    currentOverview,
+    currentOverviewLoading,
+    showToast,
+  });
 
-    const targetEmployeeEmpId =
-      viewerRole === 'employee'
-        ? currentEmployeeId
-        : overviewEmployeeEmpId || currentEmployeeId || employeeOptions[0]?.empId;
-    const overviewCacheKey = [
-      targetEmployeeEmpId || '',
-      overviewPeriod,
-      overviewMonth.slice(5, 7),
-      overviewYear,
-    ].join(':');
-    const cachedOverview = overviewCacheRef.current.get(overviewCacheKey);
+  const adminSettings = useLeaveAdminSettings({
+    isApproverPortal,
+    showToast,
+    loadOverview: overview.loadOverview,
+  });
 
-    if (!silent) {
-      if (cachedOverview) {
-        setOverviewData(cachedOverview);
-        setOverviewLoading(false);
-      } else {
-        setOverviewLoading(true);
-      }
-    }
+  const applyForm = useLeaveApplyForm({
+    leaveStart,
+    leaveEnd,
+    leaveReason,
+    leaveType,
+    onApply,
+    onDeleteLeave,
+    onChangeStart,
+    onChangeEnd,
+    onChangeReason,
+    onChangeType,
+    showToast,
+  });
 
-    try {
-      const data = await fetchLeaveBalanceOverview({
-        employeeEmpId: targetEmployeeEmpId,
-        period: overviewPeriod,
-        month: overviewMonth.slice(5, 7),
-        year: overviewYear,
-      });
-      overviewCacheRef.current.set(overviewCacheKey, data);
-      if (latestOverviewRequestRef.current === requestId) {
-        setOverviewData(data);
-      }
-    } catch (error) {
-      console.error('Failed to load leave overview section', error);
-      if (!silent && latestOverviewRequestRef.current === requestId) {
-        setOverviewData(null);
-      }
-    } finally {
-      if (latestOverviewRequestRef.current === requestId) {
-        setOverviewLoading(false);
-      }
-    }
-  }, [currentEmployeeId, employeeOptions, overviewEmployeeEmpId, overviewMonth, overviewPeriod, overviewYear, viewerRole]);
+  const lopSummaryData = useLeaveLopSummary({
+    viewerRole,
+    myLeavesLength: myLeaves.length,
+    canApplyLeave,
+    hasInvalidRange: applyForm.hasInvalidRange,
+    leaveStart,
+    leaveEnd,
+    leaveType,
+    onLeaveLopAction,
+    showToast,
+  });
 
-  const loadAdminMeta = useCallback(async () => {
-    if (!isApproverPortal) {
-      setPolicyItems([]);
-      setActivityItems([]);
-      return;
-    }
+  useLeaveLiveRefresh({
+    isApproverPortal,
+    loadOverview: overview.loadOverview,
+    loadAdminMeta: adminSettings.loadAdminMeta,
+  });
 
-    try {
-      const [policies, activity, lopPolicyData] = await Promise.all([
-        fetchLeavePolicies(),
-        fetchLeaveActivity(8),
-        fetchLopPolicy().catch(() => null),
-      ]);
-      setPolicyItems(policies);
-      setActivityItems(activity);
-      if (lopPolicyData) setLopPolicy(lopPolicyData);
-    } catch (error) {
-      console.error('Failed to load leave admin metadata', error);
-      setPolicyItems([]);
-      setActivityItems([]);
-    }
-  }, [isApproverPortal]);
-
-  const loadLopSummary = useCallback(async () => {
-    if (viewerRole !== 'employee') {
-      setLopSummary(null);
-      return;
-    }
-    setLopSummaryLoading(true);
-    try {
-      const summary = await fetchMyLopSummary(new Date().getFullYear());
-      setLopSummary(summary);
-    } catch (error) {
-      console.error('Failed to load LOP summary', error);
-      setLopSummary(null);
-    } finally {
-      setLopSummaryLoading(false);
-    }
-  }, [viewerRole]);
-
-  useEffect(() => {
-    if (!canApplyLeave || !leaveStart || !leaveEnd || hasInvalidRange) {
-      setLopEvaluation(null);
-      return undefined;
-    }
-
-    let mounted = true;
-    const timer = window.setTimeout(async () => {
-      setLopPreviewLoading(true);
-      try {
-        const preview = await previewLeaveLop({
-          startDate: leaveStart,
-          endDate: leaveEnd,
-          type: leaveType,
-        });
-        if (mounted) setLopEvaluation(preview.evaluation);
-      } catch {
-        if (mounted) setLopEvaluation(null);
-      } finally {
-        if (mounted) setLopPreviewLoading(false);
-      }
-    }, 350);
-
-    return () => {
-      mounted = false;
-      window.clearTimeout(timer);
-    };
-  }, [canApplyLeave, hasInvalidRange, leaveEnd, leaveStart, leaveType]);
-
-  useEffect(() => {
-    if (viewerRole === 'employee' && historyEmployeeFilter) {
-      setHistoryEmployeeFilter('');
-      setHistoryEmployeePickerOpen(false);
-    }
-  }, [historyEmployeeFilter, viewerRole]);
-
-  useEffect(() => {
-    if (!toast) return undefined;
-    const timer = window.setTimeout(() => setToast(null), 2600);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
-  useEffect(() => {
-    void loadOverview();
-  }, [loadOverview]);
-
-  useEffect(() => {
-    void loadAdminMeta();
-  }, [loadAdminMeta]);
-
-  useEffect(() => {
-    void loadLopSummary();
-  }, [loadLopSummary, myLeaves.length]);
-
-  useEffect(() => {
-    const socket = getSocket();
-    const handleLeaveLiveRefresh = () => {
-      void loadOverview({ silent: true });
-      if (isApproverPortal) {
-        void loadAdminMeta();
-      }
-    };
-
-    socket.on('leave:created', handleLeaveLiveRefresh);
-    socket.on('leave:updated', handleLeaveLiveRefresh);
-    socket.on('leave:balance_changed', handleLeaveLiveRefresh);
-    socket.on('leave:policy_changed', handleLeaveLiveRefresh);
-
-    return () => {
-      socket.off('leave:created', handleLeaveLiveRefresh);
-      socket.off('leave:updated', handleLeaveLiveRefresh);
-      socket.off('leave:balance_changed', handleLeaveLiveRefresh);
-      socket.off('leave:policy_changed', handleLeaveLiveRefresh);
-    };
-  }, [isApproverPortal, loadAdminMeta, loadOverview]);
-
-  useEffect(() => {
-    if (viewerRole !== 'admin' || employeeDirectory.length > 0) return undefined;
-
-    let mounted = true;
-
-    const loadAdminDirectoryEmployees = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/employees`, {
-          headers: getAuthHeaders(),
-        });
-        if (!res.ok) return;
-
-        const data = await res.json();
-        if (!mounted) return;
-
-        const employees = (Array.isArray(data) ? data : [])
-          .filter((employee: any) => String(employee?.status || '').toLowerCase() !== 'inactive')
-          .filter((employee: any) => ['EMPLOYEE', 'TEAM_LEAD'].includes(String(employee?.role || '').toUpperCase()))
-          .map((employee: any) => {
-            const empId = String(employee?.empId || '').trim();
-            const empName = String(employee?.empName || employee?.name || '').trim();
-            if (empName && empId) return `${empName} (${empId})`;
-            return empName || empId;
-          })
-          .filter(Boolean);
-
-        setAdminDirectoryEmployees(employees);
-      } catch (error) {
-        console.error('Failed to load employees for leave filter', error);
-      }
-    };
-
-    loadAdminDirectoryEmployees();
-
-    return () => {
-      mounted = false;
-    };
-  }, [employeeDirectory.length, viewerRole]);
-
-  useEffect(() => {
-    if (
-      !adminEmployeePickerOpen &&
-      !adminMonthPickerOpen &&
-      !historyStatusPickerOpen &&
-      !historyEmployeePickerOpen &&
-      !historyMonthPickerOpen
-    ) {
-      return undefined;
-    }
-
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-
-      if (adminEmployeePickerRef.current && !adminEmployeePickerRef.current.contains(target)) {
-        setAdminEmployeePickerOpen(false);
-      }
-
-      if (adminMonthPickerRef.current && !adminMonthPickerRef.current.contains(target)) {
-        setAdminMonthPickerOpen(false);
-      }
-
-      if (historyStatusPickerRef.current && !historyStatusPickerRef.current.contains(target)) {
-        setHistoryStatusPickerOpen(false);
-      }
-
-      if (historyEmployeePickerRef.current && !historyEmployeePickerRef.current.contains(target)) {
-        setHistoryEmployeePickerOpen(false);
-      }
-
-      if (historyMonthPickerRef.current && !historyMonthPickerRef.current.contains(target)) {
-        setHistoryMonthPickerOpen(false);
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setAdminEmployeePickerOpen(false);
-        setAdminMonthPickerOpen(false);
-        setHistoryStatusPickerOpen(false);
-        setHistoryEmployeePickerOpen(false);
-        setHistoryMonthPickerOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [
-    adminEmployeePickerOpen,
-    adminMonthPickerOpen,
-    historyStatusPickerOpen,
-    historyEmployeePickerOpen,
-    historyMonthPickerOpen,
-  ]);
-
-  useEffect(() => {
-    if (!activePopup) return undefined;
-
-    const getActiveRef = () => {
-      if (activePopup === 'start') return startFieldRef.current;
-      if (activePopup === 'end') return endFieldRef.current;
-      if (activePopup === 'reason') return reasonFieldRef.current;
-      if (activePopup === 'type') return typeFieldRef.current;
-      return null;
-    };
-
-    const handlePointerDown = (event: MouseEvent) => {
-      const container = getActiveRef();
-      if (container && !container.contains(event.target as Node)) {
-        setActivePopup(null);
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setActivePopup(null);
-      }
-    };
-
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [activePopup]);
-
-  const handleSaveLopPolicy = async (payload: Record<string, unknown>) => {
-    setLopPolicySaving(true);
-    try {
-      const saved = await saveLopPolicy(payload);
-      setLopPolicy(saved);
-      setToast({ tone: 'success', message: 'LOP policy saved' });
-    } catch (error) {
-      setToast({
-        tone: 'info',
-        message: error instanceof Error ? error.message : 'Failed to save LOP policy',
-      });
-    } finally {
-      setLopPolicySaving(false);
-    }
-  };
-
-  const handleLeaveLopAction = async (leaveId: string, action: string, reason?: string) => {
-    if (onLeaveLopAction) {
-      await onLeaveLopAction(leaveId, action, reason);
-      setToast({ tone: 'success', message: 'LOP action applied' });
-      return;
-    }
-    await applyLeaveLopAction(leaveId, action, reason);
-    setToast({ tone: 'success', message: 'LOP action applied' });
-  };
-
-  const handleSubmitLeave = async () => {
-    if (hasInvalidRange) {
-      setToast({ tone: 'info', message: 'Please choose a valid leave date range.' });
-      return;
-    }
-
-    const success = await onApply();
-    if (success) {
-      setActivePopup(null);
-      setToast({ tone: 'success', message: 'Leave request submitted' });
-    }
-  };
-
-  const handleEditLeave = (leave: LeaveRequest) => {
-    onChangeStart(leave.startDate.slice(0, 10));
-    onChangeEnd(leave.endDate.slice(0, 10));
-    onChangeReason(leave.reason || '');
-    onChangeType(leave.type || 'CASUAL');
-    setActivePopup(null);
-    setToast({ tone: 'info', message: 'Pending leave loaded into the form for quick editing.' });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleDeleteLeave = async (leave: LeaveRequest) => {
-    const success = await onDeleteLeave(leave);
-    setToast({
-      tone: success ? 'success' : 'info',
-      message: success ? 'Leave request deleted' : 'Unable to delete leave request',
-    });
-  };
-
-  const handleSavePolicy = async (payload: Record<string, unknown>) => {
-    setPolicySaving(true);
-    try {
-      await saveLeavePolicy(payload);
-      await loadAdminMeta();
-      await loadOverview({ silent: true });
-      setToast({ tone: 'success', message: 'Leave policy saved successfully' });
-    } catch (error) {
-      console.error('Failed to save leave policy', error);
-      setToast({ tone: 'info', message: error instanceof Error ? error.message : 'Unable to save leave policy' });
-    } finally {
-      setPolicySaving(false);
-    }
-  };
-
-  const handleCreateAdjustment = async (payload: Record<string, unknown>) => {
-    setAdjustmentSaving(true);
-    try {
-      await createLeaveAdjustmentApi(payload);
-      await Promise.all([
-        loadOverview({ silent: true }),
-        loadAdminMeta(),
-      ]);
-      setToast({ tone: 'success', message: 'Leave balance adjusted successfully' });
-    } catch (error) {
-      console.error('Failed to adjust leave balance', error);
-      setToast({ tone: 'info', message: error instanceof Error ? error.message : 'Unable to adjust leave balance' });
-    } finally {
-      setAdjustmentSaving(false);
-    }
-  };
-
-  const handleExport = async () => {
-    setExportLoading(true);
-    try {
-      const report = await downloadLeaveReport({
-        employeeEmpId:
-          viewerRole === 'employee'
-            ? currentEmployeeId
-            : overviewEmployeeEmpId || currentEmployeeId || employeeOptions[0]?.empId,
-        period: overviewPeriod,
-        month: overviewMonth.slice(5, 7),
-        year: overviewYear,
-      });
-      const url = window.URL.createObjectURL(report.blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = report.filename;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.URL.revokeObjectURL(url);
-      setToast({ tone: 'success', message: 'Leave report exported' });
-    } catch (error) {
-      console.error('Failed to export leave report', error);
-      setToast({ tone: 'info', message: error instanceof Error ? error.message : 'Unable to export leave report' });
-    } finally {
-      setExportLoading(false);
-    }
-  };
+  const getDecisionLabel = historyFilters.getDecisionLabel;
 
   return (
     <div className="space-y-8">
@@ -888,7 +266,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
         <PendingApprovalsPanel
           pendingLeaves={pendingLeaves}
           onLeaveAction={onLeaveAction}
-          onLeaveLopAction={handleLeaveLopAction}
+          onLeaveLopAction={lopSummaryData.handleLeaveLopAction}
           showLopActions={isApproverPortal}
           formatApprovalDate={formatApprovalDate}
           calculateLeaveDays={calculateLeaveDays}
@@ -899,27 +277,27 @@ const LeaveManagementPanel: React.FC<Props> = ({
 
       {showInsightsSection ? (
         <LeaveBalanceOverviewSection
-          overview={overviewData}
-          loading={overviewLoading}
+          overview={overview.overviewData}
+          loading={overview.overviewLoading}
           viewerRole={viewerRole}
           employeeOptions={employeeOptions}
-          selectedEmployeeEmpId={overviewEmployeeEmpId}
-          selectedPeriod={overviewPeriod}
-          selectedMonth={overviewMonth.slice(5, 7)}
-          selectedYear={overviewYear}
-          exportLoading={exportLoading}
-          onEmployeeChange={setOverviewEmployeeEmpId}
-          onPeriodChange={setOverviewPeriod}
-          onMonthChange={(value) => setOverviewMonth(`${overviewYear}-${value}`)}
+          selectedEmployeeEmpId={overview.overviewEmployeeEmpId}
+          selectedPeriod={overview.overviewPeriod}
+          selectedMonth={overview.overviewMonth.slice(5, 7)}
+          selectedYear={overview.overviewYear}
+          exportLoading={overview.exportLoading}
+          onEmployeeChange={overview.setOverviewEmployeeEmpId}
+          onPeriodChange={overview.setOverviewPeriod}
+          onMonthChange={(value) => overview.setOverviewMonth(`${overview.overviewYear}-${value}`)}
           onYearChange={(value) => {
-            setOverviewYear(value);
-            setOverviewMonth(`${value}-${overviewMonth.slice(5, 7) || '01'}`);
+            overview.setOverviewYear(value);
+            overview.setOverviewMonth(`${value}-${overview.overviewMonth.slice(5, 7) || '01'}`);
           }}
           onExport={() => {
-            void handleExport();
+            void overview.handleExport();
           }}
           onRefresh={() => {
-            void loadOverview();
+            void overview.loadOverview();
           }}
         />
       ) : null}
@@ -959,36 +337,36 @@ const LeaveManagementPanel: React.FC<Props> = ({
                   onChangeEnd={onChangeEnd}
                   onChangeReason={onChangeReason}
                   onChangeType={onChangeType}
-                  activePopup={activePopup}
-                  setActivePopup={setActivePopup}
-                  startFieldRef={startFieldRef}
-                  endFieldRef={endFieldRef}
-                  reasonFieldRef={reasonFieldRef}
-                  typeFieldRef={typeFieldRef}
-                  hasInvalidRange={hasInvalidRange}
-                  calculatedDays={calculatedDays}
-                  selectedLeaveTypeOption={selectedLeaveTypeOption}
-                  onSubmitLeave={handleSubmitLeave}
-                  lopPreviewLoading={lopPreviewLoading}
-                  lopEvaluation={lopEvaluation}
+                  activePopup={applyForm.activePopup}
+                  setActivePopup={applyForm.setActivePopup}
+                  startFieldRef={applyForm.startFieldRef}
+                  endFieldRef={applyForm.endFieldRef}
+                  reasonFieldRef={applyForm.reasonFieldRef}
+                  typeFieldRef={applyForm.typeFieldRef}
+                  hasInvalidRange={applyForm.hasInvalidRange}
+                  calculatedDays={applyForm.calculatedDays}
+                  selectedLeaveTypeOption={applyForm.selectedLeaveTypeOption}
+                  onSubmitLeave={applyForm.handleSubmitLeave}
+                  lopPreviewLoading={lopSummaryData.lopPreviewLoading}
+                  lopEvaluation={lopSummaryData.lopEvaluation}
                 />
               )
             ) : (
               <LeaveAdminLeaveOperationsSection
                 viewerRole={viewerRole}
-                adminEmployeeFilter={adminEmployeeFilter}
-                setAdminEmployeeFilter={setAdminEmployeeFilter}
-                adminMonthFilter={adminMonthFilter}
-                setAdminMonthFilter={setAdminMonthFilter}
-                adminEmployeePickerOpen={adminEmployeePickerOpen}
-                setAdminEmployeePickerOpen={setAdminEmployeePickerOpen}
-                adminMonthPickerOpen={adminMonthPickerOpen}
-                setAdminMonthPickerOpen={setAdminMonthPickerOpen}
-                adminEmployeePickerRef={adminEmployeePickerRef}
-                adminMonthPickerRef={adminMonthPickerRef}
-                adminEmployeeOptions={adminEmployeeOptions}
-                adminMonthOptions={adminMonthOptions}
-                leaveStats={leaveStats}
+                adminEmployeeFilter={adminFilters.adminEmployeeFilter}
+                setAdminEmployeeFilter={adminFilters.setAdminEmployeeFilter}
+                adminMonthFilter={adminFilters.adminMonthFilter}
+                setAdminMonthFilter={adminFilters.setAdminMonthFilter}
+                adminEmployeePickerOpen={adminFilters.adminEmployeePickerOpen}
+                setAdminEmployeePickerOpen={adminFilters.setAdminEmployeePickerOpen}
+                adminMonthPickerOpen={adminFilters.adminMonthPickerOpen}
+                setAdminMonthPickerOpen={adminFilters.setAdminMonthPickerOpen}
+                adminEmployeePickerRef={adminFilters.adminEmployeePickerRef}
+                adminMonthPickerRef={adminFilters.adminMonthPickerRef}
+                adminEmployeeOptions={adminFilters.adminEmployeeOptions}
+                adminMonthOptions={adminFilters.adminMonthOptions}
+                leaveStats={adminFilters.leaveStats}
               />
             )}
           </div>
@@ -997,7 +375,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
               <PendingApprovalsPanel
                 pendingLeaves={pendingLeaves}
                 onLeaveAction={onLeaveAction}
-                onLeaveLopAction={handleLeaveLopAction}
+                onLeaveLopAction={lopSummaryData.handleLeaveLopAction}
                 showLopActions
                 formatApprovalDate={formatApprovalDate}
                 calculateLeaveDays={calculateLeaveDays}
@@ -1015,14 +393,14 @@ const LeaveManagementPanel: React.FC<Props> = ({
                 selectedStart={leaveStart}
                 selectedEnd={leaveEnd}
                 showEmployeeDetails={viewerRole !== 'employee'}
-                onVisibleMonthChange={viewerRole === 'employee' ? setHistoryMonthFilter : undefined}
+                onVisibleMonthChange={viewerRole === 'employee' ? historyFilters.setHistoryMonthFilter : undefined}
               />
             </div>
           ) : null}
         </div>
 
         {viewerRole === 'employee' ? (
-          <LeaveEmployeeLopSection summary={lopSummary} loading={lopSummaryLoading} />
+          <LeaveEmployeeLopSection summary={lopSummaryData.lopSummary} loading={lopSummaryData.lopSummaryLoading} />
         ) : null}
 
         {isApproverPortal ? (
@@ -1031,82 +409,66 @@ const LeaveManagementPanel: React.FC<Props> = ({
               LOP filters
             </span>
             <FilterDropdown
-              value={lopHistoryFilter}
-              selectedLabel={lopHistoryFilterLabel}
+              value={historyFilters.lopHistoryFilter}
+              selectedLabel={historyFilters.lopHistoryFilterLabel}
               options={LOP_HISTORY_FILTER_OPTIONS.map((option) => ({
                 value: option.value,
                 label: option.label,
               }))}
-              open={lopHistoryFilterOpen}
-              onToggle={() => setLopHistoryFilterOpen((prev) => !prev)}
+              open={historyFilters.lopHistoryFilterOpen}
+              onToggle={() => historyFilters.setLopHistoryFilterOpen((prev) => !prev)}
               onSelect={(value) => {
-                setLopHistoryFilter(value as LopHistoryFilter);
-                setLopHistoryFilterOpen(false);
+                historyFilters.setLopHistoryFilter(value as LopHistoryFilter);
+                historyFilters.setLopHistoryFilterOpen(false);
               }}
-              containerRef={lopHistoryFilterRef}
+              containerRef={historyFilters.lopHistoryFilterRef}
             />
           </div>
         ) : null}
 
         <LeaveHistoryRecordsSection
-          showHistoryEmployeeFilter={showHistoryEmployeeFilter}
-          statusFilter={statusFilter}
-          setStatusFilter={setStatusFilter}
-          historyStatusLabel={historyStatusLabel}
-          historyStatusOptions={historyStatusOptions}
-          historyStatusPickerOpen={historyStatusPickerOpen}
-          setHistoryStatusPickerOpen={setHistoryStatusPickerOpen}
-          setHistoryEmployeePickerOpen={setHistoryEmployeePickerOpen}
-          setHistoryMonthPickerOpen={setHistoryMonthPickerOpen}
-          historyStatusPickerRef={historyStatusPickerRef}
-          historyEmployeeFilter={historyEmployeeFilter}
-          setHistoryEmployeeFilter={setHistoryEmployeeFilter}
-          historyEmployeeLabel={historyEmployeeLabel}
-          historyEmployeeOptions={historyEmployeeOptions}
-          formatHistoryEmployeeOptionLabel={formatHistoryEmployeeOptionLabel}
-          historyEmployeePickerOpen={historyEmployeePickerOpen}
-          historyEmployeePickerRef={historyEmployeePickerRef}
-          historyMonthFilter={historyMonthFilter}
-          setHistoryMonthFilter={setHistoryMonthFilter}
-          historyMonthLabel={historyMonthLabel}
-          historyMonthOptions={historyMonthOptions}
-          historyMonthPickerOpen={historyMonthPickerOpen}
-          historyMonthPickerRef={historyMonthPickerRef}
+          showHistoryEmployeeFilter={historyFilters.showHistoryEmployeeFilter}
+          statusFilter={historyFilters.statusFilter}
+          setStatusFilter={historyFilters.setStatusFilter}
+          historyStatusLabel={historyFilters.historyStatusLabel}
+          historyStatusOptions={historyFilters.historyStatusOptions}
+          historyStatusPickerOpen={historyFilters.historyStatusPickerOpen}
+          setHistoryStatusPickerOpen={historyFilters.setHistoryStatusPickerOpen}
+          setHistoryEmployeePickerOpen={historyFilters.setHistoryEmployeePickerOpen}
+          setHistoryMonthPickerOpen={historyFilters.setHistoryMonthPickerOpen}
+          historyStatusPickerRef={historyFilters.historyStatusPickerRef}
+          historyEmployeeFilter={historyFilters.historyEmployeeFilter}
+          setHistoryEmployeeFilter={historyFilters.setHistoryEmployeeFilter}
+          historyEmployeeLabel={historyFilters.historyEmployeeLabel}
+          historyEmployeeOptions={historyFilters.historyEmployeeOptions}
+          formatHistoryEmployeeOptionLabel={historyFilters.formatHistoryEmployeeOptionLabel}
+          historyEmployeePickerOpen={historyFilters.historyEmployeePickerOpen}
+          historyEmployeePickerRef={historyFilters.historyEmployeePickerRef}
+          historyMonthFilter={historyFilters.historyMonthFilter}
+          setHistoryMonthFilter={historyFilters.setHistoryMonthFilter}
+          historyMonthLabel={historyFilters.historyMonthLabel}
+          historyMonthOptions={historyFilters.historyMonthOptions}
+          historyMonthPickerOpen={historyFilters.historyMonthPickerOpen}
+          historyMonthPickerRef={historyFilters.historyMonthPickerRef}
           leaveLoading={leaveLoading}
-          filteredLeaves={filteredLeaves}
+          filteredLeaves={historyFilters.filteredLeaves}
           isApproverPortal={isApproverPortal}
           viewerRole={viewerRole}
           getDecisionLabel={getDecisionLabel}
           onViewDetails={setSelectedDetailLeave}
-          onEditLeave={handleEditLeave}
-          onDeleteLeave={handleDeleteLeave}
+          onEditLeave={applyForm.handleEditLeave}
+          onDeleteLeave={applyForm.handleDeleteLeave}
         />
       </>
       ) : null}
 
       {showPolicySection ? (
-        <>
-          <LeaveLopPolicySection
-            canManage={canManagePolicy}
-            policy={lopPolicy}
-            employeeOptions={employeeOptions}
-            saving={lopPolicySaving}
-            onSave={handleSaveLopPolicy}
-          />
-          <LeaveAdminPolicySection
-            viewerRole={viewerRole}
-            canManagePolicy={canManagePolicy}
-            policies={policyItems}
-            activity={activityItems}
-            employeeOptions={employeeOptions}
-            savingPolicy={policySaving}
-            savingAdjustment={adjustmentSaving}
-            exportLoading={exportLoading}
-            onSavePolicy={handleSavePolicy}
-            onCreateAdjustment={handleCreateAdjustment}
-            onExport={handleExport}
-          />
-        </>
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 md:p-6">
+          <h3 className="text-lg font-semibold text-slate-900">Leave policy moved</h3>
+          <p className="mt-2 text-sm text-slate-500">
+            Manage monthly paid leaves and LOP rules in Attendance → Reports → Setup.
+          </p>
+        </div>
       ) : null}
 
       {showWorkspaceSection && viewerRole === 'employee' ? (

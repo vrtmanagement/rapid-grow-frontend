@@ -21,6 +21,7 @@ interface Props {
   loading?: boolean;
   hideLocationDetails?: boolean;
   lateLoginPolicy?: LateLoginPolicy | null;
+  onOpenLateRequests?: () => void;
 }
 
 const STATUS_CARD_THEMES = {
@@ -60,6 +61,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
   loading = false,
   hideLocationDetails = false,
   lateLoginPolicy = null,
+  onOpenLateRequests,
 }) => {
   const isEmployeeVariant = variant === 'employee';
   const [now, setNow] = useState(() => Date.now());
@@ -371,7 +373,18 @@ const AttendanceLiveSession: React.FC<Props> = ({
         ) : null}
         {showLateLoginWarning ? (
           <div className={`mt-4 rounded-2xl border px-4 py-3 ${isEmployeeVariant ? 'border-amber-200 bg-amber-50 text-sm text-amber-700' : 'border-amber-400/20 bg-amber-400/10 text-[11px] text-amber-100'}`}>
-            Login window closed at {lateLoginPolicy?.cutoffTimeLabel}. Please contact your TL or Admin for approval.
+            <p>
+              Login window closed at {lateLoginPolicy?.cutoffTimeLabel}. Please request approval from your TL or Admin.
+            </p>
+            {isEmployeeVariant && onOpenLateRequests ? (
+              <button
+                type="button"
+                onClick={onOpenLateRequests}
+                className="mt-3 inline-flex items-center rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-600"
+              >
+                Go to Late → Request approval
+              </button>
+            ) : null}
           </div>
         ) : null}
         {!showLateLoginWarning && !activeSession && lateLoginPolicy?.hasApproval ? (

@@ -4,6 +4,7 @@ import { API_BASE, AUTH_STORAGE_KEY } from '../config/api';
 import { PUBLIC_PLANS, type PublicPlanId } from '../config/landingPageConstants';
 import { getReadableError, parseApiResponse } from '../services/apiClient';
 import { navigateApp } from '../utils/appNavigation';
+import ErrorAlert from '../components/ui/ErrorAlert';
 
 interface WorkspaceSignupViewProps {
   onSignupSuccess: (token: string, employee: any) => void;

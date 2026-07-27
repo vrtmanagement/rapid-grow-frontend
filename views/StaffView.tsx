@@ -1,129 +1,35 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BellRing, ChevronDown, Clock3, Eye, Mail, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
-import StaffEmployeeActionMenu from '../components/staff/StaffEmployeeActionMenu';
+import { Mail, Plus, X } from 'lucide-react';
 import Toast from '../components/ui/Toast';
 import AccessDenied from '../components/AccessDenied';
-import { StaffTableSkeleton } from '../components/ui/Skeleton';
 import { usePermissions } from '../context/usePermissions';
 import { API_BASE, apiGetJson, getAuthHeaders } from '../config/api';
 import { invalidateApiCache, peekApiCache } from '../services/apiCache';
 import {
   DailyReviewReminderSettings,
   fetchDailyReviewReminderSettings,
-  getDefaultDailyReviewReminderSettings,
   saveDailyReviewReminderSettings,
 } from '../services/dailyReviewReminderSettings';
-import { PlanningState } from '../types';
-import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } from '../utils/avatar';
+import { PROFILE_AVATAR_UPDATED_EVENT, resolveAvatarUrl } from '../utils/avatar';
 import { AvatarPreviewEntity, AvatarPreviewModal } from '../communication/components/AvatarPreviewModal';
 import AddEmployeeView from './AddEmployeeView';
 import InviteEmployeeView from './InviteEmployeeView';
 import PageSectionSubnav from '../components/layout/PageSectionSubnav';
-import WeeklyPerformanceEmailControls from '../components/staff/WeeklyPerformanceEmailControls';
 import OrgChartView from './OrgChartView';
-
-type StaffPanel = 'directory' | 'org-chart';
-
-type BackendRole = 'SUPER_ADMIN' | 'ADMIN' | 'TEAM_LEAD' | 'EMPLOYEE' | string;
-
-interface EmployeeRow {
-  _id: string;
-  empId: string;
-  empName: string;
-  avatar?: string;
-  designation?: string;
-  department?: string;
-  email?: string;
-  phone?: string;
-  role?: BackendRole;
-  status?: string;
-  createdBy?: string;
-}
-
-interface StaffViewProps {
-  mode?: 'manager' | 'employee';
-  state?: PlanningState;
-}
-
-function getBackendInfo() {
-  try {
-    const raw = localStorage.getItem('rapidgrow-admin');
-    if (!raw) return { role: 'EMPLOYEE' as BackendRole, empId: '', userId: '' };
-    const parsed = JSON.parse(raw);
-    return {
-      role: (parsed?.employee?.role || 'EMPLOYEE') as BackendRole,
-      empId: parsed?.employee?.empId || '',
-      userId: parsed?.employee?._id || '',
-    };
-  } catch {
-    return { role: 'EMPLOYEE' as BackendRole, empId: '', userId: '' };
-  }
-}
-
-function formatRoleLabel(role?: BackendRole) {
-  const normalized = String(role || 'EMPLOYEE').toUpperCase();
-  return normalized.replace(/_/g, ' ');
-}
-
-function getRoleBadgeClass(role?: BackendRole) {
-  switch (String(role || '').toUpperCase()) {
-    case 'SUPER_ADMIN':
-      return 'border border-brand-red/15 bg-brand-red/8 text-brand-red';
-    case 'ADMIN':
-      return 'border border-amber-100 bg-amber-50 text-amber-700';
-    case 'TEAM_LEAD':
-      return 'border border-blue-100 bg-blue-50 text-blue-700';
-    default:
-      return 'border border-slate-200 bg-slate-100 text-slate-700';
-  }
-}
-
-function getStatusBadgeClass(status?: string) {
-  return String(status || '').toLowerCase() === 'active'
-    ? 'bg-emerald-500 text-white'
-    : 'bg-red-500 text-white';
-}
-
-const REMINDER_HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) =>
-  String(index + 1).padStart(2, '0'),
-);
-const REMINDER_MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) =>
-  String(index).padStart(2, '0'),
-);
-const REMINDER_MERIDIEM_OPTIONS = ['AM', 'PM'] as const;
-
-function parseReminderTimeValue(timeValue?: string) {
-  const [hourRaw = '21', minuteRaw = '40'] = String(timeValue || '21:40').split(':');
-  const hour24 = Math.min(23, Math.max(0, Number(hourRaw) || 0));
-  const minute = Math.min(59, Math.max(0, Number(minuteRaw) || 0));
-  const meridiem = hour24 >= 12 ? 'PM' : 'AM';
-  const hour12 = hour24 % 12 || 12;
-
-  return {
-    hour: String(hour12).padStart(2, '0'),
-    minute: String(minute).padStart(2, '0'),
-    meridiem,
-  } as { hour: string; minute: string; meridiem: 'AM' | 'PM' };
-}
-
-function buildReminderTimeValue(hour: string, minute: string, meridiem: 'AM' | 'PM') {
-  const hourNumber = Math.min(12, Math.max(1, Number(hour) || 12));
-  const minuteNumber = Math.min(59, Math.max(0, Number(minute) || 0));
-  let hour24 = hourNumber % 12;
-  if (meridiem === 'PM') {
-    hour24 += 12;
-  }
-
-  return `${String(hour24).padStart(2, '0')}:${String(minuteNumber).padStart(2, '0')}`;
-}
-
-function formatReminderTimeLabel(timeValue?: string) {
-  const parsed = parseReminderTimeValue(timeValue);
-  return `${parsed.hour}:${parsed.minute} ${parsed.meridiem}`;
-}
-
-const DEFAULT_REMINDER_SETTINGS = getDefaultDailyReviewReminderSettings();
+import StaffDirectoryTable from '../components/staff/StaffDirectoryTable';
+import StaffReminderPanel from '../components/staff/StaffReminderPanel';
+import StaffEditDeleteModals from '../components/staff/StaffEditDeleteModals';
+import {
+  DEFAULT_REMINDER_SETTINGS,
+  type EmployeeRow,
+  type StaffPanel,
+  type StaffViewProps,
+  buildReminderTimeValue,
+  formatReminderTimeLabel,
+  getBackendInfo,
+  parseReminderTimeValue,
+} from '../components/staff/staffViewHelpers';
 
 const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
   const location = useLocation();
@@ -199,7 +105,7 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
             .map((row) => String(row.department || '').trim())
             .filter((value) => value && value.toLowerCase() !== 'all departments'),
         ),
-      ).sort((left, right) => left.localeCompare(right)),
+      ).sort((left: string, right: string) => left.localeCompare(right)),
     [rows],
   );
 
@@ -631,538 +537,60 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
         </div>
       )}
 
-      <div
-        ref={staffTableCardRef}
-        className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]"
-      >
-        <div className="border-b border-slate-100 px-8 py-4">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="text-[14px] font-medium text-slate-700">
-              All Employees ({loading ? rows.length : filteredRows.length})
-            </div>
+      <StaffDirectoryTable
+        ctx={{
+          staffTableCardRef,
+          loading,
+          rows,
+          filteredRows,
+          searchQuery,
+          setSearchQuery,
+          departmentMenuRef,
+          departmentMenuOpen,
+          setDepartmentMenuOpen,
+          setStatusMenuOpen,
+          departmentFilter,
+          setDepartmentFilter,
+          departmentOptions,
+          statusMenuRef,
+          statusMenuOpen,
+          statusFilter,
+          setStatusFilter,
+          canEditRow,
+          canDeleteRow,
+          openStaffPreview,
+          isCurrentUserRow,
+          openActionMenuRowId,
+          setOpenActionMenuRowId,
+          handleStartEdit,
+          setDeleting,
+        }}
+      />
 
-            <div className="flex flex-col gap-3 md:flex-row md:items-center">
-              <div className="relative min-w-[270px] flex-1 md:w-[270px]">
-                <Search
-                  size={16}
-                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search employee....."
-                  className="w-full rounded-[10px] border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-[13px] text-slate-700 outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
-                />
-              </div>
-
-              <div className="relative" ref={departmentMenuRef}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDepartmentMenuOpen((prev) => !prev);
-                    setStatusMenuOpen(false);
-                  }}
-                  className={`flex min-w-[150px] items-center justify-between gap-3 rounded-[10px] border bg-white px-4 py-2.5 text-[13px] text-slate-700 transition ${
-                    departmentMenuOpen
-                      ? 'border-brand-red shadow-[0_0_0_3px_rgba(239,68,68,0.10)]'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <span>{departmentFilter === 'all' ? 'All Departments' : departmentFilter}</span>
-                  <ChevronDown
-                    size={16}
-                    className={`text-slate-500 transition ${departmentMenuOpen ? 'rotate-180' : ''}`}
-                  />
-                </button>
-
-                {departmentMenuOpen && (
-                  <div className="absolute right-0 top-[calc(100%+8px)] z-20 min-w-full overflow-hidden rounded-[10px] border border-slate-200 bg-white p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDepartmentFilter('all');
-                        setDepartmentMenuOpen(false);
-                      }}
-                      className={`flex w-full items-center rounded-[8px] px-3 py-2 text-left text-[13px] transition ${
-                        departmentFilter === 'all'
-                          ? 'bg-brand-red text-white'
-                          : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      All Departments
-                    </button>
-                    {departmentOptions.map((department) => (
-                      <button
-                        key={department}
-                        type="button"
-                        onClick={() => {
-                          setDepartmentFilter(department);
-                          setDepartmentMenuOpen(false);
-                        }}
-                        className={`flex w-full items-center rounded-[8px] px-3 py-2 text-left text-[13px] transition ${
-                          departmentFilter === department
-                            ? 'bg-brand-red text-white'
-                            : 'text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        {department}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="relative" ref={statusMenuRef}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStatusMenuOpen((prev) => !prev);
-                    setDepartmentMenuOpen(false);
-                  }}
-                  className={`flex min-w-[130px] items-center justify-between gap-3 rounded-[10px] border bg-white px-4 py-2.5 text-[13px] text-slate-700 transition ${
-                    statusMenuOpen
-                      ? 'border-brand-red shadow-[0_0_0_3px_rgba(239,68,68,0.10)]'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <span>
-                    {statusFilter === 'all'
-                      ? 'All Status'
-                      : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
-                  </span>
-                  <ChevronDown
-                    size={16}
-                    className={`text-slate-500 transition ${statusMenuOpen ? 'rotate-180' : ''}`}
-                  />
-                </button>
-
-                {statusMenuOpen && (
-                  <div className="absolute right-0 top-[calc(100%+8px)] z-20 min-w-full overflow-hidden rounded-[10px] border border-slate-200 bg-white p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
-                    {[
-                      { value: 'all', label: 'All Status' },
-                      { value: 'active', label: 'Active' },
-                      { value: 'inactive', label: 'Inactive' },
-                    ].map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => {
-                          setStatusFilter(option.value);
-                          setStatusMenuOpen(false);
-                        }}
-                        className={`flex w-full items-center rounded-[8px] px-3 py-2 text-left text-[13px] transition ${
-                          statusFilter === option.value
-                            ? 'bg-brand-red text-white'
-                            : 'text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="overflow-x-hidden">
-          <table className="w-full border-collapse text-left">
-            <thead className="bg-white">
-              <tr className="border-b border-slate-100 text-[12px] font-medium text-slate-900">
-                <th className="min-w-[260px] px-6 py-4">Name</th>
-                <th className="min-w-[100px] px-4 py-4">Emp ID</th>
-                <th className="min-w-[140px] px-4 py-4">Role</th>
-                <th className="min-w-[150px] px-4 py-4">Designation</th>
-                <th className="min-w-[150px] px-4 py-4">Department</th>
-                <th className="min-w-[130px] px-4 py-4">Phone</th>
-                <th className="min-w-[110px] px-4 py-4">Status</th>
-                <th className="w-[96px] px-6 py-4 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <StaffTableSkeleton rows={6} />
-              ) : filteredRows.length === 0 ? (
-                <tr>
-                  <td className="px-6 py-16 text-center text-[15px] text-slate-500" colSpan={8}>
-                    No staff found.
-                  </td>
-                </tr>
-              ) : (
-                filteredRows.map((row) => {
-                  const editable = canEditRow(row);
-                  const deletable = canDeleteRow(row);
-                  const canOpenActions = editable || deletable;
-                  const avatarSrc = getDisplayAvatarUrl(row.avatar, row.empName);
-                  const isCurrentUser = isCurrentUserRow(row);
-
-                  return (
-                    <tr
-                      key={row._id}
-                      className="border-b border-slate-100 transition hover:bg-slate-50/40"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => openStaffPreview(row)}
-                            className="h-11 w-11 cursor-pointer overflow-hidden rounded-full border border-slate-200 bg-slate-50"
-                          >
-                            <img src={avatarSrc} alt={row.empName} className="h-full w-full object-cover" />
-                          </button>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <div className="truncate text-[14px] font-medium text-slate-900">{row.empName}</div>
-                              {isCurrentUser ? (
-                                <span className="shrink-0 text-[12px] font-medium text-slate-500">(You)</span>
-                              ) : null}
-                            </div>
-                            <div className="mt-0.5 truncate text-[12px] text-slate-500">{row.email || '--'}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-[13px] text-slate-700">{row.empId}</td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] ${getRoleBadgeClass(
-                            row.role,
-                          )}`}
-                        >
-                          {formatRoleLabel(row.role)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-[13px] text-slate-700">{row.designation || '--'}</td>
-                      <td className="px-4 py-4 text-[13px] text-slate-700">{row.department || '--'}</td>
-                      <td className="px-4 py-4 text-[13px] text-slate-700">{row.phone || '--'}</td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex min-w-[60px] items-center justify-center rounded-full px-3 py-1 text-[11px] font-medium capitalize ${getStatusBadgeClass(
-                            row.status,
-                          )}`}
-                        >
-                          {row.status || '--'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center" onClick={(event) => event.stopPropagation()}>
-                        {canOpenActions ? (
-                          <StaffEmployeeActionMenu
-                            isOpen={openActionMenuRowId === row._id}
-                            showEdit={editable}
-                            showDelete={deletable}
-                            onToggle={() =>
-                              setOpenActionMenuRowId((current) => (current === row._id ? null : row._id))
-                            }
-                            onClose={() => setOpenActionMenuRowId(null)}
-                            onEdit={() => handleStartEdit(row)}
-                            onDelete={() => setDeleting(row)}
-                          />
-                        ) : (
-                          <span className="text-[12px] text-slate-300">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-      </div>
-
-      {canShowReminderControls ? (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-          <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-6 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-red-50 text-brand-red">
-                <BellRing size={20} />
-              </div>
-              <div>
-                <h3 className="text-[18px] font-semibold tracking-[-0.02em] text-slate-900">
-                  Check-in & performance email
-                </h3>
-                <p className="mt-1 text-[14px] text-slate-500">
-                  Daily check-in reminders and automated weekly performance reports for employees on the main execution matrix.
-                </p>
-                <div className="mt-4 inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setCheckInControlsTab('daily')}
-                    className={`rounded-full px-4 py-2 text-[12px] font-semibold transition ${
-                      checkInControlsTab === 'daily'
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700'
-                    }`}
-                  >
-                    Daily check-in
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCheckInControlsTab('weekly')}
-                    className={`rounded-full px-4 py-2 text-[12px] font-semibold transition ${
-                      checkInControlsTab === 'weekly'
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700'
-                    }`}
-                  >
-                    Weekly performance email
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <span
-                className={`inline-flex rounded-full px-4 py-1.5 text-[12px] font-semibold uppercase tracking-[0.12em] ${
-                  reminderLoading
-                    ? 'border border-slate-200 bg-slate-50 text-slate-500'
-                    : reminderDraft.enabled
-                      ? 'border border-emerald-600 bg-emerald-600 text-white'
-                      : 'border border-slate-200 bg-slate-50 text-slate-500'
-                }`}
-              >
-                {reminderLoading ? 'LOADING' : reminderStatusChipLabel}
-              </span>
-              <span className="inline-flex rounded-full border border-slate-200 bg-white px-4 py-1.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                {reminderSettings.timezone || 'Asia/Kolkata'}
-              </span>
-            </div>
-          </div>
-
-          {checkInControlsTab === 'weekly' ? (
-            <WeeklyPerformanceEmailControls
-              onToast={(type, message) => setToast({ type, message })}
-            />
-          ) : (
-          <div className="grid gap-5 px-6 py-5 xl:grid-cols-[1.25fr_minmax(360px,0.95fr)]">
-              <div className="self-start rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_right,_rgba(251,191,36,0.18),_rgba(255,255,255,0)_48%),linear-gradient(180deg,rgba(255,251,243,1)_0%,rgba(255,255,255,1)_100%)] px-6 py-5">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-slate-200 bg-white text-slate-700 shadow-sm">
-                    <Clock3 size={20} />
-                  </div>
-                  <div>
-                    <h4 className="text-[16px] font-semibold tracking-[-0.02em] text-slate-900">
-                      Current schedule
-                    </h4>
-                    <p className="mt-3 text-[14px] leading-7 text-slate-600">
-                      {reminderSettings.enabled
-                        ? `The daily reminder is scheduled for all staff members at ${reminderScheduleLabel}.`
-                        : 'The daily reminder is currently paused for all staff members.'}
-                    </p>
-                    <p className="mt-4 text-[14px] leading-7 text-slate-500">
-                      This setting controls the daily reminder email and the reminder notification timing together.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-            <div className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
-              <div className="rounded-[20px] border border-slate-200 bg-slate-50/40 px-4 py-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h4 className="text-[15px] font-semibold tracking-[-0.02em] text-slate-900">
-                      Reminder status
-                    </h4>
-                    <p className="mt-1 text-[14px] text-slate-500">
-                      Turn the daily reminder on or off for everyone.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={reminderDraft.enabled}
-                    onClick={() =>
-                      setReminderDraft((prev) => ({ ...prev, enabled: !prev.enabled }))
-                    }
-                    disabled={reminderLoading || reminderSaving}
-                    className={`relative h-9 w-[62px] rounded-full transition ${
-                      reminderDraft.enabled ? 'bg-emerald-500' : 'bg-slate-300'
-                    } disabled:cursor-not-allowed disabled:opacity-60`}
-                    aria-label="Toggle reminder status"
-                  >
-                    <span
-                      className={`absolute top-1 h-7 w-7 rounded-full bg-white shadow-sm transition ${
-                        reminderDraft.enabled ? 'left-[30px]' : 'left-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <label className="mb-3 block text-[15px] font-semibold tracking-[-0.02em] text-slate-900">
-                  Reminder time
-                </label>
-                <div className="relative" ref={timePickerRef}>
-                  <button
-                    type="button"
-                    onClick={() => setTimePickerOpen((prev) => !prev)}
-                    disabled={reminderLoading || reminderSaving}
-                    className={`flex w-full items-center justify-between rounded-[20px] border bg-white px-5 py-3.5 text-left transition ${
-                      timePickerOpen
-                        ? 'border-slate-900 shadow-[0_0_0_3px_rgba(244,63,94,0.10)]'
-                        : 'border-slate-200 hover:border-slate-300'
-                    } disabled:cursor-not-allowed disabled:opacity-60`}
-                  >
-                    <div className="flex min-w-0 items-center gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-slate-50 text-slate-700">
-                        <Clock3 size={20} />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[18px] font-semibold tracking-[-0.02em] text-slate-900">
-                          {reminderDraftScheduleLabel}
-                        </div>
-                        <div className="mt-1 text-[12px] uppercase tracking-[0.16em] text-slate-400">
-                          Custom time picker
-                        </div>
-                      </div>
-                    </div>
-
-                    <ChevronDown
-                      size={20}
-                      className={`shrink-0 text-slate-400 transition ${timePickerOpen ? 'rotate-180' : ''}`}
-                    />
-                  </button>
-
-                  {timePickerOpen ? (
-                    <div className="absolute left-0 right-0 top-full z-20 mt-3 rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.16)]">
-                      <div className="grid grid-cols-[1fr_1fr_110px] gap-4">
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                            Hour
-                          </p>
-                          <div className="mt-2 max-h-44 space-y-2 overflow-y-auto rounded-[20px] border border-slate-200 bg-slate-50/80 p-3">
-                            {REMINDER_HOUR_OPTIONS.map((hour) => {
-                              const selected = reminderTimeSelection.hour === hour;
-                              return (
-                                <button
-                                  key={hour}
-                                  type="button"
-                                  onClick={() => handleReminderTimePartChange('hour', hour)}
-                                  className={`flex w-full items-center justify-center rounded-2xl px-3 py-3 text-[14px] font-semibold transition ${
-                                    selected
-                                      ? 'bg-red-500 text-white shadow-sm'
-                                      : 'text-slate-600 hover:bg-white hover:text-slate-900'
-                                  }`}
-                                >
-                                  {hour}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                            Minute
-                          </p>
-                          <div className="mt-2 max-h-44 space-y-2 overflow-y-auto rounded-[20px] border border-slate-200 bg-slate-50/80 p-3">
-                            {REMINDER_MINUTE_OPTIONS.map((minute) => {
-                              const selected = reminderTimeSelection.minute === minute;
-                              return (
-                                <button
-                                  key={minute}
-                                  type="button"
-                                  onClick={() => handleReminderTimePartChange('minute', minute)}
-                                  className={`flex w-full items-center justify-center rounded-2xl px-3 py-3 text-[14px] font-semibold transition ${
-                                    selected
-                                      ? 'bg-red-500 text-white shadow-sm'
-                                      : 'text-slate-600 hover:bg-white hover:text-slate-900'
-                                  }`}
-                                >
-                                  {minute}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                            Period
-                          </p>
-                          <div className="mt-2 space-y-2 rounded-[20px] border border-slate-200 bg-slate-50/80 p-3">
-                            {REMINDER_MERIDIEM_OPTIONS.map((meridiem) => {
-                              const selected = reminderTimeSelection.meridiem === meridiem;
-                              return (
-                                <button
-                                  key={meridiem}
-                                  type="button"
-                                  onClick={() => handleReminderTimePartChange('meridiem', meridiem)}
-                                  className={`flex w-full items-center justify-center rounded-2xl px-3 py-4 text-[14px] font-semibold transition ${
-                                    selected
-                                      ? 'bg-red-500 text-white shadow-sm'
-                                      : 'text-slate-600 hover:bg-white hover:text-slate-900'
-                                  }`}
-                                >
-                                  {meridiem}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex items-center justify-between rounded-[20px] border border-slate-200 bg-slate-50/80 px-4 py-3">
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                            Selected time
-                          </p>
-                          <p className="mt-1 text-[14px] font-semibold text-slate-900">
-                            {reminderDraftScheduleLabel}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setTimePickerOpen(false)}
-                          className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50"
-                        >
-                          Done
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <p className="mt-3 text-[13px] leading-7 text-slate-500">
-                Time is stored in {reminderSettings.timezone || 'Asia/Kolkata'} and applied to both email and
-                notification reminders.
-              </p>
-
-              {reminderError ? (
-                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
-                  {reminderError}
-                </div>
-              ) : null}
-
-              <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-[13px] text-slate-500">
-                  {reminderLoading
-                    ? 'Loading reminder settings...'
-                    : reminderDirty
-                      ? 'You have unsaved reminder changes.'
-                      : 'Reminder settings are up to date.'}
-                </p>
-
-                <button
-                  type="button"
-                  onClick={handleSaveReminderSettings}
-                  disabled={reminderLoading || reminderSaving || !reminderDirty}
-                  className="inline-flex items-center justify-center rounded-full bg-[#f87171] px-6 py-3 text-[15px] font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {reminderSaving ? 'Saving...' : 'Save changes'}
-                </button>
-              </div>
-            </div>
-          </div>
-          )}
-        </div>
-      ) : null}
+      <StaffReminderPanel
+        ctx={{
+          canShowReminderControls,
+          checkInControlsTab,
+          setCheckInControlsTab,
+          reminderLoading,
+          reminderDraft,
+          setReminderDraft,
+          reminderStatusChipLabel,
+          reminderSettings,
+          reminderScheduleLabel,
+          reminderDraftScheduleLabel,
+          timePickerOpen,
+          setTimePickerOpen,
+          timePickerRef,
+          reminderTimeSelection,
+          handleReminderTimePartChange,
+          reminderError,
+          reminderDirty,
+          reminderSaving,
+          handleSaveReminderSettings,
+          setToast,
+        }}
+      />
 
       <AvatarPreviewModal
         open={!!previewEntity}
@@ -1170,164 +598,21 @@ const StaffView: React.FC<StaffViewProps> = ({ mode = 'manager', state }) => {
         onClose={() => setPreviewEntity(null)}
       />
 
-      {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-xl rounded-[28px] border border-slate-200 bg-white p-7 shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
-            <div className="mb-6">
-              <h3 className="text-[22px] font-semibold tracking-[-0.02em] text-slate-900">Edit staff</h3>
-              <p className="mt-1 text-[14px] text-slate-500">
-                Update employee information while keeping the existing access rules intact.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {!(backendEmpId && editing.empId === backendEmpId && !isAdmin && !isTeamLead) && (
-                <>
-                  <div>
-                    <label className="mb-1 block text-[13px] font-semibold text-slate-700">Name</label>
-                    <input
-                      value={editDraft.empName || ''}
-                      onChange={(e) => setEditDraft((prev) => ({ ...prev, empName: e.target.value }))}
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-[13px] font-semibold text-slate-700">Designation</label>
-                      <input
-                        value={editDraft.designation || ''}
-                        onChange={(e) => setEditDraft((prev) => ({ ...prev, designation: e.target.value }))}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[13px] font-semibold text-slate-700">Department</label>
-                      <input
-                        value={editDraft.department || ''}
-                        onChange={(e) => setEditDraft((prev) => ({ ...prev, department: e.target.value }))}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-[13px] font-semibold text-slate-700">Email</label>
-                      <input
-                        value={editDraft.email || ''}
-                        onChange={(e) => setEditDraft((prev) => ({ ...prev, email: e.target.value }))}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[13px] font-semibold text-slate-700">Phone</label>
-                      <input
-                        value={editDraft.phone || ''}
-                        onChange={(e) => setEditDraft((prev) => ({ ...prev, phone: e.target.value }))}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-[13px] font-semibold text-slate-700">Status</label>
-                      <select
-                        value={editDraft.status || 'active'}
-                        onChange={(e) => setEditDraft((prev) => ({ ...prev, status: e.target.value }))}
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
-                      >
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                      </select>
-                    </div>
-                    {isAdmin && (
-                      <div>
-                        <label className="mb-1 block text-[13px] font-semibold text-slate-700">Role</label>
-                        <select
-                          value={editDraft.role || 'EMPLOYEE'}
-                          onChange={(e) =>
-                            setEditDraft((prev) => ({ ...prev, role: e.target.value as BackendRole }))
-                          }
-                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
-                        >
-                          <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                          <option value="ADMIN">ADMIN</option>
-                          <option value="TEAM_LEAD">TEAM_LEAD</option>
-                          <option value="EMPLOYEE">EMPLOYEE</option>
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-
-              <div>
-                <label className="mb-1 block text-[13px] font-semibold text-slate-700">New password</label>
-                <input
-                  type="password"
-                  value={(editDraft as any).password || ''}
-                  onChange={(e) => setEditDraft((prev) => ({ ...prev, password: e.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-[14px] outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
-                  placeholder={
-                    backendEmpId && editing.empId === backendEmpId && !isAdmin && !isTeamLead
-                      ? 'Enter your new password'
-                      : 'Leave blank to keep existing password'
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setEditing(null);
-                  setEditDraft({});
-                }}
-                className="rounded-full border border-slate-200 px-4 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                className="rounded-full bg-brand-red px-5 py-2 text-[13px] font-semibold text-white transition hover:bg-brand-navy"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {deleting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
-            <h3 className="mb-2 text-[22px] font-semibold tracking-[-0.02em] text-slate-900">Delete staff</h3>
-            <p className="mb-6 text-[14px] leading-6 text-slate-600">
-              Are you sure you want to delete &quot;{deleting.empName}&quot; ({deleting.empId})?
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setDeleting(null)}
-                className="rounded-full border border-slate-200 px-4 py-2 text-[13px] font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                className="rounded-full bg-brand-red px-5 py-2 text-[13px] font-semibold text-white transition hover:bg-brand-navy"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <StaffEditDeleteModals
+        ctx={{
+          editing,
+          setEditing,
+          editDraft,
+          setEditDraft,
+          backendEmpId,
+          isAdmin,
+          isTeamLead,
+          handleSave,
+          deleting,
+          setDeleting,
+          handleDelete,
+        }}
+      />
       </>
       ) : null}
     </div>
