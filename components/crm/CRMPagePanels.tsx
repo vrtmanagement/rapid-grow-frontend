@@ -5,6 +5,7 @@ import CRMTable from '../../views/crm/CRMTable';
 import CRMLeadForm, { CRMLeadPayload } from '../../views/crm/CRMLeadForm';
 import CRMImportModal from '../../views/crm/CRMImportModal';
 import CRMExportButton from '../../views/crm/CRMExportButton';
+import CRMDummyDownloadButton from '../../views/crm/CRMDummyDownloadButton';
 import { crmJson, crmUploadFile } from '../../services/crmApi';
 
 type TabInfo = { id: string; name: string };
@@ -242,6 +243,7 @@ const CRMPagePanels: React.FC<CRMPagePanelsProps> = ({ ctx }) => {
           </div>
         </div>
         <CRMExportButton leadType={activeTab} customTabName={currentCustomTab} />
+        <CRMDummyDownloadButton onError={(message) => pushToast(message, 'error')} />
         <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 transition-colors hover:bg-slate-50" onClick={() => setImportOpen(true)}>
           <ArrowDownToLine size={15} />
           Import Excel
