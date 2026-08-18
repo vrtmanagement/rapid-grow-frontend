@@ -16,6 +16,7 @@ import type { LeaveSection } from './attendanceViewTypes';
 import type { AttendanceViewState } from './useAttendanceViewState';
 import type { AttendanceViewLoaders } from './useAttendanceViewLoaders';
 import type { AttendanceViewActions } from './useAttendanceViewActions';
+import { getUserTimeZone } from '../../utils/timezone';
 
 export function useAttendanceViewDerived(
   state: AttendanceViewState,
@@ -236,7 +237,7 @@ export function useAttendanceViewDerived(
         const actorProfile = getLeaveActorProfile(leave);
         const actorHeading = formatLeaveActorHeading(actorProfile);
         const actorMeta = formatLeaveActorMeta(actorProfile);
-        const leaveWindow = `${leave.type} leave from ${new Date(leave.startDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} to ${new Date(leave.endDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} is waiting for review.`;
+        const leaveWindow = `${leave.type} leave from ${new Date(leave.startDate).toLocaleDateString('en-US', { timeZone: getUserTimeZone() })} to ${new Date(leave.endDate).toLocaleDateString('en-US', { timeZone: getUserTimeZone() })} is waiting for review.`;
         items.push({
           id: `pending-${leave._id}`,
           title: `${actorHeading} submitted a leave request`,
@@ -259,8 +260,8 @@ export function useAttendanceViewDerived(
               : 'Leave request pending approval';
         const description =
           leave.status === 'PENDING'
-            ? `${leave.type} leave from ${new Date(leave.startDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} to ${new Date(leave.endDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} is waiting for review.`
-            : `${leave.type} leave from ${new Date(leave.startDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} to ${new Date(leave.endDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} was ${leave.status.toLowerCase()}.`;
+            ? `${leave.type} leave from ${new Date(leave.startDate).toLocaleDateString('en-US', { timeZone: getUserTimeZone() })} to ${new Date(leave.endDate).toLocaleDateString('en-US', { timeZone: getUserTimeZone() })} is waiting for review.`
+            : `${leave.type} leave from ${new Date(leave.startDate).toLocaleDateString('en-US', { timeZone: getUserTimeZone() })} to ${new Date(leave.endDate).toLocaleDateString('en-US', { timeZone: getUserTimeZone() })} was ${leave.status.toLowerCase()}.`;
   
         items.push({
           id: notificationId,
@@ -338,7 +339,7 @@ export function useAttendanceViewDerived(
     return Array.from({ length: 12 }, (_, index) => {
       const date = new Date(baseDate.getFullYear(), baseDate.getMonth() - index, 1);
       const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
+      const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: getUserTimeZone() });
       return { value, label };
     });
   }, []);

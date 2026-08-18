@@ -9,6 +9,7 @@ import {
 } from './attendanceUtils';
 import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
 import { fetchHolidays, CompanyHoliday } from './attendanceOpsApi';
+import { getUserTimeZone } from '../../utils/timezone';
 
 interface Props {
   summary: AttendanceSummaryResponse | null;
@@ -60,7 +61,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
-      timeZone: 'Asia/Kolkata',
+      timeZone: getUserTimeZone(),
     });
     const parts = formatter.formatToParts(parsed);
 
@@ -79,7 +80,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
   const getWeekdayShort = (dateKey: string) =>
     new Intl.DateTimeFormat('en-US', {
       weekday: 'short',
-      timeZone: 'Asia/Kolkata',
+      timeZone: getUserTimeZone(),
     }).format(new Date(`${dateKey}T12:00:00+05:30`));
 
   const isSundayDateKey = (dateKey: string) => getWeekdayShort(dateKey) === 'Sun';
@@ -193,7 +194,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
     const formatter = new Intl.DateTimeFormat('en-CA', {
       year: 'numeric',
       month: '2-digit',
-      timeZone: 'Asia/Kolkata',
+      timeZone: getUserTimeZone(),
     });
 
     const parts = formatter.formatToParts(parsed);
@@ -258,7 +259,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
-      timeZone: 'Asia/Kolkata',
+      timeZone: getUserTimeZone(),
     });
   };
 
@@ -268,7 +269,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
       day: 'numeric',
       month: 'long',
       year: 'numeric',
-      timeZone: 'Asia/Kolkata',
+      timeZone: getUserTimeZone(),
     });
     const parts = formatter.formatToParts(parsed);
     const day = parts.find((part) => part.type === 'day')?.value || '';
@@ -283,11 +284,11 @@ const AttendancePresenceChart: React.FC<Props> = ({
     if (showWeekdayOnAxis) {
       const weekdayLabel = parsed.toLocaleDateString('en-US', {
         weekday: range === 'month' ? 'narrow' : 'short',
-        timeZone: 'Asia/Kolkata',
+        timeZone: getUserTimeZone(),
       });
       const dayLabel = parsed.toLocaleDateString('en-US', {
         day: 'numeric',
-        timeZone: 'Asia/Kolkata',
+        timeZone: getUserTimeZone(),
       });
       return `${weekdayLabel}|${dayLabel}`;
     }
@@ -321,7 +322,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
         day: 'numeric',
         month: 'long',
         year: 'numeric',
-        timeZone: 'Asia/Kolkata',
+        timeZone: getUserTimeZone(),
       });
     }
     if (range === 'week' && summary?.start && summary?.end) {
@@ -330,23 +331,23 @@ const AttendancePresenceChart: React.FC<Props> = ({
       return `${startDate.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
-        timeZone: 'Asia/Kolkata',
+        timeZone: getUserTimeZone(),
       })} - ${endDate.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
-        timeZone: 'Asia/Kolkata',
+        timeZone: getUserTimeZone(),
       })}`;
     }
     if (selectedMonth) {
       const selectedDate = new Date(`${selectedMonth}-01T00:00:00`);
-      return selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
+      return selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: getUserTimeZone() });
     }
     if (summary?.start) {
       const startDate = new Date(summary.start);
-      return startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
+      return startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: getUserTimeZone() });
     }
     const now = new Date();
-    return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
+    return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: getUserTimeZone() });
   };
 
   const getShownMonthValue = () => (

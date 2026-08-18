@@ -24,6 +24,7 @@ import {
   type SpacesTask,
   type TaskStatus,
 } from './spacesViewHelpers';
+import { getUserTimeZone } from '../utils/timezone';
 
 interface Props {
   state: PlanningState;
@@ -513,7 +514,7 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
                 { label: 'Designation', value: selectedAdmin.designation },
                 { label: 'Department', value: selectedAdmin.department },
                 { label: 'Status', value: selectedAdmin.status },
-                { label: 'Created At', value: selectedAdmin.createdAt ? new Date(selectedAdmin.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: true }) : null },
+                { label: 'Created At', value: selectedAdmin.createdAt ? new Date(selectedAdmin.createdAt).toLocaleString('en-US', { timeZone: getUserTimeZone(), hour12: true }) : null },
               ].filter((r) => r.value).map((row) => (
                 <div key={row.label} className="flex justify-between gap-4 py-2 border-b border-slate-50 last:border-0">
                   <span className="text-sm text-slate-500">{row.label}</span>

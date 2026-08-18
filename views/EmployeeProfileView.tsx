@@ -19,6 +19,7 @@ import {
   ScrollText,
   Shield,
   User,
+  Globe2,
   X,
 } from 'lucide-react';
 import AuditLogsView from './AuditLogsView';
@@ -31,6 +32,7 @@ import AvatarCropModal from '../components/profile/AvatarCropModal';
 import SecuritySettingsPanel from '../components/security/SecuritySettingsPanel';
 import NotificationPreferencesPanel from '../components/settings/NotificationPreferencesPanel';
 import ThemeLanguagePanel from '../components/settings/ThemeLanguagePanel';
+import ChangeTimezonePanel from '../components/settings/ChangeTimezonePanel';
 import { getDisplayAvatarUrl, notifyProfileAvatarUpdated, persistSessionEmployeeAvatar } from '../utils/avatar';
 import type { AttendanceSummaryResponse, LeaveRequest } from '../components/attendance/attendanceUtils';
 import DataPrivacyView from './DataPrivacyView';
@@ -445,6 +447,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
     { key: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell },
     { key: 'security' as SettingsTab, label: 'Security', icon: Shield },
     { key: 'appearance' as SettingsTab, label: 'Appearance', icon: Palette },
+    { key: 'timezone' as SettingsTab, label: 'Change Time Zone', icon: Globe2 },
     ...(canAccessAnalysisTab ? [{ key: 'analysis' as SettingsTab, label: 'Analysis', icon: ChartLine }] : []),
     ...(canAccessPrivacyTab ? [{ key: 'privacy' as SettingsTab, label: 'Data & privacy', icon: Lock }] : []),
     ...(canAccessPermissionsTab ? [{ key: 'permissions' as SettingsTab, label: 'Permissions', icon: KeyRound }] : []),
@@ -470,6 +473,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
     notifications: 'Notifications',
     security: 'Security',
     appearance: 'Appearance',
+    timezone: 'Change Time Zone',
     analysis: 'Analysis',
     privacy: 'Data & privacy',
     permissions: 'Permissions',
@@ -481,6 +485,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
     notifications: '',
     security: '',
     appearance: '',
+    timezone: '',
     analysis: 'Upload Trimetrix reports and generate DISC-based communication guidance.',
     privacy: '',
     permissions: 'Manage role-based feature access for your organization.',
@@ -497,6 +502,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
     activeSettingsTab === 'profile' ||
     activeSettingsTab === 'security' ||
     activeSettingsTab === 'appearance' ||
+    activeSettingsTab === 'timezone' ||
     activeSettingsTab === 'privacy' ||
     activeSettingsTab === 'permissions' ||
     activeSettingsTab === 'audit-log'
@@ -541,6 +547,7 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
               {activeSettingsTab !== 'profile' &&
               activeSettingsTab !== 'security' &&
               activeSettingsTab !== 'appearance' &&
+              activeSettingsTab !== 'timezone' &&
               activeSettingsTab !== 'privacy' &&
               activeSettingsTab !== 'permissions' &&
               activeSettingsTab !== 'audit-log' ? (
@@ -600,6 +607,12 @@ const EmployeeProfileView: React.FC<Props> = ({ state, updateState }) => {
             {activeSettingsTab === 'appearance' ? (
               <div className="mt-3">
                 <ThemeLanguagePanel />
+              </div>
+            ) : null}
+
+            {activeSettingsTab === 'timezone' ? (
+              <div className="mt-3">
+                <ChangeTimezonePanel />
               </div>
             ) : null}
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus, Sparkles, CheckCircle2, Clock, User, ChevronDown, X } from 'lucide-react';
 import { TeamMember, WorkspaceTask } from '../../types';
+import { getUserTimeZone } from '../../utils/timezone';
 
 interface ProjectCharterTasksSectionProps {
   sortedTasks: WorkspaceTask[];
@@ -123,7 +124,7 @@ export const ProjectCharterTasksSection: React.FC<ProjectCharterTasksSectionProp
                           </div>
                           {m.createdAt && (
                             <span className="text-[10px] text-slate-400">
-                              {new Date(m.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })}
+                              {new Date(m.createdAt).toLocaleString('en-US', { timeZone: getUserTimeZone(), hour12: true })}
                             </span>
                           )}
                         </div>

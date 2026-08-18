@@ -6,6 +6,7 @@ import {
 import { COMMAND_MATRIX_TASK_LIMIT } from '../services/spacesApi';
 import { fetchTabEndpoint, hasTabEndpointCache, readHydratedTabEndpoint } from '../services/tabSessionCache';
 import { AttendanceSummaryResponse, getHoursColor } from '../components/attendance/attendanceUtils';
+import { getUserTimeZone } from '../utils/timezone';
 
 export interface Project {
   clientProjectId: string;
@@ -77,7 +78,7 @@ export function formatAttendanceDate(value: string) {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   });
 }
 
@@ -89,7 +90,7 @@ export function formatAttendanceTime(value?: string | null) {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   });
 }
 

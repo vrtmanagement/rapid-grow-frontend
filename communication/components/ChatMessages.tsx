@@ -1,6 +1,7 @@
 import React, { useLayoutEffect, useRef } from 'react';
 import { ChatMessage, ChatUser } from '../types';
 import { MessageBubble } from './MessageBubble';
+import { getUserTimeZone } from '../../utils/timezone';
 
 function ChatMessagesSkeleton() {
   const rows = [
@@ -71,7 +72,7 @@ function TypingBubble({ label }: { label?: string | null }) {
 function getMessageDateKey(iso: string) {
   const date = new Date(iso);
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -81,7 +82,7 @@ function getMessageDateKey(iso: string) {
 function formatDateDivider(iso: string) {
   const date = new Date(iso);
   const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -96,7 +97,7 @@ function formatDateDivider(iso: string) {
   if (messageKey === yesterdayKey) return 'Yesterday';
 
   return new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
     day: '2-digit',
     month: 'short',
     year: 'numeric',

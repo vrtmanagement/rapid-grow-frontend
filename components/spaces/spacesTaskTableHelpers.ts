@@ -1,4 +1,5 @@
 import type { SpacesTask } from '../../types/spaces';
+import { getUserTimeZone } from '../../utils/timezone';
 
 export function getPriorityPillClass(priority?: string) {
   const normalized = String(priority || 'medium').trim().toLowerCase();
@@ -39,6 +40,7 @@ export function formatOccurrenceDateTimeLabel(value?: string | null) {
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZone: getUserTimeZone(),
   });
 }
 
@@ -111,6 +113,7 @@ export function formatCreatedAtLabel(value?: string) {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: getUserTimeZone(),
   });
 }
 

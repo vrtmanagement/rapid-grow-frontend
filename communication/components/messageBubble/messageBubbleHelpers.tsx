@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChatMessage } from '../../types';
+import { getUserTimeZone } from '../../../utils/timezone';
 
 export function formatTime(iso: string) {
   const d = new Date(iso);
@@ -7,7 +8,7 @@ export function formatTime(iso: string) {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   });
 }
 

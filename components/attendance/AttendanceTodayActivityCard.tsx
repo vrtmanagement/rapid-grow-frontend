@@ -1,6 +1,7 @@
 import React from 'react';
 import { AttendanceSession } from './attendanceUtils';
 import { formatTeamActivityDuration, getTodayActivityIcon, TodayActivityEvent } from './attendanceOverviewGridUtils';
+import { getUserTimeZone } from '../../utils/timezone';
 
 interface Props {
   todayActivityEvents: TodayActivityEvent[];
@@ -68,7 +69,7 @@ const AttendanceTodayActivityCard: React.FC<Props> = ({ todayActivityEvents, act
                         hour: 'numeric',
                         minute: '2-digit',
                         hour12: true,
-                        timeZone: 'Asia/Kolkata',
+                        timeZone: getUserTimeZone(),
                       })}
                     </p>
                     {liveBreakDuration ? (

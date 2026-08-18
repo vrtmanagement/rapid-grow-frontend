@@ -3,6 +3,7 @@ import { Coffee, LogIn, LogOut, Play } from 'lucide-react';
 import { AttendanceSession, LateLoginPolicy } from './attendanceUtils';
 import { resolveAttendanceLocationLabel } from './attendanceViewUtils';
 import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
+import { getUserTimeZone } from '../../utils/timezone';
 
 interface Props {
   activeSession: AttendanceSession | null;
@@ -129,7 +130,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
         day: 'numeric',
         month: 'short',
         year: 'numeric',
-        timeZone: 'Asia/Kolkata',
+        timeZone: getUserTimeZone(),
       }),
     [now],
   );
@@ -140,7 +141,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
-      timeZone: 'Asia/Kolkata',
+      timeZone: getUserTimeZone(),
     });
   }, [activeSession?.loginTime]);
 
@@ -150,7 +151,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
       minute: '2-digit',
       second: '2-digit',
       hour12: true,
-      timeZone: 'Asia/Kolkata',
+      timeZone: getUserTimeZone(),
     }).formatToParts(new Date(now));
 
     const timeText = parts

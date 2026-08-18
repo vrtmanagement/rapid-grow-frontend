@@ -12,6 +12,7 @@ import type {
 } from '../../types/spaces';
 import type { MonthGoalContext } from '../../components/spaces/monthGoalsHelpers';
 import { clampRecurrenceOccurrences } from '../../utils/spaces/taskRecurrence';
+import { getUserTimeZone } from '../../utils/timezone';
 import { ensureWeeklyGroupPersistedHelper } from '../../views/spacesViewHelpers';
 
 type LoggedInEmployee = { id: string; name: string; avatar: string; role?: string };
@@ -334,6 +335,7 @@ export const useSpacesTaskSubmit = ({
                   day: 'numeric',
                   hour: 'numeric',
                   minute: '2-digit',
+                  timeZone: getUserTimeZone(),
                 })
               : '';
             checklistEmailSuccess =

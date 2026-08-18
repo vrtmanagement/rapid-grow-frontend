@@ -2,6 +2,7 @@ import React from 'react';
 import { Check, Coffee, LogIn, LogOut, Play, X } from 'lucide-react';
 import { AttendanceDay, getBadgeColorsByMinutes } from './attendanceUtils';
 import { TeamAttendanceActivityType, TeamAttendanceLogEntry } from './attendanceViewUtils';
+import { getUserTimeZone } from '../../utils/timezone';
 
 export const BREAK_STATUS_COLORS = { bg: '#fef3c7', text: '#b45309', solid: '#fbbf24' };
 export const DURATION_PROGRESS_MAX_HOURS = 10;
@@ -30,7 +31,7 @@ export function getAttendanceTimezoneDate(value?: string | Date) {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   });
   const parts = formatter.formatToParts(parsed);
   const year = Number(parts.find((part) => part.type === 'year')?.value || 0);
@@ -47,7 +48,7 @@ export function formatSessionTime(value?: string | Date | null) {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   });
 }
 
@@ -63,7 +64,7 @@ export function formatTeamSnapshotTime(value?: string | null) {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   });
 }
 
@@ -149,7 +150,7 @@ export function formatAttendanceLogDuration(minutes: number) {
 
 export function formatDayLabel(date: Date, options?: Intl.DateTimeFormatOptions) {
   return date.toLocaleDateString('en-US', {
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
     ...options,
   });
 }

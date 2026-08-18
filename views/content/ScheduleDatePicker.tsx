@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { getUserTimeZone } from '../../utils/timezone';
 
 function parseDateValue(value?: string): Date | null {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -66,7 +67,7 @@ export const ScheduleDatePicker: React.FC<{
   }, [open]);
 
   const startOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
-  const monthLabel = viewDate.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
+  const monthLabel = viewDate.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: getUserTimeZone() });
   const selectedDate = parseDateValue(value);
   const today = new Date();
   const calendarDays = useMemo(() => {

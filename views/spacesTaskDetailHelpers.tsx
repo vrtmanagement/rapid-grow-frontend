@@ -6,6 +6,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from './spacesViewHelpers';
+import { getUserTimeZone } from '../utils/timezone';
 
 export const pageEase = [0.22, 1, 0.36, 1] as const;
 
@@ -116,6 +117,7 @@ export function formatDateTime(value?: string) {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: getUserTimeZone(),
   });
 }
 

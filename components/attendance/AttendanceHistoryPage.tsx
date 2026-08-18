@@ -12,6 +12,7 @@ import {
 } from './attendanceUtils';
 import { resolveAttendanceLocationLabel } from './attendanceViewUtils';
 import { Skeleton } from '../ui/Skeleton';
+import { getUserTimeZone } from '../../utils/timezone';
 
 interface AttendanceHistoryPageProps {
   summary: AttendanceSummaryResponse | null;
@@ -33,7 +34,7 @@ function getMinutesInKolkata(value?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   }).formatToParts(parsed);
 
   const hour = Number(parts.find((part) => part.type === 'hour')?.value || 0);
@@ -92,7 +93,7 @@ function formatSessionTime(value?: string | Date | null) {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   });
 }
 
@@ -117,14 +118,14 @@ function getBreakDurationMinutes(
 function getDayChip(dateKey: string) {
   const parsed = new Date(`${dateKey}T00:00:00`);
   return {
-    month: parsed.toLocaleDateString('en-US', { month: 'short', timeZone: 'Asia/Kolkata' }).toUpperCase(),
-    day: parsed.toLocaleDateString('en-US', { day: '2-digit', timeZone: 'Asia/Kolkata' }),
+    month: parsed.toLocaleDateString('en-US', { month: 'short', timeZone: getUserTimeZone() }).toUpperCase(),
+    day: parsed.toLocaleDateString('en-US', { day: '2-digit', timeZone: getUserTimeZone() }),
     heading: parsed.toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
       year: 'numeric',
-      timeZone: 'Asia/Kolkata',
+      timeZone: getUserTimeZone(),
     }),
   };
 }
