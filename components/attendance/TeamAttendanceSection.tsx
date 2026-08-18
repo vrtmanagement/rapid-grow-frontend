@@ -5,6 +5,7 @@ import AttendancePresenceChart from './AttendancePresenceChart';
 import { AttendanceSummaryResponse } from './attendanceUtils';
 import { AttendanceEmployeeOption, TeamAttendanceActivityType, TeamAttendanceLogEntry, TeamAttendanceSummary, TeamLateLoginRecord } from './attendanceViewUtils';
 import { getDisplayAvatarUrl, PROFILE_AVATAR_UPDATED_EVENT } from '../../utils/avatar';
+import { getUserTimeZone } from '../../utils/timezone';
 
 interface TeamAttendanceSectionProps {
   canReviewTeamAttendance: boolean;
@@ -166,7 +167,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
-      timeZone: 'Asia/Kolkata',
+      timeZone: getUserTimeZone(),
     });
   }, []);
 
@@ -210,7 +211,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
-      timeZone: 'Asia/Kolkata',
+      timeZone: getUserTimeZone(),
     });
   }, []);
 

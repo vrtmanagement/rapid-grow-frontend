@@ -25,6 +25,7 @@ import {
 import { getDisplayAvatarUrl } from '../../utils/avatar';
 import type { AppShellNotification } from './authenticatedShellTypes';
 import { useTheme } from '../../context/ThemeContext';
+import { getUserTimeZone } from '../../utils/timezone';
 
 type TopbarTooltipPlacement = 'top' | 'bottom';
 
@@ -279,7 +280,7 @@ export const NotificationBellMenu: React.FC<NotificationBellMenuProps> = ({
                         </span>
                         <p className="mt-1 text-sm leading-relaxed text-slate-600">{notification.message}</p>
                         <p className="mt-2 text-[12px] font-medium text-slate-400">
-                          {new Date(notification.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })}
+                          {new Date(notification.createdAt).toLocaleString('en-US', { timeZone: getUserTimeZone(), hour12: true })}
                         </p>
                       </span>
                     </button>

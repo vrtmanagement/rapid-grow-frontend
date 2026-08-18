@@ -1,3 +1,4 @@
+import { getUserTimeZone } from '../utils/timezone';
 
 import React from 'react';
 import { PlanningState } from '../types';
@@ -51,7 +52,7 @@ const CommsHubView: React.FC<Props> = ({ state }) => {
                     <div className="text-[15px] text-slate-800">Timestamp</div>
                     <div className="text-md font-bold text-slate-500 flex items-center gap-2 ">
                        <Clock size={12} />
-                       {new Date(log.sentAt).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })}
+                       {new Date(log.sentAt).toLocaleString('en-US', { timeZone: getUserTimeZone(), hour12: true })}
                     </div>
                   </div>
                   <div className="pt-4">

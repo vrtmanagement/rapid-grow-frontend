@@ -5,6 +5,7 @@ import {
   TeamAttendanceSummary,
   TeamLateLoginRecord,
 } from './attendanceViewUtils';
+import { getUserTimeZone } from '../../utils/timezone';
 
 interface LateAttendanceSectionProps {
   canManageLateLogins: boolean;
@@ -99,7 +100,7 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
-      timeZone: 'Asia/Kolkata',
+      timeZone: getUserTimeZone(),
     });
   }, []);
 

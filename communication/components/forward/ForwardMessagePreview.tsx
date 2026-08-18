@@ -1,6 +1,7 @@
 import React from 'react';
 import { FileText, Forward, PlayCircle } from 'lucide-react';
 import { ChatMessage } from '../../types';
+import { getUserTimeZone } from '../../../utils/timezone';
 
 function formatTime(iso?: string | null) {
   if (!iso) return '';
@@ -10,7 +11,7 @@ function formatTime(iso?: string | null) {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   });
 }
 

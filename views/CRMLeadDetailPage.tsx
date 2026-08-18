@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { crmJson } from '../services/crmApi';
 import { getStoredAuthSession } from '../config/api';
+import { getUserTimeZone } from '../utils/timezone';
 import CRMLeadDetailPanels from '../components/crm/CRMLeadDetailPanels';
 
 type ToastTone = 'success' | 'error';
@@ -225,6 +226,7 @@ const CRMLeadDetailPage: React.FC = () => {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: getUserTimeZone(),
     });
   };
 

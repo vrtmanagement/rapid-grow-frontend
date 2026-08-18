@@ -1,3 +1,5 @@
+import { getUserTimeZone } from '../../utils/timezone';
+
 export interface LateRecord {
   id: string;
   empId: string;
@@ -20,5 +22,6 @@ export function formatClock(value?: string | null) {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: getUserTimeZone(),
   });
 }

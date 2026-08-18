@@ -1,10 +1,12 @@
 import type { AttendanceSummaryResponse } from '../components/attendance/attendanceUtils';
+import { getUserTimeZone } from '../utils/timezone';
 
 export type SettingsTab =
   | 'profile'
   | 'notifications'
   | 'security'
   | 'appearance'
+  | 'timezone'
   | 'analysis'
   | 'privacy'
   | 'permissions'
@@ -15,6 +17,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
   'notifications',
   'security',
   'appearance',
+  'timezone',
   'analysis',
   'privacy',
   'permissions',
@@ -33,7 +36,7 @@ export const formatDateLabel = (value?: string | null) => {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   });
 };
 

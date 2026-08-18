@@ -10,6 +10,7 @@ import {
   WorkspaceTask,
 } from '../../types';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
+import { getUserTimeZone } from '../../utils/timezone';
 
 export interface EmployeeDirectoryRecord {
   _id?: string;
@@ -655,7 +656,7 @@ export function formatProjectDate(value?: string): string {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   });
 }
 
@@ -670,7 +671,7 @@ export function formatProjectDateTime(value?: string): string {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   });
 }
 

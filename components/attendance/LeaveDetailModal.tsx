@@ -1,6 +1,7 @@
 import React from 'react';
 import { LeaveRequest } from './attendanceUtils';
 import { getLeaveTypeLabel } from './leaveManagementPanelUtils';
+import { getUserTimeZone } from '../../utils/timezone';
 
 interface LeaveDetailModalProps {
   selectedDetailLeave: LeaveRequest | null;
@@ -44,7 +45,7 @@ const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({
           <div className={`rounded-2xl border p-4 ${leaveDetailStatusThemes[selectedDetailLeave.status].panel}`}>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Date range</p>
             <p className="mt-3 whitespace-nowrap text-[1.18rem] font-semibold tracking-[-0.025em] text-slate-950">
-              {new Date(selectedDetailLeave.startDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })} {'->'} {new Date(selectedDetailLeave.endDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
+              {new Date(selectedDetailLeave.startDate).toLocaleDateString('en-US', { timeZone: getUserTimeZone() })} {'->'} {new Date(selectedDetailLeave.endDate).toLocaleDateString('en-US', { timeZone: getUserTimeZone() })}
             </p>
           </div>
           <div className={`rounded-2xl border p-4 ${leaveDetailStatusThemes[selectedDetailLeave.status].panel}`}>

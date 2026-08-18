@@ -5,6 +5,7 @@ import { Camera, FolderOpen, MoreVertical, Plus, Trash2, UserPlus } from 'lucide
 import { MessageActionModal } from './MessageActionModal';
 import { apiUploadFile } from '../api';
 import { getDisplayAvatarUrl } from '../../utils/avatar';
+import { getUserTimeZone } from '../../utils/timezone';
 import AvatarCropModal from '../../components/profile/AvatarCropModal';
 
 function formatMessageTimestamp(value?: string | null) {
@@ -18,7 +19,7 @@ function formatMessageTimestamp(value?: string | null) {
   if (diffHours < 24) return `${diffHours} Hr ago`;
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays < 7) return `${diffDays} Day ago`;
-  return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: getUserTimeZone() });
 }
 
 export function ChatSidebar({

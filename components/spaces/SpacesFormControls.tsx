@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { getUserTimeZone } from '../../utils/timezone';
 
 export const CREATE_INPUT_CLASS =
   'themed-control themed-text-input w-full rounded-2xl border border-slate-200 bg-white px-5 py-3 text-[15px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15';
@@ -135,7 +136,7 @@ export const ThemedDatePicker: React.FC<{
   const [openAbove, setOpenAbove] = useState(false);
   const useCompactCalendar = compact || pill;
   const startOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
-  const monthLabel = viewDate.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
+  const monthLabel = viewDate.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: getUserTimeZone() });
   const selectedDate = parseDateValue(value);
   const today = new Date();
   const triggerClass = pill

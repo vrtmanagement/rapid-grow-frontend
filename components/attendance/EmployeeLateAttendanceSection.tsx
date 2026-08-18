@@ -8,6 +8,7 @@ import {
   deleteRegularization,
   fetchRegularizations,
 } from './attendanceOpsApi';
+import { getUserTimeZone } from '../../utils/timezone';
 
 interface EmployeeLateAttendanceSectionProps {
   lateLoginPolicy: LateLoginPolicy | null;
@@ -58,7 +59,7 @@ const EmployeeLateAttendanceSection: React.FC<EmployeeLateAttendanceSectionProps
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
-      timeZone: 'Asia/Kolkata',
+      timeZone: getUserTimeZone(),
     });
   }, []);
 

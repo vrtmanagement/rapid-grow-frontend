@@ -4,6 +4,7 @@ import { LeaveRequest, formatLeaveDayCount } from './attendanceUtils';
 import { getLeaveTypeLabel, getLeaveTypeTone } from './leaveManagementPanelUtils';
 import LeaveLopBadges from './LeaveLopBadges';
 import { getLeaveDisplayStatusLabel, getLeaveDisplayStatusTone } from './lopUtils';
+import { getUserTimeZone } from '../../utils/timezone';
 
 interface Props {
   leave: LeaveRequest;
@@ -66,12 +67,12 @@ const LeaveHistoryCard: React.FC<Props> = ({
               <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3.5 py-1.5 shadow-sm">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">From</span>
                 <span className="text-[1.02rem] font-semibold tracking-[-0.02em] text-slate-900">
-                  {new Date(leave.startDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
+                  {new Date(leave.startDate).toLocaleDateString('en-US', { timeZone: getUserTimeZone() })}
                 </span>
                 <span className="text-slate-300">•</span>
                 <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">To</span>
                 <span className="text-[1.02rem] font-semibold tracking-[-0.02em] text-slate-900">
-                  {new Date(leave.endDate).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
+                  {new Date(leave.endDate).toLocaleDateString('en-US', { timeZone: getUserTimeZone() })}
                 </span>
               </div>
               <span className="inline-flex items-center gap-1 rounded-full bg-brand-red/8 px-3 py-1 text-[11px] font-semibold text-brand-red">
@@ -106,11 +107,11 @@ const LeaveHistoryCard: React.FC<Props> = ({
           <div>
             <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
               <span className="inline-flex items-center rounded-full bg-white/75 px-2.5 py-1 font-medium text-slate-500 shadow-sm">
-                Applied {new Date(leave.createdAt).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
+                Applied {new Date(leave.createdAt).toLocaleDateString('en-US', { timeZone: getUserTimeZone() })}
               </span>
               {leave.decidedAt ? (
                 <span className="inline-flex items-center rounded-full bg-white/75 px-2.5 py-1 font-medium text-slate-500 shadow-sm">
-                  Updated {new Date(leave.decidedAt).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' })}
+                  Updated {new Date(leave.decidedAt).toLocaleDateString('en-US', { timeZone: getUserTimeZone() })}
                 </span>
               ) : null}
               {decisionLabel ? (

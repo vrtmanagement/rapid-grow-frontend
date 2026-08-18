@@ -28,6 +28,7 @@ import {
   resolveRowMeta,
   TodayActivityEvent,
 } from './attendanceOverviewGridUtils';
+import { getUserTimeZone } from '../../utils/timezone';
 
 interface AttendanceOverviewGridProps {
   summary: AttendanceSummaryResponse | null;
@@ -395,7 +396,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
               todayMinutes={todayMinutes}
               todayColor={todayColor}
               leaveDaysInRange={leaveDaysInRange}
-              selectedMonthLabel={selectedMonth ? new Date(`${selectedMonth}-01T00:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' }) : ''}
+              selectedMonthLabel={selectedMonth ? new Date(`${selectedMonth}-01T00:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: getUserTimeZone() }) : ''}
               onOpenHistory={onOpenHistory}
               variant="employee"
               loading={attendancePageLoading}

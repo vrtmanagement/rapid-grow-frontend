@@ -1,6 +1,7 @@
 import { ContentAsset, ContentDraftRecord } from '../../services/contentApi';
 import { CONTENT_VIEW_DRAFTS_KEY, MOMENT_STORAGE_KEY } from './contentViewConstants';
 import type { MomentEntry } from './contentViewConstants';
+import { getUserTimeZone } from '../../utils/timezone';
 
 export function nameInitials(name: string) {
   const clean = (name || '').trim();
@@ -38,7 +39,7 @@ export function formatUsDateTime(value?: string) {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   });
 }
 
@@ -51,13 +52,13 @@ export function formatContentCreatedStamp(value?: string) {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   });
   const timePart = date.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
   });
   return `${datePart} · ${timePart}`;
 }

@@ -1,5 +1,6 @@
 import type { PlanningState } from '../types';
 import type { DailyCompletedTaskSyncItem } from '../services/reviewMatrixAccomplishmentSync';
+import { getUserTimeZone } from '../utils/timezone';
 
 export type ReflectionPanel = 'form' | 'logs';
 
@@ -42,7 +43,7 @@ export interface DailyReflectionSyncResponse {
 export function getIndiaDateKey(offsetDays = 0): string {
   const baseDate = new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000);
   const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Kolkata',
+    timeZone: getUserTimeZone(),
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

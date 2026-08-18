@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, Filter, RefreshCw } from 'lucide-react';
 import { ThemedSelect } from '../components/spaces/SpacesFormControls';
 import { fetchAuditLogs, type AuditLogsResponse } from '../services/platformApi';
+import { getUserTimeZone } from '../utils/timezone';
 
 const PAGE_SIZE = 20;
 
@@ -249,7 +250,7 @@ const AuditLogsView: React.FC<AuditLogsViewProps> = ({ embedded = false, initial
                 : logs.map((row) => (
                     <tr key={row._id} className="border-t border-slate-100 align-top hover:bg-slate-50/60">
                       <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-                        {row.createdAt ? new Date(row.createdAt).toLocaleString() : '—'}
+                        {row.createdAt ? new Date(row.createdAt).toLocaleString('en-US', { timeZone: getUserTimeZone(), hour12: true }) : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <p className="font-medium text-slate-900">{row.actorDisplayName || 'Unknown user'}</p>

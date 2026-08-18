@@ -1,6 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
+import { getUserTimeZone } from '../../utils/timezone';
 
 type SpacesTaskConfirmModalsProps = Pick<
   SpacesViewController,
@@ -131,7 +132,7 @@ const SpacesTaskConfirmModals: React.FC<SpacesTaskConfirmModalsProps> = (props) 
                             {c.editedAt && <span className="text-[10px] text-slate-400">(edited)</span>}
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-slate-400">{new Date(c.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour12: true })}</span>
+                            <span className="text-[11px] text-slate-400">{new Date(c.createdAt).toLocaleString('en-US', { timeZone: getUserTimeZone(), hour12: true })}</span>
                             {canEditComment && (
                               <>
                                 <button type="button" onClick={() => { setEditingCommentId(c.id); setEditCommentDraft(c.text); }} className="text-[11px] text-slate-500 hover:text-brand-red">Edit</button>

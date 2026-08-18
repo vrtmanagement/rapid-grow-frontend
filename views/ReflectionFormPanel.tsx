@@ -14,6 +14,7 @@ import ReflectionHabitsCard from '../components/reflection/ReflectionHabitsCard'
 import { ReflectionField } from './ReflectionField';
 import type { PlanningState } from '../types';
 import type { ReflectionRecord } from './reflectionViewHelpers';
+import { getUserTimeZone } from '../utils/timezone';
 
 export type ReflectionFormPanelProps = {
   state: PlanningState;
@@ -68,7 +69,7 @@ export const ReflectionFormPanel: React.FC<ReflectionFormPanelProps> = ({
                     weekday: 'long',
                     month: 'long',
                     day: 'numeric',
-                    timeZone: 'Asia/Kolkata',
+                    timeZone: getUserTimeZone(),
                   }).format(new Date(`${todayKey}T12:00:00`))}
                 </p>
               </div>
