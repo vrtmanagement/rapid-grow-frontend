@@ -77,7 +77,7 @@ const MonthlyView: React.FC<Props> = ({ state, updateState, loading = false }) =
       })),
   }));
 
-  if (loading) {
+  if (loading && state.yearlyGoals.length === 0) {
     return (
       <div className="max-w-5xl mx-auto space-y-5 pb-16">
         <VisionFlowNav subtitle={state.uiConfig.monthlySub} />

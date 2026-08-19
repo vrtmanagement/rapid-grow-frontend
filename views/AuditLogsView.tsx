@@ -237,7 +237,7 @@ const AuditLogsView: React.FC<AuditLogsViewProps> = ({ embedded = false, initial
               </tr>
             </thead>
             <tbody>
-              {loading
+              {loading && logs.length === 0
                 ? Array.from({ length: 8 }).map((_, index) => (
                     <tr key={`skeleton-${index}`} className="border-t border-slate-100">
                       {Array.from({ length: 5 }).map((__, cellIndex) => (

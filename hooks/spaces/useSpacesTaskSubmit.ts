@@ -49,6 +49,7 @@ export interface UseSpacesTaskSubmitParams {
   repeatWeekTime: string;
   repeatFromDate: string;
   repeatToDate: string;
+  automationTimezone: string;
   createTaskMonthGoalContext: MonthGoalContext | null;
   createTaskPlannerEnabled: boolean;
   createTaskPlannerWeekId: string;
@@ -78,6 +79,7 @@ export interface UseSpacesTaskSubmitParams {
     repeatWeekTime?: string;
     repeatFromDate?: string;
     repeatToDate?: string;
+    timezone?: string;
     externalAssigneeEmail?: string;
     externalAssigneeName?: string;
     recurrence?: SpacesTaskRecurrence;
@@ -122,6 +124,7 @@ export const useSpacesTaskSubmit = ({
   repeatWeekTime,
   repeatFromDate,
   repeatToDate,
+  automationTimezone,
   createTaskMonthGoalContext,
   createTaskPlannerEnabled,
   createTaskPlannerWeekId,
@@ -278,6 +281,7 @@ export const useSpacesTaskSubmit = ({
           repeatWeekTime,
           repeatFromDate,
           repeatToDate,
+          timezone: automationTimezone,
           recurrence,
         });
         createdTasks.push(createdTask);
@@ -319,6 +323,7 @@ export const useSpacesTaskSubmit = ({
               repeatWeekTime,
               repeatFromDate,
               repeatToDate,
+              timezone: automationTimezone,
               repeatOccurrences: null,
               scheduleOnly: repeatEveryWeek === true,
             }),
@@ -408,6 +413,7 @@ export const useSpacesTaskSubmit = ({
     reminderIntervalHours,
     selectedProjectId,
     repeatWeekTime,
+    automationTimezone,
     me.name,
     closeTaskCreateModal,
     setChecklistNotice,

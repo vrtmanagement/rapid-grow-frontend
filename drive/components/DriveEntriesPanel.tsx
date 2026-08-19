@@ -291,7 +291,7 @@ export default function DriveEntriesPanel({
         </div>
       </div>
 
-      {loading ? (
+      {loading && entries.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white px-5 py-10 text-sm text-slate-500">
           Loading saved items...
         </div>

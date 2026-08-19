@@ -22,6 +22,7 @@ import {
   buildCreateTaskRecurrencePayload,
   buildDefaultTaskCreateRecurrenceDraft,
 } from '../../utils/spaces/taskRecurrence';
+import { getUserTimeZone, normalizeUserTimeZone } from '../../utils/timezone';
 import {
   buildWeeklyTaskCustomFields,
   normalizeTaskForUi,
@@ -122,6 +123,7 @@ export const useSpacesTaskCreate = ({
     end.setDate(end.getDate() + 28);
     return end.toISOString().slice(0, 10);
   });
+  const [automationTimezone, setAutomationTimezone] = useState(() => getUserTimeZone());
   const [taskRecurrence, setTaskRecurrence] = useState<TaskCreateRecurrenceDraft>(() => buildDefaultTaskCreateRecurrenceDraft());
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [taskDocumentFiles, setTaskDocumentFiles] = useState<File[]>([]);
@@ -160,6 +162,7 @@ export const useSpacesTaskCreate = ({
         setRepeatFromDate(today);
         setRepeatToDate(end.toISOString().slice(0, 10));
       }
+      setAutomationTimezone(getUserTimeZone());
       setTaskRecurrence(buildDefaultTaskCreateRecurrenceDraft());
       setSelectedProjectId('');
       setTaskDocumentFiles([]);
@@ -227,8 +230,11 @@ export const useSpacesTaskCreate = ({
 
   const buildTaskRecurrencePayload = useCallback(() => {
     if (!taskRecurrence.enabled) return undefined;
-    return buildCreateTaskRecurrencePayload(taskRecurrence);
-  }, [taskRecurrence]);
+    return {
+      ...buildCreateTaskRecurrencePayload(taskRecurrence),
+      timezone: normalizeUserTimeZone(automationTimezone),
+    };
+  }, [automationTimezone, taskRecurrence]);
 
   const handleAiAssignPdfUpload = useCallback(async (file: File | null) => {
     if (!file || aiAssigning) return;
@@ -309,6 +315,7 @@ export const useSpacesTaskCreate = ({
     repeatWeekTime?: string;
     repeatFromDate?: string;
     repeatToDate?: string;
+    timezone?: string;
     externalAssigneeEmail?: string;
     externalAssigneeName?: string;
     recurrence?: Record<string, unknown>;
@@ -422,6 +429,7 @@ export const useSpacesTaskCreate = ({
         repeatWeekTime: params.repeatWeekTime,
         repeatFromDate: params.repeatFromDate,
         repeatToDate: params.repeatToDate,
+        timezone: params.timezone,
         reminderIntervalHours: Number(params.reminderIntervalHours) || 24,
         recurrence: params.recurrence,
         customFields: Object.keys(customFields).length ? customFields : undefined,
@@ -570,6 +578,8 @@ export const useSpacesTaskCreate = ({
     setRepeatFromDate,
     repeatToDate,
     setRepeatToDate,
+    automationTimezone,
+    setAutomationTimezone,
     taskRecurrence,
     setTaskRecurrence,
     selectedProjectId,

@@ -56,6 +56,8 @@ type SpacesTaskCreateModalProps = Pick<
   | 'setRepeatFromDate'
   | 'repeatToDate'
   | 'setRepeatToDate'
+  | 'automationTimezone'
+  | 'setAutomationTimezone'
   | 'taskRecurrence'
   | 'setTaskRecurrence'
   | 'statusOptions'
@@ -130,6 +132,8 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
     setRepeatFromDate,
     repeatToDate,
     setRepeatToDate,
+    automationTimezone,
+    setAutomationTimezone,
     taskRecurrence,
     setTaskRecurrence,
     statusOptions,
@@ -556,6 +560,8 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                   setRepeatFromDate={setRepeatFromDate}
                   repeatToDate={repeatToDate}
                   setRepeatToDate={setRepeatToDate}
+                  automationTimezone={automationTimezone}
+                  setAutomationTimezone={setAutomationTimezone}
                   taskRecurrence={taskRecurrence}
                   setTaskRecurrence={setTaskRecurrence}
                   weeklyFieldName="create-weekly-occurrences"

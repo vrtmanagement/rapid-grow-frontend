@@ -38,6 +38,7 @@ export function useAppSessionState() {
   const [publicPath, setPublicPath] = useState(getPublicPath);
   const [appStateHydrated, setAppStateHydrated] = useState(false);
   const [goalsHydrated, setGoalsHydrated] = useState(true);
+  const goalsHydratedOnceRef = useRef(false);
   const [taskCount, setTaskCount] = useState(0);
   const [notifications, setNotifications] = useState<AppShellNotification[]>([]);
   const [communicationUnreadCount, setCommunicationUnreadCount] = useState(0);
@@ -194,7 +195,7 @@ export function useAppSessionState() {
     );
 
     let active = true;
-    if (!allGoalsCached) {
+    if (!allGoalsCached && !goalsHydratedOnceRef.current) {
       setGoalsHydrated(false);
     }
 
@@ -210,6 +211,7 @@ export function useAppSessionState() {
         }
       } finally {
         if (active) {
+          goalsHydratedOnceRef.current = true;
           setGoalsHydrated(true);
         }
       }

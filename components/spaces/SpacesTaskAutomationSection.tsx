@@ -1,10 +1,11 @@
 import React from 'react';
-import { Mail, Plus, RefreshCw, X } from 'lucide-react';
+import { Globe2, Mail, Plus, RefreshCw, X } from 'lucide-react';
 import type { TaskCreateRecurrenceDraft } from '../../types/spaces';
 import { ThemedSelect } from './SpacesFormControls';
 import SpacesTaskCreateRecurrenceFields from './SpacesTaskCreateRecurrenceFields';
 import SpacesWeeklyReminderFields from './SpacesWeeklyReminderFields';
 import { EMAIL_REMINDER_GAP_OPTIONS } from './spacesEmailReminderOptions';
+import { TIMEZONE_OPTIONS, getTimezoneOption, normalizeUserTimeZone } from '../../utils/timezone';
 
 export type TaskAutomationMode = 'none' | 'mail_checklist' | 'repeating';
 
@@ -37,6 +38,8 @@ type SpacesTaskAutomationSectionProps = {
   setRepeatFromDate: (value: string) => void;
   repeatToDate: string;
   setRepeatToDate: (value: string) => void;
+  automationTimezone: string;
+  setAutomationTimezone: (value: string) => void;
   taskRecurrence: TaskCreateRecurrenceDraft;
   setTaskRecurrence: React.Dispatch<React.SetStateAction<TaskCreateRecurrenceDraft>>;
   showExternalAssignee?: boolean;
@@ -64,6 +67,11 @@ const MODE_OPTIONS: Array<{
     icon: <RefreshCw size={15} />,
   },
 ];
+
+const TIMEZONE_SELECT_OPTIONS = TIMEZONE_OPTIONS.map((option) => ({
+  value: option.value,
+  label: `${option.label} (${option.abbr})`,
+}));
 
 const sectionLabelClass = 'text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700';
 const sectionHintClass = 'mt-1 text-[12px] leading-5 text-slate-500';
@@ -117,6 +125,8 @@ const SpacesTaskAutomationSection: React.FC<SpacesTaskAutomationSectionProps> = 
   setRepeatFromDate,
   repeatToDate,
   setRepeatToDate,
+  automationTimezone,
+  setAutomationTimezone,
   taskRecurrence,
   setTaskRecurrence,
   showExternalAssignee = true,
@@ -125,6 +135,19 @@ const SpacesTaskAutomationSection: React.FC<SpacesTaskAutomationSectionProps> = 
   const visibleModeOptions = MODE_OPTIONS.filter(
     (option) => !option.requiresEmailChecklist || canUseEmailChecklist,
   );
+  const timezoneValue = normalizeUserTimeZone(automationTimezone);
+  const timezoneOptions = TIMEZONE_SELECT_OPTIONS.some((option) => option.value === timezoneValue)
+    ? TIMEZONE_SELECT_OPTIONS
+    : [
+        {
+          value: timezoneValue,
+          label: getTimezoneOption(timezoneValue)?.label
+            ? `${getTimezoneOption(timezoneValue)!.label} (${getTimezoneOption(timezoneValue)!.abbr})`
+            : timezoneValue,
+        },
+        ...TIMEZONE_SELECT_OPTIONS,
+      ];
+  const selectedTimezone = getTimezoneOption(timezoneValue);
 
   return (
     <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5">
@@ -166,6 +189,30 @@ const SpacesTaskAutomationSection: React.FC<SpacesTaskAutomationSectionProps> = 
           );
         })}
       </div>
+
+      {mode !== 'none' ? (
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3.5">
+          <div className="flex items-center gap-2">
+            <Globe2 size={14} className="text-slate-500" />
+            <div className={sectionLabelClass}>Time zone</div>
+          </div>
+          <p className={sectionHintClass}>
+            Automated emails and repeating tasks run at this local time
+            {selectedTimezone?.abbr ? ` (${selectedTimezone.abbr})` : ''}.
+          </p>
+          <div className="mt-3">
+            <ThemedSelect
+              value={timezoneValue}
+              onChange={(value) => setAutomationTimezone(normalizeUserTimeZone(value))}
+              options={timezoneOptions}
+              compact={true}
+              fullWidthCompact={true}
+              denseMenu={true}
+              disabled={disabled}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {mode === 'mail_checklist' ? (
         <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
@@ -341,6 +388,7 @@ const SpacesTaskAutomationSection: React.FC<SpacesTaskAutomationSectionProps> = 
           <SpacesTaskCreateRecurrenceFields
             taskRecurrence={taskRecurrence}
             setTaskRecurrence={setTaskRecurrence}
+            timezone={timezoneValue}
             embedded={true}
             disabled={disabled}
           />

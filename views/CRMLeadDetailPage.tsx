@@ -269,7 +269,7 @@ const CRMLeadDetailPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [canUseAllPeopleScope, leadId]);
 
-  if (loading) {
+  if (loading && !lead) {
     return <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-slate-500">Loading lead details...</div>;
   }
 

@@ -555,7 +555,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     }
   };
 
-  if (loading) {
+  if (loading && !project) {
     return (
       <div className="space-y-6 animate-pulse">
         <div className="h-5 w-32 rounded-full bg-slate-200" />

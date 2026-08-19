@@ -99,7 +99,7 @@ const Vision = ({ state, updateState, loading = false }) => {
     openTaskViewer,
   } = taskActions;
 
-  if (loading) {
+  if (loading && state.yearlyGoals.length === 0) {
     return <VisionLoadingSkeleton />;
   }
 

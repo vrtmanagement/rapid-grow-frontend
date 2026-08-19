@@ -350,7 +350,7 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
             </tr>
           </thead>
           <tbody>
-            {spacesLoading ? (
+            {spacesLoading && sortedTasks.length === 0 ? (
               <TaskHubTableSkeleton customColumnCount={columns.length} />
             ) : sortedTasks.length === 0 ? (
               <tr>

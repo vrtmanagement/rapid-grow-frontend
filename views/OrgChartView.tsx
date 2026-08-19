@@ -103,7 +103,7 @@ const OrgChartView: React.FC<OrgChartViewProps> = ({ embedded = false }) => {
       <ErrorAlert message={error} />
 
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-        {loading ? (
+        {loading && roots.length === 0 ? (
           <div className="h-[52vh] animate-pulse rounded-lg bg-slate-100" />
         ) : roots.length ? (
           <div

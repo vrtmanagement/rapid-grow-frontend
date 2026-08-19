@@ -229,7 +229,7 @@ export function ChatSidebar({
           </div>
         </div>
         <div className="pb-2.5">
-          {loading ? (
+          {loading && teamConversations.length === 0 ? (
             Array.from({ length: 3 }).map((_, index) => (
               <div
                 key={`team-skeleton-${index}`}
@@ -376,7 +376,7 @@ export function ChatSidebar({
           </div>
         </div>
         <div className="pb-6">
-          {loading ? (
+          {loading && users.length === 0 ? (
             Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={`people-skeleton-${index}`}

@@ -117,7 +117,7 @@ const StrengthsDashboardView: React.FC = () => {
                 Real skills learned from completed tasks with skills tagged — not task titles or employee names.
               </p>
               <div className="mt-4 space-y-3">
-                {loading ? (
+                {loading && teamStrengths.length === 0 ? (
                   <LoadingRows count={6} />
                 ) : teamStrengths.length ? (
                   teamStrengths.map((row) => <TeamSkillBar key={row.name} row={row} />)
@@ -130,7 +130,7 @@ const StrengthsDashboardView: React.FC = () => {
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-950">By employee</h2>
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                {loading ? (
+                {loading && employees.length === 0 ? (
                   <LoadingCards count={4} />
                 ) : employees.length ? (
                   employees.map((employee) => <EmployeeCard key={employee.empId} employee={employee} />)

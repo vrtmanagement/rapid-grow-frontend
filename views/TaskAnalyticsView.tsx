@@ -98,7 +98,7 @@ export const TaskAnalyticsPanel: React.FC<TaskAnalyticsPanelProps> = ({
     };
   }, [projectId, scope]);
 
-  if (loading) {
+  if (loading && !analytics) {
     return (
       <div className={embedded ? 'rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm' : ''}>
         <p className="text-slate-500">Loading task analytics...</p>

@@ -65,6 +65,7 @@ export interface SpacesTaskRecurrence {
   week_days?: number[];
   month_day?: number | null;
   time?: string;
+  timezone?: string;
   ends?: {
     type: TaskCreateRecurrenceEndsType;
     date: string | null;
@@ -93,6 +94,7 @@ export interface SpacesTaskEmailChecklist {
   weeklyOccurrenceCompletedAt?: string | null;
   repeatStoppedAt?: string | null;
   occurrenceScheduledAt?: string | null;
+  timezone?: string | null;
 }
 
 export interface SpacesTask {
@@ -181,6 +183,7 @@ export interface TaskCreateRecurrenceDraft {
   weekDays: number[];
   monthDay: number;
   time: string;
+  timezone?: string;
   ends: {
     type: TaskCreateRecurrenceEndsType;
     date: string | null;
