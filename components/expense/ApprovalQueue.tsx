@@ -96,7 +96,7 @@ const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
     }
   };
 
-  if (loading) {
+  if (loading && expenseItems.length === 0 && travelItems.length === 0) {
     return <div className="h-48 animate-pulse rounded-xl bg-slate-100" />;
   }
 

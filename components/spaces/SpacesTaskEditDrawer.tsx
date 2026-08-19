@@ -20,7 +20,9 @@ import {
   buildEditTaskRecurrenceDraft,
   buildEditTaskRecurrencePayload,
   EDIT_PLANNING_CUSTOM_FIELD_KEYS,
+  resolveTaskAutomationTimezone,
 } from './spacesTaskModalsHelpers';
+import { getUserTimeZone } from '../../utils/timezone';
 import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
 import type { SelectOption, SpacesTask, TaskCreateRecurrenceDraft, WeeklyTaskGroup } from '../../types/spaces';
 
@@ -80,6 +82,7 @@ const SpacesTaskEditDrawer: React.FC<SpacesTaskEditDrawerProps> = (props) => {
     end.setDate(end.getDate() + 28);
     return end.toISOString().slice(0, 10);
   });
+  const [editingAutomationTimezone, setEditingAutomationTimezone] = React.useState(() => getUserTimeZone());
   const [editingAdditionalChecklistTitles, setEditingAdditionalChecklistTitles] = React.useState<string[]>([]);
   const [editingTaskRecurrence, setEditingTaskRecurrence] = React.useState<TaskCreateRecurrenceDraft>(() =>
     buildDefaultTaskCreateRecurrenceDraft(),
@@ -268,6 +271,7 @@ const SpacesTaskEditDrawer: React.FC<SpacesTaskEditDrawerProps> = (props) => {
     })();
     setEditingRepeatFromDate(String(editingTask.emailChecklist?.repeatFromDate || today).slice(0, 10));
     setEditingRepeatToDate(String(editingTask.emailChecklist?.repeatToDate || defaultTo).slice(0, 10));
+    setEditingAutomationTimezone(resolveTaskAutomationTimezone(editingTask));
     setEditingAdditionalChecklistTitles([]);
     setEditingTaskRecurrence(buildEditTaskRecurrenceDraft(editingTask));
     setEditingAddToWeeklyPlanner(Boolean(plannerGroup));
@@ -364,7 +368,10 @@ const SpacesTaskEditDrawer: React.FC<SpacesTaskEditDrawerProps> = (props) => {
           Object.assign(nextCustomFields, buildWeeklyTaskCustomFields(plannerDay, plannerGroup));
         }
       }
-      const recurrencePayload = buildEditTaskRecurrencePayload(editingTaskRecurrence);
+      const recurrencePayload = {
+        ...buildEditTaskRecurrencePayload(editingTaskRecurrence),
+        timezone: editingAutomationTimezone,
+      };
       if (editingTaskRecurrence.enabled && editingTaskRecurrence.frequency === 'weekly' && !editingTaskRecurrence.weekDays.length) {
         throw new Error('Select at least one day for a weekly repeating task.');
       }
@@ -395,6 +402,7 @@ const SpacesTaskEditDrawer: React.FC<SpacesTaskEditDrawerProps> = (props) => {
         repeatWeekTime: editingRepeatWeekTime,
         repeatFromDate: editingRepeatFromDate,
         repeatToDate: editingRepeatToDate,
+        timezone: editingAutomationTimezone,
         repeatOccurrences: null,
         reminderIntervalHours: Number(editingReminderIntervalHours) || 24,
       };
@@ -433,6 +441,7 @@ const SpacesTaskEditDrawer: React.FC<SpacesTaskEditDrawerProps> = (props) => {
     editingRepeatWeekTime,
     editingRepeatFromDate,
     editingRepeatToDate,
+    editingAutomationTimezone,
     editingSelectedPlannerWeekGroup,
     editingTask,
     editingTaskDocumentFile,
@@ -684,6 +693,8 @@ const SpacesTaskEditDrawer: React.FC<SpacesTaskEditDrawerProps> = (props) => {
                     setRepeatFromDate={setEditingRepeatFromDate}
                     repeatToDate={editingRepeatToDate}
                     setRepeatToDate={setEditingRepeatToDate}
+                    automationTimezone={editingAutomationTimezone}
+                    setAutomationTimezone={setEditingAutomationTimezone}
                     taskRecurrence={editingTaskRecurrence}
                     setTaskRecurrence={setEditingTaskRecurrence}
                     showExternalAssignee={false}

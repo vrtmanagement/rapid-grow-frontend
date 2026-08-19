@@ -130,7 +130,7 @@ const PermissionsView: React.FC<PermissionsViewProps> = ({ canEdit, embedded = f
     }
   };
 
-  if (loading) {
+  if (loading && metadata.length === 0) {
     return (
       <div className="space-y-6">
         <PageHeaderSkeleton />

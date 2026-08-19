@@ -1,34 +1,25 @@
-import React, { Suspense, lazy } from 'react';
+import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AccessDenied from '../AccessDenied';
 import SpacesTaskDetailView from '../../views/SpacesTaskDetailView';
 import type { PlanningState } from '../../types';
-
-const Vision = lazy(() => import('../../views/Vision'));
-const ReflectionView = lazy(() => import('../../views/ReflectionView'));
-const EmployeeDashboardView = lazy(() => import('../../views/EmployeeDashboardView'));
-const EmployeeProfileView = lazy(() => import('../../views/EmployeeProfileView'));
-const EmployeeProjectDetailView = lazy(() => import('../../views/EmployeeProjectDetailView'));
-const SpacesView = lazy(() => import('../../views/SpacesView'));
-const AttendanceView = lazy(() => import('../../views/AttendanceView'));
-const StaffView = lazy(() => import('../../views/StaffView'));
-const DriveView = lazy(() => import('../../drive/views/DriveView'));
-const ContentView = lazy(() => import('../../views/ContentView'));
-const ContentCreateView = lazy(() => import('../../views/ContentCreateView'));
-const WorkspacesView = lazy(() => import('../../views/WorkspacesView'));
-const CRMPage = lazy(() => import('../../views/CRMPage'));
-const CRMLeadDetailPage = lazy(() => import('../../views/CRMLeadDetailPage'));
-const StrategyExecutionView = lazy(() => import('../../views/StrategyExecutionView'));
-const ExpenseTravelView = lazy(() => import('../../views/ExpenseTravelView'));
-const CommunicationView = lazy(() => import('../../communication/views/CommunicationView'));
-
-function RouteFallback() {
-  return (
-    <div className="flex h-full min-h-[50vh] items-center justify-center bg-slate-50">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-brand-red" aria-label="Loading" />
-    </div>
-  );
-}
+import Vision from '../../views/Vision';
+import ReflectionView from '../../views/ReflectionView';
+import EmployeeDashboardView from '../../views/EmployeeDashboardView';
+import EmployeeProfileView from '../../views/EmployeeProfileView';
+import EmployeeProjectDetailView from '../../views/EmployeeProjectDetailView';
+import SpacesView from '../../views/SpacesView';
+import AttendanceView from '../../views/AttendanceView';
+import StaffView from '../../views/StaffView';
+import DriveView from '../../drive/views/DriveView';
+import ContentView from '../../views/ContentView';
+import ContentCreateView from '../../views/ContentCreateView';
+import WorkspacesView from '../../views/WorkspacesView';
+import CRMPage from '../../views/CRMPage';
+import CRMLeadDetailPage from '../../views/CRMLeadDetailPage';
+import StrategyExecutionView from '../../views/StrategyExecutionView';
+import ExpenseTravelView from '../../views/ExpenseTravelView';
+import CommunicationView from '../../communication/views/CommunicationView';
 
 export type AppEmployeeRoutesProps = {
   hasPower: (power: string) => boolean;
@@ -45,8 +36,7 @@ const AppEmployeeRoutes: React.FC<AppEmployeeRoutesProps> = ({
   updateState,
   planningViewsLoading,
 }) => (
-  <Suspense fallback={<RouteFallback />}>
-    <Routes>
+  <Routes>
       {hasPower('DASHBOARD_VIEW') && (
         <Route path="/" element={<EmployeeDashboardView uiConfig={state.uiConfig} />} />
       )}
@@ -111,7 +101,6 @@ const AppEmployeeRoutes: React.FC<AppEmployeeRoutesProps> = ({
       {hasPower('EXPENSE_VIEW') && <Route path="/expense-travel" element={<ExpenseTravelView mode="employee" />} />}
       <Route path="*" element={<AccessDenied />} />
     </Routes>
-  </Suspense>
 );
 
 export default AppEmployeeRoutes;

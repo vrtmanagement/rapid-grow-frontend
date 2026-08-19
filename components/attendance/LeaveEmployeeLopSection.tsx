@@ -11,7 +11,7 @@ interface Props {
 }
 
 const LeaveEmployeeLopSection: React.FC<Props> = ({ summary, loading = false }) => {
-  if (loading) {
+  if (loading && !summary) {
     return (
       <section className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)]">
         <SkeletonBlock className="h-8 w-48" />

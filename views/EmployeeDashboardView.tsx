@@ -366,7 +366,7 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
   return (
     <div className="max-w-6xl mx-auto space-y-12">
       <div>
-        {loading ? (
+        {loading && projects.length === 0 ? (
           <PageHeaderSkeleton />
         ) : (
           <>
@@ -383,7 +383,7 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
         )}
       </div>
 
-      {loading ? (
+      {loading && projects.length === 0 ? (
         <ProjectCardGridSkeleton count={3} />
       ) : (
         <>
@@ -447,7 +447,7 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
                 </div>
               </div>
 
-              {widgetsLoading ? (
+              {widgetsLoading && attendanceDays.every((day) => !day.minutes) ? (
                 <div className="mt-5 animate-pulse">
                   <div className="grid h-[188px] grid-cols-5 gap-3 rounded-[24px] border border-slate-100 bg-slate-50 p-4">
                     {Array.from({ length: 5 }).map((_, index) => (
@@ -589,7 +589,7 @@ const EmployeeDashboardView: React.FC<EmployeeDashboardProps> = ({ uiConfig = DE
                 </div>
               </div>
 
-              {widgetsLoading ? (
+              {widgetsLoading && !performance ? (
                 <div className="mt-4 flex animate-pulse flex-col items-center">
                   <div className="h-32 w-32 rounded-full bg-slate-100" />
                   <div className="mt-3 h-4 w-24 rounded-full bg-slate-200" />

@@ -4,6 +4,7 @@ import {
   normalizeCreateTaskRecurrenceDraft,
 } from '../../utils/spaces/taskRecurrence';
 import type { SpacesTask, TaskCreateRecurrenceDraft } from '../../types/spaces';
+import { getUserTimeZone, normalizeUserTimeZone } from '../../utils/timezone';
 
 export const EDIT_PLANNING_CUSTOM_FIELD_KEYS = [
   'planningSource',
@@ -35,10 +36,26 @@ export const EDIT_PLANNING_CUSTOM_FIELD_KEYS = [
   'dayChainKey',
 ];
 
-export function parseRecurrenceTimeLabel(nextRunAt?: string, fallback = '09:00') {
+export function parseRecurrenceTimeLabel(nextRunAt?: string, fallback = '09:00', timeZone?: string) {
   const parsed = nextRunAt ? new Date(nextRunAt) : null;
   if (!parsed || Number.isNaN(parsed.getTime())) return fallback;
-  return `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`;
+  const tz = normalizeUserTimeZone(timeZone, getUserTimeZone());
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(parsed);
+  const hour = String(parts.find((part) => part.type === 'hour')?.value || '09').padStart(2, '0');
+  const minute = String(parts.find((part) => part.type === 'minute')?.value || '00').padStart(2, '0');
+  return `${hour}:${minute}`;
+}
+
+export function resolveTaskAutomationTimezone(task?: SpacesTask | null) {
+  return normalizeUserTimeZone(
+    task?.emailChecklist?.timezone || task?.recurrence?.timezone,
+    getUserTimeZone(),
+  );
 }
 
 export function buildEditTaskRecurrenceDraft(task?: SpacesTask | null): TaskCreateRecurrenceDraft {
@@ -60,7 +77,8 @@ export function buildEditTaskRecurrenceDraft(task?: SpacesTask | null): TaskCrea
           ? [Number(recurrence.dayOfWeek)]
           : base.weekDays,
     monthDay: Number(recurrence.month_day || recurrence.dayOfMonth || base.monthDay),
-    time: String(recurrence.time || parseRecurrenceTimeLabel(recurrence.nextRunAt || undefined, base.time)),
+    time: String(recurrence.time || parseRecurrenceTimeLabel(recurrence.nextRunAt || undefined, base.time, recurrence.timezone)),
+    timezone: normalizeUserTimeZone(recurrence.timezone, getUserTimeZone()),
     ends: {
       type: endsType === 'on_date' || endsType === 'after' ? endsType : 'never',
       date:

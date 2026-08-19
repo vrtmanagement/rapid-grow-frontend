@@ -503,7 +503,7 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePanel, currentEmpId, myTodayRecord?._id, taskHubCompletedTasks]);
 
-  if (loading) {
+  if (loading && records.length === 0) {
     return (
       <div className="max-w-6xl mx-auto space-y-12 pb-24 animate-in fade-in duration-700">
         <div className="bg-slate-900 text-white p-8 rounded-2xl flex items-center justify-center gap-8 text-[12px] shadow-2xl border border-white/5 relative overflow-hidden animate-pulse">

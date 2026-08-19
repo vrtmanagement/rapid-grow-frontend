@@ -446,7 +446,7 @@ const DailyView: React.FC<Props> = ({ state, updateState, loading = false }) => 
     });
   }, [isAdmin, visibleGroups]);
 
-  if (loading) {
+  if (loading && state.dailyGoals.length === 0 && state.yearlyGoals.length === 0) {
     return <DailyViewLoading subtitle={state.uiConfig.dailySub} />;
   }
 

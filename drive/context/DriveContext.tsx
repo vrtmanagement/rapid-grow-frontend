@@ -298,7 +298,9 @@ export function DriveProvider({ children }: { children: React.ReactNode }) {
     if (force) {
       invalidateApiCache('/drive');
     }
-    setLoading(true);
+    if (force || (folders.length === 0 && files.length === 0 && entries.length === 0)) {
+      setLoading(true);
+    }
     setError(null);
     await Promise.all([loadCurrentFolder(), loadFolderTree(), loadFolders(1, false), loadFiles(1, false), loadEntries()]);
     setLoading(false);

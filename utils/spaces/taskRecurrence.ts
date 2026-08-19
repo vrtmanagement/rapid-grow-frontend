@@ -5,6 +5,7 @@ import type {
   TaskCreateRecurrenceEndsType,
   TaskRecurrenceDraft,
 } from '../../types/spaces';
+import { DEFAULT_USER_TIMEZONE, normalizeUserTimeZone } from '../timezone';
 
 export const NO_VISION_SELECTOR_VALUE = '__no_vision__';
 export const EVERYDAY_REPEAT_VALUE = 'everyday';
@@ -66,6 +67,7 @@ export function buildDefaultTaskCreateRecurrenceDraft(): TaskCreateRecurrenceDra
     weekDays: [0],
     monthDay: 1,
     time: '09:00',
+    timezone: DEFAULT_USER_TIMEZONE,
     ends: {
       type: 'never',
       date: null,
@@ -154,6 +156,7 @@ export function normalizeCreateTaskRecurrenceDraft(
     weekDays: weekDays.length ? weekDays : base.weekDays,
     monthDay: clampRecurrenceMonthDay(draft?.monthDay ?? base.monthDay),
     time: /^\d{2}:\d{2}$/.test(String(draft?.time || '')) ? String(draft?.time) : base.time,
+    timezone: normalizeUserTimeZone(draft?.timezone, base.timezone || DEFAULT_USER_TIMEZONE),
     ends: {
       type: endsType === 'on_date' || endsType === 'after' ? endsType : 'never',
       date: draft?.ends?.date ? String(draft.ends.date) : null,
@@ -180,6 +183,7 @@ export function buildCreateTaskRecurrencePayload(draft: TaskCreateRecurrenceDraf
     week_days: normalized.frequency === 'weekly' ? normalized.weekDays : [],
     month_day: normalized.frequency === 'monthly' ? normalized.monthDay : null,
     time: normalized.time,
+    timezone: normalized.timezone,
     ends: {
       type: normalized.ends.type,
       date: normalized.ends.type === 'on_date' ? normalized.ends.date : null,
@@ -275,33 +279,109 @@ export function formatTime(timeValue: string) {
   return `${hour}:${minute} ${meridiem}`;
 }
 
-function advanceMonthlyCursor(
-  cursor: Date,
-  selectedDay: number,
-  interval: number,
-  timeValue: string,
+function getZonedDateParts(value: Date, timeZone: string) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    weekday: 'short',
+    hourCycle: 'h23',
+  });
+  const map: Record<string, string> = {};
+  for (const part of formatter.formatToParts(value)) {
+    if (part.type !== 'literal') map[part.type] = part.value;
+  }
+  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    year: Number(map.year || 0),
+    month: Number(map.month || 0),
+    date: Number(map.day || 0),
+    hour: Number(map.hour || 0) % 24,
+    minute: Number(map.minute || 0),
+    day: weekdayMap[map.weekday] ?? 0,
+  };
+}
+
+function getTimeZoneOffsetMinutes(timeZone: string, value: Date) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    timeZoneName: 'shortOffset',
+    hour: '2-digit',
+    hourCycle: 'h23',
+  });
+  const timeZoneName =
+    formatter.formatToParts(value).find((part) => part.type === 'timeZoneName')?.value || 'GMT+0';
+  const match = timeZoneName.match(/^GMT([+-])(\d{1,2})(?::?(\d{2}))?$/i);
+  if (!match) return 0;
+  const sign = match[1] === '-' ? -1 : 1;
+  return sign * (Number(match[2] || 0) * 60 + Number(match[3] || 0));
+}
+
+function zonedLocalToUtc(
+  parts: { year: number; month: number; date: number; hour?: number; minute?: number; second?: number },
+  timeZone: string,
 ) {
-  const { hours, minutes } = parseTimeValue(timeValue);
-  const nextMonthIndex = cursor.getMonth() + interval;
-  const nextYear = cursor.getFullYear() + Math.floor(nextMonthIndex / 12);
-  const normalizedMonth = ((nextMonthIndex % 12) + 12) % 12;
-  const resolvedDay = resolveMonthlyRepeatDay(nextYear, normalizedMonth, selectedDay);
-  cursor.setFullYear(nextYear, normalizedMonth, resolvedDay);
-  cursor.setHours(hours, minutes, 0, 0);
+  let utcMs = Date.UTC(
+    parts.year,
+    (parts.month || 1) - 1,
+    parts.date || 1,
+    parts.hour || 0,
+    parts.minute || 0,
+    parts.second || 0,
+    0,
+  );
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const offsetMinutes = getTimeZoneOffsetMinutes(timeZone, new Date(utcMs));
+    const adjustedUtcMs =
+      Date.UTC(
+        parts.year,
+        (parts.month || 1) - 1,
+        parts.date || 1,
+        parts.hour || 0,
+        parts.minute || 0,
+        parts.second || 0,
+        0,
+      ) -
+      offsetMinutes * 60000;
+    if (adjustedUtcMs === utcMs) break;
+    utcMs = adjustedUtcMs;
+  }
+  return new Date(utcMs);
+}
+
+function addZonedCalendarDays(
+  parts: { year: number; month: number; date: number },
+  dayDelta: number,
+) {
+  const cursor = new Date(Date.UTC(parts.year, (parts.month || 1) - 1, parts.date || 1));
+  cursor.setUTCDate(cursor.getUTCDate() + dayDelta);
+  return {
+    year: cursor.getUTCFullYear(),
+    month: cursor.getUTCMonth() + 1,
+    date: cursor.getUTCDate(),
+  };
 }
 
 export function getNextOccurrences(
-  recurrence: Pick<SpacesTaskRecurrence, 'frequency' | 'interval' | 'week_days' | 'month_day' | 'time' | 'ends'>,
+  recurrence: Pick<SpacesTaskRecurrence, 'frequency' | 'interval' | 'week_days' | 'month_day' | 'time' | 'ends' | 'timezone'>,
   fromDate = new Date(),
   limit = 50,
 ) {
+  const timeZone = normalizeUserTimeZone(recurrence?.timezone, DEFAULT_USER_TIMEZONE);
   const normalizedTime = /^\d{2}:\d{2}$/.test(String(recurrence?.time || '')) ? String(recurrence?.time) : '09:00';
+  const { hours, minutes } = parseTimeValue(normalizedTime);
   const occurrences: Date[] = [];
-  const [hourStr, minStr] = normalizedTime.split(':');
-  const cursor = new Date(fromDate);
-  cursor.setHours(parseInt(hourStr, 10), parseInt(minStr, 10), 0, 0);
+  const fromParts = getZonedDateParts(fromDate, timeZone);
+  let calendar = { year: fromParts.year, month: fromParts.month, date: fromParts.date };
+  let cursor = zonedLocalToUtc({ ...calendar, hour: hours, minute: minutes }, timeZone);
 
-  if (cursor <= fromDate) cursor.setDate(cursor.getDate() + 1);
+  if (cursor.getTime() <= new Date(fromDate).getTime()) {
+    calendar = addZonedCalendarDays(calendar, 1);
+    cursor = zonedLocalToUtc({ ...calendar, hour: hours, minute: minutes }, timeZone);
+  }
 
   const selectedMonthDay =
     recurrence.frequency === 'monthly' ? clampRecurrenceMonthDay(recurrence.month_day ?? 1) : 1;
@@ -309,23 +389,24 @@ export function getNextOccurrences(
   while (occurrences.length < limit && tries < 1000) {
     tries += 1;
     let match = false;
+    const weekday = new Date(Date.UTC(calendar.year, calendar.month - 1, calendar.date)).getUTCDay();
 
     if (recurrence.frequency === 'daily') {
       match = true;
     } else if (recurrence.frequency === 'weekly') {
-      const jsDay = cursor.getDay();
-      const mappedDay = jsDay === 0 ? 6 : jsDay - 1;
+      const mappedDay = weekday === 0 ? 6 : weekday - 1;
       match = Array.isArray(recurrence.week_days) && recurrence.week_days.includes(mappedDay);
     } else if (recurrence.frequency === 'monthly') {
       match =
-        cursor.getDate() ===
-        resolveMonthlyRepeatDay(cursor.getFullYear(), cursor.getMonth(), selectedMonthDay);
+        calendar.date ===
+        resolveMonthlyRepeatDay(calendar.year, calendar.month - 1, selectedMonthDay);
     }
 
     if (match) {
       if (recurrence.ends?.type === 'on_date' && recurrence.ends.date) {
-        const endDate = new Date(`${recurrence.ends.date}T23:59:59`);
-        if (cursor > endDate) break;
+        const [year, month, date] = String(recurrence.ends.date).split('-').map(Number);
+        const endAt = zonedLocalToUtc({ year, month, date, hour: 23, minute: 59, second: 59 }, timeZone);
+        if (cursor > endAt) break;
       }
       if (recurrence.ends?.type === 'after') {
         const maxOccurrences = clampRecurrenceOccurrences(recurrence.ends.occurrences, TASK_CREATE_RECURRENCE_DEFAULT_OCCURRENCES);
@@ -336,24 +417,25 @@ export function getNextOccurrences(
     }
 
     if (recurrence.frequency === 'daily') {
-      cursor.setDate(cursor.getDate() + clampRecurrenceInterval(recurrence.interval, 1));
+      calendar = addZonedCalendarDays(calendar, clampRecurrenceInterval(recurrence.interval, 1));
     } else if (recurrence.frequency === 'weekly') {
-      cursor.setDate(cursor.getDate() + 1);
-      if (cursor.getDay() === 1 && clampRecurrenceInterval(recurrence.interval, 1) > 1) {
-        cursor.setDate(cursor.getDate() + (clampRecurrenceInterval(recurrence.interval, 1) - 1) * 7);
+      calendar = addZonedCalendarDays(calendar, 1);
+      const nextWeekday = new Date(Date.UTC(calendar.year, calendar.month - 1, calendar.date)).getUTCDay();
+      if (nextWeekday === 1 && clampRecurrenceInterval(recurrence.interval, 1) > 1) {
+        calendar = addZonedCalendarDays(calendar, (clampRecurrenceInterval(recurrence.interval, 1) - 1) * 7);
       }
     } else if (recurrence.frequency === 'monthly') {
       if (match) {
-        advanceMonthlyCursor(
-          cursor,
-          selectedMonthDay,
-          clampRecurrenceInterval(recurrence.interval, 1),
-          normalizedTime,
-        );
+        const nextMonthIndex = calendar.month - 1 + clampRecurrenceInterval(recurrence.interval, 1);
+        const nextYear = calendar.year + Math.floor(nextMonthIndex / 12);
+        const normalizedMonth = ((nextMonthIndex % 12) + 12) % 12;
+        const resolvedDay = resolveMonthlyRepeatDay(nextYear, normalizedMonth, selectedMonthDay);
+        calendar = { year: nextYear, month: normalizedMonth + 1, date: resolvedDay };
       } else {
-        cursor.setDate(cursor.getDate() + 1);
+        calendar = addZonedCalendarDays(calendar, 1);
       }
     }
+    cursor = zonedLocalToUtc({ ...calendar, hour: hours, minute: minutes }, timeZone);
   }
 
   return occurrences;
@@ -365,7 +447,7 @@ function ordinal(value: number) {
   return `${value}${suffixes[(remainder - 20) % 10] || suffixes[remainder] || suffixes[0]}`;
 }
 
-export function buildSummaryText(recurrence: Pick<SpacesTaskRecurrence, 'frequency' | 'interval' | 'week_days' | 'month_day' | 'time' | 'ends'>) {
+export function buildSummaryText(recurrence: Pick<SpacesTaskRecurrence, 'frequency' | 'interval' | 'week_days' | 'month_day' | 'time' | 'ends' | 'timezone'>) {
   const interval = clampRecurrenceInterval(recurrence.interval, 1);
   const timeStr = formatTime(String(recurrence.time || '09:00'));
   let frequencyText = '';
@@ -407,12 +489,21 @@ export function buildSummaryText(recurrence: Pick<SpacesTaskRecurrence, 'frequen
   return `${frequencyText} at ${timeStr}${endsText}`;
 }
 
-export function formatOccurrenceChipLabel(date: Date) {
-  return date.toLocaleDateString('en-US', {
+export function formatOccurrenceChipLabel(date: Date, timeZone?: string) {
+  const tz = normalizeUserTimeZone(timeZone, DEFAULT_USER_TIMEZONE);
+  const dateLabel = date.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
-  }) + ` · ${formatTime(`${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`)}`;
+    timeZone: tz,
+  });
+  const timeLabel = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: tz,
+  });
+  return `${dateLabel} · ${timeLabel}`;
 }
 
 export function formatChecklistIntervalLabel(value: string | number) {

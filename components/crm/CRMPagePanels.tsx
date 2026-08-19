@@ -404,7 +404,7 @@ const CRMPagePanels: React.FC<CRMPagePanelsProps> = ({ ctx }) => {
       </div>
     </div>
 
-    {pageLoading ? (
+    {pageLoading && leads.length === 0 ? (
       <div className="rounded-lg bg-white border border-slate-200 p-8 text-center text-slate-500">Loading leads...</div>
     ) : (
     <div className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white">

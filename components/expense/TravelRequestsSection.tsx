@@ -99,7 +99,7 @@ const TravelRequestsSection: React.FC<TravelRequestsSectionProps> = ({
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        {loading ? (
+        {loading && !filteredItems.length ? (
           <div className="space-y-3 p-5">
             {Array.from({ length: 4 }).map((_, index) => (
               <div key={index} className="h-14 animate-pulse rounded-lg bg-slate-100" />

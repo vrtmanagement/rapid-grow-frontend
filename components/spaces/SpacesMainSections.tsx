@@ -49,6 +49,8 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
     setRepeatFromDate,
     repeatToDate,
     setRepeatToDate,
+    automationTimezone,
+    setAutomationTimezone,
     taskRecurrence,
     setTaskRecurrence,
     statusOptions,
@@ -376,6 +378,8 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         setRepeatFromDate={setRepeatFromDate}
         repeatToDate={repeatToDate}
         setRepeatToDate={setRepeatToDate}
+        automationTimezone={automationTimezone}
+        setAutomationTimezone={setAutomationTimezone}
         taskRecurrence={taskRecurrence}
         setTaskRecurrence={setTaskRecurrence}
         statusOptions={statusOptions}

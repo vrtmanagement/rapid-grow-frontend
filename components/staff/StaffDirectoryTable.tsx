@@ -193,7 +193,7 @@ const StaffDirectoryTable: React.FC<StaffDirectoryTableProps> = ({ ctx }) => {
         </tr>
       </thead>
       <tbody>
-        {loading ? (
+        {loading && rows.length === 0 ? (
           <StaffTableSkeleton rows={6} />
         ) : filteredRows.length === 0 ? (
           <tr>

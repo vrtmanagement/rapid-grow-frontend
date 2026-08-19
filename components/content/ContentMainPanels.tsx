@@ -255,7 +255,7 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
                 </button>
               </div>
             </div>
-            {loading ? (
+            {loading && items.length === 0 ? (
               <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 text-slate-500 shadow-sm">Loading...</div>
             ) : isTypeDetailPage ? (
               isItemDetailPage ? (
@@ -617,7 +617,7 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
               </button>
             </div>
           </div>
-          {loading ? (
+          {loading && blogItems.length === 0 ? (
             <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 text-slate-500 shadow-sm">Loading...</div>
           ) : blogItems.length === 0 ? (
             <div className="rounded-[1.8rem] border border-dashed border-slate-300 bg-white/80 px-6 py-12 text-center shadow-sm">
@@ -697,7 +697,7 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
               </button>
             </div>
           </div>
-          {loading ? (
+          {loading && activeReminderItems.length === 0 ? (
             <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 text-slate-500 shadow-sm">Loading...</div>
           ) : activeReminderItems.length === 0 ? (
             <div className="rounded-[1.8rem] border border-dashed border-slate-300 bg-white/80 px-6 py-12 text-center shadow-sm">

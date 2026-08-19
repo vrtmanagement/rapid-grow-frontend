@@ -19,6 +19,7 @@ import {
 type SpacesTaskCreateRecurrenceFieldsProps = {
   taskRecurrence: TaskCreateRecurrenceDraft;
   setTaskRecurrence: React.Dispatch<React.SetStateAction<TaskCreateRecurrenceDraft>>;
+  timezone?: string;
   embedded?: boolean;
   disabled?: boolean;
 };
@@ -43,6 +44,7 @@ const MERIDIEM_OPTIONS = ['AM', 'PM'];
 const SpacesTaskCreateRecurrenceFields: React.FC<SpacesTaskCreateRecurrenceFieldsProps> = ({
   taskRecurrence,
   setTaskRecurrence,
+  timezone,
   embedded = false,
   disabled = false,
 }) => {
@@ -57,16 +59,16 @@ const SpacesTaskCreateRecurrenceFields: React.FC<SpacesTaskCreateRecurrenceField
   );
 
   const recurrencePayload = React.useMemo(
-    () => buildCreateTaskRecurrencePayload({ ...normalizedDraft, enabled: true }),
-    [normalizedDraft],
+    () => buildCreateTaskRecurrencePayload({ ...normalizedDraft, enabled: true, timezone }),
+    [normalizedDraft, timezone],
   );
   const previewSummary = React.useMemo(
-    () => buildSummaryText(recurrencePayload || { enabled: true, frequency: 'daily', interval: 1, time: '09:00', ends: { type: 'never', date: null, occurrences: TASK_CREATE_RECURRENCE_DEFAULT_OCCURRENCES } }),
-    [recurrencePayload],
+    () => buildSummaryText(recurrencePayload || { enabled: true, frequency: 'daily', interval: 1, time: '09:00', timezone, ends: { type: 'never', date: null, occurrences: TASK_CREATE_RECURRENCE_DEFAULT_OCCURRENCES } }),
+    [recurrencePayload, timezone],
   );
   const previewOccurrences = React.useMemo(
-    () => (recurrencePayload ? getNextOccurrences(recurrencePayload, new Date(), 4) : []),
-    [recurrencePayload],
+    () => (recurrencePayload ? getNextOccurrences({ ...recurrencePayload, timezone }, new Date(), 4) : []),
+    [recurrencePayload, timezone],
   );
 
   const updateDraft = React.useCallback(
@@ -362,7 +364,7 @@ const SpacesTaskCreateRecurrenceFields: React.FC<SpacesTaskCreateRecurrenceField
               <div className="rt-preview-occurrences mt-2">
                 {previewOccurrences.map((occurrence) => (
                   <span key={occurrence.toISOString()} className="rt-chip">
-                    {formatOccurrenceChipLabel(occurrence)}
+                    {formatOccurrenceChipLabel(occurrence, timezone)}
                   </span>
                 ))}
               </div>

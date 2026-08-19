@@ -519,7 +519,7 @@ const ExecutionMatrix: React.FC = () => {
               : undefined
           }
         >
-          {loading ? (
+          {loading && rows.length === 0 ? (
             <div className="space-y-4 xl:max-h-[var(--execution-list-height)] xl:overflow-y-auto xl:overscroll-contain xl:pr-2">
               {Array.from({ length: 5 }).map((_, index) => (
                 <div

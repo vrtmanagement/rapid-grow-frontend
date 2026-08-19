@@ -95,7 +95,7 @@ const SkillGapAnalysisView: React.FC<{ embedded?: boolean }> = ({ embedded = fal
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-950">Gap results</h2>
         <div className="mt-4 space-y-3">
-          {loading ? (
+          {loading && gaps.length === 0 ? (
             Array.from({ length: 3 }).map((_, index) => (
               <div key={index} className="h-20 animate-pulse rounded-lg bg-slate-100" />
             ))

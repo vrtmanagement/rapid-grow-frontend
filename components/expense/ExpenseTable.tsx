@@ -24,7 +24,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({
   showEmployee = false,
   emptyMessage = 'No expense claims found.',
 }) => {
-  if (loading) {
+  if (loading && items.length === 0) {
     return (
       <div className="space-y-3">
         {Array.from({ length: 4 }).map((_, index) => (

@@ -290,9 +290,9 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
     if (status === 'blocked') return 'Blocked';
     return status;
   }
-  const showTaskHubSkeleton = loading || tasksLoading;
+  const showTaskHubSkeleton = (loading || tasksLoading) && taskHubTasks.length === 0;
 
-  if (loading) {
+  if (loading && taskHubTasks.length === 0 && !state.currentUser?.id) {
     return isSuperAdmin ? (
       <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-500">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 animate-pulse">
