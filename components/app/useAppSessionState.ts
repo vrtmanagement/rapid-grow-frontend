@@ -20,7 +20,7 @@ import { getDisplayAvatarUrl, persistSessionEmployeeAvatar, PROFILE_AVATAR_UPDAT
 import { fetchAppBootstrap } from '../../services/bootstrapApi';
 import { fetchAllGoalLevels, mapGoalsToPlanningState } from '../../services/goalApi';
 import { hasTabEndpointCache } from '../../services/tabSessionCache';
-import { apiListConversations, apiListUsers } from '../../communication/api';
+import { apiListConversations } from '../../communication/api';
 import { getUnreadDirectMessageSourceCount } from '../../communication/unread';
 import { mapListConversationsApiRowToSummary } from '../../communication/context/communicationContextHelpers';
 import { getSocket } from '../../realtime/socket';
@@ -351,21 +351,12 @@ export function useAppSessionState() {
     async function syncCommunicationUnreadCount() {
       try {
         const userId = String(state.currentUser?.id || '');
-        const [data, usersData] = await Promise.all([
-          apiListConversations(),
-          apiListUsers().catch(() => ({ users: [] as { id?: string }[] })),
-        ]);
+        const data = await apiListConversations();
         if (active) {
           const mappedConversations = (data.conversations || []).map(mapListConversationsApiRowToSummary);
-          const visibleUserIds = new Set(
-            (usersData.users || [])
-              .map((user) => String(user?.id || '').trim())
-              .filter(Boolean),
-          );
           setCommunicationUnreadCount(
             getUnreadDirectMessageSourceCount(mappedConversations, {
               currentUserId: userId,
-              visibleUserIds,
             }),
           );
         }

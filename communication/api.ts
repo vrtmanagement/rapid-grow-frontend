@@ -59,8 +59,12 @@ export async function apiListConversations(options?: { force?: boolean }) {
 
 export async function apiHistory(conversationKey: string, limit = 50) {
   const qs = new URLSearchParams({ conversationKey, limit: String(limit) });
+  // Chat history must never use the long-lived GET cache — a stale snapshot
+  // overwrites live websocket messages and forces a full page refresh.
   return apiGetJson<{ conversationKey: string; pinnedMessage?: any; messages: any[] }>(
     `/communication/history?${qs.toString()}`,
+    {},
+    { force: true },
   );
 }
 

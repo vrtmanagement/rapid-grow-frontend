@@ -5,6 +5,7 @@ import {
   mapApiPinnedMessage,
   messagePreviewFromMessage,
   toChatPoll,
+  upsertChatMessage,
 } from './communicationContextHelpers';
 import type { NotificationPreferences } from '../../services/notificationPreferences';
 
@@ -150,39 +151,7 @@ export function useCommunicationSocket({
 
       // If the message is for the current conversation, append it.
       if (selectedConversationKeyRef.current === conversationKey) {
-        setMessages((prev) => {
-          const revokePendingPreview = (message: ChatMessage) => {
-            if (message.localPreviewUrl) {
-              try {
-                URL.revokeObjectURL(message.localPreviewUrl);
-              } catch {
-                // ignore revoke failures
-              }
-            }
-          };
-
-          const withoutPending = prev.filter((message) => {
-            if (!message.pending) return true;
-            const sameClientId =
-              !!mapped.clientMessageId &&
-              !!message.clientMessageId &&
-              message.clientMessageId === mapped.clientMessageId;
-            const sameBundleFile =
-              !!mapped.bundleId &&
-              message.bundleId === mapped.bundleId &&
-              String(message.attachment?.fileName || '') === String(mapped.attachment?.fileName || '');
-            if (sameClientId || sameBundleFile) {
-              revokePendingPreview(message);
-              return false;
-            }
-            return true;
-          });
-
-          if (withoutPending.some((m) => m.id === mapped.id)) {
-            return withoutPending.map((m) => (m.id === mapped.id ? mapped : m));
-          }
-          return [...withoutPending, mapped];
-        });
+        setMessages((prev) => upsertChatMessage(prev, mapped));
       }
 
       // Update conversation ordering + preview
@@ -419,9 +388,17 @@ export function useCommunicationSocket({
       );
     };
 
+    const handleConnect = () => {
+      const conversationKey = selectedConversationKeyRef.current;
+      if (!conversationKey) return;
+      socket.emit('comm:join', { conversationKey });
+    };
+
+    socket.on('connect', handleConnect);
     socket.on('presence:update', handlePresence);
     socket.on('comm:typing', handleTyping);
     socket.on('comm:message:created', handleMessageCreated);
+    socket.on('newMessage', handleMessageCreated);
     socket.on('messages_forwarded', handleMessagesForwarded);
     socket.on('comm:message:delivery', handleMessageDelivery);
     socket.on('comm:message:seen', handleMessageSeen);
@@ -435,9 +412,11 @@ export function useCommunicationSocket({
     socket.on('poll_deleted', handlePollDeleted);
 
     return () => {
+      socket.off('connect', handleConnect);
       socket.off('presence:update', handlePresence);
       socket.off('comm:typing', handleTyping);
       socket.off('comm:message:created', handleMessageCreated);
+      socket.off('newMessage', handleMessageCreated);
       socket.off('messages_forwarded', handleMessagesForwarded);
       socket.off('comm:message:delivery', handleMessageDelivery);
       socket.off('comm:message:seen', handleMessageSeen);

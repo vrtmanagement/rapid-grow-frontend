@@ -22,6 +22,7 @@ import {
   mapListUsersApiRowToChatUser,
   mapListConversationsApiRowToSummary,
   isDocumentVisible,
+  mergeHistoryWithLiveMessages,
 } from './communicationContextHelpers';
 import { avatarFromDirectory, loadEmployeeAvatarDirectory } from './communicationAvatarDirectory';
 import { useCommunicationSocket } from './useCommunicationSocket';
@@ -64,6 +65,9 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   const seenSocketMessageIdsRef = useRef<Record<string, true>>({});
   const notificationTimersRef = useRef<Record<string, number>>({});
   const markSeenTimerRef = useRef<Record<string, number>>({});
+  const messagesRef = useRef<ChatMessage[]>([]);
+  messagesRef.current = messages;
+  const messagesLoadGenerationRef = useRef(0);
 
   const mergePollIntoMessages = useCallback((conversationKey: string, poll: any) => {
     if (!poll) return;
@@ -242,14 +246,19 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   }, []);
 
   const loadMessages = useCallback(async (conversationKey: string) => {
-    setMessagesLoading(true);
+    const generation = ++messagesLoadGenerationRef.current;
+    const keepVisible =
+      selectedConversationKeyRef.current === conversationKey && messagesRef.current.length > 0;
+    if (!keepVisible) setMessagesLoading(true);
     setError(null);
     try {
       const data = await apiHistory(conversationKey, 200);
+      if (generation !== messagesLoadGenerationRef.current) return;
+      if (selectedConversationKeyRef.current !== conversationKey) return;
       const mapped: ChatMessage[] = (data.messages || [])
         .map(mapApiHistoryMessage)
         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-      setMessages(mapped);
+      setMessages((prev) => mergeHistoryWithLiveMessages(mapped, prev, conversationKey));
       setPinnedMessage(mapApiPinnedMessage(data.pinnedMessage));
       if (mapped.length === 0) {
         setConversations((prev) =>
@@ -261,17 +270,26 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
         );
       }
     } catch (e: any) {
+      if (generation !== messagesLoadGenerationRef.current) return;
       setError(e?.message || 'Failed to load messages');
-      setMessages([]);
-      setPinnedMessage(null);
+      if (!keepVisible) {
+        setMessages([]);
+        setPinnedMessage(null);
+      }
     } finally {
-      setMessagesLoading(false);
+      if (generation === messagesLoadGenerationRef.current) {
+        setMessagesLoading(false);
+      }
     }
   }, []);
+
+  const directoryLoadedRef = useRef(false);
 
   // Load chat directory only when the Communication tab is opened.
   useEffect(() => {
     if (!isCommunicationRoute) return;
+    if (directoryLoadedRef.current) return;
+    directoryLoadedRef.current = true;
     loadUsers();
     loadConversations();
   }, [isCommunicationRoute, loadUsers, loadConversations]);

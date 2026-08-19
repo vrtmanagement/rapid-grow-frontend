@@ -206,9 +206,74 @@ export function mapApiPinnedMessage(payload: any): ChatPinnedMessage | null {
   };
 }
 
+function revokeLocalPreview(message: ChatMessage) {
+  if (!message.localPreviewUrl) return;
+  try {
+    URL.revokeObjectURL(message.localPreviewUrl);
+  } catch {
+    // ignore revoke failures
+  }
+}
+
+function isSamePendingMessage(pending: ChatMessage, confirmed: ChatMessage) {
+  if (!pending.pending) return false;
+  const sameClientId =
+    !!confirmed.clientMessageId &&
+    !!pending.clientMessageId &&
+    pending.clientMessageId === confirmed.clientMessageId;
+  const sameBundleFile =
+    !!confirmed.bundleId &&
+    pending.bundleId === confirmed.bundleId &&
+    String(pending.attachment?.fileName || '') === String(confirmed.attachment?.fileName || '');
+  return sameClientId || sameBundleFile;
+}
+
+export function upsertChatMessage(prev: ChatMessage[], mapped: ChatMessage): ChatMessage[] {
+  const withoutPending = prev.filter((message) => {
+    if (!isSamePendingMessage(message, mapped)) return true;
+    revokeLocalPreview(message);
+    return false;
+  });
+
+  if (withoutPending.some((message) => message.id === mapped.id)) {
+    return withoutPending.map((message) =>
+      message.id === mapped.id
+        ? {
+            ...mapped,
+            tick: mapped.tick ?? message.tick ?? null,
+          }
+        : message,
+    );
+  }
+
+  return [...withoutPending, mapped];
+}
+
+export function mergeHistoryWithLiveMessages(
+  history: ChatMessage[],
+  live: ChatMessage[],
+  conversationKey: string,
+): ChatMessage[] {
+  const historyIds = new Set(history.map((message) => message.id));
+  const historyClientIds = new Set(
+    history.map((message) => message.clientMessageId).filter(Boolean) as string[],
+  );
+
+  const extras = live.filter((message) => {
+    if (message.conversationKey !== conversationKey) return false;
+    if (historyIds.has(message.id)) return false;
+    if (message.clientMessageId && historyClientIds.has(message.clientMessageId)) return false;
+    return true;
+  });
+
+  return [...history, ...extras].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+}
+
 export function mapApiHistoryMessage(m: any): ChatMessage {
   return {
-    id: String(m.id),
+    id: String(m.id || m._id || ''),
     conversationKey: String(m.conversationKey),
     type: m.type as any,
     senderId: String(m.senderId),

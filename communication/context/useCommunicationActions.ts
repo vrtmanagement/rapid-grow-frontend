@@ -17,9 +17,11 @@ import { API_BASE } from '../../config/api';
 import { ChatConversationSummary, ChatMessage, ChatNotification, ChatPinnedMessage } from '../types';
 import {
   ensureSocketConnected,
+  mapApiHistoryMessage,
   mapApiPinnedMessage,
   resolveAvatarUrl,
   toChatPoll,
+  upsertChatMessage,
 } from './communicationContextHelpers';
 
 type CurrentUser = { id: string; name: string; role: string; empId?: string; avatar?: string } | null;
@@ -71,7 +73,12 @@ export function useCommunicationActions({
     async (conversationKey: string) => {
       setError(null);
       setTypingUserIds({});
+      const previousKey = selectedConversationKeyRef.current;
+      selectedConversationKeyRef.current = conversationKey;
       setSelectedConversationKey(conversationKey);
+      if (previousKey !== conversationKey) {
+        setMessages([]);
+      }
       // Join + then load history for deterministic state
       return new Promise<void>((resolve, reject) => {
         ensureSocketConnected(socket)
@@ -131,7 +138,6 @@ export function useCommunicationActions({
                 }
               }
               try {
-                setMessages([]);
                 await loadMessages(conversationKey);
                 // Mark messages as seen (updates unread baseline + DM seen ticks)
                 setConversations((prev) => prev.map((c) => (c.conversationKey === conversationKey ? { ...c, unreadCount: 0 } : c)));
@@ -176,7 +182,12 @@ export function useCommunicationActions({
     async (channelKey: string) => {
       const conversationKey = `channel:${channelKey}`;
       setTypingUserIds({});
+      const previousKey = selectedConversationKeyRef.current;
+      selectedConversationKeyRef.current = conversationKey;
       setSelectedConversationKey(conversationKey);
+      if (previousKey !== conversationKey) {
+        setMessages([]);
+      }
       return new Promise<void>((resolve, reject) => {
         socket.emit(
           'comm:join',
@@ -201,7 +212,6 @@ export function useCommunicationActions({
               ]);
             }
             try {
-              setMessages([]);
               await loadMessages(conversationKey);
               setConversations((prev) =>
                 prev.map((c) => (c.conversationKey === conversationKey ? { ...c, unreadCount: 0 } : c))
@@ -251,7 +261,12 @@ export function useCommunicationActions({
                 reject(err);
                 return;
               }
+              const previousKey = selectedConversationKeyRef.current;
+              selectedConversationKeyRef.current = conversationKey;
               setSelectedConversationKey(conversationKey);
+              if (previousKey !== conversationKey) {
+                setMessages([]);
+              }
 
               if (!conversations.some((c) => c.conversationKey === conversationKey)) {
                 const otherUserRaw = ack?.conversation?.otherUser;
@@ -281,7 +296,6 @@ export function useCommunicationActions({
                 ]);
               }
               try {
-                setMessages([]);
                 await loadMessages(conversationKey);
                 setConversations((prev) =>
                   prev.map((c) => (c.conversationKey === conversationKey ? { ...c, unreadCount: 0 } : c))
@@ -368,9 +382,15 @@ export function useCommunicationActions({
         setMessages((prev) => [...prev, pendingMessage]);
       }
 
+      const applyAckMessage = (ack: any) => {
+        if (!ack?.message || selectedConversationKeyRef.current !== conversationKey) return;
+        setMessages((prev) => upsertChatMessage(prev, mapApiHistoryMessage(ack.message)));
+      };
+
       try {
+        await ensureSocketConnected(socket);
         await new Promise<void>((resolve, reject) => {
-          const timeout = window.setTimeout(() => reject(new Error('Message send timeout')), 8000);
+          const timeout = window.setTimeout(() => reject(new Error('Message send timeout')), 12000);
           socket.emit(
             'comm:message:send',
             {
@@ -386,6 +406,7 @@ export function useCommunicationActions({
                 reject(new Error(String(ack?.error || 'Failed to send message')));
                 return;
               }
+              applyAckMessage(ack);
               resolve();
             }
           );
@@ -452,8 +473,9 @@ export function useCommunicationActions({
         const upload = await apiUploadFile(file);
         const fileUrl = upload.fileUrl || `${API_BASE}${upload.urlPath}`;
 
+        await ensureSocketConnected(socket);
         await new Promise<void>((resolve, reject) => {
-          const timeout = window.setTimeout(() => reject(new Error('Attachment send timeout')), 8000);
+          const timeout = window.setTimeout(() => reject(new Error('Attachment send timeout')), 12000);
           socket.emit(
             'comm:message:send',
             {
@@ -477,6 +499,9 @@ export function useCommunicationActions({
               if (!ack?.ok) {
                 reject(new Error(String(ack?.error || 'Failed to send attachment')));
                 return;
+              }
+              if (ack?.message && selectedConversationKeyRef.current === conversationKey) {
+                setMessages((prev) => upsertChatMessage(prev, mapApiHistoryMessage(ack.message)));
               }
               resolve();
             }

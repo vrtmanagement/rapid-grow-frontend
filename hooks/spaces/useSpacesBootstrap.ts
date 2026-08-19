@@ -258,7 +258,7 @@ export const useSpacesBootstrap = ({
       assigneeId: undefined,
       mode,
       scope: 'list' as const,
-      sync: page === 1 ? ('1' as const) : ('0' as const),
+      sync: '0' as const,
     }),
     [taskFilterMode, taskStatusFilter, debouncedTaskSearch, taskAssigneeFilterId, canManageWeeklyRows, mode],
   );
@@ -311,7 +311,10 @@ export const useSpacesBootstrap = ({
   };
 
   useEffect(() => {
-    void loadPlannerTasks();
+    const timer = window.setTimeout(() => {
+      void loadPlannerTasks();
+    }, 0);
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
