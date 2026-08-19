@@ -39,10 +39,7 @@ function getToken(): string | null {
 }
 
 export function getSocket(): Socket {
-  const latestToken = getToken();
   if (socket) {
-    // Keep auth token in sync across tabs/sessions so DM join doesn't fail
-    socket.auth = { token: latestToken };
     if (!socket.connected) socket.connect();
     return socket;
   }
@@ -50,9 +47,15 @@ export function getSocket(): Socket {
   const url = resolveSocketUrl();
   socket = io(url, {
     transports: ['websocket', 'polling'],
-    auth: { token: latestToken },
+    // Read the latest token on every (re)connect so chat stays live after refresh.
+    auth: (cb) => {
+      cb({ token: getToken() });
+    },
     autoConnect: true,
     reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 400,
+    reconnectionDelayMax: 4000,
     withCredentials: false,
   });
 
