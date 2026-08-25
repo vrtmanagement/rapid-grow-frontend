@@ -32,6 +32,10 @@ function formatLongDate(dateKey: string): string {
   return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function formatWeekRangeLabel(week: WeekBucket): string {
+  return `${formatShortDate(week.start)} – ${formatShortDate(week.end)}`;
+}
+
 export function getWeekBucket(dateKey: string): WeekBucket | null {
   const date = parseDateKey(dateKey);
   if (!date) return null;
@@ -96,19 +100,88 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function toHtmlParagraphs(value: string): string {
+function bulletLines(value: string): string {
   const text = String(value || '').trim();
-  if (!text) return '<p>None</p>';
-  return text
+  if (!text) return '<p class="empty">—</p>';
+  const lines = text
     .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => `<p>${escapeHtml(line)}</p>`)
-    .join('');
+    .map((line) => line.replace(/^\s*(?:[-*]|\u2022|\d+[.)])\s*/u, '').trim())
+    .filter(Boolean);
+  if (!lines.length) return '<p class="empty">—</p>';
+  return `<ul>${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`;
 }
 
-function completedTasksHtml(record: ReflectionRecord): string {
-  return toHtmlParagraphs(record.accomplishments);
+function fieldBlock(label: string, value: string): string {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return `
+    <div class="field">
+      <div class="field-label">${escapeHtml(label)}</div>
+      ${bulletLines(text)}
+    </div>
+  `;
+}
+
+function dayWorkHtml(record: ReflectionRecord, options?: { completedOnly?: boolean }): string {
+  if (options?.completedOnly) {
+    return `
+      <div class="day-card">
+        <div class="day-title">${escapeHtml(formatLongDate(record.date))}</div>
+        <div class="field">
+          <div class="field-label">Completed work</div>
+          ${bulletLines(record.accomplishments)}
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="day-card">
+      <div class="day-title">${escapeHtml(formatLongDate(record.date))}</div>
+      ${fieldBlock('Accomplishments', record.accomplishments)}
+      ${fieldBlock('Challenges / learnings', record.challenges)}
+      ${fieldBlock('Unfinished / deferred', record.unfinished)}
+      ${fieldBlock('Energy peaks', record.energyPeaks)}
+      ${fieldBlock('Priorities for tomorrow', record.bigRocksTomorrow)}
+    </div>
+  `;
+}
+
+function personDivider(): string {
+  return `
+    <table class="divider" role="presentation" cellpadding="0" cellspacing="0" width="100%">
+      <tr>
+        <td class="divider-line">&nbsp;</td>
+        <td class="divider-dot">●</td>
+        <td class="divider-line">&nbsp;</td>
+      </tr>
+    </table>
+  `;
+}
+
+function personWeeklyBlock(
+  name: string,
+  empId: string,
+  weekLabel: string,
+  records: ReflectionRecord[],
+  options?: { completedOnly?: boolean },
+): string {
+  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date));
+  const daysHtml = sorted.length
+    ? sorted.map((record) => dayWorkHtml(record, options)).join('')
+    : '<p class="empty">No work logged for this week.</p>';
+
+  return `
+    <section class="person-block">
+      <div class="person-header">
+        <div class="person-name">${escapeHtml(name)}</div>
+        <div class="person-meta">ID ${escapeHtml(empId)} · Week ${escapeHtml(weekLabel)}</div>
+      </div>
+      <div class="days">
+        ${daysHtml}
+      </div>
+    </section>
+  `;
 }
 
 export function uniquePeopleFromRecords(records: ReflectionRecord[]): Array<{ empId: string; empName: string }> {
@@ -123,34 +196,44 @@ export function uniquePeopleFromRecords(records: ReflectionRecord[]): Array<{ em
     .sort((a, b) => a.empName.localeCompare(b.empName));
 }
 
-function recordHtml(record: ReflectionRecord): string {
-  return `
-    <h3>${escapeHtml(record.empName || record.empId)} (${escapeHtml(record.empId)}) · ${escapeHtml(formatLongDate(record.date))}</h3>
-    <p><strong>Completed tasks / accomplishments</strong></p>
-    ${completedTasksHtml(record)}
-    <p><strong>Challenges / learnings</strong></p>
-    ${toHtmlParagraphs(record.challenges)}
-    <p><strong>Unfinished / deferred</strong></p>
-    ${toHtmlParagraphs(record.unfinished)}
-    <p><strong>Energy peaks</strong></p>
-    ${toHtmlParagraphs(record.energyPeaks)}
-    <p><strong>Priorities for tomorrow</strong></p>
-    ${toHtmlParagraphs(record.bigRocksTomorrow)}
-    <hr />
-  `;
-}
-
 export function buildAllReportsHtml(records: ReflectionRecord[]): string {
-  if (!records.length) return '<p>No reports match the current filters.</p>';
+  if (!records.length) return '<p class="empty">No reports match the current filters.</p>';
+
+  const byPerson = new Map<string, ReflectionRecord[]>();
+  records.forEach((record) => {
+    const key = String(record.empId || record.empName || 'unknown');
+    const list = byPerson.get(key) || [];
+    list.push(record);
+    byPerson.set(key, list);
+  });
+
+  const blocks = Array.from(byPerson.values())
+    .map((personRecords) => {
+      const sorted = [...personRecords].sort((a, b) => a.date.localeCompare(b.date));
+      const first = sorted[0];
+      const last = sorted[sorted.length - 1];
+      const weekLabel =
+        first && last && first.date !== last.date
+          ? `${formatShortDate(first.date)} – ${formatShortDate(last.date)}`
+          : formatShortDate(first?.date || '');
+      return personWeeklyBlock(
+        first?.empName || 'Employee',
+        first?.empId || '',
+        weekLabel,
+        sorted,
+      );
+    })
+    .join(personDivider());
+
   return `
-    <h1>Daily reflection reports</h1>
-    <p>${records.length} report${records.length === 1 ? '' : 's'} in this download.</p>
-    ${records.map(recordHtml).join('')}
+    <div class="doc-title">Reflection Reports</div>
+    <div class="doc-subtitle">${records.length} report${records.length === 1 ? '' : 's'}</div>
+    ${blocks}
   `;
 }
 
 export function buildWeeklySheetsHtml(records: ReflectionRecord[]): string {
-  if (!records.length) return '<p>No weekly sheets match the current filters.</p>';
+  if (!records.length) return '<p class="empty">No weekly sheets match the current filters.</p>';
 
   const weeks = new Map<string, { bucket: WeekBucket; people: Map<string, ReflectionRecord[]> }>();
   records.forEach((record) => {
@@ -167,24 +250,31 @@ export function buildWeeklySheetsHtml(records: ReflectionRecord[]): string {
   const weekBlocks = Array.from(weeks.values())
     .sort((a, b) => b.bucket.key.localeCompare(a.bucket.key))
     .map((week) => {
-      const peopleHtml = Array.from(week.people.values())
+      const peopleBlocks = Array.from(week.people.values())
+        .sort((a, b) => String(a[0]?.empName || '').localeCompare(String(b[0]?.empName || '')))
         .map((personRecords) => {
-          const sorted = [...personRecords].sort((a, b) => a.date.localeCompare(b.date));
-          const heading = `${sorted[0]?.empName || 'Employee'} (${sorted[0]?.empId || ''})`;
-          return `
-            <h2>${escapeHtml(heading)}</h2>
-            ${sorted.map(recordHtml).join('')}
-          `;
+          const first = personRecords[0];
+          return personWeeklyBlock(
+            first?.empName || 'Employee',
+            first?.empId || '',
+            formatWeekRangeLabel(week.bucket),
+            personRecords,
+          );
         })
-        .join('');
+        .join(personDivider());
+
       return `
-        <h1>Weekly sheet · ${escapeHtml(week.bucket.label)}</h1>
-        ${peopleHtml}
+        <div class="week-banner">Week of ${escapeHtml(formatWeekRangeLabel(week.bucket))}</div>
+        ${peopleBlocks}
       `;
     })
-    .join('');
+    .join('<div class="week-gap"></div>');
 
-  return `<h1>All weekly sheets</h1>${weekBlocks}`;
+  return `
+    <div class="doc-title">Weekly Reflection Sheets</div>
+    <div class="doc-subtitle">Person · week · day-by-day work</div>
+    ${weekBlocks}
+  `;
 }
 
 export function buildPersonWeeklyCompletedHtml(
@@ -196,22 +286,114 @@ export function buildPersonWeeklyCompletedHtml(
     .filter((record) => record.empId === empId && record.date >= week.start && record.date <= week.end)
     .sort((a, b) => a.date.localeCompare(b.date));
   const name = personRecords[0]?.empName || empId;
-  const daysHtml = personRecords.length
-    ? personRecords
-        .map((record) => `
-          <h3>${escapeHtml(formatLongDate(record.date))}</h3>
-          ${completedTasksHtml(record)}
-        `)
-        .join('')
-    : '<p>No completed tasks found for this person in this week.</p>';
 
   return `
-    <h1>Weekly completed tasks</h1>
-    <p><strong>Person:</strong> ${escapeHtml(name)} (${escapeHtml(empId)})</p>
-    <p><strong>Week:</strong> ${escapeHtml(week.label)}</p>
-    ${daysHtml}
+    <div class="doc-title">Weekly Completed Tasks</div>
+    <div class="doc-subtitle">${escapeHtml(formatWeekRangeLabel(week))}</div>
+    ${personWeeklyBlock(name, empId, formatWeekRangeLabel(week), personRecords, { completedOnly: true })}
   `;
 }
+
+const DOC_STYLES = `
+  @page { margin: 18mm 16mm; }
+  body {
+    font-family: Calibri, "Segoe UI", Arial, sans-serif;
+    color: #0f172a;
+    line-height: 1.5;
+    font-size: 12pt;
+  }
+  .doc-title {
+    font-size: 22pt;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+    margin: 0 0 4px 0;
+  }
+  .doc-subtitle {
+    font-size: 11pt;
+    color: #64748b;
+    margin: 0 0 22px 0;
+  }
+  .week-banner {
+    font-size: 11pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #b91c1c;
+    margin: 8px 0 18px 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #fecaca;
+  }
+  .week-gap { height: 28px; }
+  .person-block { margin: 0 0 8px 0; }
+  .person-header {
+    margin: 0 0 14px 0;
+    padding: 12px 14px;
+    background: #f8fafc;
+    border-left: 4px solid #e11d48;
+  }
+  .person-name {
+    font-size: 16pt;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 2px 0;
+  }
+  .person-meta {
+    font-size: 10.5pt;
+    color: #64748b;
+  }
+  .days { margin: 0; }
+  .day-card {
+    margin: 0 0 14px 0;
+    padding: 0 0 12px 0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .day-card:last-child { border-bottom: 0; }
+  .day-title {
+    font-size: 12pt;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 8px 0;
+  }
+  .field { margin: 0 0 8px 0; }
+  .field-label {
+    font-size: 9.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #94a3b8;
+    margin: 0 0 3px 0;
+  }
+  ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+  li {
+    margin: 0 0 3px 0;
+    color: #1e293b;
+  }
+  p { margin: 0 0 4px 0; }
+  .empty { color: #94a3b8; font-style: italic; }
+  .divider {
+    width: 100%;
+    margin: 22px 0 26px 0;
+    border-collapse: collapse;
+  }
+  .divider-line {
+    border-bottom: 1.5px solid #cbd5e1;
+    height: 1px;
+    font-size: 1px;
+    line-height: 1px;
+  }
+  .divider-dot {
+    width: 28px;
+    text-align: center;
+    color: #e11d48;
+    font-size: 8pt;
+    line-height: 1;
+    vertical-align: middle;
+  }
+`;
 
 export function downloadWordDoc(filename: string, bodyHtml: string): void {
   const safeName = filename.endsWith('.doc') ? filename : `${filename}.doc`;
@@ -220,14 +402,7 @@ export function downloadWordDoc(filename: string, bodyHtml: string): void {
   <head>
     <meta charset="utf-8" />
     <title>${escapeHtml(safeName)}</title>
-    <style>
-      body { font-family: Calibri, Arial, sans-serif; color: #0f172a; line-height: 1.45; }
-      h1 { font-size: 22px; }
-      h2 { font-size: 18px; margin-top: 24px; }
-      h3 { font-size: 15px; margin-top: 16px; }
-      p { margin: 4px 0; white-space: pre-wrap; }
-      hr { border: 0; border-top: 1px solid #cbd5e1; margin: 20px 0; }
-    </style>
+    <style>${DOC_STYLES}</style>
   </head>
   <body>${bodyHtml}</body>
 </html>`;
