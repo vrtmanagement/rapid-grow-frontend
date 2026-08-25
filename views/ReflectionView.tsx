@@ -52,6 +52,7 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
   const [selectedLogDate, setSelectedLogDate] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const [employeeAvatarById, setEmployeeAvatarById] = useState<Record<string, string>>({});
+  const [employeeOptions, setEmployeeOptions] = useState<Array<{ empId: string; empName: string }>>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ReflectionRecord | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -400,26 +401,35 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
   }, [activePanel, myTodayRecord?._id]);
 
   useEffect(() => {
-    const loadEmployeeAvatars = async () => {
+    const loadEmployees = async () => {
       try {
         const res = await fetch(`${API_BASE}/employees`, { headers: getAuthHeaders() });
         if (!res.ok) return;
         const data = await res.json().catch(() => []);
         const list = Array.isArray(data) ? data : [];
         const map: Record<string, string> = {};
+        const options: Array<{ empId: string; empName: string }> = [];
         list.forEach((emp: any) => {
           const empId = String(emp?.empId || '').trim();
+          if (!empId) return;
+          const empName = String(emp?.empName || emp?.name || empId).trim() || empId;
+          const role = String(emp?.role || '').toUpperCase();
+          if (role === 'SUPER_ADMIN') return;
+          options.push({ empId, empName });
           const avatar = resolveAvatarUrl(emp?.avatar);
-          if (empId && avatar) {
+          if (avatar) {
             map[empId] = avatar;
           }
         });
+        options.sort((a, b) => a.empName.localeCompare(b.empName));
         setEmployeeAvatarById(map);
+        setEmployeeOptions(options);
       } catch {
         setEmployeeAvatarById({});
+        setEmployeeOptions([]);
       }
     };
-    loadEmployeeAvatars();
+    loadEmployees();
   }, []);
 
   useEffect(() => {
@@ -632,7 +642,9 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
           scope={scope}
           setScope={setScope}
           displayedRecords={displayedRecords}
+          loadedRecords={records}
           paginatedRecords={paginatedRecords}
+          employeeOptions={employeeOptions}
           employeeAvatarById={employeeAvatarById}
           canEditOrDelete={canEditOrDelete}
           handleEditClick={handleEditClick}
@@ -640,6 +652,8 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
           totalPages={totalPages}
           safePage={safePage}
           setLogsPage={setLogsPage}
+          todayKey={todayKey}
+          yesterdayKey={yesterdayKey}
         />
       )}
 
