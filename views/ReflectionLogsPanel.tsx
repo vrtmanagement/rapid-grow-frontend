@@ -16,6 +16,7 @@ import {
 export type ReflectionLogsPanelProps = {
   isAdmin: boolean;
   isLeader: boolean;
+  isEmployee: boolean;
   loadingList: boolean;
   logsLoaded: boolean;
   logFilter: 'today' | 'yesterday' | 'all';
@@ -27,8 +28,10 @@ export type ReflectionLogsPanelProps = {
   displayedRecords: ReflectionRecord[];
   loadedRecords: ReflectionRecord[];
   paginatedRecords: ReflectionRecord[];
-  employeeOptions: Array<{ empId: string; empName: string }>;
+  employeeOptions: Array<{ empId: string; empName: string; role?: string }>;
   employeeAvatarById: Record<string, string>;
+  currentEmpId: string;
+  currentUserName: string;
   canEditOrDelete: (record: ReflectionRecord) => boolean;
   handleEditClick: (record: ReflectionRecord) => void;
   setConfirmDelete: (record: ReflectionRecord | null) => void;
@@ -55,6 +58,7 @@ const primaryActionClass =
 export const ReflectionLogsPanel: React.FC<ReflectionLogsPanelProps> = ({
   isAdmin,
   isLeader,
+  isEmployee,
   loadingList,
   logsLoaded,
   logFilter,
@@ -68,6 +72,8 @@ export const ReflectionLogsPanel: React.FC<ReflectionLogsPanelProps> = ({
   paginatedRecords,
   employeeOptions,
   employeeAvatarById,
+  currentEmpId,
+  currentUserName,
   canEditOrDelete,
   handleEditClick,
   setConfirmDelete,
@@ -78,22 +84,58 @@ export const ReflectionLogsPanel: React.FC<ReflectionLogsPanelProps> = ({
 }) => {
   const peopleFromRecords = useMemo(() => uniquePeopleFromRecords(loadedRecords), [loadedRecords]);
   const people = useMemo(() => {
-    if (employeeOptions.length) return employeeOptions;
-    return peopleFromRecords;
-  }, [employeeOptions, peopleFromRecords]);
+    if (isAdmin) {
+      return employeeOptions.length ? employeeOptions : peopleFromRecords;
+    }
+
+    if (isLeader) {
+      const fromApi = employeeOptions.filter((person) => {
+        const role = String(person.role || '').toUpperCase();
+        return person.empId === currentEmpId || role === 'EMPLOYEE';
+      });
+      if (fromApi.length) return fromApi;
+
+      const merged = new Map<string, { empId: string; empName: string }>();
+      if (currentEmpId) {
+        merged.set(currentEmpId, {
+          empId: currentEmpId,
+          empName: currentUserName || currentEmpId,
+        });
+      }
+      peopleFromRecords.forEach((person) => merged.set(person.empId, person));
+      return Array.from(merged.values()).sort((a, b) => a.empName.localeCompare(b.empName));
+    }
+
+    if (currentEmpId) {
+      const selfFromRecords = peopleFromRecords.find((person) => person.empId === currentEmpId);
+      if (selfFromRecords) return [selfFromRecords];
+      const selfFromOptions = employeeOptions.find((person) => person.empId === currentEmpId);
+      if (selfFromOptions) return [selfFromOptions];
+      return [{ empId: currentEmpId, empName: currentUserName || currentEmpId }];
+    }
+
+    return [];
+  }, [currentEmpId, currentUserName, employeeOptions, isAdmin, isLeader, peopleFromRecords]);
+
   const weekOptions = useMemo(() => buildDownloadWeekOptions(todayKey), [todayKey]);
   const [downloadEmpId, setDownloadEmpId] = useState('');
   const [downloadWeekKey, setDownloadWeekKey] = useState('');
   const [downloadMessage, setDownloadMessage] = useState<string | null>(null);
+  const showDownloads = isAdmin || isLeader || isEmployee;
+  const canPickPerson = isAdmin || isLeader;
 
   useEffect(() => {
     if (!downloadMessage) return undefined;
     const timer = window.setTimeout(() => setDownloadMessage(null), 3500);
     return () => window.clearTimeout(timer);
   }, [downloadMessage]);
-  const selectedPersonId = downloadEmpId && people.some((person) => person.empId === downloadEmpId)
-    ? downloadEmpId
-    : people[0]?.empId || '';
+
+  const selectedPersonId = isEmployee && currentEmpId
+    ? currentEmpId
+    : downloadEmpId && people.some((person) => person.empId === downloadEmpId)
+      ? downloadEmpId
+      : people[0]?.empId || '';
+
   const selectedWeek =
     weekOptions.find((option) => option.value === downloadWeekKey)?.bucket
     || weekOptions[0]?.bucket
@@ -112,6 +154,28 @@ export const ReflectionLogsPanel: React.FC<ReflectionLogsPanelProps> = ({
     value: person.empId,
     label: `${person.empName} (${person.empId})`,
   }));
+
+  const downloadPersonWeek = () => {
+    if (!selectedPersonId || !selectedWeek) return;
+    const person = people.find((entry) => entry.empId === selectedPersonId);
+    const slug = (person?.empName || selectedPersonId).replace(/[^\w-]+/g, '_');
+    const personRecords = loadedRecords.filter((record) => record.empId === selectedPersonId);
+    if (!personRecords.length) {
+      setDownloadMessage(
+        isAdmin
+          ? 'No reports to download. Choose Everyone, then pick a person.'
+          : isLeader
+            ? 'No reports to download. Choose My team, then pick a person.'
+            : 'No reports to download yet.',
+      );
+      return;
+    }
+    downloadWordDoc(
+      `${slug}-weekly-completed-tasks-${selectedWeek.start}.doc`,
+      buildPersonWeeklyCompletedHtml(loadedRecords, selectedPersonId, selectedWeek),
+    );
+    setDownloadMessage('Downloaded');
+  };
 
   return (
   <div className="mx-auto max-w-6xl space-y-5">
@@ -202,7 +266,7 @@ export const ReflectionLogsPanel: React.FC<ReflectionLogsPanelProps> = ({
           )}
         </div>
 
-        {isAdmin && (
+        {showDownloads && (
           <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
             <button
               type="button"
@@ -216,7 +280,7 @@ export const ReflectionLogsPanel: React.FC<ReflectionLogsPanelProps> = ({
               className={ghostActionClass}
             >
               <Download size={14} />
-              All reports
+              {isEmployee ? 'My reports' : 'All reports'}
             </button>
             <button
               type="button"
@@ -230,22 +294,24 @@ export const ReflectionLogsPanel: React.FC<ReflectionLogsPanelProps> = ({
               className={ghostActionClass}
             >
               <Download size={14} />
-              Weekly sheets
+              {isEmployee ? 'My weekly sheets' : isLeader ? 'Team weekly sheets' : 'Weekly sheets'}
             </button>
             <div className="flex min-w-[240px] flex-1 flex-wrap items-center gap-2 sm:justify-end">
-              <div className="w-full min-w-[200px] sm:w-[240px]">
-                <ThemedSelect
-                  compact
-                  fullWidthCompact
-                  denseMenu
-                  forceOpenDown
-                  placeholder="Choose person"
-                  value={selectedPersonId}
-                  options={personOptions}
-                  onChange={setDownloadEmpId}
-                  disabled={personOptions.length === 0}
-                />
-              </div>
+              {canPickPerson ? (
+                <div className="w-full min-w-[200px] sm:w-[240px]">
+                  <ThemedSelect
+                    compact
+                    fullWidthCompact
+                    denseMenu
+                    forceOpenDown
+                    placeholder="Choose person"
+                    value={selectedPersonId}
+                    options={personOptions}
+                    onChange={setDownloadEmpId}
+                    disabled={personOptions.length === 0}
+                  />
+                </div>
+              ) : null}
               <div className="w-full min-w-[210px] sm:w-[260px]">
                 <ThemedSelect
                   compact
@@ -261,25 +327,11 @@ export const ReflectionLogsPanel: React.FC<ReflectionLogsPanelProps> = ({
               <button
                 type="button"
                 disabled={!selectedPersonId || !selectedWeek}
-                onClick={() => {
-                  if (!selectedPersonId || !selectedWeek) return;
-                  const person = people.find((entry) => entry.empId === selectedPersonId);
-                  const slug = (person?.empName || selectedPersonId).replace(/[^\w-]+/g, '_');
-                  const personRecords = loadedRecords.filter((record) => record.empId === selectedPersonId);
-                  if (!personRecords.length) {
-                    setDownloadMessage('No reports to download. Choose Everyone, then pick a person.');
-                    return;
-                  }
-                  downloadWordDoc(
-                    `${slug}-weekly-completed-tasks-${selectedWeek.start}.doc`,
-                    buildPersonWeeklyCompletedHtml(loadedRecords, selectedPersonId, selectedWeek),
-                  );
-                  setDownloadMessage('Downloaded');
-                }}
+                onClick={downloadPersonWeek}
                 className={primaryActionClass}
               >
                 <Download size={14} />
-                This person’s week
+                {isEmployee ? 'My week' : 'This person’s week'}
               </button>
             </div>
           </div>

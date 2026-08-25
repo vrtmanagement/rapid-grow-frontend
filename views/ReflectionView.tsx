@@ -52,7 +52,7 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
   const [selectedLogDate, setSelectedLogDate] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const [employeeAvatarById, setEmployeeAvatarById] = useState<Record<string, string>>({});
-  const [employeeOptions, setEmployeeOptions] = useState<Array<{ empId: string; empName: string }>>([]);
+  const [employeeOptions, setEmployeeOptions] = useState<Array<{ empId: string; empName: string; role: string }>>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ReflectionRecord | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -408,14 +408,14 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
         const data = await res.json().catch(() => []);
         const list = Array.isArray(data) ? data : [];
         const map: Record<string, string> = {};
-        const options: Array<{ empId: string; empName: string }> = [];
+        const options: Array<{ empId: string; empName: string; role: string }> = [];
         list.forEach((emp: any) => {
           const empId = String(emp?.empId || '').trim();
           if (!empId) return;
           const empName = String(emp?.empName || emp?.name || empId).trim() || empId;
           const role = String(emp?.role || '').toUpperCase();
           if (role === 'SUPER_ADMIN') return;
-          options.push({ empId, empName });
+          options.push({ empId, empName, role });
           const avatar = resolveAvatarUrl(emp?.avatar);
           if (avatar) {
             map[empId] = avatar;
@@ -646,6 +646,9 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
           paginatedRecords={paginatedRecords}
           employeeOptions={employeeOptions}
           employeeAvatarById={employeeAvatarById}
+          currentEmpId={currentEmpId || ''}
+          currentUserName={String(state.currentUser?.name || '').trim()}
+          isEmployee={isEmployee}
           canEditOrDelete={canEditOrDelete}
           handleEditClick={handleEditClick}
           setConfirmDelete={setConfirmDelete}
