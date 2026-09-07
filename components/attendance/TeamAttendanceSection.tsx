@@ -35,8 +35,6 @@ interface TeamAttendanceSectionProps {
   setSelectedEmployeeMonth: (value: string) => void;
   onApproveLateLogin: (empId: string, reason: string) => Promise<{ ok: boolean; message: string }>;
   lateLoginApprovalLoading: boolean;
-  employeeLeaves?: import('./attendanceUtils').LeaveRequest[];
-  monthlyPaidLeaves?: number;
 }
 
 const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
@@ -67,8 +65,6 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
   setSelectedEmployeeMonth,
   onApproveLateLogin,
   lateLoginApprovalLoading,
-  employeeLeaves = [],
-  monthlyPaidLeaves = 1,
 }) => {
   if (!canReviewTeamAttendance) return null;
 
@@ -638,8 +634,6 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
               selectedMonth={selectedEmployeeMonth}
               variant="employee"
               todayMinutes={selectedEmployeeTodayInfo.minutes}
-              leaves={employeeLeaves}
-              monthlyPaidLeaves={monthlyPaidLeaves}
             />
           </div>
 

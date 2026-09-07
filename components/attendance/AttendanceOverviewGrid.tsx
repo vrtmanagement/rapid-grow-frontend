@@ -67,7 +67,6 @@ interface AttendanceOverviewGridProps {
   onOpenTeamAttendance: () => void;
   lateLoginPolicy: LateLoginPolicy | null;
   leaveBalanceOverview?: LeaveBalanceOverviewResponse | null;
-  myLeaves?: LeaveRequest[];
   onOpenLateRequests?: () => void;
 }
 
@@ -105,7 +104,6 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
   onOpenTeamAttendance,
   lateLoginPolicy,
   leaveBalanceOverview = null,
-  myLeaves = [],
   onOpenLateRequests,
 }) => {
   const isEmployeePortal = portalMode === 'employee';
@@ -409,8 +407,6 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
               range={range}
               variant="employee"
               todayMinutes={todayMinutes}
-              leaves={myLeaves}
-              monthlyPaidLeaves={leaveBalanceOverview?.policy?.monthlyPaidLeaves ?? 1}
             />
 
             <AttendanceWeekGlanceCard lastSevenDays={lastSevenDays} weeklyTotals={weeklyTotals} />
@@ -527,8 +523,6 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
           selectedMonth={selectedMonth}
           range={range}
           todayMinutes={todayMinutes}
-          leaves={myLeaves}
-          monthlyPaidLeaves={leaveBalanceOverview?.policy?.monthlyPaidLeaves ?? 1}
         />
       </div>
 

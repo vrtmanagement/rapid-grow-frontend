@@ -3,9 +3,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import {
   AttendanceDay,
   AttendanceSummaryResponse,
-  LeaveRequest,
   Range,
-  getHoursColor,
 } from './attendanceUtils';
 import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
 import { fetchHolidays, CompanyHoliday } from './attendanceOpsApi';
@@ -18,27 +16,19 @@ interface Props {
   range?: Range;
   variant?: 'employee' | 'manager';
   todayMinutes?: number;
-  leaves?: LeaveRequest[];
-  monthlyPaidLeaves?: number;
 }
 
 const SUNDAY_BAR_COLOR = '#a5b4fc';
-const HOLIDAY_BAR_COLOR = '#c4b5fd';
-const LEAVE_BAR_COLOR = '#7dd3fc';
+const HOLIDAY_BAR_COLOR = '#7c3aed';
+const ABSENT_BAR_COLOR = '#e11d48';
+const SHORT_DAY_BAR_COLOR = '#fb923c'; // mid orange for < 7.5h
+const ACTIVE_SESSION_BAR_COLOR = '#fdba74'; // light orange while session is running
 const SPECIAL_BAR_HOURS = 9;
 
-function leaveCoversDateKey(leave: LeaveRequest, dateKey: string) {
-  if (String(leave.status || '').toUpperCase() !== 'APPROVED') return false;
-  const startKey = String(leave.startDate || '').slice(0, 10);
-  const endKey = String(leave.endDate || '').slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(startKey) || !/^\d{4}-\d{2}-\d{2}$/.test(endKey)) {
-    const start = new Date(leave.startDate);
-    const end = new Date(leave.endDate);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
-    const day = new Date(`${dateKey}T12:00:00`);
-    return day >= new Date(start.toDateString()) && day <= new Date(end.toDateString());
-  }
-  return dateKey >= startKey && dateKey <= endKey;
+function getPresenceHoursColor(hours: number): string {
+  if (hours >= 8) return '#22c55e';
+  if (hours >= 7.5) return '#f97316';
+  return SHORT_DAY_BAR_COLOR;
 }
 
 const AttendancePresenceChart: React.FC<Props> = ({
@@ -48,8 +38,6 @@ const AttendancePresenceChart: React.FC<Props> = ({
   range = 'month',
   variant = 'manager',
   todayMinutes = 0,
-  leaves = [],
-  monthlyPaidLeaves = 1,
 }) => {
   const isEmployeeVariant = variant === 'employee';
   const breakBarColor = '#fbbf24';
@@ -115,10 +103,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
     return map;
   }, [holidays]);
 
-  const resolveSpecialDay = (
-    dateKey: string,
-    options?: { treatLeaveAsPaid?: boolean },
-  ) => {
+  const resolveSpecialDay = (dateKey: string) => {
     if (isSundayDateKey(dateKey)) {
       return {
         kind: 'sunday' as const,
@@ -134,17 +119,6 @@ const AttendancePresenceChart: React.FC<Props> = ({
         label: '-- holiday --',
         color: HOLIDAY_BAR_COLOR,
       };
-    }
-
-    if (options?.treatLeaveAsPaid) {
-      const leave = leaves.find((item) => leaveCoversDateKey(item, dateKey));
-      if (leave) {
-        return {
-          kind: 'leave' as const,
-          label: '-- Leave --',
-          color: LEAVE_BAR_COLOR,
-        };
-      }
     }
 
     return null;
@@ -372,35 +346,12 @@ const AttendancePresenceChart: React.FC<Props> = ({
     ? Array.from(new Set([...datesToShowBase, todayDateKey])).sort()
     : datesToShowBase;
 
-  const paidLeaveDateKeys = React.useMemo(() => {
-    const allowance = Math.max(0, Math.min(31, Number(monthlyPaidLeaves) || 0));
-    const candidateLeaveDays = datesToShow.filter((dateKey) => {
-      if (isSundayDateKey(dateKey)) return false;
-      if (holidayByDate.has(dateKey)) return false;
-      const day = recordedDays.get(dateKey);
-      const liveMinutes = dateKey === todayDateKey ? Math.max(day?.minutes || 0, todayMinutes) : day?.minutes || 0;
-      if (liveMinutes > 0) return false;
-      return leaves.some((item) => leaveCoversDateKey(item, dateKey));
-    });
-    return new Set([...candidateLeaveDays].sort().slice(0, allowance));
-  }, [
-    datesToShow,
-    holidayByDate,
-    leaves,
-    monthlyPaidLeaves,
-    recordedDays,
-    todayDateKey,
-    todayMinutes,
-  ]);
-
   const chartData =
     datesToShow.map((dateKey) => {
       const dayLabel = formatChartDayLabel(dateKey);
       const d = recordedDays.get(dateKey);
       const liveMinutes = dateKey === todayDateKey ? Math.max(d?.minutes || 0, todayMinutes) : d?.minutes || 0;
-      const special = resolveSpecialDay(dateKey, {
-        treatLeaveAsPaid: paidLeaveDateKeys.has(dateKey),
-      });
+      const special = resolveSpecialDay(dateKey);
       const sundayWorked = special?.kind === 'sunday' && liveMinutes > 0;
 
       // Non-worked special days keep fixed color + label. Worked Sundays use hours color + sunday label.
@@ -428,7 +379,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
             dayLabel,
             hours: parseFloat(liveHours.toFixed(2)),
             actualHours: parseFloat(liveHours.toFixed(2)),
-            color: getHoursColor(liveHours),
+            color: ACTIVE_SESSION_BAR_COLOR,
             loginTime: 'N/A',
             logoutTime: 'Active now',
             statusLabel: 'Status',
@@ -443,7 +394,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
           dayLabel,
           hours: SPECIAL_BAR_HOURS,
           actualHours: 0,
-          color: '#94a3b8',
+          color: ABSENT_BAR_COLOR,
           loginTime: 'Absent',
           logoutTime: 'Absent',
           statusLabel: 'Status',
@@ -460,7 +411,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
           dayLabel,
           hours: SPECIAL_BAR_HOURS,
           actualHours: 0,
-          color: '#94a3b8',
+          color: ABSENT_BAR_COLOR,
           loginTime: 'Absent',
           logoutTime: 'Absent',
           statusLabel: 'Status',
@@ -482,7 +433,11 @@ const AttendancePresenceChart: React.FC<Props> = ({
         dayLabel,
         hours: parseFloat(hours.toFixed(2)),
         actualHours: parseFloat(hours.toFixed(2)),
-        color: isBreakSession ? breakBarColor : getHoursColor(hours),
+        color: isBreakSession
+          ? breakBarColor
+          : isOpenSession
+            ? ACTIVE_SESSION_BAR_COLOR
+            : getPresenceHoursColor(hours),
         loginTime: formatTime(firstSession?.loginTime),
         logoutTime: isBreakSession
           ? 'On break'
@@ -644,10 +599,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: HOLIDAY_BAR_COLOR }} /> Holiday
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: LEAVE_BAR_COLOR }} /> Leave
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-slate-400" /> Absent
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ABSENT_BAR_COLOR }} /> Absent
             </span>
           </div>
 
@@ -659,7 +611,10 @@ const AttendancePresenceChart: React.FC<Props> = ({
               <span className="h-2.5 w-2.5 rounded-full bg-orange-500" /> 7.5-8h
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-500" /> &lt; 7.5h
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: SHORT_DAY_BAR_COLOR }} /> &lt; 7.5h
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ACTIVE_SESSION_BAR_COLOR }} /> Active
             </span>
           </div>
         </div>
@@ -684,7 +639,10 @@ const AttendancePresenceChart: React.FC<Props> = ({
             <span className="w-2 h-2 rounded-full bg-orange-500" /> 7.5–&lt;8h
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-red-500" /> &lt; 7.5h
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: SHORT_DAY_BAR_COLOR }} /> &lt; 7.5h
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ACTIVE_SESSION_BAR_COLOR }} /> Active
           </span>
         </div>
       </div>
