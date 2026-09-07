@@ -183,8 +183,6 @@ const AttendanceViewContent: React.FC<AttendanceViewContentProps> = ({ ctrl }) =
             setSelectedEmployeeMonth={setSelectedEmployeeMonth}
             onApproveLateLogin={handleApproveLateLogin}
             lateLoginApprovalLoading={lateLoginApprovalLoading}
-            employeeLeaves={approverLeaves.filter((leave) => leave.empId === selectedEmployeeEmpId)}
-            monthlyPaidLeaves={leaveBalanceOverview?.policy?.monthlyPaidLeaves ?? 1}
           />
         </div>
       ) : activeView === 'attendance' ? (
@@ -222,7 +220,6 @@ const AttendanceViewContent: React.FC<AttendanceViewContentProps> = ({ ctrl }) =
           onOpenTeamAttendance={handleTeamAttendanceOpen}
           lateLoginPolicy={summary?.lateLoginPolicy || null}
           leaveBalanceOverview={leaveBalanceOverview}
-          myLeaves={myLeaves}
           onOpenLateRequests={() => handleActiveViewChange('late')}
         />
       ) : activeView === 'late' ? (
