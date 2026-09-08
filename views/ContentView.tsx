@@ -267,8 +267,13 @@ const ContentView: React.FC = () => {
   }, [dayKey]);
 
   useEffect(() => {
+    // Day routes always render the calendar day panel; ignore ?tab= from other tabs.
+    if (dayKey) {
+      setActiveTab('calendar');
+      return;
+    }
     setActiveTab(getInitialTab(location.search));
-  }, [location.search]);
+  }, [dayKey, location.search]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
