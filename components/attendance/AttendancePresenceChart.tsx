@@ -73,16 +73,22 @@ const AttendancePresenceChart: React.FC<Props> = ({
 
   const isSundayDateKey = (dateKey: string) => getWeekdayShort(dateKey) === 'Sun';
 
-  React.useEffect(() => {
-    let cancelled = false;
+  // Depend on year only — liveSummary recreates `days` every second while a session is open.
+  const holidayYear = React.useMemo(() => {
     const yearSource =
       selectedMonth ||
-      (summary?.days?.length ? String(summary.days[0]?.date || '').slice(0, 7) : '') ||
+      String(summary?.days?.[0]?.date || '').slice(0, 7) ||
+      String(summary?.start || '').slice(0, 7) ||
       getDateKeyInAttendanceTimezone(new Date()).slice(0, 7);
     const year = Number(String(yearSource).slice(0, 4));
-    if (!Number.isFinite(year)) return;
+    return Number.isFinite(year) ? year : null;
+  }, [selectedMonth, summary?.days?.[0]?.date, summary?.start]);
 
-    fetchHolidays(year)
+  React.useEffect(() => {
+    if (holidayYear == null) return;
+    let cancelled = false;
+
+    fetchHolidays(holidayYear)
       .then((rows) => {
         if (!cancelled) setHolidays(Array.isArray(rows) ? rows : []);
       })
@@ -93,7 +99,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [selectedMonth, summary?.days, summary?.start]);
+  }, [holidayYear]);
 
   const holidayByDate = React.useMemo(() => {
     const map = new Map<string, CompanyHoliday>();
