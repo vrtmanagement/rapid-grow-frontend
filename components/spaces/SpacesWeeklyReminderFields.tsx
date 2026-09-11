@@ -164,7 +164,8 @@ const SpacesWeeklyReminderFields: React.FC<SpacesWeeklyReminderFieldsProps> = ({
       </div>
 
       <p className="text-[11px] leading-5 text-slate-500">
-        Tasks repeat and email only between the selected from and to dates, on each selected interval.
+        Reminder emails send on each selected interval between the from and to dates. For Remind until
+        done, they keep sending until the task is marked done (or the to date passes).
       </p>
     </div>
   );

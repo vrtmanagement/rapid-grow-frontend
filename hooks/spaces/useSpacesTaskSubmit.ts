@@ -240,11 +240,10 @@ export const useSpacesTaskSubmit = ({
       }
       if (
         emailChecklistEnabled &&
-        repeatEveryWeek &&
         repeatCadence === 'week' &&
         (!Array.isArray(repeatWeekDays) || repeatWeekDays.length < 1)
       ) {
-        throw new Error('Select at least one week day for the repeat schedule.');
+        throw new Error('Select at least one week day for the reminder schedule.');
       }
       const normalizedRepeatWeekDays = (Array.isArray(repeatWeekDays) ? repeatWeekDays : [])
         .map((day) => Number(day))
@@ -354,8 +353,8 @@ export const useSpacesTaskSubmit = ({
           } else {
             checklistEmailSuccess =
               createdTasks.length === 1
-                ? 'Checklist email sent to the assignee. Reminder emails will follow at your selected interval.'
-                : `Checklist email sent for ${data.emailsSent} assignee(s). Reminder emails will follow at your selected interval.`;
+                ? 'Checklist email sent to the assignee. Reminder emails will keep sending on your selected schedule until marked done.'
+                : `Checklist email sent for ${data.emailsSent} assignee(s). Reminder emails will keep sending on your selected schedule until marked done.`;
           }
         } catch (emailErr: any) {
           checklistEmailWarning =
