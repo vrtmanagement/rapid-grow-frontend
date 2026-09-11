@@ -8,17 +8,6 @@ import {
 } from './spacesViewHelpers';
 import { getUserTimeZone } from '../utils/timezone';
 
-export const pageEase = [0.22, 1, 0.36, 1] as const;
-
-export const sectionReveal = {
-  hidden: { opacity: 0, y: 6 },
-  show: (index: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.2, delay: Math.min(index, 3) * 0.02, ease: pageEase },
-  }),
-};
-
 export async function downloadWithFallback(url: string, fileName?: string) {
   const href = String(url || '').trim();
   if (!href) throw new Error('Document URL is missing');

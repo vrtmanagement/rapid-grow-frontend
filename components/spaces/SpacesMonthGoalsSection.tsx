@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import type { SpacesTask } from '../../types/spaces';
 import SpacesMonthGoalAddForm, { CreateMonthGoalTaskPayload } from './SpacesMonthGoalAddForm';
@@ -109,7 +108,6 @@ const SpacesMonthGoalsSection: React.FC<SpacesMonthGoalsSectionProps> = ({
   const [detailMonthKey, setDetailMonthKey] = useState<string | null>(null);
   const [selectedMonthKey, setSelectedMonthKey] = useState('');
   const [selectedWeekKey, setSelectedWeekKey] = useState('');
-  const [weekNavDirection, setWeekNavDirection] = useState(1);
 
   const monthGoalTasks = useMemo(() => tasks.filter(isMonthGoalTask), [tasks]);
 
@@ -177,7 +175,6 @@ const SpacesMonthGoalsSection: React.FC<SpacesMonthGoalsSectionProps> = ({
     }
     const firstWeekKey = getWeeksForMonth(selectedMonthEntry.month)[0]?.key || '';
     setSelectedWeekKey(firstWeekKey);
-    setWeekNavDirection(1);
   }, [selectedMonthEntry?.month.key]);
 
   const canChangeStatus = (task: SpacesTask) => canEditTask(task) || canValidateTask(task);
@@ -376,7 +373,6 @@ const SpacesMonthGoalsSection: React.FC<SpacesMonthGoalsSectionProps> = ({
           type="button"
           onClick={() => {
             if (activeWeekIndex <= 0) return;
-            setWeekNavDirection(-1);
             setSelectedWeekKey(weekColumns[activeWeekIndex - 1].week.key);
           }}
           disabled={activeWeekIndex <= 0}
@@ -389,7 +385,6 @@ const SpacesMonthGoalsSection: React.FC<SpacesMonthGoalsSectionProps> = ({
           type="button"
           onClick={() => {
             if (activeWeekIndex >= weekColumns.length - 1) return;
-            setWeekNavDirection(1);
             setSelectedWeekKey(weekColumns[activeWeekIndex + 1].week.key);
           }}
           disabled={activeWeekIndex >= weekColumns.length - 1}
@@ -399,21 +394,13 @@ const SpacesMonthGoalsSection: React.FC<SpacesMonthGoalsSectionProps> = ({
           <ChevronRight size={18} />
         </button>
         <div className="overflow-hidden">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={activeWeekEntry.week.key}
-              initial={{ opacity: 0, x: weekNavDirection > 0 ? 56 : -56 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: weekNavDirection > 0 ? -56 : 56 }}
-              transition={{ duration: 0.22, ease: 'easeOut' }}
-            >
-              {renderWeekColumn(
-                activeWeekEntry,
-                month.key,
-                activeWeekEntry.week.weekIndex === 1 ? pct : undefined,
-              )}
-            </motion.div>
-          </AnimatePresence>
+          <div key={activeWeekEntry.week.key}>
+            {renderWeekColumn(
+              activeWeekEntry,
+              month.key,
+              activeWeekEntry.week.weekIndex === 1 ? pct : undefined,
+            )}
+          </div>
         </div>
       </div>
     );

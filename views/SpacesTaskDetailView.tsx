@@ -16,7 +16,6 @@ import {
   Sparkles,
   UserRound,
 } from 'lucide-react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import { fetchWorkspaceLinkTasks } from '../services/spacesApi';
 import { getDisplayAvatarUrl } from '../utils/avatar';
@@ -44,9 +43,7 @@ import {
   getStatusStyles,
   getTaskSourceLabel,
   normalizeStatusLabel,
-  pageEase,
   renderDescriptionWithLinks,
-  sectionReveal,
 } from './spacesTaskDetailHelpers';
 import { ContentPanel, MetaCard, TaskDetailSkeleton } from './SpacesTaskDetailParts';
 
@@ -71,7 +68,6 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const locationState = (location.state || {}) as TaskDetailLocationState;
-  const prefersReducedMotion = useReducedMotion();
   const me = useMemo(() => getLoggedInEmployee(), []);
   const seededTask = useMemo(() => {
     const candidate = locationState.task;
@@ -275,10 +271,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
     <div className="relative mx-auto max-w-6xl pb-20">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(circle_at_top_left,rgba(220,38,38,0.08),transparent_55%),radial-gradient(circle_at_top_right,rgba(15,23,42,0.06),transparent_45%)]" />
 
-      <motion.header
-        initial={prefersReducedMotion ? false : { opacity: 0, y: -4 }}
-        animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-        transition={{ duration: 0.18, ease: pageEase }}
+      <header
         className="relative mb-8 flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-slate-200/70 bg-white/80 px-4 py-3 shadow-[0_10px_40px_rgba(15,23,42,0.05)] backdrop-blur-xl sm:px-5"
       >
         <div className="flex min-w-0 items-center gap-3">
@@ -331,15 +324,10 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
             </button>
           ) : null}
         </div>
-      </motion.header>
+      </header>
 
-      <AnimatePresence mode="wait">
-        {error ? (
-          <motion.div
-            key="error"
-            initial={prefersReducedMotion ? false : { opacity: 0 }}
-            animate={prefersReducedMotion ? undefined : { opacity: 1 }}
-            exit={prefersReducedMotion ? undefined : { opacity: 0 }}
+      {error ? (
+          <div
             className="relative rounded-[28px] border border-rose-200 bg-gradient-to-br from-rose-50 to-white px-8 py-16 text-center shadow-[0_20px_60px_rgba(244,63,94,0.08)]"
           >
             <p className="text-base font-semibold text-rose-700">{error}</p>
@@ -350,22 +338,17 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
             >
               Try again
             </button>
-          </motion.div>
+          </div>
         ) : null}
 
         {loading && !task ? (
-          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <TaskDetailSkeleton reducedMotion={!!prefersReducedMotion} />
-          </motion.div>
+          <div>
+            <TaskDetailSkeleton />
+          </div>
         ) : null}
 
         {!error && task ? (
-          <motion.article
-            key={task.taskId}
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
-            animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-            exit={prefersReducedMotion ? undefined : { opacity: 0 }}
-            transition={{ duration: 0.2, ease: pageEase }}
+          <article
             className="relative space-y-6"
           >
             <div
@@ -381,11 +364,7 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
               ) : null}
 
               <div className="relative px-6 py-8 sm:px-9 sm:py-10">
-                <motion.div
-                  custom={0}
-                  variants={sectionReveal}
-                  initial={prefersReducedMotion ? false : 'hidden'}
-                  animate={prefersReducedMotion ? undefined : 'show'}
+                <div
                   className="flex flex-wrap items-center gap-2"
                 >
                   <span
@@ -411,23 +390,15 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
                       AI generated
                     </span>
                   ) : null}
-                </motion.div>
+                </div>
 
-                <motion.h1
-                  custom={1}
-                  variants={sectionReveal}
-                  initial={prefersReducedMotion ? false : 'hidden'}
-                  animate={prefersReducedMotion ? undefined : 'show'}
+                <h1
                   className="mt-6 max-w-4xl text-[1.85rem] font-semibold leading-[1.15] tracking-[-0.03em] text-white sm:text-[2.35rem] break-words"
                 >
                   {task.title}
-                </motion.h1>
+                </h1>
 
-                <motion.div
-                  custom={2}
-                  variants={sectionReveal}
-                  initial={prefersReducedMotion ? false : 'hidden'}
-                  animate={prefersReducedMotion ? undefined : 'show'}
+                <div
                   className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-400"
                 >
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 font-mono text-[11px] text-slate-300">
@@ -440,29 +411,21 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
                       Due {dueDateLabel}
                     </span>
                   ) : null}
-                </motion.div>
+                </div>
 
                 {showRecurringBadge ? (
-                  <motion.p
-                    custom={2}
-                    variants={sectionReveal}
-                    initial={prefersReducedMotion ? false : 'hidden'}
-                    animate={prefersReducedMotion ? undefined : 'show'}
+                  <p
                     className="mt-5 max-w-2xl text-sm leading-relaxed text-slate-400"
                   >
                     {showStopRepeating
                       ? 'This task repeats on a schedule. Use Stop repeating task to end future copies without deleting past work.'
                       : 'Repeat schedule has been stopped for this series.'}
-                  </motion.p>
+                  </p>
                 ) : null}
               </div>
             </div>
 
-            <motion.div
-              custom={3}
-              variants={sectionReveal}
-              initial={prefersReducedMotion ? false : 'hidden'}
-              animate={prefersReducedMotion ? undefined : 'show'}
+            <div
               className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
             >
               <MetaCard
@@ -498,16 +461,11 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
                   </span>
                 }
               />
-            </motion.div>
+            </div>
 
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
               <div className="space-y-6">
-                <motion.div
-                  custom={4}
-                  variants={sectionReveal}
-                  initial={prefersReducedMotion ? false : 'hidden'}
-                  animate={prefersReducedMotion ? undefined : 'show'}
-                >
+                <div>
                   <ContentPanel title="Description" icon={<FileText size={15} />}>
                     <p className="max-w-3xl text-[15px] leading-[1.75] text-slate-700 whitespace-pre-wrap break-words">
                       {task.description?.trim() ? renderDescriptionWithLinks(task.description.trim()) : (
@@ -515,15 +473,10 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
                       )}
                     </p>
                   </ContentPanel>
-                </motion.div>
+                </div>
 
                 {Array.isArray(task.comments) && task.comments.length > 0 ? (
-                  <motion.div
-                    custom={5}
-                    variants={sectionReveal}
-                    initial={prefersReducedMotion ? false : 'hidden'}
-                    animate={prefersReducedMotion ? undefined : 'show'}
-                  >
+                  <div>
                     <ContentPanel
                       title={`Comments · ${task.comments.length}`}
                       icon={<MessageSquare size={15} />}
@@ -560,18 +513,13 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
                         })}
                       </ul>
                     </ContentPanel>
-                  </motion.div>
+                  </div>
                 ) : null}
               </div>
 
               <div className="space-y-6">
                 {taskAttachments.length ? (
-                  <motion.div
-                    custom={6}
-                    variants={sectionReveal}
-                    initial={prefersReducedMotion ? false : 'hidden'}
-                    animate={prefersReducedMotion ? undefined : 'show'}
-                  >
+                  <div>
                     <div className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6 shadow-[0_24px_70px_rgba(15,23,42,0.22)]">
                       <div className="flex items-center gap-3">
                         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-white">
@@ -611,15 +559,10 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
                         })}
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 ) : null}
 
-                <motion.div
-                  custom={7}
-                  variants={sectionReveal}
-                  initial={prefersReducedMotion ? false : 'hidden'}
-                  animate={prefersReducedMotion ? undefined : 'show'}
-                >
+                <div>
                   <div className="rounded-[28px] border border-slate-200/80 bg-white/95 p-6 shadow-[0_16px_50px_rgba(15,23,42,0.05)]">
                     <div className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                       <Clock3 size={15} />
@@ -646,12 +589,11 @@ const SpacesTaskDetailView: React.FC<Props> = ({ mode }) => {
                       ) : null}
                     </div>
                   </div>
-                </motion.div>
+                </div>
               </div>
             </div>
-          </motion.article>
+          </article>
         ) : null}
-      </AnimatePresence>
     </div>
   );
 };

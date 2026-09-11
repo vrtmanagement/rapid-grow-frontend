@@ -1,29 +1,34 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import AccessDenied from '../AccessDenied';
-import SpacesTaskDetailView from '../../views/SpacesTaskDetailView';
 import type { PlanningState } from '../../types';
-import Vision from '../../views/Vision';
-import ReflectionView from '../../views/ReflectionView';
-import DashboardView from '../../views/DashboardView';
-import WorkspacesView from '../../views/WorkspacesView';
-import ProfileView from '../../views/ProfileView';
-import SpacesView from '../../views/SpacesView';
-import AttendanceView from '../../views/AttendanceView';
-import StaffView from '../../views/StaffView';
-import DriveView from '../../drive/views/DriveView';
-import ContentView from '../../views/ContentView';
-import ContentCreateView from '../../views/ContentCreateView';
-import CRMPage from '../../views/CRMPage';
-import CRMLeadDetailPage from '../../views/CRMLeadDetailPage';
-import StrategyExecutionView from '../../views/StrategyExecutionView';
-import ExpenseTravelView from '../../views/ExpenseTravelView';
-import AiAgentView from '../../views/AiAgentView';
-import TaskAnalyticsView from '../../views/TaskAnalyticsView';
-import StrengthsDashboardView from '../../views/StrengthsDashboardView';
-import SuperAdminView from '../../views/SuperAdminView';
-import BillingAiUsageView from '../../views/BillingAiUsageView';
-import CommunicationView from '../../communication/views/CommunicationView';
+
+const SpacesTaskDetailView = lazy(() => import('../../views/SpacesTaskDetailView'));
+const Vision = lazy(() => import('../../views/Vision'));
+const ReflectionView = lazy(() => import('../../views/ReflectionView'));
+const DashboardView = lazy(() => import('../../views/DashboardView'));
+const WorkspacesView = lazy(() => import('../../views/WorkspacesView'));
+const ProfileView = lazy(() => import('../../views/ProfileView'));
+const SpacesView = lazy(() => import('../../views/SpacesView'));
+const AttendanceView = lazy(() => import('../../views/AttendanceView'));
+const StaffView = lazy(() => import('../../views/StaffView'));
+const DriveView = lazy(() => import('../../drive/views/DriveView'));
+const ContentView = lazy(() => import('../../views/ContentView'));
+const ContentCreateView = lazy(() => import('../../views/ContentCreateView'));
+const CRMPage = lazy(() => import('../../views/CRMPage'));
+const CRMLeadDetailPage = lazy(() => import('../../views/CRMLeadDetailPage'));
+const StrategyExecutionView = lazy(() => import('../../views/StrategyExecutionView'));
+const ExpenseTravelView = lazy(() => import('../../views/ExpenseTravelView'));
+const AiAgentView = lazy(() => import('../../views/AiAgentView'));
+const TaskAnalyticsView = lazy(() => import('../../views/TaskAnalyticsView'));
+const StrengthsDashboardView = lazy(() => import('../../views/StrengthsDashboardView'));
+const SuperAdminView = lazy(() => import('../../views/SuperAdminView'));
+const BillingAiUsageView = lazy(() => import('../../views/BillingAiUsageView'));
+const CommunicationView = lazy(() => import('../../communication/views/CommunicationView'));
+
+const RouteFallback = () => (
+  <div className="flex min-h-[40vh] items-center justify-center text-sm text-slate-500">Loading…</div>
+);
 
 const RedirectToBillingAiTab: React.FC<{ panel: 'billing' | 'ai-usage'; aiPanel?: 'usage' | 'settings' }> = ({
   panel,
@@ -56,7 +61,8 @@ const AppManagerRoutes: React.FC<AppManagerRoutesProps> = ({
   updateState,
   planningViewsLoading,
 }) => (
-  <Routes>
+  <Suspense fallback={<RouteFallback />}>
+    <Routes>
       {hasPower('DASHBOARD_VIEW') && (
         <Route path="/" element={<DashboardView state={state} loading={planningViewsLoading} />} />
       )}
@@ -171,6 +177,7 @@ const AppManagerRoutes: React.FC<AppManagerRoutesProps> = ({
       )}
       <Route path="*" element={<AccessDenied />} />
     </Routes>
+  </Suspense>
 );
 
 export default AppManagerRoutes;
