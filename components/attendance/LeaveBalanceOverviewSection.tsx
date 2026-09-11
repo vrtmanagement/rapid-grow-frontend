@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import {
   Area,
   AreaChart,
@@ -232,11 +231,10 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
 
           <div className="flex justify-end">
             <div className="flex items-center gap-2">
-              <motion.button
+              <button
                 type="button"
                 onClick={onRefresh}
-                whileTap={{ scale: 0.97 }}
-                className={`inline-flex h-[50px] items-center justify-center gap-2 rounded-[20px] border px-4 text-sm font-semibold transition ${
+                className={`inline-flex h-[50px] items-center justify-center gap-2 rounded-[20px] border px-4 text-sm font-semibold transition active:scale-[0.97] ${
                   loading
                     ? 'border-brand-red/20 bg-brand-red/5 text-brand-red ring-4 ring-brand-red/10'
                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-950'
@@ -244,7 +242,7 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
               >
                 <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                 {loading ? 'Refreshing...' : 'Refresh'}
-              </motion.button>
+              </button>
               <button
                 type="button"
                 onClick={onExport}
@@ -502,18 +500,15 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
       ) : (
         <>
           <div className="mt-6 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-            {statCardMeta.map((card, index) => {
+            {statCardMeta.map((card) => {
               const value = summary?.[card.key] ?? 0;
               const showLopDeductionNote =
                 card.key === 'usedLeaves' &&
                 (summary?.calendarLeaveDays ?? 0) > 0 &&
                 (summary?.balanceDeductedDays ?? value) > (summary?.calendarLeaveDays ?? 0);
               return (
-                <motion.div
+                <div
                   key={card.key}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, delay: index * 0.03 }}
                   className={`flex min-h-[102px] flex-col rounded-[18px] border border-slate-200 px-3.5 py-3.5 shadow-[0_10px_22px_rgba(15,23,42,0.05)] ${card.bg}`}
                 >
                   <div className="flex h-[34px] items-start">
@@ -532,7 +527,7 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
                       </p>
                     ) : null}
                   </div>
-                </motion.div>
+                </div>
               );
             })}
           </div>
@@ -589,12 +584,9 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
                     </span>
                   </div>
                   <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${usedPercent}%` }}
-                      transition={{ duration: 0.5, ease: 'easeOut' }}
+                    <div
                       className="h-full rounded-full"
-                      style={{ backgroundColor: entry.color || '#ef4444' }}
+                      style={{ width: `${usedPercent}%`, backgroundColor: entry.color || '#ef4444' }}
                     />
                   </div>
                   <div className="mt-3 flex items-center justify-between text-xs font-medium text-slate-500">

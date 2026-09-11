@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 
 export function MetaCard({
   icon,
@@ -61,39 +60,27 @@ export function ContentPanel({
   );
 }
 
-export function TaskDetailSkeleton({ reducedMotion }: { reducedMotion: boolean }) {
-  const pulse = reducedMotion ? {} : { opacity: [0.45, 0.9, 0.45] };
-  const pulseTransition = reducedMotion ? undefined : { duration: 1.5, repeat: Infinity, ease: 'easeInOut' as const };
-
+export function TaskDetailSkeleton() {
   return (
     <div className="space-y-6">
-      <motion.div
-        animate={pulse}
-        transition={pulseTransition}
-        className="overflow-hidden rounded-[28px] border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-8 py-10"
-      >
+      <div className="animate-pulse overflow-hidden rounded-[28px] border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-8 py-10">
         <div className="h-4 w-32 rounded-full bg-white/10" />
         <div className="mt-6 h-10 w-4/5 max-w-xl rounded-2xl bg-white/10" />
         <div className="mt-4 h-4 w-56 rounded-full bg-white/10" />
-      </motion.div>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 5 }).map((_, index) => (
-          <motion.div
-            key={`sk-${index}`}
-            animate={pulse}
-            transition={pulseTransition}
-            className="rounded-[22px] border border-slate-200 bg-white p-4"
-          >
+          <div key={`sk-${index}`} className="animate-pulse rounded-[22px] border border-slate-200 bg-white p-4">
             <div className="h-10 w-10 rounded-2xl bg-slate-100" />
             <div className="mt-4 h-3 w-16 rounded bg-slate-100" />
             <div className="mt-2 h-5 w-28 rounded bg-slate-200" />
-          </motion.div>
+          </div>
         ))}
       </div>
-      <motion.div animate={pulse} transition={pulseTransition} className="rounded-[28px] border border-slate-200 bg-white p-7">
+      <div className="animate-pulse rounded-[28px] border border-slate-200 bg-white p-7">
         <div className="h-4 w-28 rounded bg-slate-100" />
         <div className="mt-5 h-24 w-full rounded-2xl bg-slate-50" />
-      </motion.div>
+      </div>
     </div>
   );
 }
