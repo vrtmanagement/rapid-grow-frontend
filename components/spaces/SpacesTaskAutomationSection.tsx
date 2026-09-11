@@ -4,7 +4,6 @@ import type { TaskCreateRecurrenceDraft } from '../../types/spaces';
 import { ThemedSelect } from './SpacesFormControls';
 import SpacesTaskCreateRecurrenceFields from './SpacesTaskCreateRecurrenceFields';
 import SpacesWeeklyReminderFields from './SpacesWeeklyReminderFields';
-import { EMAIL_REMINDER_GAP_OPTIONS } from './spacesEmailReminderOptions';
 import { TIMEZONE_OPTIONS, getTimezoneOption, normalizeUserTimeZone } from '../../utils/timezone';
 
 export type TaskAutomationMode = 'none' | 'mail_checklist' | 'repeating';
@@ -344,41 +343,22 @@ const SpacesTaskAutomationSection: React.FC<SpacesTaskAutomationSectionProps> = 
               </ChoicePill>
             </div>
 
-            {repeatEveryWeek ? (
-              <div className="mt-3 border-t border-slate-100 pt-3">
-                <SpacesWeeklyReminderFields
-                  repeatCadence={repeatCadence}
-                  setRepeatCadence={setRepeatCadence}
-                  repeatWeekDays={repeatWeekDays}
-                  setRepeatWeekDays={setRepeatWeekDays}
-                  repeatWeekTime={repeatWeekTime}
-                  setRepeatWeekTime={setRepeatWeekTime}
-                  repeatFromDate={repeatFromDate}
-                  setRepeatFromDate={setRepeatFromDate}
-                  repeatToDate={repeatToDate}
-                  setRepeatToDate={setRepeatToDate}
-                  disabled={disabled}
-                  fieldName={weeklyFieldName}
-                />
-              </div>
-            ) : (
-              <div className="mt-3 border-t border-slate-100 pt-3">
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">
-                  Reminder frequency
-                </label>
-                <ThemedSelect
-                  value={reminderIntervalHours}
-                  onChange={setReminderIntervalHours}
-                  options={EMAIL_REMINDER_GAP_OPTIONS}
-                  compact={true}
-                  fullWidthCompact={true}
-                  disabled={disabled}
-                />
-                <p className="mt-2 text-[11px] leading-5 text-slate-500">
-                  Sends another email if checklist items are still incomplete.
-                </p>
-              </div>
-            )}
+            <div className="mt-3 border-t border-slate-100 pt-3">
+              <SpacesWeeklyReminderFields
+                repeatCadence={repeatCadence}
+                setRepeatCadence={setRepeatCadence}
+                repeatWeekDays={repeatWeekDays}
+                setRepeatWeekDays={setRepeatWeekDays}
+                repeatWeekTime={repeatWeekTime}
+                setRepeatWeekTime={setRepeatWeekTime}
+                repeatFromDate={repeatFromDate}
+                setRepeatFromDate={setRepeatFromDate}
+                repeatToDate={repeatToDate}
+                setRepeatToDate={setRepeatToDate}
+                disabled={disabled}
+                fieldName={weeklyFieldName}
+              />
+            </div>
           </div>
         </div>
       ) : null}

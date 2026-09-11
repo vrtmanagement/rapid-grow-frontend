@@ -346,6 +346,14 @@ const SpacesTaskEditDrawer: React.FC<SpacesTaskEditDrawerProps> = (props) => {
       setError('To date must be on or after the from date.');
       return;
     }
+    if (
+      editingEmailChecklistEnabled &&
+      editingRepeatCadence === 'week' &&
+      (!Array.isArray(editingRepeatWeekDays) || editingRepeatWeekDays.length < 1)
+    ) {
+      setError('Select at least one week day for the reminder schedule.');
+      return;
+    }
 
     setEditingTaskSaving(true);
     setError(null);
