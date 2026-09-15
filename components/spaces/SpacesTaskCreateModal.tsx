@@ -1,4 +1,5 @@
 import React from 'react';
+import './spacesTaskSurfaces.css';
 import { createPortal } from 'react-dom';
 import { Paperclip, Plus, X } from 'lucide-react';
 import { FileDropZone } from '../ui/FileDropZone';
@@ -335,50 +336,50 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
         onClick={onClose}
       >
         <div
-          className="spaces-task-drawer-panel flex h-full w-full max-w-[880px] flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl"
+          className="spaces-task-create-surface spaces-task-drawer-panel flex h-full w-full max-w-[880px] flex-col overflow-hidden border-l border-slate-200 bg-white shadow-2xl"
           style={{ animation: 'spacesTaskDrawerSlideIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both' }}
           onClick={(event) => event.stopPropagation()}
         >
-        <div className="shrink-0 flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="spaces-create-header shrink-0 flex items-center justify-between border-b border-slate-100 px-5 py-5 sm:px-7">
           <div>
-            <div className="text-[13px] font-semibold uppercase tracking-[0.18em] text-slate-400">Task Hub</div>
-            <h3 className="mt-1 text-[30px] font-semibold leading-none text-slate-900">Create New Task</h3>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Task Hub</div>
+            <h3 className="mt-2 text-2xl font-semibold leading-tight tracking-tight text-slate-900">Create New Task</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-3.5">
-          <div className="space-y-3">
+        <div className="spaces-create-body min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-7">
+          <div className="space-y-5">
             {error ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">{error}</div>
             ) : null}
 
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.35fr)_360px]">
-              <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+              <div className="space-y-5">
                 <div>
-                  <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Task Name *</label>
+                  <label className="mb-2 block text-xs font-semibold tracking-normal text-slate-600">Task Name *</label>
                   <input value={title} onChange={(e) => setTitle(e.target.value)} className={CREATE_INPUT_CLASS} placeholder="Enter task name" />
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Description</label>
+                  <label className="mb-2 block text-xs font-semibold tracking-normal text-slate-600">Description</label>
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="min-h-[126px] w-full rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-[15px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15"
+                    className="min-h-[132px] w-full resize-y rounded-lg border border-slate-200 bg-white px-3.5 py-3 text-sm leading-6 text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
                     placeholder="Add task description..."
                   />
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Assignee</label>
+                    <label className="mb-2 block text-xs font-semibold tracking-normal text-slate-600">Assignee</label>
                     {emailChecklistEnabled && emailChecklistExternalPerson ? (
                       <div className="flex h-[52px] items-center rounded-2xl border border-red-200 bg-red-50/60 px-4 text-[14px] text-red-800">
                         Assigned via email below
@@ -388,26 +389,26 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                     )}
                   </div>
                   <div>
-                    <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Due Date</label>
+                    <label className="mb-2 block text-xs font-semibold tracking-normal text-slate-600">Due Date</label>
                     <ThemedDatePicker value={dueDate} onChange={setDueDate} />
                   </div>
                   <div>
-                    <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Priority</label>
+                    <label className="mb-2 block text-xs font-semibold tracking-normal text-slate-600">Priority</label>
                     <ThemedSelect value={priority} onChange={setPriority} options={priorityOptions} />
                   </div>
                   <div>
-                    <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Status</label>
+                    <label className="mb-2 block text-xs font-semibold tracking-normal text-slate-600">Status</label>
                     <ThemedSelect value={status} onChange={setStatus} options={statusOptions} />
                   </div>
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Project</label>
+                  <label className="mb-2 block text-xs font-semibold tracking-normal text-slate-600">Project</label>
                   <ThemedSelect value={selectedProjectId} onChange={setSelectedProjectId} options={projectSelectOptions} placeholder="No project" disabled={projectsLoading} />
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-5">
                 {/* Weekly Planner section intentionally commented out per request.
                 <SpacesTaskPlannerFields
                   hideWeeklyPlanner={hideWeeklyPlanner}
@@ -432,11 +433,11 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                 */}
 
                 <div>
-                  <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-700">Document / Attachments</label>
+                  <label className="mb-2 block text-xs font-semibold tracking-normal text-slate-600">Document / Attachments</label>
                   <FileDropZone
                     multiple={true}
                     disabled={saving || uploadingTaskDocument}
-                    className={`rounded-[22px] border border-dashed border-red-200 bg-slate-50/70 px-4 py-4 transition ${
+                    className={`rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-5 transition hover:border-slate-400 hover:bg-slate-50 ${
                       taskDocumentFiles.length === 0 ? 'min-h-[132px]' : ''
                     }`}
                     overlayTitle="Drop document here"
@@ -454,14 +455,14 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                           disabled={saving || uploadingTaskDocument}
                           onChange={(event) => appendTaskDocumentFiles(Array.from(event.target.files || []))}
                         />
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500">
                           <Paperclip size={20} />
                         </div>
-                        <div className="mt-3 text-[15px] font-medium text-slate-700">Click to upload or drag and drop</div>
-                        <div className="mt-1 text-[12px] text-slate-500">PDF, DOCX, JPG, PNG, WEBP (max 10 files, 10 MB each)</div>
+                        <div className="mt-3 text-sm font-medium text-slate-700">Click to upload or drag and drop</div>
+                        <div className="mt-2 text-xs leading-5 text-slate-500">PDF, DOCX, JPG, PNG, WEBP (max 10 files, 10 MB each)</div>
                       </label>
                     ) : (
-                      <div className="space-y-3">
+                      <div className="space-y-5">
                         <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
                           {taskDocumentFiles.map((file, index) => {
                             const isOversized = file.size > MAX_DOCUMENT_BYTES;
@@ -571,11 +572,11 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
           </div>
         </div>
 
-        <div className="shrink-0 flex items-center justify-end gap-3 border-t border-slate-100 bg-white px-6 py-3.5 shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
+        <div className="shrink-0 flex items-center justify-end gap-2.5 border-t border-slate-200 bg-slate-50/60 px-5 py-4 sm:px-7">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-[15px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+            className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
           >
             Cancel
           </button>
@@ -591,7 +592,7 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                 emailChecklistExternalPerson &&
                 !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(externalAssigneeEmail.trim()))
             }
-            className={`inline-flex items-center gap-2 rounded-full bg-brand-red px-7 py-3 text-[15px] font-black text-white shadow-lg transition-colors hover:bg-brand-navy ${
+            className={`inline-flex items-center justify-center gap-2 rounded-lg bg-brand-red px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 ${
               saving ||
               uploadingTaskDocument ||
               !title.trim() ||

@@ -228,7 +228,7 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
   const shellClassName = portalMode === 'employee'
     ? 'space-y-4'
     : 'space-y-4';
-  const panelClassName = 'rounded-[22px] border border-slate-200/80 bg-[#f3f5f7] p-4 shadow-[0_10px_26px_rgba(15,23,42,0.04)] dark:border-[#1a2438] dark:bg-[#182235] dark:shadow-none';
+  const panelClassName = 'rounded-xl border border-slate-200/80 bg-[#f3f5f7] p-4 shadow-sm dark:border-[#1a2438] dark:bg-[#182235] dark:shadow-none';
 
   const renderDayCard = (day: AttendanceDay) => {
     const meta = getDayMeta(day);
@@ -239,7 +239,7 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
     return (
       <article
         key={day.date}
-        className="overflow-hidden rounded-[22px] border border-slate-200/80 bg-[#f3f6f8] dark:border-[#1a2438] dark:bg-[#18253a]"
+        className="overflow-hidden rounded-xl border border-slate-200/80 bg-[#f3f6f8] dark:border-[#1a2438] dark:bg-[#18253a]"
       >
         <button
           type="button"
@@ -255,8 +255,8 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
         >
           <div className="flex flex-col gap-2.5 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex items-start gap-3">
-              <div className="flex min-w-[56px] flex-col items-center rounded-[20px] bg-white px-2.5 py-1 text-center shadow-[0_8px_18px_rgba(15,23,42,0.04)] dark:bg-[#202942] dark:shadow-none">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-300">
+              <div className="flex min-w-[56px] flex-col items-center rounded-xl bg-white px-2.5 py-1 text-center shadow-sm dark:bg-[#202942] dark:shadow-none">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
                   {dayChip.month}
                 </span>
                 <span className="mt-0.5 text-[1.05rem] font-semibold leading-none text-slate-950 dark:text-white">
@@ -265,7 +265,7 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
               </div>
 
               <div className="min-w-0">
-                <h4 className="text-base font-semibold text-slate-950 dark:text-white">
+                <h4 className="text-base font-semibold text-slate-950 dark:text-white tracking-tight">
                   {dayChip.heading}
                 </h4>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -279,11 +279,11 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
                 <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-300">
                   {formatMinutes(day.minutes)}
                 </p>
-                <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   {meta.statusLabel}
                 </p>
               </div>
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-500 shadow-[0_6px_14px_rgba(15,23,42,0.04)] transition-transform dark:bg-white/5 dark:text-slate-300 dark:shadow-none">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm transition-transform dark:bg-white/5 dark:text-slate-300 dark:shadow-none">
                 <ChevronDown size={15} className={isExpanded ? 'rotate-180 transition-transform' : 'transition-transform'} />
               </span>
             </div>
@@ -303,7 +303,7 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
               </div>
 
               <div className="overflow-hidden bg-white dark:bg-[#11192c]">
-                <div className="hidden grid-cols-[minmax(0,1.25fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.9fr)] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500 md:grid">
+                <div className="hidden grid-cols-[minmax(0,1.25fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.9fr)] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 md:grid">
                   <span>Session</span>
                   <span>Check in</span>
                   <span>Check out</span>
@@ -372,14 +372,14 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
                         </div>
 
                         <div className="text-sm text-slate-600 dark:text-slate-300">
-                          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 md:hidden">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 md:hidden">
                             Check in
                           </span>
                           <p className="mt-1 md:mt-0">{formatSessionTime(session.loginTime)}</p>
                         </div>
 
                         <div className="text-sm text-slate-600 dark:text-slate-300">
-                          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 md:hidden">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 md:hidden">
                             Check out
                           </span>
                           <p className={`mt-1 md:mt-0 ${
@@ -398,7 +398,7 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
                         </div>
 
                         <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 md:text-right">
-                          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 md:hidden">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 md:hidden">
                             Duration
                           </span>
                           <p className="mt-1 md:mt-0">{formatMinutes(session.durationMinutes || 0)}</p>
@@ -452,7 +452,7 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-white/20 dark:hover:text-white"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-white/20 dark:hover:text-white"
           >
             <ArrowLeft size={16} />
             Back to attendance
@@ -462,11 +462,11 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className={panelClassName}>
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/12 dark:text-emerald-300">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/12 dark:text-emerald-300">
                 <History size={18} />
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                   Tracked days
                 </p>
                 <p className="mt-2 text-3xl font-semibold text-slate-950 dark:text-white">
@@ -478,11 +478,11 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
 
           <div className={panelClassName}>
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/12 dark:text-emerald-300">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/12 dark:text-emerald-300">
                 <Clock3 size={18} />
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                   Productive hours
                 </p>
                 <p className="mt-2 text-3xl font-semibold text-slate-950 dark:text-white">
@@ -495,11 +495,11 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
 
           <div className={panelClassName}>
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 dark:bg-amber-500/12 dark:text-amber-300">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/12 dark:text-amber-300">
                 <ArrowLeft size={18} className="rotate-180" />
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                   Avg. login
                 </p>
                 <p className="mt-2 text-3xl font-semibold text-slate-950 dark:text-white">
@@ -511,11 +511,11 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
 
           <div className={panelClassName}>
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 dark:bg-rose-500/12 dark:text-rose-300">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-500/12 dark:text-rose-300">
                 <MapPin size={18} />
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                   Break duration
                 </p>
                 <p className="mt-2 text-3xl font-semibold text-slate-950 dark:text-white">
@@ -533,14 +533,14 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
                 Daily session breakdown
               </h3>
             </div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
               Showing latest logs first
             </p>
           </div>
 
           <div className="mt-4 space-y-3">
             {sortedDays.length === 0 ? (
-              <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
                 No attendance records were found for this window.
               </div>
             ) : (
@@ -554,7 +554,7 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
                         <button
                           type="button"
                           onClick={() => setShowOlderHistory(true)}
-                          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
+                          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
                           aria-expanded={showOlderHistory}
                         >
                           Show older history
@@ -576,7 +576,7 @@ const AttendanceHistoryPage: React.FC<AttendanceHistoryPageProps> = ({
                             <button
                               type="button"
                               onClick={() => setShowOlderHistory(false)}
-                              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
+                              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
                               aria-expanded={showOlderHistory}
                             >
                               Hide older history

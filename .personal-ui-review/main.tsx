@@ -1,0 +1,10 @@
+import React, {useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import '../index.css';
+import SpacesPersonalCalendar from '../components/spaces/SpacesPersonalCalendar';
+import {PersonalViewSwitcher} from '../components/spaces/SpacesPersonalViews';
+import SpacesTaskToolbar from '../components/spaces/SpacesTaskToolbar';
+import AttendanceReportsRequests from '../components/attendance/AttendanceReportsRequests';
+const today=new Date(); const key=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+const tasks=[{taskId:'1',title:'Review project proposal',dueDate:key,status:'todo',priority:'high'}, {taskId:'2',title:'Plan next sprint',status:'doing',priority:'medium'}];
+function App(){const [mode,setMode]=useState('me'); const [view,setView]=useState('calendar'); const [calls,setCalls]=useState(0);return <main className="spaces-page attendance-page p-5 space-y-5 bg-slate-50"><SpacesTaskToolbar taskFilterMode={mode} setTaskFilterMode={setMode} taskStatusFilter="" taskStatusFilterOptions={[{value:'',label:'All statuses'}]} setTaskStatusFilter={()=>{}} taskSearch="" setTaskSearch={()=>{}} viewSwitcher={<PersonalViewSwitcher value={view} onChange={setView}/>}/><SpacesPersonalCalendar tasks={tasks} onOpen={t=>alert(t.title)}/><p>Action calls: {calls}</p><AttendanceReportsRequests canReviewTeam canManageOps pendingLateRecords={[]} pendingRegularizations={[{id:'r1',empName:'Example person',dateKey:key,reason:'Forgot to login'}]} lateRecords={[]} myRegularizations={[]} regForm={{dateKey:key,reason:'',requestType:'MISSED_PUNCH',proposedLoginTime:'09:30',proposedLogoutTime:'18:30'}} setRegForm={()=>{}} regSaving={false} onCreateRegularization={()=>{}} onDecide={()=>{setCalls(n=>n+1);return new Promise(r=>setTimeout(r,4000))}} onClearLateLoginRecords={()=>{}} onClearRegularizations={()=>{}} onDeleteLateLoginRecord={()=>{}} onDeleteRegularization={()=>new Promise(r=>setTimeout(r,4000))}/></main>};createRoot(document.getElementById('root')!).render(<App/>);

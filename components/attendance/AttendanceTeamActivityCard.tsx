@@ -44,16 +44,16 @@ const AttendanceTeamActivityCard: React.FC<Props> = ({
   isManagerPortal,
 }) => {
   return (
-    <div className="mt-8 overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_18px_40px_-28px_rgba(15,23,42,0.35)]">
+    <div className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between gap-3 bg-slate-200 px-5 py-4">
         <div className="min-w-0">
-          <h4 className="truncate text-[1.15rem] font-semibold leading-none text-slate-950">Team Activity</h4>
+          <h4 className="truncate text-[1.15rem] font-semibold leading-tight text-slate-950 tracking-tight">Team Activity</h4>
         </div>
         <div className="flex shrink-0 flex-nowrap items-center gap-2">
           <button
             type="button"
             onClick={onOpenTeamAttendance}
-            className="inline-flex items-center whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-700"
+            className="inline-flex items-center whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-700"
           >
             Open
           </button>
@@ -61,7 +61,7 @@ const AttendanceTeamActivityCard: React.FC<Props> = ({
             type="button"
             onClick={onRefreshTeamActivity}
             disabled={teamAttendanceSummaryLoading}
-            className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCw size={13} className={teamAttendanceSummaryLoading ? 'animate-spin' : ''} />
             Refresh
@@ -85,7 +85,7 @@ const AttendanceTeamActivityCard: React.FC<Props> = ({
         <div className="space-y-0">
           {Array.from({ length: 5 }).map((_, index) => (
             <div key={index} className="flex items-center gap-3 px-4 py-3">
-              <div className="h-10 w-10 rounded-2xl bg-slate-100" />
+              <div className="h-10 w-10 rounded-xl bg-slate-100" />
               <div className="min-w-0 flex-1">
                 <div className="h-3.5 w-36 rounded bg-slate-100" />
                 <div className="mt-2 h-2.5 w-32 rounded bg-slate-100" />
@@ -147,7 +147,7 @@ const AttendanceTeamActivityCard: React.FC<Props> = ({
                     className="flex items-start gap-3 px-4 py-3 transition-colors duration-200 hover:bg-slate-200/80"
                   >
                     <div className="relative shrink-0">
-                      <div className="h-10 w-10 overflow-hidden rounded-2xl bg-slate-100">
+                      <div className="h-10 w-10 overflow-hidden rounded-xl bg-slate-100">
                         <img src={avatarSrc} alt={member.empName} className="h-full w-full object-cover" />
                       </div>
                       <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${statusMeta.dotClass}`} />

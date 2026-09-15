@@ -1,6 +1,11 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
+import SpacesPersonalViews, {
+  PersonalViewSwitcher,
+  readStoredPersonalView,
+  storePersonalView,
+  type PersonalTaskView,
+} from './SpacesPersonalViews';
 import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
-import SpacesAiAssignPanel from './SpacesAiAssignPanel';
 import SpacesBulkActionsBar from './SpacesBulkActionsBar';
 import SpacesMonthGoalsSection from './SpacesMonthGoalsSection';
 import SpacesTaskCreateModal from './SpacesTaskCreateModal';
@@ -10,6 +15,11 @@ import SpacesTaskToolbar from './SpacesTaskToolbar';
 import SpacesTopPrioritiesPanel from './SpacesTopPrioritiesPanel';
 
 const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
+  const [personalView, setPersonalViewState] = useState<PersonalTaskView>(() => readStoredPersonalView('table'));
+  const setPersonalView = useCallback((view: PersonalTaskView) => {
+    setPersonalViewState(view);
+    storePersonalView(view);
+  }, []);
   const {
     me,
     title,
@@ -175,7 +185,7 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
   return (
     <>
       <div className="space-y-4">
-        <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(250px,20%)_minmax(0,80%)]">
+        <div className="min-w-0">
           <SpacesTopPrioritiesPanel
             topPriorityTasks={props.topPriorityTasks}
             navigate={navigate}
@@ -188,7 +198,7 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
             taskSearch={props.taskSearch}
           />
 
-          <div className="order-2 flex flex-col rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="hidden">
             <SpacesMonthGoalsSection
               tasks={monthGoalSourceTasks}
               canUseAssigneeFilter={canUseAssigneeFilter}
@@ -219,16 +229,8 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         </div>
       </div>
 
-      <SpacesAiAssignPanel
-        mode={mode}
-        aiAssigning={props.aiAssigning}
-        aiAssignFileName={props.aiAssignFileName}
-        aiAssignCreatedCount={props.aiAssignCreatedCount}
-        aiAssignTotalCount={props.aiAssignTotalCount}
-        handleAiAssignPdfUpload={props.handleAiAssignPdfUpload}
-      />
-
       <SpacesTaskToolbar
+        viewSwitcher={<PersonalViewSwitcher value={personalView} onChange={setPersonalView} />}
         setTaskFilterMode={props.setTaskFilterMode}
         taskFilterMode={props.taskFilterMode}
         taskStatusFilter={props.taskStatusFilter}
@@ -264,6 +266,9 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         checklistNotice={props.checklistNotice}
       />
 
+      {props.taskFilterMode === 'me' && personalView !== 'table' ? (
+        <SpacesPersonalViews key={me.id} view={personalView} controller={props} />
+      ) : (
       <SpacesTaskTableSection
         columns={columns}
         isRenamingColumnId={isRenamingColumnId}
@@ -328,6 +333,8 @@ const SpacesMainSections: React.FC<SpacesViewController> = (props) => {
         API_BASE={API_BASE}
         getAuthHeaders={getAuthHeaders}
       />
+
+      )}
 
       <SpacesTaskCreateModal
         open={isTaskCreateModalOpen}

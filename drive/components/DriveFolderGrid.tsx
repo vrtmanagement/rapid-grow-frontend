@@ -228,7 +228,7 @@ export default function DriveFolderGrid({
 
   function renderActions(folder: DriveFolder) {
     return (
-      <div className="ml-3 flex items-center gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100" onClick={(e) => e.stopPropagation()}>
+      <div className="ml-auto flex shrink-0 items-center gap-0.5 opacity-100 transition sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" onClick={(e) => e.stopPropagation()}>
         <IconActionButton label="Rename folder" onClick={() => onRename(folder)}>
           <Pencil size={15} />
         </IconActionButton>
@@ -260,12 +260,12 @@ export default function DriveFolderGrid({
       <button
         type="button"
         onClick={onCreateFolder}
-        className="flex h-full min-h-[164px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white/70 px-6 py-5 text-center transition hover:border-red-200 hover:text-brand-red"
+        className="flex h-full min-h-[180px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 px-6 py-5 text-center transition hover:border-red-200 hover:text-brand-red"
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-300">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-slate-400 ring-1 ring-slate-200">
           <Folder size={24} />
         </div>
-        <div className="text-base font-semibold text-slate-400">New Folder</div>
+        <div className="text-sm font-medium text-slate-500">New Folder</div>
       </button>
     );
   }
@@ -284,9 +284,9 @@ export default function DriveFolderGrid({
       <article
         key={folder.id}
         onClick={() => onOpen(folder)}
-        className="group flex h-full min-h-[164px] cursor-pointer flex-col overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-red-200 hover:shadow-md"
+        className="group flex h-full min-h-[180px] cursor-pointer flex-col overflow-visible rounded-xl border border-slate-200 bg-white transition hover:border-slate-300 hover:shadow-sm"
       >
-        <div className="flex flex-1 items-start justify-between gap-3 px-5 pt-4 pb-3">
+        <div className="flex flex-1 flex-wrap items-start justify-between gap-2 px-4 pt-4 pb-3">
           <button
             type="button"
             onClick={() => onOpen(folder)}
@@ -296,10 +296,10 @@ export default function DriveFolderGrid({
               <FolderIcon size={22} />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="line-clamp-2 text-[1.05rem] font-semibold leading-7 text-slate-900">
+              <div className="line-clamp-2 text-sm font-semibold leading-6 text-slate-900">
                 {folder.name}
               </div>
-              <div className="mt-1 truncate text-[11px] uppercase tracking-[0.16em] text-slate-400">
+              <div className="mt-1 truncate text-xs text-slate-400">
                 Updated {formatRelativeDate(folder.updatedAt)}
               </div>
               {folder.description ? (
@@ -309,8 +309,8 @@ export default function DriveFolderGrid({
           </button>
           {renderActions(folder)}
         </div>
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-4">
-          <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
             {statItems.map((item) => <span key={item}>{item}</span>)}
           </div>
           <div className="flex min-w-0 items-center gap-2">
@@ -325,7 +325,7 @@ export default function DriveFolderGrid({
                 {getInitials(ownerName)}
               </div>
             )}
-            <div className="truncate text-sm text-slate-400">{ownerName}</div>
+            <div className="max-w-[100px] truncate text-xs text-slate-500">{ownerName}</div>
           </div>
         </div>
       </article>
@@ -342,7 +342,7 @@ export default function DriveFolderGrid({
       <article
         key={folder.id}
         onClick={() => onOpen(folder)}
-        className="group flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition hover:border-red-200 hover:shadow-md"
+        className="group flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4 transition hover:border-slate-300 hover:shadow-sm"
       >
         <button
           type="button"
@@ -354,7 +354,7 @@ export default function DriveFolderGrid({
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-base font-semibold text-slate-900">{folder.name}</div>
-            <div className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-400">
+            <div className="mt-1 text-xs text-slate-400">
               Updated {formatRelativeDate(folder.updatedAt)}
             </div>
           </div>
@@ -373,7 +373,7 @@ export default function DriveFolderGrid({
                 {getInitials(ownerName)}
               </div>
             )}
-            <div className="truncate text-sm text-slate-400">{ownerName}</div>
+            <div className="max-w-[100px] truncate text-xs text-slate-500">{ownerName}</div>
           </div>
         </button>
         {renderActions(folder)}
@@ -383,7 +383,7 @@ export default function DriveFolderGrid({
 
   return (
     <div className="space-y-4">
-      <div className={layout === 'grid' ? 'grid grid-cols-1 gap-4 xl:grid-cols-3' : 'space-y-3'}>
+      <div className={layout === 'grid' ? 'grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3' : 'space-y-3'}>
         {folders.map((folder) => (layout === 'grid' ? renderFolderCard(folder) : renderFolderListItem(folder)))}
         {renderCreateCard()}
       </div>

@@ -252,7 +252,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
   return (
     <div className="space-y-8">
       {toast ? (
-        <div className={`fixed right-6 top-6 z-50 inline-flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-[0_20px_40px_rgba(15,23,42,0.16)] ${
+        <div className={`fixed right-6 top-6 z-50 inline-flex items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold shadow-sm ${
           toast.tone === 'success'
             ? 'border-emerald-200 bg-white text-emerald-700'
             : 'border-slate-200 bg-white text-slate-700'
@@ -270,7 +270,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
           showLopActions={isApproverPortal}
           formatApprovalDate={formatApprovalDate}
           calculateLeaveDays={calculateLeaveDays}
-          sectionClassName="w-full max-w-[720px] rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)]"
+          sectionClassName="w-full max-w-[720px] rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
           gridClassName="mt-5 grid gap-4"
         />
       ) : null}
@@ -316,15 +316,15 @@ const LeaveManagementPanel: React.FC<Props> = ({
             <div className={viewerRole === 'admin' && pendingLeaves.length > 0 ? 'order-2 space-y-6' : 'space-y-6'}>
               {canApplyLeave ? (
                 loading ? (
-                <div className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)] animate-pulse">
+                <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm animate-pulse">
                   <div className="space-y-4">
                     <Skeleton className="h-4 w-32" />
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <SkeletonBlock className="h-12 w-full rounded-2xl" />
-                      <SkeletonBlock className="h-12 w-full rounded-2xl" />
+                      <SkeletonBlock className="h-12 w-full rounded-xl" />
+                      <SkeletonBlock className="h-12 w-full rounded-xl" />
                     </div>
-                    <SkeletonBlock className="h-28 w-full rounded-2xl" />
-                    <SkeletonBlock className="h-12 w-full rounded-2xl" />
+                    <SkeletonBlock className="h-28 w-full rounded-xl" />
+                    <SkeletonBlock className="h-12 w-full rounded-xl" />
                   </div>
                 </div>
               ) : (
@@ -379,7 +379,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
                 showLopActions
                 formatApprovalDate={formatApprovalDate}
                 calculateLeaveDays={calculateLeaveDays}
-                sectionClassName="order-1 w-full max-w-[720px] rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)]"
+                sectionClassName="order-1 w-full max-w-[720px] rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
                 gridClassName="mt-5 grid gap-4"
                 showEmployeeLabelHeading={false}
                 compactTitleLine={true}
@@ -404,8 +404,8 @@ const LeaveManagementPanel: React.FC<Props> = ({
         ) : null}
 
         {isApproverPortal ? (
-          <div className="rounded-[26px] border border-slate-200 bg-white px-5 py-4 shadow-sm">
-            <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+          <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+            <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">
               LOP filters
             </span>
             <FilterDropdown
@@ -463,8 +463,8 @@ const LeaveManagementPanel: React.FC<Props> = ({
       ) : null}
 
       {showPolicySection ? (
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 md:p-6">
-          <h3 className="text-lg font-semibold text-slate-900">Leave policy moved</h3>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6">
+          <h3 className="text-lg font-semibold text-slate-900 tracking-tight">Leave policy moved</h3>
           <p className="mt-2 text-sm text-slate-500">
             Manage monthly paid leaves and LOP rules in Attendance → Reports → Setup.
           </p>
@@ -477,7 +477,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
           onLeaveAction={onLeaveAction}
           formatApprovalDate={formatApprovalDate}
           calculateLeaveDays={calculateLeaveDays}
-          sectionClassName="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)]"
+          sectionClassName="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
           gridClassName="mt-5 grid gap-4 md:grid-cols-2"
         />
       ) : null}

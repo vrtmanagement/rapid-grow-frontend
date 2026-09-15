@@ -198,7 +198,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
 
   if (loading) {
     return (
-      <div className="rounded-[2rem] border border-white/10 bg-slate-900 p-7 text-white shadow-2xl">
+      <div className="rounded-xl border border-white/10 bg-slate-900 p-7 text-white shadow-2xl">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <Skeleton className="h-3 w-20 bg-white/10" />
@@ -214,7 +214,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
           <SkeletonBlock className="h-10 flex-1 rounded-xl bg-slate-800" />
           <SkeletonBlock className="h-10 flex-1 rounded-xl bg-slate-800" />
         </div>
-        <div className="mt-5 rounded-2xl border border-slate-700 bg-slate-800/70 px-4 py-3">
+        <div className="mt-5 rounded-xl border border-slate-700 bg-slate-800/70 px-4 py-3">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Skeleton className="h-3 w-20 bg-white/10" />
@@ -231,8 +231,8 @@ const AttendanceLiveSession: React.FC<Props> = ({
   }
 
   const shellClassName = isEmployeeVariant
-    ? `relative overflow-hidden rounded-[32px] border bg-white p-5 text-slate-900 ${employeeShellToneClass[statusTone]}`
-    : `relative overflow-hidden rounded-[2rem] border bg-slate-900 p-7 text-white ${statusTheme.shell}`;
+    ? `relative overflow-hidden rounded-xl border bg-white p-5 text-slate-900 ${employeeShellToneClass[statusTone]}`
+    : `relative overflow-hidden rounded-xl border bg-slate-900 p-7 text-white ${statusTheme.shell}`;
 
   const titleClassName = isEmployeeVariant
     ? 'mt-1.5 text-[1.3rem] font-medium leading-[1.1] text-slate-950'
@@ -243,7 +243,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
     : `inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] ${statusTheme.badge}`;
 
   const inputClassName = isEmployeeVariant
-    ? 'mt-2.5 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-[0.95rem] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-red/50'
+    ? 'mt-2.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-[0.95rem] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-red/50'
     : 'mt-1 w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-red/60';
 
   return (
@@ -274,7 +274,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
         </div>
 
         <div className="mt-3 flex justify-center">
-          <div className={isEmployeeVariant ? 'rounded-[16px] border border-slate-200 bg-slate-50 px-4 py-2.5' : 'rounded-[16px] border border-white/10 bg-white/[0.04] px-4 py-3'}>
+          <div className={isEmployeeVariant ? 'rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5' : 'rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3'}>
             <div className="flex items-center justify-center gap-2 text-center">
               <span className={`font-mono text-[1.55rem] font-semibold leading-none tabular-nums ${isEmployeeVariant ? 'text-slate-950' : 'text-white'}`}>
                 {sessionStopwatchText || breakStopwatchText || currentTimeParts.timeText}
@@ -305,7 +305,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
               type="button"
               onClick={isOnBreak ? onResumeBreak : onStartBreak}
               disabled={attendanceActionDisabled}
-              className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 font-medium transition-colors ${
+              className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-medium transition-colors ${
                 attendanceActionDisabled
                   ? 'cursor-not-allowed bg-slate-200 text-slate-400'
                   : isOnBreak
@@ -329,7 +329,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
               type="button"
               onClick={onLogin}
               disabled={attendanceActionDisabled}
-              className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 font-medium transition-colors ${
+              className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-medium transition-colors ${
                 loginLoading
                   ? 'cursor-wait bg-slate-200 text-slate-400'
                   : isEmployeeVariant
@@ -350,7 +350,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
             type="button"
             onClick={onLogout}
             disabled={!activeSession || attendanceActionDisabled}
-            className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 font-medium transition-colors ${
+            className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-medium transition-colors ${
               activeSession && !attendanceActionDisabled
                 ? 'bg-rose-600 text-white hover:bg-rose-700'
                 : isEmployeeVariant
@@ -368,12 +368,12 @@ const AttendanceLiveSession: React.FC<Props> = ({
         </div>
 
         {errorMessage ? (
-          <p className={`mt-4 rounded-2xl border px-4 py-3 ${isEmployeeVariant ? 'border-rose-200 bg-rose-50 text-sm text-rose-600' : 'border-rose-400/20 bg-rose-400/10 text-[11px] text-rose-200'}`}>
+          <p className={`mt-4 rounded-xl border px-4 py-3 ${isEmployeeVariant ? 'border-rose-200 bg-rose-50 text-sm text-rose-600' : 'border-rose-400/20 bg-rose-400/10 text-[11px] text-rose-200'}`}>
             {errorMessage}
           </p>
         ) : null}
         {showLateLoginWarning ? (
-          <div className={`mt-4 rounded-2xl border px-4 py-3 ${isEmployeeVariant ? 'border-amber-200 bg-amber-50 text-sm text-amber-700' : 'border-amber-400/20 bg-amber-400/10 text-[11px] text-amber-100'}`}>
+          <div className={`mt-4 rounded-xl border px-4 py-3 ${isEmployeeVariant ? 'border-amber-200 bg-amber-50 text-sm text-amber-700' : 'border-amber-400/20 bg-amber-400/10 text-[11px] text-amber-100'}`}>
             <p>
               Login window closed at {lateLoginPolicy?.cutoffTimeLabel}. Please request approval from your TL or Admin.
             </p>
@@ -381,7 +381,7 @@ const AttendanceLiveSession: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={onOpenLateRequests}
-                className="mt-3 inline-flex items-center rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-600"
+                className="mt-3 inline-flex items-center rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-600"
               >
                 Go to Late → Request approval
               </button>
@@ -389,12 +389,12 @@ const AttendanceLiveSession: React.FC<Props> = ({
           </div>
         ) : null}
         {!showLateLoginWarning && !activeSession && lateLoginPolicy?.hasApproval ? (
-          <div className={`mt-4 rounded-2xl border px-4 py-3 ${isEmployeeVariant ? 'border-emerald-200 bg-emerald-50 text-sm text-emerald-700' : 'border-emerald-400/20 bg-emerald-400/10 text-[11px] text-emerald-100'}`}>
+          <div className={`mt-4 rounded-xl border px-4 py-3 ${isEmployeeVariant ? 'border-emerald-200 bg-emerald-50 text-sm text-emerald-700' : 'border-emerald-400/20 bg-emerald-400/10 text-[11px] text-emerald-100'}`}>
             Late login is approved for today{lateLoginPolicy.approval?.approvedByName ? ` by ${lateLoginPolicy.approval.approvedByName}` : ''}.
           </div>
         ) : null}
 
-        <div className={`mt-4 rounded-[22px] border ${isEmployeeVariant ? 'border-slate-200 bg-slate-50 px-2.5 py-2 text-[0.84rem] text-slate-600' : 'border-white/10 bg-white/5 px-4 py-3 text-[11px] text-slate-300'}`}>
+        <div className={`mt-4 rounded-xl border ${isEmployeeVariant ? 'border-slate-200 bg-slate-50 px-2.5 py-2 text-[0.84rem] text-slate-600' : 'border-white/10 bg-white/5 px-4 py-3 text-[11px] text-slate-300'}`}>
           <div className={isEmployeeVariant ? 'divide-y divide-slate-200' : 'space-y-2'}>
             <div className={`flex items-center justify-between gap-4 py-2 ${isEmployeeVariant ? '' : 'border-t border-white/10 pt-2'}`}>
               <span>Logged in at</span>

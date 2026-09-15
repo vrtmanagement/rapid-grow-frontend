@@ -386,7 +386,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
   if (isEmployeePortal || isManagerPortal) {
     return (
       <div className="space-y-8">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           <div className="space-y-6 lg:col-span-8">
             <AttendanceSummaryCards
               summary={summary}
@@ -443,25 +443,25 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
             ) : null}
 
             {canReviewTeamAttendance && !isManagerPortal ? (
-              <div className="rounded-[24px] border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-navy p-[15px] text-white">
+              <div className="rounded-xl border border-slate-800/80 bg-slate-900 p-[15px] text-white">
                 {teamAttendanceSummaryLoading ? (
                   <div className="grid grid-cols-3 gap-2">
-                    <div className="rounded-[16px] bg-white/5 px-2.5 py-[9px] text-center text-xs text-slate-400">...</div>
-                    <div className="rounded-[16px] bg-white/5 px-2.5 py-[9px] text-center text-xs text-slate-400">...</div>
-                    <div className="rounded-[16px] bg-white/5 px-2.5 py-[9px] text-center text-xs text-slate-400">...</div>
+                    <div className="rounded-xl bg-white/5 px-2.5 py-[9px] text-center text-xs text-slate-400">...</div>
+                    <div className="rounded-xl bg-white/5 px-2.5 py-[9px] text-center text-xs text-slate-400">...</div>
+                    <div className="rounded-xl bg-white/5 px-2.5 py-[9px] text-center text-xs text-slate-400">...</div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-2">
-                    <div className="rounded-[16px] bg-emerald-500/10 px-2.5 py-[9px] text-center">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-200">Present</p>
+                    <div className="rounded-xl bg-emerald-500/10 px-2.5 py-[9px] text-center">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-200">Present</p>
                       <p className="mt-1.5 text-[1.65rem] font-semibold leading-none text-white">{teamAttendanceSummary?.present ?? 0}</p>
                     </div>
-                    <div className="rounded-[16px] bg-rose-500/10 px-2.5 py-[9px] text-center">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-rose-200">Absent</p>
+                    <div className="rounded-xl bg-rose-500/10 px-2.5 py-[9px] text-center">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-rose-200">Absent</p>
                       <p className="mt-1.5 text-[1.65rem] font-semibold leading-none text-white">{teamAttendanceSummary?.absent ?? 0}</p>
                     </div>
-                    <div className="rounded-[16px] bg-white/5 px-2.5 py-[9px] text-center">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-300">Total</p>
+                    <div className="rounded-xl bg-white/5 px-2.5 py-[9px] text-center">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-300">Total</p>
                       <p className="mt-1.5 text-[1.65rem] font-semibold leading-none text-white">{teamAttendanceSummary?.total ?? 0}</p>
                     </div>
                   </div>
@@ -505,7 +505,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
       <div className="space-y-6 lg:col-span-8">
         <AttendanceSummaryCards
           summary={summary}
@@ -544,8 +544,8 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
           lateLoginPolicy={lateLoginPolicy}
         />
         {canReviewTeamAttendance && (
-          <div className="rounded-[30px] border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-navy p-6 text-white">
-            <h4 className="text-lg font-semibold text-white">Today attendance</h4>
+          <div className="rounded-xl border border-slate-800/80 bg-slate-900 p-6 text-white">
+            <h4 className="text-lg font-semibold text-white tracking-tight">Today attendance</h4>
             <p className="mt-2 text-sm leading-6 text-slate-300">Shows how many team members logged in today.</p>
             {teamAttendanceSummaryLoading ? (
               <div className="mt-5 grid grid-cols-3 gap-3">
@@ -556,15 +556,15 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
             ) : (
               <div className="mt-5 grid grid-cols-3 gap-3">
                 <div className="rounded-xl bg-emerald-500/10 px-3 py-4 text-center">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">Present</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-200">Present</p>
                   <p className="mt-2 text-2xl font-semibold text-white">{teamAttendanceSummary?.present ?? 0}</p>
                 </div>
                 <div className="rounded-xl bg-rose-500/10 px-3 py-4 text-center">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200">Absent</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-200">Absent</p>
                   <p className="mt-2 text-2xl font-semibold text-white">{teamAttendanceSummary?.absent ?? 0}</p>
                 </div>
                 <div className="rounded-xl bg-white/5 px-3 py-4 text-center">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">Total</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">Total</p>
                   <p className="mt-2 text-2xl font-semibold text-white">{teamAttendanceSummary?.total ?? 0}</p>
                 </div>
               </div>

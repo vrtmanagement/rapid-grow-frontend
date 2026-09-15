@@ -536,15 +536,15 @@ function FileCard({
     <article
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`group relative flex flex-col items-center gap-3 rounded-2xl px-2 py-2 transition duration-200 ease-out ${
+      className={`group relative flex flex-col items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 transition duration-200 ease-out ${
         selected
           ? 'bg-red-50/55 ring-1 ring-brand-red/20'
-          : 'hover:bg-slate-50/65'
+          : 'hover:border-slate-300 hover:shadow-sm'
       }`}
     >
       <FileHoverTooltip file={file} meta={meta} visible={tooltipVisible} />
 
-      <div className={`relative flex w-full items-center justify-center overflow-hidden rounded-2xl ${isImageFile(file) ? 'h-[9rem]' : 'h-[9rem]'}`}>
+      <div className={`relative flex w-full items-center justify-center overflow-hidden rounded-lg bg-slate-50/80 ${isImageFile(file) ? 'h-[9rem]' : 'h-[9rem]'}`}>
         <button
           type="button"
           onClick={() => onDownload(file)}
@@ -559,7 +559,7 @@ function FileCard({
           className={`pointer-events-auto absolute left-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-md border bg-white text-slate-600 shadow-[0_10px_18px_-16px_rgba(15,23,42,0.4)] transition duration-200 ${
             selected
               ? 'border-brand-red/35 bg-red-50 text-brand-red opacity-100'
-              : 'border-slate-200 opacity-0 group-hover:opacity-100'
+              : 'border-slate-200 opacity-100 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
           } ${selectionMode ? 'opacity-100' : ''}`}
         >
           <input
@@ -571,7 +571,7 @@ function FileCard({
           />
         </label>
 
-        <div className="absolute right-4 top-4">
+        <div className="absolute right-2 top-2">
           <FileActionMenu
             file={file}
             onDownload={onDownload}
@@ -584,17 +584,17 @@ function FileCard({
         </div>
       </div>
 
-      <div className="w-full max-w-[12rem] space-y-1">
+      <div className="w-full space-y-2 px-1 pb-1">
         <button
           type="button"
           onClick={() => onDownload(file)}
-          className="line-clamp-3 w-full break-words text-center text-[0.98rem] font-medium leading-6 text-slate-900 transition hover:text-brand-red"
+          className="line-clamp-2 w-full break-words text-left text-sm font-medium leading-5 text-slate-900 transition hover:text-brand-red"
           title={file.fileName}
         >
           {file.fileName}
         </button>
-        <div className="space-y-1 text-center">
-          <div className="text-xs uppercase tracking-[0.16em] text-slate-400">{getFileExtension(file.fileName)}</div>
+        <div className="flex flex-wrap items-center justify-between gap-2 text-left">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-slate-500">{getFileExtension(file.fileName)}</div>
           <div className="text-xs text-slate-500">{formatCalendarDate(file.updatedAt)}</div>
         </div>
       </div>
@@ -655,13 +655,13 @@ export default function DriveFilesTable({
 
       <div>
         {loading && files.length === 0 ? (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {Array.from({ length: 8 }).map((_, index) => (
               <FileCardSkeleton key={`drive-file-skeleton-${index}`} />
             ))}
           </div>
         ) : files.length ? (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {files.map((file) => (
               <FileCard
                 key={file.id}
@@ -679,7 +679,7 @@ export default function DriveFilesTable({
             ))}
           </div>
         ) : (
-          <div className="flex min-h-[18rem] flex-col items-center justify-center rounded-[1.35rem] border border-dashed border-slate-200 bg-white/80 px-6 py-10 text-center">
+          <div className="flex min-h-[14rem] flex-col items-center justify-center rounded-[1.35rem] border border-dashed border-slate-200 bg-white/80 px-6 py-10 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-[1.2rem] bg-slate-100">
               <FileText size={28} className="text-slate-400" />
             </div>

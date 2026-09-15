@@ -107,12 +107,12 @@ const AttendanceLeavePolicySetup: React.FC<Props> = ({ canManage, onToast }) => 
 
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="border-b border-slate-100 px-5 py-4 md:px-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
             Step 1 · Leave allowance
           </p>
-          <h3 className="mt-1 text-xl font-semibold text-slate-950">Monthly paid leaves</h3>
+          <h3 className="mt-1 text-xl font-semibold text-slate-950 tracking-tight">Monthly paid leaves</h3>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
             Set how many paid leave days employees get each month. Leave is tracked in Leave management — the presence graph only shows Sunday, holiday, and absent.
           </p>
@@ -131,14 +131,14 @@ const AttendanceLeavePolicySetup: React.FC<Props> = ({ canManage, onToast }) => 
                   type="button"
                   disabled={!canManage || monthlyPaidLeaves <= 0 || saving}
                   onClick={() => bumpPaidLeaves(-1)}
-                  className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
                   aria-label="Decrease"
                 >
                   <Minus size={18} />
                 </button>
-                <div className="min-w-[120px] rounded-2xl bg-slate-950 px-5 py-3 text-center text-white">
+                <div className="min-w-[120px] rounded-xl bg-slate-950 px-5 py-3 text-center text-white">
                   <div className="text-3xl font-semibold tabular-nums leading-none">{monthlyPaidLeaves}</div>
-                  <div className="mt-1 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                  <div className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
                     {monthlyPaidLeaves === 1 ? 'day / month' : 'days / month'}
                   </div>
                 </div>
@@ -146,7 +146,7 @@ const AttendanceLeavePolicySetup: React.FC<Props> = ({ canManage, onToast }) => 
                   type="button"
                   disabled={!canManage || monthlyPaidLeaves >= 31 || saving}
                   onClick={() => bumpPaidLeaves(1)}
-                  className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
                   aria-label="Increase"
                 >
                   <Plus size={18} />
@@ -159,7 +159,7 @@ const AttendanceLeavePolicySetup: React.FC<Props> = ({ canManage, onToast }) => 
                     type="button"
                     onClick={() => void handleSavePaidLeaves()}
                     disabled={saving}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-brand-red px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-600 disabled:opacity-60"
+                    className="inline-flex items-center gap-2 rounded-lg bg-brand-red px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-600 disabled:opacity-60"
                   >
                     {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
                     {saving ? 'Saving…' : 'Save leave policy'}
@@ -171,17 +171,17 @@ const AttendanceLeavePolicySetup: React.FC<Props> = ({ canManage, onToast }) => 
         </div>
       </section>
 
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <button
           type="button"
           onClick={() => setShowLop((open) => !open)}
           className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left md:px-6"
         >
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
               Optional · Loss of pay
             </p>
-            <h3 className="mt-1 text-base font-semibold text-slate-900">LOP rules</h3>
+            <h3 className="mt-1 text-base font-semibold text-slate-900 tracking-tight">LOP rules</h3>
             <p className="mt-0.5 text-sm text-slate-500">
               Advance notice, multipliers, and late-application deductions.
             </p>

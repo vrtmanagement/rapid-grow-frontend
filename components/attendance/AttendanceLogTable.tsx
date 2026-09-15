@@ -17,16 +17,16 @@ interface Props {
 
 const AttendanceLogTable: React.FC<Props> = ({ onOpenHistory, displayRows, resolvedRowLocations }) => {
   return (
-    <div className="overflow-hidden rounded-[34px] border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex flex-col gap-4 bg-slate-200 px-5 py-5 md:flex-row md:items-center md:justify-between">
         <div>
-          <h4 className="text-[1.15rem] font-semibold leading-none text-slate-950">Attendance log</h4>
+          <h4 className="text-[1.15rem] font-semibold leading-tight text-slate-950 tracking-tight">Attendance log</h4>
           <p className="mt-2 text-sm text-slate-500">Detailed daily records from the current selection.</p>
         </div>
         <button
           type="button"
           onClick={onOpenHistory}
-          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
         >
           Open full history
         </button>
@@ -35,7 +35,7 @@ const AttendanceLogTable: React.FC<Props> = ({ onOpenHistory, displayRows, resol
       <div className="overflow-x-auto px-5 pb-7 pt-6">
         <table className="min-w-full divide-y divide-slate-100">
           <thead>
-            <tr className="text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+            <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
               <th className="pb-4 pr-4">Date</th>
               <th className="pb-4 pr-4">Login</th>
               <th className="pb-4 pr-4">Logout</th>

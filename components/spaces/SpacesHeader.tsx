@@ -7,16 +7,20 @@ type SpacesHeaderProps = {
   mode: SpacesMode;
   onCreateTask: () => void;
   onNavigateAiAgent: () => void;
+  aiAssign?: React.ReactNode;
 };
 
-const SpacesHeader: React.FC<SpacesHeaderProps> = ({ mode, onCreateTask, onNavigateAiAgent }) => (
+const SpacesHeader: React.FC<SpacesHeaderProps> = ({ mode, onCreateTask, onNavigateAiAgent, aiAssign }) => (
   <PageSectionSubnav
-    leadingClassName="pl-3 sm:pl-4"
-    trailingClassName="pr-3 sm:pr-4 lg:pr-5"
+    outerClassName="!mx-0 !mb-0 !border-b-slate-200/80 !bg-white !px-0 !shadow-none"
+    innerClassName="!gap-3 !py-5"
+    leadingClassName="pl-1"
+    trailingClassName="pr-1"
+    centerClassName="!gap-2 !overflow-visible flex-wrap"
     leading={
       <>
-        <div className="h-1.5 w-8 rounded-full bg-brand-red" />
-        <span className="truncate text-sm font-medium text-slate-600 sm:text-[15px]">Task Hub</span>
+        <div className="h-7 w-1 rounded-full bg-brand-red" />
+        <span className="truncate text-2xl font-semibold tracking-tight text-slate-900">Task Hub</span>
       </>
     }
     center={
@@ -24,17 +28,18 @@ const SpacesHeader: React.FC<SpacesHeaderProps> = ({ mode, onCreateTask, onNavig
         <>
           <button
             type="button"
-            className="border-b-2 border-brand-red px-1 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-900 sm:text-[12px]"
+            className="rounded-lg bg-red-50 px-4 py-2 text-sm font-semibold text-brand-red"
           >
             Overview
           </button>
           <button
             type="button"
             onClick={onNavigateAiAgent}
-            className="border-b-2 border-transparent px-1 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 transition-colors hover:text-slate-900 sm:text-[12px]"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
           >
             AI Agent
           </button>
+          {aiAssign}
         </>
       ) : undefined
     }

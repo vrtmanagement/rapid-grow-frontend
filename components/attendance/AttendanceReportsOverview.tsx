@@ -10,9 +10,9 @@ interface Props {
 
 const AttendanceReportsOverview: React.FC<Props> = ({ monthLabel, report, reportLoading, canReviewTeam }) => {
   return (
-    <section className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-5 md:p-6">
+    <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 md:p-6">
       <div>
-        <h3 className="text-xl font-semibold text-slate-900">{monthLabel}</h3>
+        <h3 className="text-xl font-semibold text-slate-900 tracking-tight">{monthLabel}</h3>
         <p className="mt-1 text-sm text-slate-500">
           {report?.isMonthToDate
             ? `Counting day 1 through today (${report.asOfDateKey}) · ${report.coveredDays || 0} calendar days · Sundays are not marked absent`
@@ -23,7 +23,7 @@ const AttendanceReportsOverview: React.FC<Props> = ({ monthLabel, report, report
       </div>
 
       {reportLoading ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+        <div className="rounded-xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
           Loading overview…
         </div>
       ) : canReviewTeam ? (
@@ -38,8 +38,8 @@ const AttendanceReportsOverview: React.FC<Props> = ({ monthLabel, report, report
             { label: 'Leave days', value: report?.totals.leaveDays ?? '—' },
             { label: 'Presence rate', value: report ? `${report.totals.presenceRate}%` : '—' },
           ].map((card) => (
-            <div key={card.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            <div key={card.label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                 {card.label}
               </div>
               <div className="mt-2 text-2xl font-semibold text-slate-900">{card.value}</div>
@@ -47,15 +47,15 @@ const AttendanceReportsOverview: React.FC<Props> = ({ monthLabel, report, report
           ))}
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
+        <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
           Use Requests to submit a forgot-login correction. Team totals appear for managers/admins.
         </div>
       )}
 
       {(report?.departments || []).length > 0 ? (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200">
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-400">
+            <thead className="bg-slate-50 text-[11px] normal-case tracking-normal text-slate-400">
               <tr>
                 <th className="px-4 py-3">Department</th>
                 <th className="px-4 py-3">People</th>

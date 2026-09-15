@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, UploadCloud, WandSparkles } from 'lucide-react';
+import { Loader2, WandSparkles } from 'lucide-react';
 import { FileDropZone } from '../ui/FileDropZone';
 import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
 
@@ -28,7 +28,7 @@ const SpacesAiAssignPanel: React.FC<SpacesAiAssignPanelProps> = ({
     <FileDropZone
       multiple={false}
       disabled={aiAssigning}
-      className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm"
+      className="min-w-0 rounded-lg"
       overlayTitle="Drop file for AI Assign"
       overlayHint="PDF, Word, Excel, CSV, or plain text"
       onFiles={(files) => {
@@ -36,30 +36,17 @@ const SpacesAiAssignPanel: React.FC<SpacesAiAssignPanelProps> = ({
         void handleAiAssignPdfUpload(file);
       }}
     >
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
-            <WandSparkles size={18} />
-          </div>
-          <div className="min-w-0">
-            <h4 className="text-[15px] font-semibold text-slate-900">AI Assign</h4>
-            <p className="mt-0.5 truncate text-[12px] text-slate-500">
-              {aiAssigning
-                ? `Processing ${aiAssignFileName || 'file'} and creating tasks live...`
-                : 'Upload a document or sheet to create and assign TaskHub items.'}
-            </p>
-            {hasProgress ? (
-              <p className="mt-1 text-[12px] font-medium text-slate-700">{progressLabel}</p>
-            ) : null}
-          </div>
-        </div>
+      <div className="flex flex-col items-center gap-1">
         <label
-          className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition ${
-            aiAssigning ? 'bg-slate-100 text-slate-400' : 'bg-brand-red text-white hover:bg-brand-red/90'
+          title={aiAssigning
+            ? `Processing ${aiAssignFileName || 'file'} and creating tasks live...`
+            : 'Upload a document or sheet to create and assign TaskHub items.'}
+          className={`inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition focus-within:ring-2 focus-within:ring-violet-300 ${
+            aiAssigning ? 'bg-slate-100 text-slate-400' : 'bg-violet-50 text-violet-700 hover:bg-violet-100'
           }`}
         >
-          {aiAssigning ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
-          {aiAssigning ? 'Assigning...' : 'Upload File'}
+          {aiAssigning ? <Loader2 size={16} className="animate-spin" /> : <WandSparkles size={16} />}
+          {aiAssigning ? 'Assigning...' : 'AI Assign'}
           {aiAssigning && aiAssignTotalCount > 0 ? (
             <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-inherit">
               {Math.min(aiAssignCreatedCount, aiAssignTotalCount)}/{aiAssignTotalCount}
@@ -69,7 +56,7 @@ const SpacesAiAssignPanel: React.FC<SpacesAiAssignPanelProps> = ({
             type="file"
             accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
             disabled={aiAssigning}
-            className="hidden"
+            className="sr-only"
             onChange={(event) => {
               const file = event.target.files?.[0] || null;
               event.target.value = '';
@@ -77,6 +64,9 @@ const SpacesAiAssignPanel: React.FC<SpacesAiAssignPanelProps> = ({
             }}
           />
         </label>
+        {hasProgress ? (
+          <p role="status" className="text-center text-[11px] text-slate-500">{progressLabel}</p>
+        ) : null}
       </div>
     </FileDropZone>
   );

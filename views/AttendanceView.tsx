@@ -14,7 +14,7 @@ const AttendanceView = ({ mode = 'manager' }: Props) => {
   const ctrl = useAttendanceViewController(mode);
 
   return (
-    <div className="w-full space-y-10 animate-in fade-in duration-700">
+    <div className="attendance-page w-full min-w-0 space-y-6 pb-6">
       <AttendancePortalSubnav
         isEmployeePortal={ctrl.isEmployeePortal}
         isHistoryRoute={ctrl.isHistoryRoute}
@@ -42,7 +42,7 @@ const AttendanceView = ({ mode = 'manager' }: Props) => {
         onNavigateExpense={() => navigate('/expense-travel')}
       />
 
-      <div className={`${ctrl.attendanceContentWidthClassName} mx-auto space-y-10`}>
+      <div className={`${ctrl.attendanceContentWidthClassName} mx-auto min-w-0 space-y-6`}>
         <AttendanceViewContent ctrl={ctrl} />
 
         <LateLoginSettingsModal

@@ -11,12 +11,12 @@ interface Props {
 
 const AttendanceTodayActivityCard: React.FC<Props> = ({ todayActivityEvents, activeSession, teamActivityNow }) => {
   return (
-    <div className="mt-8 rounded-[30px] border border-slate-200 bg-white py-4">
+    <div className="mt-8 rounded-xl border border-slate-200 bg-white py-4">
       <div className="flex items-start justify-between gap-4 px-5">
         <div>
-          <h4 className="text-[1.15rem] font-semibold leading-none text-slate-800">Today activity</h4>
+          <h4 className="text-[1.15rem] font-semibold leading-tight text-slate-800 tracking-tight">Today activity</h4>
         </div>
-        <div className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-white">
+        <div className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
           Live
         </div>
       </div>
@@ -27,7 +27,7 @@ const AttendanceTodayActivityCard: React.FC<Props> = ({ todayActivityEvents, act
         }`}
       >
         {todayActivityEvents.length === 0 ? (
-          <div className="mx-5 rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-400">
+          <div className="mx-5 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-400">
             No attendance activity recorded for today yet.
           </div>
         ) : (

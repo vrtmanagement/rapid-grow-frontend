@@ -20,10 +20,10 @@ const AttendanceReportsEmployees: React.FC<Props> = ({
   onExportFilteredEmployees,
 }) => {
   return (
-    <section className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-5 md:p-6">
+    <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 md:p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <h3 className="text-xl font-semibold text-slate-900">Employee attendance</h3>
+          <h3 className="text-xl font-semibold text-slate-900 tracking-tight">Employee attendance</h3>
           <p className="mt-1 text-sm text-slate-500">
             Present / leave / absent inside the counted days. Sundays are excluded from absent.
           </p>
@@ -33,7 +33,7 @@ const AttendanceReportsEmployees: React.FC<Props> = ({
             type="button"
             onClick={onExportFilteredEmployees}
             disabled={!canReviewTeam || filteredEmployees.length === 0}
-            className="inline-flex items-center justify-center gap-2 self-end rounded-xl bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 self-end rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download size={14} />
             Export
@@ -45,20 +45,20 @@ const AttendanceReportsEmployees: React.FC<Props> = ({
               value={employeeSearch}
               onChange={(event) => onEmployeeSearchChange(event.target.value)}
               placeholder="Search name, ID, or department"
-              className="w-full rounded-xl border border-slate-200 py-2.5 pl-9 pr-3 text-sm text-slate-800"
+              className="w-full rounded-lg border border-slate-200 py-2.5 pl-9 pr-3 text-sm text-slate-800"
             />
           </label>
         </div>
       </div>
 
       {!canReviewTeam ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
+        <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
           Employee report table is available to managers and admins.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200">
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.12em] text-slate-400">
+            <thead className="bg-slate-50 text-[11px] normal-case tracking-normal text-slate-400">
               <tr>
                 <th className="px-4 py-3">Employee</th>
                 <th className="px-4 py-3">Days</th>

@@ -35,14 +35,14 @@ const LeaveAdminLeaveOperationsSection: React.FC<LeaveAdminLeaveOperationsSectio
   leaveStats,
 }) => {
   return (
-    <section className="rounded-[32px] border border-slate-200 bg-white px-6 py-6 shadow-[0_22px_60px_rgba(15,23,42,0.08)] md:px-8">
+    <section className="rounded-xl border border-slate-200 bg-white px-6 py-6 shadow-sm md:px-8">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="mb-3 flex items-center gap-2">
             <div className="h-1.5 w-8 rounded-full bg-brand-red" />
             <span className="text-[15px] text-slate-500">Approval Workspace</span>
           </div>
-          <h3 className="text-2xl font-semibold text-slate-950">Leave operations</h3>
+          <h3 className="text-2xl font-semibold text-slate-950 tracking-tight">Leave operations</h3>
           <p className="mt-2 max-w-2xl text-[15px] leading-8 text-slate-600">
             Review leave activity and monitor pending approvals without changing the current dashboard flow.
           </p>
@@ -59,7 +59,7 @@ const LeaveAdminLeaveOperationsSection: React.FC<LeaveAdminLeaveOperationsSectio
                     setAdminEmployeePickerOpen((prev) => !prev);
                     setAdminMonthPickerOpen(false);
                   }}
-                  className="flex w-full items-center justify-between rounded-[20px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3.5 text-left text-[15px] font-semibold text-slate-900 shadow-[0_12px_30px_rgba(15,23,42,0.06)] outline-none transition-all hover:border-slate-300 hover:shadow-[0_14px_34px_rgba(15,23,42,0.08)] focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10"
+                  className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3.5 text-left text-[15px] font-semibold text-slate-900 shadow-sm outline-none transition-all hover:border-slate-300 hover:shadow-sm focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10"
                 >
                   <span className="pr-4">{adminEmployeeFilter || 'All employees'}</span>
                   <ChevronDown
@@ -69,7 +69,7 @@ const LeaveAdminLeaveOperationsSection: React.FC<LeaveAdminLeaveOperationsSectio
                 </button>
 
                 {adminEmployeePickerOpen ? (
-                  <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+                  <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                     <div className="max-h-64 overflow-y-auto py-2">
                       {['All employees', ...adminEmployeeOptions].map((employee) => {
                         const value = employee === 'All employees' ? '' : employee;
@@ -107,7 +107,7 @@ const LeaveAdminLeaveOperationsSection: React.FC<LeaveAdminLeaveOperationsSectio
                     setAdminMonthPickerOpen((prev) => !prev);
                     setAdminEmployeePickerOpen(false);
                   }}
-                  className="flex w-full items-center justify-between rounded-[20px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3.5 text-left text-[15px] font-semibold text-slate-900 shadow-[0_12px_30px_rgba(15,23,42,0.06)] outline-none transition-all hover:border-slate-300 hover:shadow-[0_14px_34px_rgba(15,23,42,0.08)] focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10"
+                  className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3.5 text-left text-[15px] font-semibold text-slate-900 shadow-sm outline-none transition-all hover:border-slate-300 hover:shadow-sm focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10"
                 >
                   <span className="truncate pr-4">
                     {adminMonthFilter
@@ -124,7 +124,7 @@ const LeaveAdminLeaveOperationsSection: React.FC<LeaveAdminLeaveOperationsSectio
                 </button>
 
                 {adminMonthPickerOpen ? (
-                  <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+                  <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                     <div className="max-h-64 overflow-y-auto py-2">
                       {[
                         { value: '', label: 'All months' },
@@ -166,20 +166,20 @@ const LeaveAdminLeaveOperationsSection: React.FC<LeaveAdminLeaveOperationsSectio
 
       <div className="mt-5 border-t border-slate-200/80 pt-5">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-[22px] border border-slate-200 bg-white/85 px-5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Total</p>
+          <div className="rounded-xl border border-slate-200 bg-white/85 px-5 py-4 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Total</p>
             <p className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-slate-950">{leaveStats.total}</p>
           </div>
-          <div className="rounded-[22px] border border-emerald-100 bg-emerald-50/80 px-5 py-4 shadow-[0_10px_24px_rgba(16,185,129,0.08)]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-600">Approved</p>
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/80 px-5 py-4 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">Approved</p>
             <p className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-emerald-700">{leaveStats.approved}</p>
           </div>
-          <div className="rounded-[22px] border border-amber-100 bg-amber-50/80 px-5 py-4 shadow-[0_10px_24px_rgba(245,158,11,0.08)]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-600">Pending</p>
+          <div className="rounded-xl border border-amber-100 bg-amber-50/80 px-5 py-4 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600">Pending</p>
             <p className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-amber-700">{leaveStats.pending}</p>
           </div>
-          <div className="rounded-[22px] border border-rose-100 bg-rose-50/80 px-5 py-4 shadow-[0_10px_24px_rgba(244,63,94,0.08)]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-600">Rejected</p>
+          <div className="rounded-xl border border-rose-100 bg-rose-50/80 px-5 py-4 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-600">Rejected</p>
             <p className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-rose-700">{leaveStats.rejected}</p>
           </div>
         </div>

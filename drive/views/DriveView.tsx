@@ -165,7 +165,7 @@ function DriveWorkspace() {
         setUploadSeedFiles(incomingFiles);
       }}
     >
-      <div className="-mt-2 space-y-6 sm:-mt-4 lg:-mx-8 lg:-mt-8">
+      <div className="-mt-2 space-y-8 pb-8 sm:-mt-4 lg:-mx-8 lg:-mt-8">
         {error ? (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
@@ -176,19 +176,19 @@ function DriveWorkspace() {
           <DriveBreadcrumbs items={breadcrumbItems} onNavigate={openFolder} />
         ) : null}
 
-        <div className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white px-5 py-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-5 sm:p-6">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-white">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <Folder size={22} className="text-amber-400" />
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-red">
+                  <div className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
                     Company Shared Drive
                   </div>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-emerald-600">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/60 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     Live Sync
                   </div>
                 </div>
@@ -198,8 +198,8 @@ function DriveWorkspace() {
               </div>
             </div>
 
-            <div className="flex flex-col items-stretch gap-2.5 lg:items-end">
-              <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
+            <div className="flex flex-col items-stretch gap-2.5 xl:items-end">
+              <div className="flex flex-wrap items-center gap-2 xl:flex-nowrap">
                 <button
                   type="button"
                   onClick={openCreateFolderDialog}
@@ -219,11 +219,11 @@ function DriveWorkspace() {
                   </button>
                 ) : null}
                 <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[13px] text-slate-600 transition hover:border-red-200">
-                  <ArrowDownUp size={15} className="text-brand-red" />
+                  <ArrowDownUp size={15} className="text-slate-400" />
                   <select
                     value={sort}
                     onChange={(event) => setSort(event.target.value as DriveSortOption)}
-                    className="bg-transparent font-semibold text-slate-700 outline-none"
+                    className="min-w-0 bg-transparent text-xs font-medium text-slate-600 outline-none"
                   >
                     <option value="newest">Newest First</option>
                     <option value="oldest">Oldest First</option>
@@ -238,14 +238,14 @@ function DriveWorkspace() {
         </div>
 
         <section className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-slate-900">Folders</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-slate-900">Folders</h2>
               <p className="text-sm text-slate-500">Create nested structures for teams, projects, and shared assets.</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex min-w-[252px] items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 focus-within:border-red-200 focus-within:ring-2 focus-within:ring-red-100 lg:w-[320px]">
-                <Search size={16} className="text-brand-red" />
+              <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 transition focus-within:border-red-300 focus-within:ring-2 focus-within:ring-red-100 sm:min-w-[240px] xl:w-[280px]">
+                <Search size={16} className="shrink-0 text-slate-400" />
                 <input
                   value={searchInput}
                   onChange={(event) => setSearchInput(event.target.value)}
@@ -253,13 +253,13 @@ function DriveWorkspace() {
                   className="w-full bg-transparent text-[13px] text-slate-700 outline-none placeholder:text-slate-400"
                 />
               </div>
-              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
+              <div className="inline-flex shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-1">
                 <button
                   type="button"
                   onClick={() => setFolderLayout('grid')}
                   className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm transition ${
                     folderLayout === 'grid'
-                      ? 'bg-red-50 font-semibold text-brand-red'
+                      ? 'bg-white font-semibold text-slate-900 shadow-sm'
                       : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
@@ -271,7 +271,7 @@ function DriveWorkspace() {
                   onClick={() => setFolderLayout('list')}
                   className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm transition ${
                     folderLayout === 'list'
-                      ? 'bg-red-50 font-semibold text-brand-red'
+                      ? 'bg-white font-semibold text-slate-900 shadow-sm'
                       : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
@@ -346,7 +346,7 @@ function DriveWorkspace() {
           {shouldShowFilesSection ? (
             <>
               <div>
-                <h2 className="text-xl font-semibold text-slate-900">Files</h2>
+                <h2 className="text-lg font-semibold tracking-tight text-slate-900">Files</h2>
                 <p className="text-sm text-slate-500">
                   {currentStorageMode === 'images'
                     ? 'Only image uploads appear in this folder so teams can keep visuals organized.'
