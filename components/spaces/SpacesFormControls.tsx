@@ -22,7 +22,7 @@ const COMPACT_FULL_WIDTH_SELECT_TRIGGER_CLASS =
   'themed-control themed-select-trigger flex w-full items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[14px] text-slate-700 outline-none shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 const TOOLBAR_INLINE_SELECT_TRIGGER_CLASS =
-  'themed-control themed-select-trigger inline-flex min-h-[34px] min-w-[7.5rem] items-center justify-between gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[13px] text-slate-700 outline-none transition-colors hover:border-slate-300 focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
+  'themed-control themed-select-trigger inline-flex min-h-[34px] min-w-[7.5rem] items-center justify-between gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[13px] font-medium text-slate-800 outline-none transition-colors hover:border-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200/80 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400';
 
 const TABLE_SELECT_MENU_CLASS =
   'themed-control-menu absolute left-0 top-full z-30 mt-1.5 w-full overflow-hidden rounded-xl border border-slate-200 bg-white';

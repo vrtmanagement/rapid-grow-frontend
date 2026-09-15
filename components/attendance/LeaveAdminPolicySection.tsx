@@ -238,14 +238,14 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
   };
 
   return (
-    <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-brand-red/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-red">
+          <div className="inline-flex items-center gap-2 rounded-full bg-brand-red/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-brand-red">
             <Shield size={14} />
             Admin Leave Controls
           </div>
-          <h3 className="mt-3 text-2xl font-semibold text-slate-950">Policy and balance management</h3>
+          <h3 className="mt-3 text-2xl font-semibold text-slate-950 tracking-tight">Policy and balance management</h3>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -258,26 +258,26 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
       </div>
 
       {!canManage ? (
-        <div className="mt-5 rounded-[24px] border border-sky-200 bg-sky-50/80 px-5 py-4 text-sm text-sky-700">
+        <div className="mt-5 rounded-xl border border-sky-200 bg-sky-50/80 px-5 py-4 text-sm text-sky-700">
           Team leads can review active leave policies and activity logs here. Editing policies and manual balance adjustments remain restricted to admins.
         </div>
       ) : null}
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
-          <div className="rounded-[28px] border border-slate-200 bg-slate-50/60 p-5">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2 text-slate-900">
                   <PencilRuler size={18} />
-                  <h4 className="text-lg font-semibold">Leave policy builder</h4>
+                  <h4 className="text-lg font-semibold tracking-tight">Leave policy builder</h4>
                 </div>
               </div>
             </div>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="block">
-                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Scope</span>
+                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Scope</span>
                 <FilterDropdown
                   value={scopeType}
                   selectedLabel={selectedScopeLabel}
@@ -300,18 +300,18 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Policy name</span>
+                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Policy name</span>
                 <input
                   value={policyName}
                   onChange={(event) => setPolicyName(event.target.value)}
                   disabled={!canManage}
-                  className="w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                 />
               </label>
 
               {scopeType === 'role' ? (
                 <label className="block">
-                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Role</span>
+                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Role</span>
                   <FilterDropdown
                     value={role}
                     selectedLabel={selectedRoleLabel}
@@ -336,43 +336,43 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
 
               {scopeType === 'team' ? (
                 <label className="block">
-                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Team ID</span>
+                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Team ID</span>
                   <input
                     value={teamId}
                     onChange={(event) => setTeamId(event.target.value)}
                     disabled={!canManage}
                     placeholder="Enter team ID"
-                    className="w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                   />
                 </label>
               ) : null}
 
               <label className="block">
-                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Monthly paid leaves</span>
+                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Monthly paid leaves</span>
                 <input
                   type="number"
                   step="0.5"
                   value={monthlyPaidLeaves}
                   onChange={(event) => setMonthlyPaidLeaves(event.target.value)}
                   disabled={!canManage}
-                  className="w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                 />
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Carry forward max</span>
+                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Carry forward max</span>
                 <input
                   type="number"
                   step="0.5"
                   value={maxCarryForward}
                   onChange={(event) => setMaxCarryForward(event.target.value)}
                   disabled={!canManage}
-                  className="w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                 />
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Expiry month</span>
+                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Expiry month</span>
                 <input
                   type="number"
                   min={1}
@@ -380,37 +380,37 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
                   value={carryForwardExpiryMonth}
                   onChange={(event) => setCarryForwardExpiryMonth(event.target.value)}
                   disabled={!canManage}
-                  className="w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                 />
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Half-day deduction</span>
+                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Half-day deduction</span>
                 <input
                   type="number"
                   step="0.25"
                   value={halfDayDeduction}
                   onChange={(event) => setHalfDayDeduction(event.target.value)}
                   disabled={!canManage}
-                  className="w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                 />
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Low balance alert</span>
+                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Low balance alert</span>
                 <input
                   type="number"
                   step="0.5"
                   value={lowBalanceThreshold}
                   onChange={(event) => setLowBalanceThreshold(event.target.value)}
                   disabled={!canManage}
-                  className="w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                 />
               </label>
             </div>
 
             <div className="mt-5 grid gap-3 md:grid-cols-2">
-              <label className="flex items-center justify-between rounded-[20px] border border-slate-200 bg-white px-4 py-3">
+              <label className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">Enable carry forward</p>
                   <p className="mt-1 text-xs text-slate-500">Roll unused balance into the next policy year.</p>
@@ -424,7 +424,7 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
                 />
               </label>
 
-              <label className="flex items-center justify-between rounded-[20px] border border-slate-200 bg-white px-4 py-3">
+              <label className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">Auto LOP on exhaustion</p>
                   <p className="mt-1 text-xs text-slate-500">Convert excess approvals into unpaid leave automatically.</p>
@@ -439,8 +439,8 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
               </label>
             </div>
 
-            <div className="mt-5 overflow-hidden rounded-[24px] border border-slate-200 bg-white">
-              <div className="grid grid-cols-[1.2fr_0.7fr_0.7fr_0.55fr] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <div className="grid grid-cols-[1.2fr_0.7fr_0.7fr_0.55fr] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                 <span>Leave type</span>
                 <span>Monthly</span>
                 <span>Yearly</span>
@@ -467,7 +467,7 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
                           },
                         }))
                       }
-                      className="rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                      className="rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                     />
                     <input
                       type="number"
@@ -484,7 +484,7 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
                           },
                         }))
                       }
-                      className="rounded-2xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                      className="rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                     />
                     <label className="flex items-center justify-center">
                       <input
@@ -510,13 +510,13 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
             </div>
 
             <label className="mt-5 block">
-              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Policy notes</span>
+              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Policy notes</span>
               <textarea
                 rows={4}
                 value={policyNote}
                 onChange={(event) => setPolicyNote(event.target.value)}
                 disabled={!canManage}
-                className="w-full rounded-[24px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                 placeholder="Optional notes for carry-forward, paid vs unpaid, or exception handling rules."
               />
             </label>
@@ -526,7 +526,7 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
                 type="button"
                 onClick={() => void handleSavePolicy()}
                 disabled={!canManage || savingPolicy}
-                className={`inline-flex items-center gap-2 rounded-[20px] px-5 py-3 text-sm font-semibold text-white transition ${
+                className={`inline-flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-white transition ${
                   !canManage || savingPolicy ? 'cursor-not-allowed bg-slate-300' : 'bg-slate-900 hover:bg-slate-800'
                 }`}
               >
@@ -538,15 +538,15 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-[28px] border border-slate-200 bg-slate-50/60 p-5">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-5">
             <div className="flex items-center gap-2 text-slate-900">
               <Gift size={18} />
-              <h4 className="text-lg font-semibold">Manual leave adjustment</h4>
+              <h4 className="text-lg font-semibold tracking-tight">Manual leave adjustment</h4>
             </div>
 
             <div className="mt-5 space-y-4">
               <label className="block">
-                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Employee</span>
+                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Employee</span>
                 <FilterDropdown
                   value={adjustmentEmployeeEmpId}
                   selectedLabel={selectedAdjustmentEmployeeLabel}
@@ -571,7 +571,7 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
 
               <div className="grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.72fr)]">
                 <label className="block">
-                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Type</span>
+                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Type</span>
                   <FilterDropdown
                     value={adjustmentType}
                     selectedLabel={selectedAdjustmentTypeLabel}
@@ -595,7 +595,7 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Operation</span>
+                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Operation</span>
                   <FilterDropdown
                     value={adjustmentOperation}
                     selectedLabel={selectedAdjustmentOperationLabel}
@@ -618,38 +618,38 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Days</span>
+                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Days</span>
                   <input
                     type="number"
                     step="0.5"
                     value={adjustmentDays}
                     onChange={(event) => setAdjustmentDays(event.target.value)}
                     disabled={!canManage}
-                    className="w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                   />
                 </label>
               </div>
 
               <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
                 <label className="block">
-                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Effective date</span>
+                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Effective date</span>
                   <input
                     type="date"
                     value={adjustmentDate}
                     onChange={(event) => setAdjustmentDate(event.target.value)}
                     disabled={!canManage}
-                    className="w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                   />
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Reason</span>
+                  <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Reason</span>
                   <input
                     value={adjustmentReason}
                     onChange={(event) => setAdjustmentReason(event.target.value)}
                     disabled={!canManage}
                     placeholder="Bonus leave for release delivery"
-                    className="w-full rounded-[20px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-brand-red/30 focus:ring-4 focus:ring-brand-red/10 disabled:cursor-not-allowed disabled:bg-slate-100"
                   />
                 </label>
               </div>
@@ -659,7 +659,7 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
                   type="button"
                   onClick={onExport}
                   disabled={exportLoading}
-                  className={`inline-flex items-center gap-2 rounded-[20px] border border-slate-200 px-4 py-3 text-sm font-semibold transition ${
+                  className={`inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold transition ${
                     exportLoading ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'bg-white text-slate-700 hover:border-slate-300 hover:text-slate-950'
                   }`}
                 >
@@ -670,7 +670,7 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
                   type="button"
                   onClick={() => void handleCreateAdjustment()}
                   disabled={!canManage || savingAdjustment}
-                  className={`inline-flex items-center gap-2 rounded-[20px] px-4 py-3 text-sm font-semibold text-white transition ${
+                  className={`inline-flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-white transition ${
                     !canManage || savingAdjustment ? 'cursor-not-allowed bg-slate-300' : 'bg-brand-red hover:bg-red-600'
                   }`}
                 >
@@ -681,10 +681,10 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-slate-200 bg-slate-50/60 p-5">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-5">
             <div className="flex items-center gap-2 text-slate-900">
               <Users size={18} />
-              <h4 className="text-lg font-semibold">Recent admin activity</h4>
+              <h4 className="text-lg font-semibold tracking-tight">Recent admin activity</h4>
             </div>
             <p className="mt-2 text-sm text-slate-500">
               A running audit trail of policy edits, balance adjustments, and administrative leave changes.
@@ -695,12 +695,12 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
               style={{ maxHeight: 'calc((7 * 104px) + (6 * 12px))' }}
             >
               {recentActivity.length === 0 ? (
-                <div className="rounded-[22px] border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+                <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
                   No admin leave activity has been recorded yet.
                 </div>
               ) : (
                 recentActivity.map((item) => (
-                  <div key={item.id} className="rounded-[22px] border border-slate-200 bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                  <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-slate-900">{item.summary}</p>
@@ -708,7 +708,7 @@ const LeaveAdminPolicySection: React.FC<Props> = ({
                           {item.actorName || item.actorEmpId || 'System'} • {item.actorRole || 'Admin workflow'}
                         </p>
                       </div>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                         {new Date(item.createdAt).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',

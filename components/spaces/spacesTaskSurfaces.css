@@ -1,0 +1,74 @@
+/* Scoped to the task table and creation drawer; shared controls keep their defaults. */
+.spaces-task-create-surface .themed-control {
+  min-height: 42px;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 20px;
+  box-shadow: none;
+}
+
+.spaces-task-create-surface .themed-date-trigger {
+  padding-right: 40px;
+}
+
+.spaces-task-create-surface .themed-control-menu {
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
+}
+
+.spaces-task-create-surface .themed-control-option {
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.spaces-task-create-surface .spaces-task-automation {
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.spaces-task-create-surface .spaces-automation-heading {
+  font-size: 13px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.spaces-task-create-surface .spaces-automation-choice {
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.spaces-task-table-surface thead th {
+  height: 48px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.spaces-task-table-surface tbody td {
+  padding-top: 14px;
+  padding-bottom: 14px;
+  vertical-align: middle;
+}
+
+.spaces-task-table-surface th:first-child,
+.spaces-task-table-surface td:first-child {
+  padding-left: 20px;
+}
+
+.spaces-task-table-surface .themed-select-trigger {
+  width: 112px;
+  min-height: 32px;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  box-shadow: none;
+}
+
+.spaces-task-table-surface td:nth-child(3) {
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.spaces-task-table-surface td:nth-child(2) img {
+  outline: 2px solid var(--background-elevated, #fff);
+}

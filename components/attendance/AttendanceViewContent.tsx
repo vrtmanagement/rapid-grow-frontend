@@ -149,7 +149,7 @@ const AttendanceViewContent: React.FC<AttendanceViewContentProps> = ({ ctrl }) =
             <button
               type="button"
               onClick={handleTeamAttendanceClose}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
             >
               Back to attendance
             </button>

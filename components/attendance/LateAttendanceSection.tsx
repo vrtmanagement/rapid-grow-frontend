@@ -156,12 +156,12 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
         </div>
 
         <div className="min-w-0 space-y-0.5 text-[11px] text-slate-500">
-          <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">Login time</p>
+          <p className="font-semibold uppercase tracking-wide text-slate-400">Login time</p>
           <p className="text-[12px] font-medium text-slate-800">{formatLateLoginDateTime(record.loginTime || null)}</p>
         </div>
 
         <div className="min-w-0 space-y-0.5 text-[11px] text-slate-500">
-          <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">
+          <p className="font-semibold uppercase tracking-wide text-slate-400">
             {record.status === 'APPROVED' ? 'Approved at' : 'Attempted at'}
           </p>
           <p className="text-[12px] font-medium text-slate-800">
@@ -196,60 +196,60 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
   return (
     <section className="space-y-6">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
               <AlertTriangle size={20} />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Late records</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Late records</p>
               <p className="mt-2 text-3xl font-semibold text-slate-950">{stats.total}</p>
             </div>
           </div>
         </div>
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
               <ShieldCheck size={20} />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Approved</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Approved</p>
               <p className="mt-2 text-3xl font-semibold text-slate-950">{stats.approved}</p>
             </div>
           </div>
         </div>
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
               <AlertTriangle size={20} />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Rejected</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Rejected</p>
               <p className="mt-2 text-3xl font-semibold text-slate-950">{stats.rejected}</p>
             </div>
           </div>
         </div>
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-sky-600">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-50 text-sky-600">
               <UserRoundCheck size={20} />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Approval active</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Approval active</p>
               <p className="mt-2 text-3xl font-semibold text-slate-950">{stats.active}</p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 items-stretch gap-8 lg:grid-cols-12">
+      <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-12">
         <div className="space-y-6 lg:col-span-4 lg:h-full">
-          <div className="h-full rounded-[30px] border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-navy p-6 text-white shadow-[0_18px_44px_rgba(15,23,42,0.18)]">
+          <div className="h-full rounded-xl border border-slate-800/80 bg-slate-900 p-6 text-white shadow-sm">
             <div className="mb-3 flex items-center gap-2">
               <div className="h-1.5 w-8 rounded-full bg-brand-red" />
               <span className="text-[15px] text-slate-300">Late Login Desk</span>
             </div>
-            <h3 className="text-2xl font-semibold text-white">Approval control</h3>
+            <h3 className="text-2xl font-semibold text-white tracking-tight">Approval control</h3>
 
             <label className="mt-6 block">
               <span className="mb-2 block text-[13px] font-semibold text-slate-200">Select employee</span>
@@ -257,7 +257,7 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                 <button
                   type="button"
                   onClick={() => setEmployeePickerOpen((prev) => !prev)}
-                  className="flex w-full items-center justify-between rounded-2xl border border-white/12 bg-white/12 px-4 py-3 text-left text-[15px] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] outline-none transition-all hover:bg-white/16 focus:border-white/25 focus:bg-white/16 focus:ring-2 focus:ring-white/10"
+                  className="flex w-full items-center justify-between rounded-lg border border-white/12 bg-white/12 px-4 py-3 text-left text-[15px] text-white shadow-sm outline-none transition-all hover:bg-white/16 focus:border-white/25 focus:bg-white/16 focus:ring-2 focus:ring-white/10"
                 >
                   <span className="truncate pr-4">{selectedEmployeeLabel}</span>
                   <ChevronDown
@@ -267,7 +267,7 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                 </button>
 
                 {employeePickerOpen && (
-                  <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+                  <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                     <div className="max-h-64 overflow-y-auto py-2">
                       {employeeOptions.length === 0 ? (
                         <div className="px-4 py-3 text-sm text-slate-500">No employees found</div>
@@ -300,8 +300,8 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
               </div>
             </label>
 
-            <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Late status</p>
+            <div className="mt-5 rounded-xl border border-white/10 bg-white/5 px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Late status</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {selectedEmployeeLateLogin?.isLateLogin ? (
                   <span className="rounded-full bg-amber-400/12 px-3 py-1 text-[11px] font-semibold text-amber-100">
@@ -345,14 +345,14 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                   <p>Last rejected attempt: {formatLateLoginDateTime(selectedEmployeeLateLogin.latestRejectedAt)}</p>
                 ) : null}
                 {selectedEmployeeLateLogin?.approval?.reason ? (
-                  <p className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-slate-200">
+                  <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-slate-200">
                     {selectedEmployeeLateLogin.approval.reason}
                   </p>
                 ) : null}
               </div>
 
               {lateLoginActionMessage ? (
-                <p className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-slate-200">
+                <p className="mt-4 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-slate-200">
                   {lateLoginActionMessage}
                 </p>
               ) : null}
@@ -363,7 +363,7 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                     type="button"
                     onClick={() => setLateLoginModalOpen(true)}
                     disabled={lateLoginApprovalLoading || !selectedEmployeeEmpId}
-                    className={`inline-flex min-w-0 items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
+                    className={`inline-flex min-w-0 items-center justify-center rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
                       lateLoginApprovalLoading || !selectedEmployeeEmpId
                         ? 'cursor-not-allowed bg-white/10 text-slate-400'
                         : 'bg-white text-slate-950 hover:bg-slate-100'
@@ -383,7 +383,7 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                       || !!selectedEmployeeLateLogin?.hasApproval
                       || selectedEmployeeLateLogin?.latestOutcome !== 'REQUESTED'
                     }
-                    className={`inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors ${
+                    className={`inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-lg border px-4 py-3 text-sm font-semibold transition-colors ${
                       lateLoginRejectLoading
                       || !selectedEmployeeEmpId
                       || !!selectedEmployeeLateLogin?.hasApproval
@@ -405,14 +405,14 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
         </div>
 
         <div className="lg:col-span-8 lg:h-full">
-          <div className="flex h-full flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
+          <div className="flex h-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 md:flex-row md:items-center md:justify-between md:px-8">
               <div>
                 <div className="mb-3 flex items-center gap-2">
                   <div className="h-1.5 w-8 rounded-full bg-brand-red" />
                   <span className="text-[15px] text-slate-500">Late login audit</span>
                 </div>
-                <h3 className="text-2xl font-semibold text-slate-950">Today late login records</h3>
+                <h3 className="text-2xl font-semibold text-slate-950 tracking-tight">Today late login records</h3>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -426,7 +426,7 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                       key={filter.value}
                       type="button"
                       onClick={() => setLateLoginFilter(filter.value as 'ALL' | 'APPROVED' | 'REJECTED')}
-                      className={`rounded-full px-3 py-2 text-[11px] font-semibold transition-colors md:text-[12px] ${
+                      className={`rounded-lg px-3 py-2 text-[11px] font-semibold transition-colors md:text-[12px] ${
                         lateLoginFilter === filter.value
                           ? 'bg-white text-slate-900 shadow-sm'
                           : 'text-slate-500 hover:text-slate-900'
@@ -480,13 +480,13 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
 
       {lateLoginModalOpen && selectedEmployee ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/45 px-4">
-          <div className="w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.28)]">
+          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                   Late login approval
                 </p>
-                <h4 className="mt-2 text-xl font-semibold text-slate-950">
+                <h4 className="mt-2 text-xl font-semibold text-slate-950 tracking-tight">
                   Allow late login for {selectedEmployee.empName}
                 </h4>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
@@ -499,13 +499,13 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                   setLateLoginModalOpen(false);
                   setLateLoginReason('');
                 }}
-                className="rounded-full border border-slate-200 px-3 py-1 text-sm font-medium text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-900"
+                className="rounded-lg border border-slate-200 px-3 py-1 text-sm font-medium text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-900"
               >
                 Close
               </button>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
               <p className="text-sm font-semibold text-slate-900">
                 {selectedEmployee.empName} ({selectedEmployee.empId})
               </p>
@@ -523,12 +523,12 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                 onChange={(event) => setLateLoginReason(event.target.value)}
                 rows={4}
                 placeholder="Add context for this late login approval."
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
+                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
               />
             </label>
 
             {lateLoginActionMessage ? (
-              <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                 {lateLoginActionMessage}
               </p>
             ) : null}
@@ -540,7 +540,7 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                   setLateLoginModalOpen(false);
                   setLateLoginReason('');
                 }}
-                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
               >
                 Cancel
               </button>
@@ -550,7 +550,7 @@ const LateAttendanceSection: React.FC<LateAttendanceSectionProps> = ({
                   void handleConfirmLateLoginApproval();
                 }}
                 disabled={lateLoginApprovalLoading}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
                   lateLoginApprovalLoading
                     ? 'cursor-not-allowed bg-slate-200 text-slate-400'
                     : 'bg-slate-900 text-white hover:bg-slate-800'

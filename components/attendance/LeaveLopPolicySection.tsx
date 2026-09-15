@@ -76,7 +76,7 @@ const LeaveLopPolicySection: React.FC<Props> = ({
       {!embedded ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-slate-900">LOP rules</h3>
+            <h3 className="text-lg font-semibold text-slate-900 tracking-tight">LOP rules</h3>
             <p className="mt-1 text-sm text-slate-500">
               Advance notice, multipliers, and late-application deductions.
             </p>
@@ -86,7 +86,7 @@ const LeaveLopPolicySection: React.FC<Props> = ({
               type="button"
               disabled={saving}
               onClick={() => void handleSave()}
-              className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+              className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
             >
               {saving ? 'Saving…' : 'Save LOP rules'}
             </button>
@@ -98,7 +98,7 @@ const LeaveLopPolicySection: React.FC<Props> = ({
             type="button"
             disabled={saving}
             onClick={() => void handleSave()}
-            className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+            className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
           >
             {saving ? 'Saving…' : 'Save LOP rules'}
           </button>
@@ -148,7 +148,7 @@ const LeaveLopPolicySection: React.FC<Props> = ({
         </label>
 
         <label className="flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
             Advance notice
           </span>
           <select
@@ -166,7 +166,7 @@ const LeaveLopPolicySection: React.FC<Props> = ({
         </label>
 
         <label className="flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
             Multiplier
           </span>
           <select
@@ -185,7 +185,7 @@ const LeaveLopPolicySection: React.FC<Props> = ({
       </div>
 
       {canManage && employeeOptions.length > 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
           <p className="text-sm font-semibold text-slate-800">Employee exceptions</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
             <select
@@ -209,7 +209,7 @@ const LeaveLopPolicySection: React.FC<Props> = ({
             <button
               type="button"
               onClick={handleAddException}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
               Add
             </button>
@@ -246,7 +246,7 @@ const LeaveLopPolicySection: React.FC<Props> = ({
   if (embedded) return body;
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 md:p-6">{body}</section>
+    <section className="rounded-xl border border-slate-200 bg-white p-5 md:p-6">{body}</section>
   );
 };
 

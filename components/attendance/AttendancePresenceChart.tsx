@@ -476,25 +476,25 @@ const AttendancePresenceChart: React.FC<Props> = ({
 
   if (isEmployeeVariant) {
     return (
-      <div className="rounded-[34px] border border-slate-200 bg-white px-7 pt-7 pb-4">
+      <div className="rounded-xl border border-slate-200 bg-white px-7 pt-7 pb-4">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <h3 className="text-[1.15rem] font-semibold leading-none text-slate-950">Presence graph</h3>
+            <h3 className="text-[1.15rem] font-semibold leading-tight text-slate-950 tracking-tight">Presence graph</h3>
             <p className="mt-3 text-sm text-slate-700">{getShownMonthLabel()}</p>
           </div>
 
           <div className="flex flex-col gap-4 xl:items-end">
             <div className="flex flex-wrap items-center gap-5">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Avg / day</p>
+                <p className="text-[11px] uppercase tracking-wide text-slate-400">Avg / day</p>
                 <p className="mt-1 text-lg font-semibold text-slate-900">{averageHours.toFixed(1)}h</p>
               </div>
               <div>
-                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Full days</p>
+                <p className="text-[11px] uppercase tracking-wide text-slate-400">Full days</p>
                 <p className="mt-1 text-lg font-semibold text-emerald-600">{fullDays}</p>
               </div>
               <div>
-                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Short days</p>
+                <p className="text-[11px] uppercase tracking-wide text-slate-400">Short days</p>
                 <p className="mt-1 text-lg font-semibold text-rose-500">{shortDays}</p>
               </div>
             </div>
@@ -514,7 +514,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
               </div>
             </div>
           ) : chartData.length === 0 ? (
-            <div className="flex h-full items-center justify-center rounded-[28px] border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
+            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
               No attendance records in this range.
             </div>
           ) : (
@@ -545,7 +545,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
                     if (!active || !payload?.length) return null;
                     const entry = payload[0]?.payload;
                     return (
-                      <div className="min-w-[190px] rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_18px_40px_rgba(15,23,42,0.16)]">
+                      <div className="min-w-[190px] rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                         <p className="text-sm font-semibold text-slate-900">{entry?.date || label}</p>
                         <div className="mt-2 space-y-1.5 text-xs text-slate-600">
                           <div className="flex items-center justify-between gap-4">
@@ -629,10 +629,10 @@ const AttendancePresenceChart: React.FC<Props> = ({
   }
 
   return (
-    <div className="bg-white rounded-[2rem] border border-slate-200 p-7">
-      <div className="flex items-center justify-between mb-6">
+    <div className="bg-white rounded-xl border border-slate-200 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-slate-900">Presence graph</h3>
+          <h3 className="text-lg font-semibold text-slate-900 tracking-tight">Presence graph</h3>
           <p className="text-xs text-slate-600 mt-1">
             {getShownMonthLabel()}
           </p>
@@ -693,7 +693,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
                   if (!active || !payload?.length) return null;
                   const entry = payload[0]?.payload;
                   return (
-                    <div className="min-w-[180px] rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_18px_40px_rgba(15,23,42,0.16)]">
+                    <div className="min-w-[180px] rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                       <p className="text-sm font-semibold text-slate-900">{entry?.date || label}</p>
                       <div className="mt-2 space-y-1.5 text-xs text-slate-600">
                         <div className="flex items-center justify-between gap-4">

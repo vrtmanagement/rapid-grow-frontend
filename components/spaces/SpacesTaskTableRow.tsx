@@ -228,7 +228,7 @@ const SpacesTaskTableRow: React.FC<SpacesTaskTableRowProps> = ({
         }
         openTaskDetail(t);
       }}
-      className={`${getTaskRowClasses(t)} cursor-pointer transition-colors ${
+      className={`${getTaskRowClasses(t)} cursor-pointer border-b border-slate-100 last:border-b-0 transition-colors ${
         showMailActive ? 'bg-emerald-50' : showMailStopped ? 'bg-rose-50' : isWeeklyMailTask && !weeklyMailStopped ? 'bg-violet-50/60' : weeklyMailStopped ? 'bg-slate-50' : ''
       } ${
         isSelected
@@ -240,7 +240,7 @@ const SpacesTaskTableRow: React.FC<SpacesTaskTableRowProps> = ({
           : ''
       }`}
     >
-      <td className="px-3 py-3">
+      <td className="px-3 py-4">
         <div className="flex items-center gap-2">
           {showRecurringBadge ? (
             <span
@@ -273,10 +273,10 @@ const SpacesTaskTableRow: React.FC<SpacesTaskTableRowProps> = ({
               if (next && next !== t.title) patchTask(t.taskId, { title: next });
             }}
             disabled={!canEdit || isLockedDoneRow}
-            className="min-w-0 flex-1 border-none bg-transparent text-[14px] font-medium text-slate-900 outline-none disabled:text-slate-500"
+            className="min-w-0 flex-1 rounded border-none bg-transparent text-[13px] font-semibold leading-5 text-slate-800 outline-none focus:ring-2 focus:ring-brand-red/15 disabled:text-slate-500"
           />
         </div>
-        <div className="mt-1 space-y-0.5 text-[11px] text-slate-400">
+        <div className="mt-1.5 space-y-1 text-[11px] leading-4 text-slate-400">
           <div className="flex flex-wrap items-center gap-1.5">
             {t.projectId ? <span>Project: {projectNameById.get(t.projectId) || t.projectId}</span> : null}
             {planningVisionLabel ? <span>Vision: {planningVisionLabel}</span> : null}
@@ -325,20 +325,20 @@ const SpacesTaskTableRow: React.FC<SpacesTaskTableRowProps> = ({
           {t.description ? <div className="truncate text-slate-500" title={t.description}>Description: {t.description}</div> : null}
         </div>
       </td>
-      <td className="px-3 py-3">
-        <div className="inline-flex items-center gap-3 rounded-2xl px-2 py-1.5 text-[14px] text-slate-700 transition-colors hover:bg-[#f7faff]">
+      <td className="px-3 py-4">
+        <div className="inline-flex max-w-full items-center gap-2 rounded-lg px-1 py-1 text-[13px] text-slate-700 transition-colors hover:bg-[#f7faff]">
           <img
             src={assigneeAvatar}
             alt={assigneeName}
-            className="h-9 w-9 rounded-full object-cover"
+            className="h-7 w-7 shrink-0 rounded-full object-cover"
           />
           <span className="truncate font-medium text-slate-600">
             {employeesLoading ? 'Loading...' : assigneeName}
           </span>
         </div>
       </td>
-      <td className="px-3 py-3">
-        <span className="text-[14px] font-medium text-slate-500">
+      <td className="px-3 py-4">
+        <span className="text-[13px] font-medium text-slate-500">
           {formatOccurrenceDateTimeLabel(
             t.emailChecklist?.occurrenceScheduledAt ||
               (isUpcomingScheduledMailTask(t as SpacesTask)
@@ -349,12 +349,12 @@ const SpacesTaskTableRow: React.FC<SpacesTaskTableRowProps> = ({
           ) || formatDueDateLabel(t.dueDate)}
         </span>
       </td>
-      <td className="px-3 py-3">
-        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-semibold tracking-[-0.01em] ${getPriorityPillClass(t.priority)}`}>
+      <td className="px-3 py-4">
+        <span className={`inline-flex items-center rounded-md px-2 py-1 text-[11px] font-medium ${getPriorityPillClass(t.priority)}`}>
           {getPriorityLabel(t.priority)}
         </span>
       </td>
-      <td className="px-3 py-3">
+      <td className="px-3 py-4">
         {t.status === 'done' ? (
           <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-[12px] font-semibold tracking-[-0.01em] text-emerald-700">
             Done
@@ -369,7 +369,7 @@ const SpacesTaskTableRow: React.FC<SpacesTaskTableRowProps> = ({
           />
         )}
       </td>
-      <td className="px-3 py-3">
+      <td className="px-3 py-4">
         <TaskAttachmentsCell
           task={t}
           forceDownloadDocument={forceDownloadDocument}
@@ -379,8 +379,8 @@ const SpacesTaskTableRow: React.FC<SpacesTaskTableRowProps> = ({
           onToggleDropdown={setActiveFilesDropdownId}
         />
       </td>
-      <td className="px-3 py-3">
-        <button type="button" onClick={() => { if (!canCommentOnTask(t) || isLockedDoneRow) return; setCommentTaskId(t.taskId); setModalStatus(t.status); }} disabled={!canCommentOnTask(t) || isLockedDoneRow} className={`inline-flex items-center gap-1.5 rounded-xl border bg-white px-2.5 py-2 text-slate-700 ${canCommentOnTask(t) && !isLockedDoneRow ? 'border-slate-200 hover:bg-slate-50' : 'cursor-not-allowed border-slate-100 opacity-60'}`} title="View comments"><MessageSquareText size={16} /><span className="text-[12px] font-semibold">{t.comments?.length || 0}</span></button>
+      <td className="px-3 py-4">
+        <button type="button" onClick={() => { if (!canCommentOnTask(t) || isLockedDoneRow) return; setCommentTaskId(t.taskId); setModalStatus(t.status); }} disabled={!canCommentOnTask(t) || isLockedDoneRow} className={`inline-flex h-8 items-center gap-1.5 rounded-md border bg-white px-2 text-slate-500 ${canCommentOnTask(t) && !isLockedDoneRow ? 'border-slate-200 hover:bg-slate-50' : 'cursor-not-allowed border-slate-100 opacity-60'}`} title="View comments"><MessageSquareText size={16} /><span className="text-[12px] font-semibold">{t.comments?.length || 0}</span></button>
       </td>
       {columns.map((c: any) => (
         <td key={c.id} className="px-4 py-3">
@@ -401,7 +401,7 @@ const SpacesTaskTableRow: React.FC<SpacesTaskTableRowProps> = ({
                 ref={activeRowMenuId === t.taskId ? activeRowMenuButtonRef : undefined}
                 type="button"
                 onClick={(event) => handleRowMenuToggle(t.taskId, event)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent bg-transparent text-slate-400 transition hover:border-slate-200 hover:bg-slate-50 hover:text-slate-700"
                 title="Task actions"
               >
                 <MoreVertical size={16} />

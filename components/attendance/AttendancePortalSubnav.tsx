@@ -58,18 +58,23 @@ const AttendancePortalSubnav: React.FC<AttendancePortalSubnavProps> = ({
   onNavigateExpense,
 }) => {
   const tabClass = (isActive: boolean) =>
-    `border-b-2 px-1 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors sm:text-[12px] ${
+    `whitespace-nowrap rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
       isActive
-        ? 'border-brand-red text-slate-900'
-        : 'border-transparent text-slate-500 hover:text-slate-900'
+        ? 'bg-red-50 text-brand-red'
+        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
     }`;
 
   return (
     <PageSectionSubnav
+      outerClassName="!bg-white !shadow-none dark:!bg-slate-950"
+      innerClassName="!flex !flex-wrap !flex-row !gap-x-6 !gap-y-3 !py-4"
+      leadingClassName="w-full"
+      centerClassName="!justify-start !gap-1 max-w-full flex-wrap"
+      trailingClassName="min-w-0 md:ml-auto"
       leading={
         <>
-          <span className="h-1.5 w-8 rounded-full bg-brand-red" />
-          <span className="truncate text-sm font-medium text-slate-600 sm:text-[15px]">
+          <span className="h-6 w-1 rounded-full bg-brand-red" />
+          <span className="truncate text-xl font-semibold tracking-tight text-slate-900">
             {isEmployeePortal ? 'Your Presence Radar' : 'Team Attendance Console'}
           </span>
         </>
@@ -108,7 +113,7 @@ const AttendancePortalSubnav: React.FC<AttendancePortalSubnavProps> = ({
             <button
               type="button"
               onClick={onNavigateExpense}
-              className="border-b-2 border-transparent px-1 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 transition-colors hover:text-slate-900 sm:text-[12px]"
+              className="whitespace-nowrap rounded-lg px-3 py-2 text-[13px] font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
             >
               Expense & Travel
             </button>
@@ -123,12 +128,12 @@ const AttendancePortalSubnav: React.FC<AttendancePortalSubnavProps> = ({
               showAttendanceSubnavControls ? '' : 'invisible pointer-events-none hidden'
             }`}
           >
-            <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
+            <div className="inline-flex flex-wrap items-center rounded-lg border border-slate-200 bg-slate-50 p-1">
               <button
                 type="button"
                 onClick={() => setRange('day')}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] md:text-[13px] ${
-                  range === 'day' ? 'bg-brand-red text-white shadow-md' : 'text-slate-700 hover:bg-slate-50'
+                  range === 'day' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 <Clock size={13} /> Today
@@ -137,7 +142,7 @@ const AttendancePortalSubnav: React.FC<AttendancePortalSubnavProps> = ({
                 type="button"
                 onClick={() => setRange('week')}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] md:text-[13px] ${
-                  range === 'week' ? 'bg-brand-red text-white shadow-md' : 'text-slate-700 hover:bg-slate-50'
+                  range === 'week' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 <Calendar size={13} /> Week
@@ -146,7 +151,7 @@ const AttendancePortalSubnav: React.FC<AttendancePortalSubnavProps> = ({
                 type="button"
                 onClick={() => setRange('month')}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] md:text-[13px] ${
-                  range === 'month' ? 'bg-brand-red text-white shadow-md' : 'text-slate-700 hover:bg-slate-50'
+                  range === 'month' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 <BarChart3 size={13} /> Month
@@ -159,21 +164,21 @@ const AttendancePortalSubnav: React.FC<AttendancePortalSubnavProps> = ({
                 onClick={() => setHeaderMonthPickerOpen((prev) => !prev)}
                 aria-expanded={headerMonthPickerOpen}
                 aria-haspopup="dialog"
-                className={`group flex items-center gap-2 rounded-xl border px-3 py-1.5 text-[11px] md:text-[13px] shadow-sm transition-all ${
+                className={`group flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[11px] md:text-[13px] shadow-sm transition-all ${
                   headerMonthPickerOpen || selectedMonth
-                    ? 'border-brand-red/20 bg-gradient-to-br from-white via-rose-50 to-slate-50 text-slate-900 shadow-[0_16px_40px_rgba(230,28,33,0.12)]'
+                    ? 'border-slate-300 bg-white text-slate-900'
                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
                 <span className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
                   headerMonthPickerOpen || selectedMonth
-                    ? 'bg-brand-red text-white shadow-md shadow-brand-red/25'
+                    ? 'bg-red-50 text-brand-red'
                     : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200'
                 }`}>
                   <Calendar size={13} />
                 </span>
                 <span className="flex flex-col items-start leading-tight">
-                  <span className="text-[9px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                  <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">
                     Timeline
                   </span>
                   <span className="font-semibold text-slate-800">{headerSelectedMonthLabel}</span>
@@ -184,14 +189,14 @@ const AttendancePortalSubnav: React.FC<AttendancePortalSubnavProps> = ({
                 <div
                   role="dialog"
                   aria-label="Select attendance month"
-                  className="absolute right-0 top-[calc(100%+12px)] z-30 w-[320px] overflow-hidden rounded-[28px] border border-white/70 bg-white/95 shadow-[0_28px_80px_rgba(15,23,42,0.2)] ring-1 ring-slate-200/70 backdrop-blur-xl"
+                  className="absolute left-0 top-[calc(100%+12px)] z-30 sm:left-auto sm:right-0 w-[300px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-white/70 bg-white/95 shadow-sm ring-1 ring-slate-200/70 backdrop-blur-xl"
                 >
-                  <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-navy px-5 py-4 text-white">
+                  <div className="relative overflow-hidden border-b border-slate-100 bg-slate-900 px-5 py-4 text-white">
                     <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-brand-red/30 blur-2xl" />
                     <div className="absolute -left-6 bottom-0 h-16 w-16 rounded-full bg-white/10 blur-xl" />
                     <div className="relative flex items-start justify-between gap-4">
                       <div>
-                        <h3 className="text-lg font-semibold">{headerVisibleYear}</h3>
+                        <h3 className="text-lg font-semibold tracking-tight">{headerVisibleYear}</h3>
                         <p className="text-xs text-white/70">
                           Pick a month to review attendance insights.
                         </p>
@@ -200,7 +205,7 @@ const AttendancePortalSubnav: React.FC<AttendancePortalSubnavProps> = ({
                         <button
                           type="button"
                           onClick={() => setHeaderVisibleYear((year) => year - 1)}
-                          className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white/90 transition hover:bg-white/15"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-white/90 transition hover:bg-white/15"
                           aria-label="Previous year"
                         >
                           <ChevronLeft size={16} />
@@ -208,7 +213,7 @@ const AttendancePortalSubnav: React.FC<AttendancePortalSubnavProps> = ({
                         <button
                           type="button"
                           onClick={() => setHeaderVisibleYear((year) => year + 1)}
-                          className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white/90 transition hover:bg-white/15"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-white/90 transition hover:bg-white/15"
                           aria-label="Next year"
                         >
                           <ChevronRight size={16} />
@@ -231,9 +236,9 @@ const AttendancePortalSubnav: React.FC<AttendancePortalSubnavProps> = ({
                             key={month.value}
                             type="button"
                             onClick={() => handleHeaderMonthSelect(month.value)}
-                            className={`relative overflow-hidden rounded-2xl border px-3 py-2 text-center transition-all ${
+                            className={`relative overflow-hidden rounded-lg border px-3 py-2 text-center transition-all ${
                               isSelected
-                                ? 'border-brand-red bg-gradient-to-br from-brand-red to-red-500 text-white shadow-[0_14px_34px_rgba(230,28,33,0.28)]'
+                                ? 'border-brand-red bg-brand-red text-white'
                                 : isCurrentMonth
                                   ? 'border-brand-red/25 bg-rose-50 text-slate-900 shadow-sm hover:border-brand-red/35 hover:bg-rose-100'
                                   : 'border-slate-200 bg-white/90 text-slate-700 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50'
@@ -272,7 +277,7 @@ const AttendancePortalSubnav: React.FC<AttendancePortalSubnavProps> = ({
                           setRange('month');
                           setHeaderMonthPickerOpen(false);
                         }}
-                        className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
                       >
                         <Calendar size={14} />
                         This month
@@ -290,7 +295,7 @@ const AttendancePortalSubnav: React.FC<AttendancePortalSubnavProps> = ({
               showLeaveSubnavControls ? '' : 'invisible pointer-events-none hidden'
             }`}
           >
-            <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
+            <div className="inline-flex flex-wrap items-center rounded-lg border border-slate-200 bg-slate-50 p-1">
               {availableLeaveSections.map((section) => (
                 <button
                   key={section.id}
@@ -298,7 +303,7 @@ const AttendancePortalSubnav: React.FC<AttendancePortalSubnavProps> = ({
                   onClick={() => handleLeaveSectionChange(section.id)}
                   className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold md:px-4 md:text-[13px] ${
                     effectiveLeaveSection === section.id
-                      ? 'bg-brand-red text-white shadow-md'
+                      ? 'bg-white text-slate-900 shadow-sm'
                       : 'text-slate-700 hover:bg-slate-50'
                   }`}
                 >

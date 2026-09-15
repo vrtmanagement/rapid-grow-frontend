@@ -74,14 +74,14 @@ const LeaveHistoryRecordsSection: React.FC<LeaveHistoryRecordsSectionProps> = ({
   onDeleteLeave,
 }) => {
   return (
-    <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-brand-red/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-red">
+          <div className="inline-flex items-center gap-2 rounded-full bg-brand-red/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-brand-red">
             <Sparkles size={14} />
             Leave history
           </div>
-          <h3 className="mt-3 text-xl font-semibold text-slate-900">Leave history records</h3>
+          <h3 className="mt-3 text-xl font-semibold text-slate-900 tracking-tight">Leave history records</h3>
           <p className="mt-2 text-sm leading-6 text-slate-500">
             Filter, review, and inspect leave records in a professional card-based layout built for SaaS dashboards.
           </p>
@@ -89,12 +89,12 @@ const LeaveHistoryRecordsSection: React.FC<LeaveHistoryRecordsSectionProps> = ({
 
         <div className={`w-full ${showHistoryEmployeeFilter ? 'md:max-w-4xl' : 'md:ml-auto md:max-w-[420px]'}`}>
           <div
-            className={`grid grid-cols-1 gap-3 rounded-[26px] border border-slate-200 bg-slate-50/70 p-3 ${
+            className={`grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 ${
               showHistoryEmployeeFilter ? 'md:grid-cols-[170px_minmax(0,1fr)_220px]' : 'md:grid-cols-[170px_220px]'
             }`}
           >
             <label className="block">
-              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Status</span>
+              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Status</span>
               <FilterDropdown
                 value={statusFilter}
                 selectedLabel={historyStatusLabel}
@@ -115,7 +115,7 @@ const LeaveHistoryRecordsSection: React.FC<LeaveHistoryRecordsSectionProps> = ({
 
             {showHistoryEmployeeFilter ? (
               <label className="block">
-                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Select employee</span>
+                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Select employee</span>
                 <FilterDropdown
                   value={historyEmployeeFilter}
                   selectedLabel={historyEmployeeLabel}
@@ -142,7 +142,7 @@ const LeaveHistoryRecordsSection: React.FC<LeaveHistoryRecordsSectionProps> = ({
             ) : null}
 
             <label className="block">
-              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Select month</span>
+              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Select month</span>
               <FilterDropdown
                 value={historyMonthFilter}
                 selectedLabel={historyMonthLabel}
@@ -178,7 +178,7 @@ const LeaveHistoryRecordsSection: React.FC<LeaveHistoryRecordsSectionProps> = ({
         {leaveLoading ? (
           <AttendanceLeaveOverviewSkeleton count={4} />
         ) : filteredLeaves.length === 0 ? (
-          <div className="xl:col-span-2 rounded-[28px] border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
+          <div className="xl:col-span-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
             <p className="text-base font-semibold text-slate-900">No leave records found</p>
             <p className="mt-2 text-sm text-slate-500">Try adjusting the filters or submit a new leave request.</p>
           </div>

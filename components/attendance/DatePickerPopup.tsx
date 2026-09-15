@@ -58,11 +58,11 @@ const DatePickerPopup: React.FC<DatePickerPopupProps> = ({ value, onSelect, onCl
   const calendarDays = useMemo(() => getCalendarDays(visibleMonth), [visibleMonth]);
 
   return (
-    <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full min-w-[192px] rounded-[16px] border border-slate-200 bg-white p-2 shadow-[0_16px_40px_rgba(15,23,42,0.14)] animate-in fade-in zoom-in-95 duration-200">
+    <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-full min-w-[192px] rounded-xl border border-slate-200 bg-white p-2 shadow-sm animate-in fade-in zoom-in-95 duration-200">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-slate-400">Choose date</p>
-          <h4 className="mt-0.5 text-[0.78rem] font-semibold text-slate-900">{monthLabel}</h4>
+          <p className="text-[8px] font-semibold uppercase tracking-wide text-slate-400">Choose date</p>
+          <h4 className="mt-0.5 text-[0.78rem] font-semibold text-slate-900 tracking-tight">{monthLabel}</h4>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -108,7 +108,7 @@ const DatePickerPopup: React.FC<DatePickerPopupProps> = ({ value, onSelect, onCl
               }}
               className={`relative h-7 rounded-lg border text-[0.78rem] font-semibold transition ${
                 isSelected
-                  ? 'border-brand-red bg-brand-red text-white shadow-md'
+                  ? 'border-brand-red bg-brand-red text-white shadow-sm'
                   : isToday
                     ? 'border-brand-red/20 bg-brand-red/5 text-brand-red'
                     : 'border-slate-200 bg-slate-50/70 text-slate-700 hover:border-slate-300 hover:bg-white'

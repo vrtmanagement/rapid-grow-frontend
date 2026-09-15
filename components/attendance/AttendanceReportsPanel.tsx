@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, RefreshCw } from 'lucide-react';
+import { Download, Loader2, RefreshCw } from 'lucide-react';
 import {
   AttendanceOpsSettings,
   AttendanceRegularization,
@@ -442,13 +442,13 @@ const AttendanceReportsPanel: React.FC<Props> = ({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[28px] border border-slate-200 bg-white p-5 md:p-6">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-3xl text-slate-900 leading-none">
+            <h2 className="text-2xl text-slate-900 leading-tight font-semibold tracking-tight">
               {canReviewTeam ? 'Attendance Reports' : 'My attendance requests'}
             </h2>
-            <p className="mt-2 max-w-2xl text-sm text-slate-500 md:text-base">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
               {canReviewTeam
                 ? 'Clear month totals, employee search, and an admin inbox for late-login / forgot-login requests.'
                 : 'Submit forgot-login or wrong-time corrections. Admins get a notification in the portal.'}
@@ -456,22 +456,22 @@ const AttendanceReportsPanel: React.FC<Props> = ({
           </div>
           {canReviewTeam || canManageOps ? (
             <div className="flex flex-wrap items-end gap-2">
-              <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+              <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                 Month
                 <input
                   type="month"
                   value={month}
                   onChange={(event) => setMonth(event.target.value)}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800"
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800"
                 />
               </label>
               {canReviewTeam ? (
-                <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                   Department
                   <select
                     value={department}
                     onChange={(event) => setDepartment(event.target.value)}
-                    className="min-w-[150px] rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800"
+                    className="min-w-[150px] rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800"
                   >
                     <option value="">All</option>
                     {departmentOptions.map((name) => (
@@ -488,7 +488,7 @@ const AttendanceReportsPanel: React.FC<Props> = ({
                   void loadReport();
                   void loadRequests();
                 }}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
               >
                 <RefreshCw size={14} />
                 Refresh
@@ -498,9 +498,9 @@ const AttendanceReportsPanel: React.FC<Props> = ({
                   type="button"
                   onClick={() => void handleExport()}
                   disabled={exportLoading}
-                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white disabled:opacity-60"
                 >
-                  <Download size={14} />
+                  {exportLoading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                   {exportLoading ? 'Exporting…' : 'Export CSV'}
                 </button>
               ) : null}
@@ -515,10 +515,10 @@ const AttendanceReportsPanel: React.FC<Props> = ({
                 key={tab.id}
                 type="button"
                 onClick={() => setSection(tab.id)}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
                   section === tab.id
-                    ? 'bg-brand-red text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'bg-red-50 text-brand-red'
+                    : 'bg-white text-slate-500 hover:bg-slate-50'
                 }`}
               >
                 {tab.label}
@@ -533,7 +533,7 @@ const AttendanceReportsPanel: React.FC<Props> = ({
 
       {toast ? (
         <div
-          className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+          className={`rounded-xl border px-4 py-3 text-sm font-medium ${
             toast.tone === 'success'
               ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
               : 'border-slate-200 bg-slate-50 text-slate-700'
@@ -574,12 +574,12 @@ const AttendanceReportsPanel: React.FC<Props> = ({
           regForm={regForm}
           setRegForm={setRegForm}
           regSaving={regSaving}
-          onCreateRegularization={() => void handleCreateRegularization()}
-          onDecide={(id, status) => void handleDecide(id, status)}
-          onClearLateLoginRecords={() => void handleClearLateLoginRecords()}
-          onClearRegularizations={() => void handleClearRegularizationsAll()}
-          onDeleteLateLoginRecord={(id) => void handleDeleteLateLoginRecordRow(id)}
-          onDeleteRegularization={(id) => void handleDeleteRegularizationRow(id)}
+          onCreateRegularization={() => handleCreateRegularization()}
+          onDecide={(id, status) => handleDecide(id, status)}
+          onClearLateLoginRecords={() => handleClearLateLoginRecords()}
+          onClearRegularizations={() => handleClearRegularizationsAll()}
+          onDeleteLateLoginRecord={(id) => handleDeleteLateLoginRecordRow(id)}
+          onDeleteRegularization={(id) => handleDeleteRegularizationRow(id)}
         />
       ) : null}
 
@@ -594,7 +594,7 @@ const AttendanceReportsPanel: React.FC<Props> = ({
           setHolidayName={setHolidayName}
           setHolidayDate={setHolidayDate}
           onAddHoliday={() => void handleAddHoliday()}
-          onDeleteHoliday={(id) => void handleDeleteHolidayRow(id)}
+          onDeleteHoliday={(id) => handleDeleteHolidayRow(id)}
           opsSettings={opsSettings}
           opsDraft={opsDraft}
           setOpsDraft={setOpsDraft}

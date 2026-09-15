@@ -32,7 +32,7 @@ const AttendanceLateHeaderActions: React.FC<AttendanceLateHeaderActionsProps> = 
 
   return (
     <div className="flex flex-col items-start gap-2 md:items-end">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
         Late cutoff
       </span>
       <button
@@ -43,7 +43,7 @@ const AttendanceLateHeaderActions: React.FC<AttendanceLateHeaderActionsProps> = 
           setLateLoginSettingsModalOpen(true);
         }}
         disabled={lateLoginSettingsLoading}
-        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.05)] transition-colors hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <Clock size={16} />
         <span>{currentLateLoginCutoffLabel}</span>

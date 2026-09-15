@@ -155,7 +155,7 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
 
   if (loading && !overview) {
     return (
-      <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full bg-brand-red/8 px-3 py-1">
@@ -166,14 +166,14 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
-              <SkeletonBlock key={`leave-overview-filter-${index}`} className="h-12 w-full rounded-[20px]" />
+              <SkeletonBlock key={`leave-overview-filter-${index}`} className="h-12 w-full rounded-xl" />
             ))}
           </div>
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
           {Array.from({ length: 7 }).map((_, index) => (
-            <div key={`leave-stat-${index}`} className="flex min-h-[102px] flex-col rounded-[18px] border border-slate-200 bg-white px-3.5 py-3.5">
+            <div key={`leave-stat-${index}`} className="flex min-h-[102px] flex-col rounded-xl border border-slate-200 bg-white px-3.5 py-3.5">
               <div className="flex h-[34px] items-start">
                 <Skeleton className="h-3 w-20" />
               </div>
@@ -185,8 +185,8 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <SkeletonBlock className="h-[320px] rounded-[28px]" />
-          <SkeletonBlock className="h-[320px] rounded-[28px]" />
+          <SkeletonBlock className="h-[320px] rounded-xl" />
+          <SkeletonBlock className="h-[320px] rounded-xl" />
         </div>
       </section>
     );
@@ -209,11 +209,11 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
   });
 
   return (
-    <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
+    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-brand-red/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-red whitespace-nowrap">
+            <div className="inline-flex items-center gap-2 rounded-full bg-brand-red/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-brand-red whitespace-nowrap">
               <ShieldCheck size={14} />
               Leave Balance Overview
             </div>
@@ -234,7 +234,7 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={onRefresh}
-                className={`inline-flex h-[50px] items-center justify-center gap-2 rounded-[20px] border px-4 text-sm font-semibold transition active:scale-[0.97] ${
+                className={`inline-flex h-[50px] items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition active:scale-[0.97] ${
                   loading
                     ? 'border-brand-red/20 bg-brand-red/5 text-brand-red ring-4 ring-brand-red/10'
                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-950'
@@ -247,7 +247,7 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
                 type="button"
                 onClick={onExport}
                 disabled={exportLoading}
-                className={`inline-flex h-[50px] items-center justify-center gap-2 rounded-[20px] px-4 text-sm font-semibold text-white transition ${
+                className={`inline-flex h-[50px] items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition ${
                   exportLoading ? 'cursor-not-allowed bg-slate-300' : 'bg-brand-red hover:bg-red-600'
                 }`}
               >
@@ -261,7 +261,7 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {showEmployeeFilter ? (
             <label className="block">
-              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Employee</span>
+              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Employee</span>
               <FilterDropdown
                 value={selectedEmployeeEmpId}
                 selectedLabel={selectedEmployeeLabel}
@@ -283,14 +283,14 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
           ) : null}
 
           <label className="block">
-            <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">View</span>
-            <div className="grid grid-cols-2 rounded-[20px] border border-slate-200 bg-slate-50 p-1 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+            <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">View</span>
+            <div className="grid grid-cols-2 rounded-xl border border-slate-200 bg-slate-50 p-1 shadow-sm">
               {(['month', 'year'] as const).map((option) => (
                 <button
                   key={option}
                   type="button"
                   onClick={() => onPeriodChange(option)}
-                  className={`rounded-[16px] px-4 py-2.5 text-sm font-semibold capitalize transition ${
+                  className={`rounded-lg px-4 py-2.5 text-sm font-semibold capitalize transition ${
                     selectedPeriod === option
                       ? 'bg-white text-slate-900 shadow-sm'
                       : 'text-slate-500 hover:text-slate-800'
@@ -304,7 +304,7 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
 
           {selectedPeriod === 'month' ? (
             <label className="block">
-              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Month</span>
+              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Month</span>
               <FilterDropdown
                 value={selectedMonth}
                 selectedLabel={selectedMonthLabel}
@@ -326,7 +326,7 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
           ) : null}
 
           <label className="block">
-            <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Year</span>
+            <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Year</span>
             <FilterDropdown
               value={String(selectedYear)}
               selectedLabel={String(selectedYear)}
@@ -375,7 +375,7 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
         <button
           type="button"
           onClick={() => setPolicyHelpOpen((prev) => !prev)}
-          className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+          className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
             policyHelpOpen
               ? 'bg-slate-200 text-slate-700'
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -387,10 +387,10 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
       </div>
 
       {policyHelpOpen && overview ? (
-        <div className="mt-4 overflow-hidden rounded-[28px] border border-slate-200 bg-slate-50/40">
+        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50/40">
           <div className="border-b border-slate-200 px-5 py-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Policy document</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Policy document</p>
               <h3 className="mt-2 text-[1.4rem] font-semibold tracking-[-0.03em] text-slate-950">
                 {overview.policy.name}
               </h3>
@@ -401,39 +401,39 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
           </div>
 
           <div className="grid gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Monthly paid</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Monthly paid</p>
               <p className="mt-2 text-xl font-semibold text-slate-950">{formatDayLabel(overview.policy.monthlyPaidLeaves)}</p>
             </div>
-            <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Carry forward max</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Carry forward max</p>
               <p className="mt-2 text-xl font-semibold text-slate-950">{formatDayLabel(overview.policy.maxCarryForward)}</p>
             </div>
-            <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Expiry month</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Expiry month</p>
               <p className="mt-2 text-xl font-semibold text-slate-950">{overview.policy.carryForwardExpiryMonth}</p>
             </div>
-            <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 px-4 py-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Half-day deduction</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Half-day deduction</p>
               <p className="mt-2 text-xl font-semibold text-slate-950">{formatDayLabel(overview.policy.halfDayDeduction)}</p>
             </div>
           </div>
 
-          <div className="mx-5 rounded-[24px] border border-slate-200 bg-white">
+          <div className="mx-5 rounded-xl border border-slate-200 bg-white">
             <div className="border-b border-slate-200 px-5 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Employee allocation</p>
-              <h4 className="mt-1 text-lg font-semibold text-slate-950">Allocated leave details</h4>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Employee allocation</p>
+              <h4 className="mt-1 text-lg font-semibold text-slate-950 tracking-tight">Allocated leave details</h4>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/70">
-                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Leave type</th>
-                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Monthly</th>
-                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Yearly</th>
-                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Allocated</th>
-                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Used</th>
-                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Remaining</th>
+                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Leave type</th>
+                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Monthly</th>
+                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Yearly</th>
+                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Allocated</th>
+                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Used</th>
+                    <th className="px-5 py-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Remaining</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -453,8 +453,8 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
           </div>
 
           <div className="px-5 py-5">
-            <div className="rounded-[24px] border border-slate-200 bg-slate-50/60 px-5 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Policy notes</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-5 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Policy notes</p>
               <div className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-700">
                 {policyNotesText}
               </div>
@@ -465,14 +465,14 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
 
       {showDataSkeleton ? (
         <div className="mt-4">
-          <SkeletonBlock className="h-[72px] w-full rounded-[24px]" />
+          <SkeletonBlock className="h-[72px] w-full rounded-xl" />
         </div>
       ) : overview?.warningState === 'critical' ? (
-        <div className="mt-4 rounded-[24px] border border-rose-200 bg-rose-50/80 px-5 py-4 text-sm text-rose-700">
+        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50/80 px-5 py-4 text-sm text-rose-700">
           Paid leave balance is exhausted for the current cycle. New approvals can automatically move into LOP based on policy rules.
         </div>
       ) : overview?.warningState === 'warning' ? (
-        <div className="mt-4 rounded-[24px] border border-amber-200 bg-amber-50/80 px-5 py-4 text-sm text-amber-700">
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 px-5 py-4 text-sm text-amber-700">
           Leave balance is running low. Plan upcoming requests carefully to avoid unplanned unpaid leave deductions.
         </div>
       ) : null}
@@ -481,7 +481,7 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
         <>
           <div className="mt-6 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
             {Array.from({ length: 7 }).map((_, index) => (
-              <div key={`leave-overview-skeleton-stat-${index}`} className="flex min-h-[102px] flex-col rounded-[18px] border border-slate-200 bg-white px-3.5 py-3.5">
+              <div key={`leave-overview-skeleton-stat-${index}`} className="flex min-h-[102px] flex-col rounded-xl border border-slate-200 bg-white px-3.5 py-3.5">
                 <div className="flex h-[34px] items-start">
                   <Skeleton className="h-3 w-20" />
                 </div>
@@ -493,8 +493,8 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
           </div>
 
           <div className="mt-6 grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
-            <SkeletonBlock className="h-[720px] rounded-[28px]" />
-            <SkeletonBlock className="h-[720px] rounded-[28px]" />
+            <SkeletonBlock className="h-[720px] rounded-xl" />
+            <SkeletonBlock className="h-[720px] rounded-xl" />
           </div>
         </>
       ) : (
@@ -509,10 +509,10 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
               return (
                 <div
                   key={card.key}
-                  className={`flex min-h-[102px] flex-col rounded-[18px] border border-slate-200 px-3.5 py-3.5 shadow-[0_10px_22px_rgba(15,23,42,0.05)] ${card.bg}`}
+                  className={`flex min-h-[102px] flex-col rounded-xl border border-slate-200 px-3.5 py-3.5 shadow-sm ${card.bg}`}
                 >
                   <div className="flex h-[34px] items-start">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                       {card.label}
                     </p>
                   </div>
@@ -533,13 +533,13 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
           </div>
 
           <div className="mt-6 grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
-        <div className="rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#fbfdff_100%)] p-5 shadow-[0_16px_34px_rgba(15,23,42,0.05)]">
+        <div className="rounded-xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#fbfdff_100%)] p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h4 className="text-lg font-semibold text-slate-950">Leave type allocation</h4>
+              <h4 className="text-lg font-semibold text-slate-950 tracking-tight">Leave type allocation</h4>
             </div>
             <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-right shadow-sm">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Progress</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Progress</p>
               <p className="mt-0.5 text-base font-semibold text-slate-950">{overview?.progressPercent || 0}%</p>
             </div>
           </div>
@@ -571,11 +571,11 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
               const usedPercent = allocation > 0 ? Math.min(100, Math.round((entry.used / allocation) * 100)) : 0;
 
               return (
-                <div key={entry.type} className="rounded-[20px] border border-slate-200 bg-white px-4 py-3.5 shadow-[0_10px_22px_rgba(15,23,42,0.04)]">
+                <div key={entry.type} className="rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-slate-900">{entry.label}</p>
-                      <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                         {entry.paid ? 'Paid' : 'LOP'}
                       </span>
                     </div>
@@ -599,13 +599,13 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#fbfcff_100%)] p-5 shadow-[0_16px_34px_rgba(15,23,42,0.05)]">
+        <div className="rounded-xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#fbfcff_100%)] p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h4 className="text-lg font-semibold text-slate-950">Monthly leave trend</h4>
+              <h4 className="text-lg font-semibold text-slate-950 tracking-tight">Monthly leave trend</h4>
             </div>
             <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-right shadow-sm">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Carry forward</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Carry forward</p>
               <p className="mt-0.5 text-base font-semibold text-slate-950">{formatDayLabel(summary?.carryForward || 0)}</p>
             </div>
           </div>
@@ -640,20 +640,20 @@ const LeaveBalanceOverviewSection: React.FC<Props> = ({
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="rounded-[20px] border border-slate-200 bg-slate-50/75 px-4 py-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Yearly allocation</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/75 px-4 py-3.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Yearly allocation</p>
               <p className="mt-2.5 text-2xl font-semibold text-slate-950">{formatDayLabel(summary?.yearlyAllocated || 0)}</p>
             </div>
-            <div className="rounded-[20px] border border-slate-200 bg-slate-50/75 px-4 py-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Yearly remaining</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/75 px-4 py-3.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Yearly remaining</p>
               <p className="mt-2.5 text-2xl font-semibold text-emerald-700">{formatDayLabel(summary?.yearlyRemaining || 0)}</p>
             </div>
-            <div className="rounded-[20px] border border-slate-200 bg-slate-50/75 px-4 py-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Bonus leaves</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/75 px-4 py-3.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Bonus leaves</p>
               <p className="mt-2.5 text-2xl font-semibold text-sky-700">{formatDayLabel(summary?.bonusLeaves || 0)}</p>
             </div>
-            <div className="rounded-[20px] border border-slate-200 bg-slate-50/75 px-4 py-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Expired carry forward</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/75 px-4 py-3.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Expired carry forward</p>
               <p className="mt-2.5 text-2xl font-semibold text-amber-700">{formatDayLabel(summary?.expiredCarryForward || 0)}</p>
             </div>
           </div>

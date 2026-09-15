@@ -47,16 +47,16 @@ const LeaveHistoryCard: React.FC<Props> = ({
   const canShowPendingActions = leave.status === 'PENDING' && canManagePending;
 
   return (
-    <article className={`group h-full rounded-[28px] border p-5 transition-all duration-300 ${cardStatusClasses[leave.status]}`}>
+    <article className={`group h-full rounded-xl border p-5 transition-all duration-300 ${cardStatusClasses[leave.status]}`}>
       <div className="flex h-full flex-col gap-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${getLeaveTypeTone(leave.type)}`}>
+              <span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wide ${getLeaveTypeTone(leave.type)}`}>
                 {getLeaveTypeLabel(leave.type)}
               </span>
               <span
-                className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ring-1 ${getLeaveDisplayStatusTone(leave)}`}
+                className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wide ring-1 ${getLeaveDisplayStatusTone(leave)}`}
               >
                 {getLeaveDisplayStatusLabel(leave)}
               </span>
@@ -65,12 +65,12 @@ const LeaveHistoryCard: React.FC<Props> = ({
 
             <div className="mt-4 flex flex-wrap items-center gap-3 text-slate-900">
               <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3.5 py-1.5 shadow-sm">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">From</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">From</span>
                 <span className="text-[1.02rem] font-semibold tracking-[-0.02em] text-slate-900">
                   {new Date(leave.startDate).toLocaleDateString('en-US', { timeZone: getUserTimeZone() })}
                 </span>
                 <span className="text-slate-300">•</span>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">To</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">To</span>
                 <span className="text-[1.02rem] font-semibold tracking-[-0.02em] text-slate-900">
                   {new Date(leave.endDate).toLocaleDateString('en-US', { timeZone: getUserTimeZone() })}
                 </span>
@@ -83,7 +83,7 @@ const LeaveHistoryCard: React.FC<Props> = ({
 
             {showEmployee && employeeLabel ? (
               <div className="mt-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Employee</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Employee</p>
                 <p className="mt-1 inline-flex items-center rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm">
                   {employeeLabel}
                 </p>
@@ -95,7 +95,7 @@ const LeaveHistoryCard: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => onViewDetails(leave)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
             >
               <Eye size={14} />
               View details
@@ -127,7 +127,7 @@ const LeaveHistoryCard: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => onEdit(leave)}
-                className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
+                className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
               >
                 <PencilLine size={14} />
                 Edit
@@ -135,7 +135,7 @@ const LeaveHistoryCard: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => onDelete(leave)}
-                className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
               >
                 <Trash2 size={14} />
                 Delete

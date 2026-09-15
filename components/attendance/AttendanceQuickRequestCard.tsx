@@ -86,24 +86,24 @@ const AttendanceQuickRequestCard: React.FC<AttendanceQuickRequestCardProps> = ({
   };
 
   return (
-    <div className="rounded-[24px] border border-slate-200 bg-white p-2.5">
+    <div className="rounded-xl border border-slate-200 bg-white p-2.5">
       <button
         type="button"
         onClick={() => setOpen((previous) => !previous)}
-        className="flex w-full items-center justify-between gap-3 rounded-[18px] px-2 py-2 text-left transition"
+        className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2 text-left transition"
       >
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-[14px] bg-amber-50 text-amber-500">
             <Hourglass size={16} />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Quick requests</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Quick requests</p>
             <p className="mt-0.5 truncate text-[0.95rem] font-semibold text-slate-900">Apply for Half-Day</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {todaysHalfDayRequest ? (
-            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${quickRequestStatusTone}`}>
+            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${quickRequestStatusTone}`}>
               {todaysHalfDayRequest.status}
             </span>
           ) : null}
@@ -122,7 +122,7 @@ const AttendanceQuickRequestCard: React.FC<AttendanceQuickRequestCardProps> = ({
         <div className="min-h-0 overflow-hidden">
           <div className="border-t border-slate-200 px-2 pt-3">
             {todaysHalfDayRequest ? (
-              <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13px] text-slate-600">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13px] text-slate-600">
                 <div className="flex items-center justify-between gap-4">
                   <span>Requested slot</span>
                   <span className="font-medium text-slate-900">
@@ -145,7 +145,7 @@ const AttendanceQuickRequestCard: React.FC<AttendanceQuickRequestCardProps> = ({
                   type="button"
                   onClick={() => setHalfDaySlot(option.value)}
                   disabled={halfDayLocked || halfDayRequestLoading}
-                  className={`rounded-[18px] border px-3 py-2.5 text-left transition ${
+                  className={`rounded-lg border px-3 py-2.5 text-left transition ${
                     halfDaySlot === option.value
                       ? 'border-emerald-300 bg-emerald-50 text-slate-900'
                       : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white'
@@ -165,7 +165,7 @@ const AttendanceQuickRequestCard: React.FC<AttendanceQuickRequestCardProps> = ({
                 rows={2}
                 disabled={halfDayLocked || halfDayRequestLoading}
                 placeholder="Optional note for your approver"
-                className={`w-full rounded-[18px] border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13px] text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-300/50 ${
+                className={`w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-[13px] text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-300/50 ${
                   halfDayLocked ? 'cursor-not-allowed opacity-60' : ''
                 }`}
               />
@@ -173,7 +173,7 @@ const AttendanceQuickRequestCard: React.FC<AttendanceQuickRequestCardProps> = ({
 
             {quickRequestFeedback ? (
               <p
-                className={`mt-3 rounded-2xl border px-4 py-3 text-sm ${
+                className={`mt-3 rounded-xl border px-4 py-3 text-sm ${
                   quickRequestFeedback.tone === 'success'
                     ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                     : 'border-rose-200 bg-rose-50 text-rose-700'
@@ -187,7 +187,7 @@ const AttendanceQuickRequestCard: React.FC<AttendanceQuickRequestCardProps> = ({
               type="button"
               onClick={handleHalfDaySubmit}
               disabled={halfDayLocked || halfDayRequestLoading}
-              className={`mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[18px] px-4 py-2.5 text-[0.95rem] font-semibold transition ${
+              className={`mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[0.95rem] font-semibold transition ${
                 halfDayLocked
                   ? 'cursor-not-allowed bg-slate-200 text-slate-500'
                   : 'bg-amber-400 text-slate-950 hover:bg-amber-300'
@@ -206,7 +206,7 @@ const AttendanceQuickRequestCard: React.FC<AttendanceQuickRequestCardProps> = ({
                 type="button"
                 onClick={handleHalfDayRevert}
                 disabled={halfDayRequestLoading}
-                className={`mt-2 inline-flex w-full items-center justify-center rounded-[18px] border border-slate-200 px-4 py-2.5 text-[0.95rem] font-semibold transition ${
+                className={`mt-2 inline-flex w-full items-center justify-center rounded-lg border border-slate-200 px-4 py-2.5 text-[0.95rem] font-semibold transition ${
                   halfDayRequestLoading
                     ? 'cursor-not-allowed bg-slate-100 text-slate-400'
                     : 'bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900'

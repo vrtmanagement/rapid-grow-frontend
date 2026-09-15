@@ -304,7 +304,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
         className="flex items-start gap-4 px-6 py-4 transition-colors duration-200 hover:bg-slate-200/80 md:px-8"
       >
         <div className="relative shrink-0">
-          <div className="h-12 w-12 overflow-hidden rounded-2xl bg-slate-100">
+          <div className="h-12 w-12 overflow-hidden rounded-xl bg-slate-100">
             <img src={avatarSrc} alt={entry.empName} className="h-full w-full object-cover" />
           </div>
           <span className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white ${activityMeta.dotClass}`} />
@@ -383,12 +383,12 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
         </div>
 
         <div className="min-w-0 space-y-1 text-[12px] text-slate-500">
-          <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">Login time</p>
+          <p className="font-semibold uppercase tracking-wide text-slate-400">Login time</p>
           <p className="text-[13px] font-medium text-slate-800">{formatLateLoginDateTime(record.loginTime || null)}</p>
         </div>
 
         <div className="min-w-0 space-y-1 text-[12px] text-slate-500">
-          <p className="font-semibold uppercase tracking-[0.12em] text-slate-400">
+          <p className="font-semibold uppercase tracking-wide text-slate-400">
             {record.status === 'APPROVED' ? 'Approved at' : 'Attempted at'}
           </p>
           <p className="text-[13px] font-medium text-slate-800">{formatLateLoginDateTime(record.approvalTimestamp || record.attemptedAt)}</p>
@@ -419,14 +419,14 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
 
   return (
     <section className="space-y-6">
-      <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-4 bg-slate-200 px-6 py-5 md:flex-row md:items-center md:justify-between md:px-8">
           <div>
             <div className="mb-3 flex items-center gap-2">
               <div className="h-1.5 w-8 rounded-full bg-brand-red" />
               <span className="text-[15px] text-slate-500">Today team activity</span>
             </div>
-            <h3 className="text-2xl font-semibold text-slate-950">Today activity history</h3>
+            <h3 className="text-2xl font-semibold text-slate-950 tracking-tight">Today activity history</h3>
             <p className="mt-2 text-[15px] text-slate-500">
               Complete live history for today&apos;s team attendance events, ordered from latest to earliest.
             </p>
@@ -436,7 +436,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
             type="button"
             onClick={onRefreshTeamActivity}
             disabled={teamAttendanceSummaryLoading}
-            className="inline-flex items-center justify-center gap-2 self-start rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60 md:self-auto"
+            className="inline-flex items-center justify-center gap-2 self-start rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60 md:self-auto"
           >
             <RefreshCw size={14} className={teamAttendanceSummaryLoading ? 'animate-spin' : ''} />
             Refresh
@@ -459,7 +459,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
           <div className="divide-y divide-slate-100 px-6 py-3 md:px-8">
             {Array.from({ length: 6 }).map((_, index) => (
               <div key={`team-history-skeleton-${index}`} className="flex items-start gap-4 py-4">
-                <div className="h-12 w-12 shrink-0 rounded-2xl bg-slate-100" />
+                <div className="h-12 w-12 shrink-0 rounded-xl bg-slate-100" />
                 <div className="min-w-0 flex-1">
                   <div className="h-4 w-48 rounded bg-slate-100" />
                   <div className="mt-3 h-3 w-32 rounded bg-slate-100" />
@@ -485,14 +485,14 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
         )}
       </div>
 
-      <div className="rounded-[32px] border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-navy px-6 py-6 text-white shadow-[0_22px_60px_rgba(15,23,42,0.18)] md:px-8">
+      <div className="rounded-xl border border-slate-800/80 bg-slate-900 px-6 py-6 text-white shadow-sm md:px-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-3 flex items-center gap-2">
               <div className="h-1.5 w-8 rounded-full bg-brand-red" />
               <span className="text-[15px] text-slate-300">Employee Attendance</span>
             </div>
-            <h3 className="text-2xl font-semibold text-white">Team member attendance</h3>
+            <h3 className="text-2xl font-semibold text-white tracking-tight">Team member attendance</h3>
             <p className="mt-2 text-[15px] text-slate-300">
               Review any employee&apos;s monthly attendance without changing the current dashboard flow.
             </p>
@@ -508,7 +508,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
                     setEmployeePickerOpen((prev) => !prev);
                     setMonthPickerOpen(false);
                   }}
-                  className="flex w-full items-center justify-between rounded-2xl border border-white/12 bg-white/12 px-4 py-3 text-left text-[15px] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] outline-none transition-all hover:bg-white/16 focus:border-white/25 focus:bg-white/16 focus:ring-2 focus:ring-white/10"
+                  className="flex w-full items-center justify-between rounded-lg border border-white/12 bg-white/12 px-4 py-3 text-left text-[15px] text-white shadow-sm outline-none transition-all hover:bg-white/16 focus:border-white/25 focus:bg-white/16 focus:ring-2 focus:ring-white/10"
                 >
                   <span className="truncate pr-4">{selectedEmployeeLabel}</span>
                   <ChevronDown
@@ -518,7 +518,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
                 </button>
 
                 {employeePickerOpen && (
-                  <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+                  <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                     <div className="max-h-64 overflow-y-auto py-2">
                       {employeeOptions.length === 0 ? (
                         <div className="px-4 py-3 text-sm text-slate-500">No employees found</div>
@@ -560,7 +560,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
                     setMonthPickerOpen((prev) => !prev);
                     setEmployeePickerOpen(false);
                   }}
-                  className="flex w-full items-center justify-between rounded-2xl border border-white/12 bg-white/12 px-4 py-3 text-left text-[15px] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] outline-none transition-all hover:bg-white/16 focus:border-white/25 focus:bg-white/16 focus:ring-2 focus:ring-white/10"
+                  className="flex w-full items-center justify-between rounded-lg border border-white/12 bg-white/12 px-4 py-3 text-left text-[15px] text-white shadow-sm outline-none transition-all hover:bg-white/16 focus:border-white/25 focus:bg-white/16 focus:ring-2 focus:ring-white/10"
                 >
                   <span className="truncate pr-4">{selectedEmployeeMonthLabel}</span>
                   <ChevronDown
@@ -570,7 +570,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
                 </button>
 
                 {monthPickerOpen && (
-                  <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+                  <div className="absolute left-0 right-0 top-[calc(100%+10px)] z-30 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                     <div className="max-h-64 overflow-y-auto py-2">
                       {employeeMonthOptions.map((month) => {
                         const isSelected = month.value === selectedEmployeeMonth;
@@ -617,7 +617,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
       </div>
 
       {selectedEmployeeEmpId ? (
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           <div className="space-y-6 lg:col-span-8">
             <AttendanceSummaryCards
               summary={employeeSummary}
@@ -639,14 +639,14 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
 
           <div className="lg:col-span-4">
             <div className="space-y-6">
-              <div className="rounded-[30px] border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-navy p-6 text-white shadow-[0_18px_44px_rgba(15,23,42,0.18)]">
-                <h4 className="text-lg font-semibold text-white">Attendance selection</h4>
+              <div className="rounded-xl border border-slate-800/80 bg-slate-900 p-6 text-white shadow-sm">
+                <h4 className="text-lg font-semibold text-white tracking-tight">Attendance selection</h4>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
                   Use the employee and month selectors above to review monthly attendance in a focused way.
                 </p>
                 <div className="mt-6 space-y-4">
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Employee</p>
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Employee</p>
                     <p className="mt-2 text-base font-semibold text-white">
                       {selectedEmployee?.empName || 'Select an employee'}
                     </p>
@@ -654,13 +654,13 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
                       {selectedEmployee?.empId || 'No employee selected'}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Month</p>
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Month</p>
                     <p className="mt-2 text-base font-semibold text-white">
                       {employeeMonthOptions.find((month) => month.value === selectedEmployeeMonth)?.label || 'Select month'}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-4">
                     <h5 className="text-lg font-semibold text-white">Monthly attendance</h5>
                     <p className="mt-2 text-sm leading-6 text-slate-300">
                       Shows the selected employee&apos;s monthly attendance with Sundays excluded from total working days.
@@ -674,15 +674,15 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
                     ) : (
                       <div className="mt-5 grid grid-cols-3 gap-3">
                         <div className="rounded-xl bg-emerald-500/10 px-3 py-4 text-center">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">Present</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-200">Present</p>
                           <p className="mt-2 text-2xl font-semibold text-white">{selectedEmployeeMonthlyAttendance.present}</p>
                         </div>
                         <div className="rounded-xl bg-rose-500/10 px-3 py-4 text-center">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200">Absent</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-200">Absent</p>
                           <p className="mt-2 text-2xl font-semibold text-white">{selectedEmployeeMonthlyAttendance.absent}</p>
                         </div>
                         <div className="rounded-xl bg-white/5 px-3 py-4 text-center">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">Total</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">Total</p>
                           <p className="mt-2 text-2xl font-semibold text-white">{selectedEmployeeMonthlyAttendance.total}</p>
                         </div>
                       </div>
@@ -694,20 +694,20 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
           </div>
         </div>
       ) : (
-        <div className="rounded-[28px] border border-dashed border-slate-300 bg-white/80 px-6 py-10 text-center text-slate-500 shadow-sm">
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-10 text-center text-slate-500 shadow-sm">
           No employee is available for attendance review.
         </div>
       )}
 
       {lateLoginModalOpen && selectedEmployee ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/45 px-4">
-          <div className="w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.28)]">
+          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                   Late login approval
                 </p>
-                <h4 className="mt-2 text-xl font-semibold text-slate-950">
+                <h4 className="mt-2 text-xl font-semibold text-slate-950 tracking-tight">
                   Allow late login for {selectedEmployee.empName}
                 </h4>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
@@ -720,13 +720,13 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
                   setLateLoginModalOpen(false);
                   setLateLoginReason('');
                 }}
-                className="rounded-full border border-slate-200 px-3 py-1 text-sm font-medium text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-900"
+                className="rounded-lg border border-slate-200 px-3 py-1 text-sm font-medium text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-900"
               >
                 Close
               </button>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
               <p className="text-sm font-semibold text-slate-900">
                 {selectedEmployee.empName} ({selectedEmployee.empId})
               </p>
@@ -744,12 +744,12 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
                 onChange={(event) => setLateLoginReason(event.target.value)}
                 rows={4}
                 placeholder="Add context for this late login approval."
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
+                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
               />
             </label>
 
             {lateLoginActionMessage ? (
-              <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                 {lateLoginActionMessage}
               </p>
             ) : null}
@@ -761,7 +761,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
                   setLateLoginModalOpen(false);
                   setLateLoginReason('');
                 }}
-                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
               >
                 Cancel
               </button>
@@ -771,7 +771,7 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
                   void handleConfirmLateLoginApproval();
                 }}
                 disabled={lateLoginApprovalLoading}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
                   lateLoginApprovalLoading
                     ? 'cursor-not-allowed bg-slate-200 text-slate-400'
                     : 'bg-slate-900 text-white hover:bg-slate-800'

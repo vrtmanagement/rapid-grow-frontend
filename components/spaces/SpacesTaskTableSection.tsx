@@ -1,4 +1,5 @@
 import React from 'react';
+import './spacesTaskSurfaces.css';
 import { MoreVertical, Plus } from 'lucide-react';
 import { TaskHubTableSkeleton } from './SpacesFormControls';
 import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
@@ -285,18 +286,18 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
   }, [activeRowMenuId]);
 
   return (
-    <div ref={tableCardRef} className="overflow-visible rounded-3xl border border-slate-200 bg-white">
-      <div className="overflow-x-visible overflow-y-visible border-b border-slate-100 [transform:rotateX(180deg)]">
-        <table className="w-full table-fixed border-collapse text-left [transform:rotateX(180deg)]">
+    <div ref={tableCardRef} className="spaces-task-table-surface min-w-0 rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto border-b border-slate-100 [scrollbar-width:thin]">
+        <table className="w-full min-w-[1100px] table-fixed border-collapse text-left">
           <thead className="border-b border-slate-200 bg-slate-50">
-            <tr className="text-[12px] font-bold uppercase tracking-[0.12em] text-slate-600">
-              <th className="w-[29%] px-3 py-3">Name</th>
+            <tr className="text-xs font-semibold tracking-normal text-slate-500">
+              <th className="w-[27%] px-4 py-4">Name</th>
               <th className="w-[13%] px-3 py-3">Assignee</th>
               <th className="w-[11%] px-3 py-3">Due date</th>
               <th className="w-[10%] px-3 py-3">Priority</th>
               <th className="w-[10%] px-3 py-3">Status</th>
               <th className="w-[8%] px-3 py-3">Document</th>
-              <th className="w-[5%] px-3 py-3">Comments</th>
+              <th className="w-[7%] px-3 py-3">Comments</th>
               {columns.map((c: any) => (
                 <th key={c.id} className="min-w-[200px] px-4 py-3">
                   <div className="flex items-center justify-between gap-2">
@@ -343,7 +344,7 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
                 </th>
               ))}
               <th className="w-[44px] px-2 py-3 text-right">
-                <button type="button" onClick={handleAddColumn} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50" title="Add new field">
+                <button type="button" onClick={handleAddColumn} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50" title="Add new field">
                   <Plus size={18} />
                 </button>
               </th>
@@ -354,7 +355,7 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
               <TaskHubTableSkeleton customColumnCount={columns.length} />
             ) : sortedTasks.length === 0 ? (
               <tr>
-                <td className="px-4 py-10 text-slate-500" colSpan={8 + columns.length}>No tasks yet.</td>
+                <td className="px-4 py-16 text-center text-sm text-slate-500" colSpan={8 + columns.length}>No tasks yet.</td>
               </tr>
             ) : (
               paginatedTasks.map((t: any) => (
@@ -421,7 +422,7 @@ const SpacesTaskTableSection: React.FC<SpacesTaskTableSectionProps> = (props) =>
         </table>
       </div>
       {!spacesLoading && sortedTasks.length > 0 ? (
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t border-slate-100 bg-white px-5 py-4">
           <p className="text-[12px] text-slate-500">Showing {(taskPage - 1) * TASKS_PER_PAGE + 1}-{Math.min(taskPage * TASKS_PER_PAGE, taskListTotal)} of {taskListTotal}</p>
           <div className="flex items-center gap-1.5">
             <button type="button" onClick={() => setTaskPage((prev: number) => Math.max(1, prev - 1))} disabled={taskPage === 1} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Prev</button>

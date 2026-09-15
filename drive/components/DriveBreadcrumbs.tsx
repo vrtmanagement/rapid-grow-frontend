@@ -11,7 +11,7 @@ export default function DriveBreadcrumbs({ items, onNavigate }: DriveBreadcrumbs
   const parentId = items.length >= 2 ? items[items.length - 2].id : null;
 
   return (
-    <nav className="flex items-center gap-3">
+    <nav className="flex flex-wrap items-center gap-3">
       <button
         type="button"
         onClick={() => onNavigate(parentId)}
@@ -21,7 +21,7 @@ export default function DriveBreadcrumbs({ items, onNavigate }: DriveBreadcrumbs
         Back
       </button>
 
-      <div className="flex items-center gap-1.5 text-sm text-slate-500">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 break-words text-sm text-slate-500">
         <button
           type="button"
           onClick={() => onNavigate(null)}
@@ -35,7 +35,7 @@ export default function DriveBreadcrumbs({ items, onNavigate }: DriveBreadcrumbs
             <React.Fragment key={item.id}>
               <ChevronRight size={14} className="text-slate-300" />
               {isLast ? (
-                <span className="font-semibold text-slate-900">{item.name}</span>
+                <span className="min-w-0 break-all font-semibold text-slate-900">{item.name}</span>
               ) : (
                 <button
                   type="button"

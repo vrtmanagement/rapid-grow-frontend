@@ -13,12 +13,12 @@ interface Props {
 const LeaveEmployeeLopSection: React.FC<Props> = ({ summary, loading = false }) => {
   if (loading && !summary) {
     return (
-      <section className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)]">
+      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <SkeletonBlock className="h-8 w-48" />
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <SkeletonBlock className="h-24 rounded-2xl" />
-          <SkeletonBlock className="h-24 rounded-2xl" />
-          <SkeletonBlock className="h-24 rounded-2xl" />
+          <SkeletonBlock className="h-24 rounded-xl" />
+          <SkeletonBlock className="h-24 rounded-xl" />
+          <SkeletonBlock className="h-24 rounded-xl" />
         </div>
       </section>
     );
@@ -27,30 +27,30 @@ const LeaveEmployeeLopSection: React.FC<Props> = ({ summary, loading = false }) 
   if (!summary) return null;
 
   return (
-    <section className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.08)]">
-      <div className="inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">
+    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
         <TrendingDown size={14} />
         LOP overview
       </div>
-      <h3 className="mt-3 text-xl font-semibold text-slate-900">Loss of pay summary</h3>
+      <h3 className="mt-3 text-xl font-semibold text-slate-900 tracking-tight">Loss of pay summary</h3>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-amber-100 bg-amber-50/80 px-4 py-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-600">LOP events</p>
+        <div className="rounded-xl border border-amber-100 bg-amber-50/80 px-4 py-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600">LOP events</p>
           <p className="mt-2 text-3xl font-semibold text-amber-800">{summary.totals.lopCount}</p>
         </div>
-        <div className="rounded-2xl border border-rose-100 bg-rose-50/80 px-4 py-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-600">Total deducted</p>
+        <div className="rounded-xl border border-rose-100 bg-rose-50/80 px-4 py-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-600">Total deducted</p>
           <p className="mt-2 text-3xl font-semibold text-rose-800">{summary.totals.totalDeducted}</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">LOP days</p>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">LOP days</p>
           <p className="mt-2 text-3xl font-semibold text-slate-900">{summary.totals.totalLopDays}</p>
         </div>
       </div>
 
       {summary.policyWarnings.length ? (
-        <div className="mt-5 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50/80 px-4 py-4">
+        <div className="mt-5 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50/80 px-4 py-4">
           <div className="flex items-start gap-3">
             <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-600" />
             <ul className="space-y-1 text-sm leading-6 text-amber-900">
@@ -72,7 +72,7 @@ const LeaveEmployeeLopSection: React.FC<Props> = ({ summary, loading = false }) 
             summary.timeline.map((entry) => (
               <div
                 key={entry.id}
-                className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 transition hover:border-slate-300"
+                className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 transition hover:border-slate-300"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-semibold text-slate-900">
@@ -89,7 +89,7 @@ const LeaveEmployeeLopSection: React.FC<Props> = ({ summary, loading = false }) 
               </div>
             ))
           ) : (
-            <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
+            <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
               No LOP deductions recorded for this year yet.
             </p>
           )}
@@ -102,7 +102,7 @@ const LeaveEmployeeLopSection: React.FC<Props> = ({ summary, loading = false }) 
           {summary.recentLeaves.slice(0, 5).map((leave) => (
             <div
               key={leave._id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
             >
               <div>
                 <span

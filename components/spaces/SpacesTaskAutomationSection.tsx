@@ -149,9 +149,9 @@ const SpacesTaskAutomationSection: React.FC<SpacesTaskAutomationSectionProps> = 
   const selectedTimezone = getTimezoneOption(timezoneValue);
 
   return (
-    <div className="rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5">
+    <div className="spaces-task-automation rounded-[22px] border border-slate-200 bg-slate-50/70 p-3.5">
       <div>
-        <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-700">Task automation</div>
+        <div className="spaces-automation-heading text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-700">Task automation</div>
         <p className={sectionHintClass}>Optional. Select one automation type, or leave unselected for a regular task.</p>
       </div>
 
@@ -164,7 +164,7 @@ const SpacesTaskAutomationSection: React.FC<SpacesTaskAutomationSectionProps> = 
               type="button"
               disabled={disabled}
               onClick={() => onModeChange(active ? 'none' : option.value)}
-              className={`flex items-start gap-3 rounded-2xl border px-3.5 py-3 text-left transition ${
+              className={`spaces-automation-choice flex items-start gap-3 rounded-2xl border px-3.5 py-3 text-left transition ${
                 active
                   ? 'border-brand-red/40 bg-white ring-2 ring-brand-red/10'
                   : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'

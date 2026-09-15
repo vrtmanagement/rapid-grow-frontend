@@ -18,7 +18,7 @@ const LeaveLopBadges: React.FC<LeaveLopBadgesProps> = ({ badges = [], compact = 
         <span
           key={badge.key}
           title={`LOP: ${badge.label}`}
-          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-semibold uppercase tracking-[0.08em] ${getLopBadgeClass(badge.tone)} ${
+          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-semibold uppercase tracking-wide ${getLopBadgeClass(badge.tone)} ${
             compact ? 'text-[10px]' : 'text-[11px]'
           }`}
         >

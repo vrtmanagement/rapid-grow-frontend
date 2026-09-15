@@ -23,10 +23,10 @@ interface Props {
 
 const AttendanceWeekGlanceCard: React.FC<Props> = ({ lastSevenDays, weeklyTotals }) => {
   return (
-    <div className="rounded-[34px] border border-slate-200 bg-white p-7">
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h4 className="text-[1.15rem] font-semibold leading-none text-slate-950">Week at a glance</h4>
+          <h4 className="text-[1.15rem] font-semibold leading-tight text-slate-950 tracking-tight">Week at a glance</h4>
           <p className="mt-2 text-sm text-slate-500">
             {lastSevenDays.length
               ? `${formatDayLabel(lastSevenDays[0].date, { month: 'short', day: 'numeric' })} - ${formatDayLabel(lastSevenDays[lastSevenDays.length - 1].date, { month: 'short', day: 'numeric' })}`
@@ -89,7 +89,7 @@ const AttendanceWeekGlanceCard: React.FC<Props> = ({ lastSevenDays, weeklyTotals
                 {formatDayLabel(item.date, { weekday: 'short' })}
               </p>
               <div
-                className="mt-3 rounded-[18px] px-2 py-4"
+                className="mt-3 rounded-xl px-2 py-4"
                 style={{ backgroundColor: badgeColors.bg, color: badgeColors.text }}
               >
                 <p className="text-[0.95rem] font-semibold">{label}</p>
@@ -105,7 +105,7 @@ const AttendanceWeekGlanceCard: React.FC<Props> = ({ lastSevenDays, weeklyTotals
 
       <div className="mt-7">
         <div className="flex items-center justify-between text-sm">
-          <span className="font-semibold uppercase tracking-[0.12em] text-slate-500">Weekly progress</span>
+          <span className="font-semibold uppercase tracking-wide text-slate-500">Weekly progress</span>
           <span className="font-semibold text-emerald-600">{weeklyTotals.progress}% complete</span>
         </div>
         <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">

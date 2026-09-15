@@ -46,11 +46,11 @@ const AttendanceSummaryCards: React.FC<Props> = ({
               key={`attendance-card-${index}`}
               className={`flex items-center gap-4 border border-slate-200 bg-white p-5 animate-pulse ${
                 isEmployeeVariant
-                  ? 'rounded-[30px]'
-                  : 'rounded-3xl'
+                  ? 'rounded-xl'
+                  : 'rounded-xl'
               }`}
             >
-              <SkeletonBlock className={`w-11 h-11 rounded-2xl ${index === 0 ? 'bg-brand-red/10' : index === 1 ? 'bg-emerald-50' : 'bg-slate-100'}`} />
+              <SkeletonBlock className={`w-11 h-11 rounded-xl ${index === 0 ? 'bg-brand-red/10' : index === 1 ? 'bg-emerald-50' : 'bg-slate-100'}`} />
               <div className="space-y-2">
                 <Skeleton className="h-3 w-24" />
                 <Skeleton className="h-8 w-20" />
@@ -62,7 +62,7 @@ const AttendanceSummaryCards: React.FC<Props> = ({
         <div
           className={`flex flex-wrap items-center gap-3 text-[11px] text-slate-600 animate-pulse ${
             isEmployeeVariant
-              ? 'rounded-[26px] border border-slate-200 bg-white/80 px-5 py-4'
+              ? 'rounded-xl border border-slate-200 bg-white/80 px-5 py-4'
               : ''
           }`}
         >
@@ -140,7 +140,7 @@ const AttendanceSummaryCards: React.FC<Props> = ({
                       onOpenHistory();
                     }
                   }}
-                  className="flex cursor-pointer items-center gap-2.5 rounded-[22px] border border-slate-200 bg-white px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-red/20"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-red/20"
                 >
                   {content}
                 </div>
@@ -150,14 +150,14 @@ const AttendanceSummaryCards: React.FC<Props> = ({
             return (
               <div
                 key={card.key}
-                className="flex items-center gap-2.5 rounded-[22px] border border-slate-200 bg-white px-3.5 py-2.5"
+                className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5"
               >
                 {content}
               </div>
             );
           })}
 
-          <div className="rounded-[22px] border border-slate-200 bg-white px-3.5 py-2.5 shadow-[0_14px_34px_rgba(15,23,42,0.05)]">
+          <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
                 <NotebookPen size={16} />
@@ -175,7 +175,7 @@ const AttendanceSummaryCards: React.FC<Props> = ({
                 {leaveBalanceBadges.slice(0, 2).map((badge) => (
                   <span
                     key={badge}
-                    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${
                       badge === 'LOP Applied'
                         ? 'bg-amber-50 text-amber-700'
                         : badge === 'No Paid Leaves Left'
@@ -198,7 +198,7 @@ const AttendanceSummaryCards: React.FC<Props> = ({
   return (
     <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="flex items-center gap-3 rounded-[22px] border border-slate-200 bg-white px-4 py-3">
+        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-red/10">
             <Activity className="text-brand-red" size={18} />
           </div>
@@ -209,7 +209,7 @@ const AttendanceSummaryCards: React.FC<Props> = ({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3 rounded-[22px] border border-slate-200 bg-white px-4 py-3">
+        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
             <Clock className="text-emerald-600" size={18} />
           </div>
@@ -223,7 +223,7 @@ const AttendanceSummaryCards: React.FC<Props> = ({
         <button
           type="button"
           onClick={onOpenHistory}
-          className="flex items-center gap-3 rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-left transition-colors hover:border-slate-300 disabled:hover:border-slate-200"
+          className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-left transition-colors hover:border-slate-300 disabled:hover:border-slate-200"
           disabled={!onOpenHistory}
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900">
@@ -238,7 +238,7 @@ const AttendanceSummaryCards: React.FC<Props> = ({
             </div>
           </div>
         </button>
-        <div className="rounded-[22px] border border-slate-200 bg-white px-4 py-3">
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100">
               <NotebookPen className="text-slate-500" size={18} />

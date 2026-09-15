@@ -97,7 +97,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
   return (
     <>
       {canApplyLeave && (loading ? (
-        <div className="bg-white rounded-[2rem] border border-slate-200 p-6 shadow-xl animate-pulse">
+        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xl animate-pulse">
           <div className="space-y-4">
             <div className="space-y-2">
               <Skeleton className="h-4 w-28" />
@@ -124,10 +124,10 @@ const AttendanceLeavePanel: React.FC<Props> = ({
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-[2rem] border border-slate-200 p-6 shadow-xl">
+        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xl">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900">Apply for leave</h3>
+              <h3 className="text-sm font-semibold text-slate-900 tracking-tight">Apply for leave</h3>
               {/* <p className="text-[11px] text-slate-500">
                 Employees ask Team Lead, Team Leads ask Admin.
               </p> */}
@@ -141,7 +141,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
                   type="date"
                   value={leaveStart}
                   onChange={(e) => onChangeStart(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-red/40"
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-red/40"
                 />
               </label>
               <label className="text-[11px] text-slate-500">
@@ -150,7 +150,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
                   type="date"
                   value={leaveEnd}
                   onChange={(e) => onChangeEnd(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-red/40"
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-red/40"
                 />
               </label>
             </div>
@@ -160,7 +160,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
                 value={leaveReason}
                 onChange={(e) => onChangeReason(e.target.value)}
                 rows={2}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-brand-red/40"
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-brand-red/40"
                 placeholder="Short context for your approver"
               />
             </label>
@@ -169,7 +169,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
               <select
                 value={leaveType}
                 onChange={(e) => onChangeType(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-red/40"
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-red/40"
               >
                 <option value="GENERAL">General</option>
                 <option value="SICK">Sick</option>
@@ -180,7 +180,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
             <button
               type="button"
               onClick={onApply}
-              className="w-full mt-1 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-red text-white text-xs font-semibold px-3 py-2 shadow-md hover:bg-brand-navy transition-colors"
+              className="w-full mt-1 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-red text-white text-xs font-semibold px-3 py-2 shadow-sm hover:bg-brand-navy transition-colors"
             >
               Apply for leave
             </button>
@@ -188,21 +188,21 @@ const AttendanceLeavePanel: React.FC<Props> = ({
         </div>
       ))}
 
-      <div className="bg-white rounded-[2rem] border border-slate-200 p-6 shadow-xl space-y-4">
+      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xl space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-900">Leave overview</h3>
+          <h3 className="text-sm font-semibold text-slate-900 tracking-tight">Leave overview</h3>
           {leaveLoading && (
             <span className="text-[11px] text-slate-400">Refreshing…</span>
           )}
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-[11px] font-medium text-slate-500">Status</span>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED')}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
               >
                 <option value="ALL">All statuses</option>
                 <option value="PENDING">Pending</option>
@@ -216,7 +216,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value as 'ALL' | 'GENERAL' | 'SICK' | 'VACATION' | 'EMERGENCY')}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
               >
                 <option value="ALL">All types</option>
                 <option value="GENERAL">General</option>
@@ -238,7 +238,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
                   ? 'Search by name, emp id, reason, type, or status'
                   : 'Search by reason, type, or status'
               }
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-brand-red/40 focus:ring-2 focus:ring-brand-red/10"
             />
           </label>
         </div>
@@ -253,7 +253,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
             filteredLeaves.map((l) => (
               <div
                 key={l._id}
-                className="rounded-[22px] border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 px-4 py-4 text-[11px] shadow-[0_12px_28px_rgba(15,23,42,0.06)]"
+                className="rounded-xl border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 px-4 py-4 text-[11px] shadow-sm"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -267,7 +267,7 @@ const AttendanceLeavePanel: React.FC<Props> = ({
                       </p>
                     ) : null}
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-brand-red/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-red">
+                      <span className="rounded-full bg-brand-red/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-brand-red">
                         {l.type}
                       </span>
                       <span className="text-[10px] text-slate-400">
