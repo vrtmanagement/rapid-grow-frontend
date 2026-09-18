@@ -1,16 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Download, ScrollText } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, ChevronRight, Download, ScrollText } from 'lucide-react';
 import { ThemedDatePicker, ThemedSelect } from '../components/spaces/SpacesFormControls';
 import { getDisplayAvatarUrl } from '../utils/avatar';
 import { ReflectionLogSkeleton } from '../components/ui/Skeleton';
 import type { ReflectionRecord } from './reflectionViewHelpers';
 import {
   buildAllReportsHtml,
-  buildDownloadWeekOptions,
-  buildPersonWeeklyCompletedHtml,
-  buildWeeklySheetsHtml,
+  buildDownloadPeriodMenu,
+  buildPersonPeriodCompletedHtml,
   downloadWordDoc,
   uniquePeopleFromRecords,
+  type DownloadPeriodGranularity,
+  type DownloadPeriodOption,
 } from './reflectionLogsDownload';
 
 export type ReflectionLogsPanelProps = {
@@ -40,6 +41,11 @@ export type ReflectionLogsPanelProps = {
   setLogsPage: (page: number | ((prev: number) => number)) => void;
   todayKey: string;
   yesterdayKey: string;
+};
+
+const PERIOD_GRANULARITY_LABELS: Record<DownloadPeriodGranularity, string> = {
+  weekly: 'Weekly',
+  monthly: 'Monthly',
 };
 
 const LOGS_PER_PAGE = 5;
@@ -117,12 +123,28 @@ export const ReflectionLogsPanel: React.FC<ReflectionLogsPanelProps> = ({
     return [];
   }, [currentEmpId, currentUserName, employeeOptions, isAdmin, isLeader, peopleFromRecords]);
 
-  const weekOptions = useMemo(() => buildDownloadWeekOptions(todayKey), [todayKey]);
+  const periodMenu = useMemo(() => buildDownloadPeriodMenu(todayKey), [todayKey]);
+  const defaultPeriod = periodMenu.weekly[0] || null;
   const [downloadEmpId, setDownloadEmpId] = useState('');
-  const [downloadWeekKey, setDownloadWeekKey] = useState('');
+  const [selectedPeriodOption, setSelectedPeriodOption] = useState<DownloadPeriodOption | null>(defaultPeriod);
+  const [periodMenuOpen, setPeriodMenuOpen] = useState(false);
+  const [hoveredGranularity, setHoveredGranularity] = useState<DownloadPeriodGranularity>('weekly');
   const [downloadMessage, setDownloadMessage] = useState<string | null>(null);
+  const periodDropdownRef = useRef<HTMLDivElement | null>(null);
   const showDownloads = isAdmin || isLeader || isEmployee;
   const canPickPerson = isAdmin || isLeader;
+
+  useEffect(() => {
+    setSelectedPeriodOption((previous) => {
+      if (previous) {
+        const stillExists = [...periodMenu.weekly, ...periodMenu.monthly].some(
+          (option) => option.value === previous.value,
+        );
+        if (stillExists) return previous;
+      }
+      return periodMenu.weekly[0] || periodMenu.monthly[0] || null;
+    });
+  }, [periodMenu]);
 
   useEffect(() => {
     if (!downloadMessage) return undefined;
@@ -130,16 +152,26 @@ export const ReflectionLogsPanel: React.FC<ReflectionLogsPanelProps> = ({
     return () => window.clearTimeout(timer);
   }, [downloadMessage]);
 
+  useEffect(() => {
+    if (!periodMenuOpen) return undefined;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!periodDropdownRef.current?.contains(target)) {
+        setPeriodMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [periodMenuOpen]);
+
   const selectedPersonId = isEmployee && currentEmpId
     ? currentEmpId
     : downloadEmpId && people.some((person) => person.empId === downloadEmpId)
       ? downloadEmpId
       : people[0]?.empId || '';
 
-  const selectedWeek =
-    weekOptions.find((option) => option.value === downloadWeekKey)?.bucket
-    || weekOptions[0]?.bucket
-    || null;
+  const selectedPeriod = selectedPeriodOption?.bucket || null;
+  const hoveredOptions = periodMenu[hoveredGranularity] || [];
 
   const runDownload = (filename: string, html: string, emptyMessage: string) => {
     if (!displayedRecords.length) {
@@ -155,8 +187,8 @@ export const ReflectionLogsPanel: React.FC<ReflectionLogsPanelProps> = ({
     label: `${person.empName} (${person.empId})`,
   }));
 
-  const downloadPersonWeek = () => {
-    if (!selectedPersonId || !selectedWeek) return;
+  const downloadPersonPeriod = () => {
+    if (!selectedPersonId || !selectedPeriod) return;
     const person = people.find((entry) => entry.empId === selectedPersonId);
     const slug = (person?.empName || selectedPersonId).replace(/[^\w-]+/g, '_');
     const personRecords = loadedRecords.filter((record) => record.empId === selectedPersonId);
@@ -170,9 +202,10 @@ export const ReflectionLogsPanel: React.FC<ReflectionLogsPanelProps> = ({
       );
       return;
     }
+    const periodSlug = selectedPeriod.kind === 'month' ? 'monthly' : 'weekly';
     downloadWordDoc(
-      `${slug}-weekly-completed-tasks-${selectedWeek.start}.doc`,
-      buildPersonWeeklyCompletedHtml(loadedRecords, selectedPersonId, selectedWeek),
+      `${slug}-${periodSlug}-completed-tasks-${selectedPeriod.start}.doc`,
+      buildPersonPeriodCompletedHtml(loadedRecords, selectedPersonId, selectedPeriod),
     );
     setDownloadMessage('Downloaded');
   };
@@ -282,20 +315,6 @@ export const ReflectionLogsPanel: React.FC<ReflectionLogsPanelProps> = ({
               <Download size={14} />
               {isEmployee ? 'My reports' : 'All reports'}
             </button>
-            <button
-              type="button"
-              onClick={() =>
-                runDownload(
-                  `all-weekly-sheets-${todayKey}.doc`,
-                  buildWeeklySheetsHtml(displayedRecords),
-                  'No reports to download. Change the filters first.',
-                )
-              }
-              className={ghostActionClass}
-            >
-              <Download size={14} />
-              {isEmployee ? 'My weekly sheets' : isLeader ? 'Team weekly sheets' : 'Weekly sheets'}
-            </button>
             <div className="flex min-w-[240px] flex-1 flex-wrap items-center gap-2 sm:justify-end">
               {canPickPerson ? (
                 <div className="w-full min-w-[200px] sm:w-[240px]">
@@ -312,26 +331,93 @@ export const ReflectionLogsPanel: React.FC<ReflectionLogsPanelProps> = ({
                   />
                 </div>
               ) : null}
-              <div className="w-full min-w-[210px] sm:w-[260px]">
-                <ThemedSelect
-                  compact
-                  fullWidthCompact
-                  denseMenu
-                  forceOpenDown
-                  placeholder="Choose week"
-                  value={selectedWeek?.key || ''}
-                  options={weekOptions.map((option) => ({ value: option.value, label: option.label }))}
-                  onChange={setDownloadWeekKey}
-                />
+              <div ref={periodDropdownRef} className="relative w-full min-w-[210px] sm:w-[280px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPeriodMenuOpen((previous) => !previous);
+                    setHoveredGranularity(selectedPeriod?.kind === 'month' ? 'monthly' : 'weekly');
+                  }}
+                  className={`flex h-9 w-full items-center justify-between rounded-full border bg-white px-3.5 text-left text-[13px] font-semibold outline-none transition-all ${
+                    periodMenuOpen
+                      ? 'border-brand-red text-slate-900 shadow-[0_8px_24px_rgba(239,68,68,0.12)] ring-2 ring-brand-red/10'
+                      : 'border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                  aria-haspopup="listbox"
+                  aria-expanded={periodMenuOpen}
+                >
+                  <span className="truncate">
+                    {selectedPeriodOption?.buttonLabel || 'Choose period'}
+                  </span>
+                  <ChevronDown
+                    size={15}
+                    className={`ml-2 shrink-0 text-slate-400 transition-transform ${
+                      periodMenuOpen ? 'rotate-180 text-brand-red' : ''
+                    }`}
+                  />
+                </button>
+
+                {periodMenuOpen ? (
+                  <div className="absolute right-0 top-full z-30 mt-2 flex overflow-hidden rounded-[1.1rem] border border-slate-200 bg-white/95 shadow-[0_22px_48px_rgba(15,23,42,0.14)] backdrop-blur-sm">
+                    <div className="w-[126px] border-r border-slate-100 p-1.5">
+                      {(Object.keys(PERIOD_GRANULARITY_LABELS) as DownloadPeriodGranularity[]).map((granularity) => (
+                        <button
+                          key={granularity}
+                          type="button"
+                          onMouseEnter={() => setHoveredGranularity(granularity)}
+                          onFocus={() => setHoveredGranularity(granularity)}
+                          className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[13px] transition-colors ${
+                            hoveredGranularity === granularity
+                              ? 'bg-brand-red/6 text-brand-red'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>{PERIOD_GRANULARITY_LABELS[granularity]}</span>
+                          <ChevronRight size={14} className="opacity-60" />
+                        </button>
+                      ))}
+                    </div>
+                    <div className="max-h-72 w-[230px] overflow-y-auto p-1.5">
+                      {hoveredOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => {
+                            setSelectedPeriodOption(option);
+                            setPeriodMenuOpen(false);
+                          }}
+                          className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-[13px] transition-colors ${
+                            selectedPeriodOption?.value === option.value
+                              ? 'bg-brand-red/6 text-brand-red'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="truncate">{option.label}</span>
+                          <span
+                            className={`h-2.5 w-2.5 rounded-full ${
+                              selectedPeriodOption?.value === option.value ? 'bg-brand-red' : 'bg-transparent'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
               <button
                 type="button"
-                disabled={!selectedPersonId || !selectedWeek}
-                onClick={downloadPersonWeek}
+                disabled={!selectedPersonId || !selectedPeriod}
+                onClick={downloadPersonPeriod}
                 className={primaryActionClass}
               >
                 <Download size={14} />
-                {isEmployee ? 'My week' : 'This person’s week'}
+                {isEmployee
+                  ? selectedPeriod?.kind === 'month'
+                    ? 'My month'
+                    : 'My week'
+                  : selectedPeriod?.kind === 'month'
+                    ? 'This person’s month'
+                    : 'This person’s week'}
               </button>
             </div>
           </div>

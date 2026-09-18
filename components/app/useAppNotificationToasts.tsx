@@ -25,12 +25,16 @@ import {
 import {
   CLEARED_APP_NOTIFICATIONS_STORAGE_KEY_PREFIX,
   canShowDailyReviewReminderToast,
+  getShownReminderToastStorageKey,
   isDailyReviewReminderNotification,
   isDailyReviewReminderToastDismissed,
   isLeaveNotification,
   markDailyReviewReminderToastDismissed,
+  markReminderToastShown,
   readClearedAppNotificationState,
+  readShownReminderToastState,
   shouldAutoClearNotification,
+  wasReminderToastShown,
 } from './appShellHelpers';
 
 interface GlobalLeaveToast {
@@ -78,23 +82,94 @@ export function useAppNotificationToasts(
   );
   const shownLeaveToastKeysRef = useRef<Record<string, true>>({});
   const shownTaskToastKeysRef = useRef<Record<string, true>>({});
-  const shownReminderToastKeysRef = useRef<Record<string, true>>({});
+  const shownReminderToastKeysRef = useRef<Record<string, true>>(readShownReminderToastState());
+  const toastInboxSeededRef = useRef(false);
   const lastCommunicationUnreadRef = useRef<number | null>(null);
   const notificationClearStorageKey = useMemo(() => {
     const session = getStoredAuthSession();
     const scopedUserId = String(session?.employee?.empId || session?.employee?._id || 'anonymous').trim() || 'anonymous';
     return `${CLEARED_APP_NOTIFICATIONS_STORAGE_KEY_PREFIX}:${scopedUserId}`;
   }, [isAuthenticated]);
+  const shownReminderToastStorageKey = useMemo(
+    () => getShownReminderToastStorageKey(),
+    [isAuthenticated],
+  );
+
+  const rememberReminderToastShown = useCallback(
+    (toastKey: string) => {
+      const normalizedKey = String(toastKey || '').trim();
+      if (!normalizedKey) return;
+      shownReminderToastKeysRef.current[normalizedKey] = true;
+      markReminderToastShown(shownReminderToastStorageKey, normalizedKey);
+    },
+    [shownReminderToastStorageKey],
+  );
+
+  const hasReminderToastBeenShown = useCallback((toastKey: string) => {
+    return wasReminderToastShown(toastKey, shownReminderToastKeysRef.current);
+  }, []);
+
+  const seedExistingNotificationToasts = useCallback(
+    (items: AppShellNotification[]) => {
+      shownReminderToastKeysRef.current = {
+        ...readShownReminderToastState(shownReminderToastStorageKey),
+        ...shownReminderToastKeysRef.current,
+      };
+      items.forEach((notification) => {
+        const notificationId = String(notification?._id || '').trim();
+        if (!notificationId) return;
+        rememberReminderToastShown(`notification-id:${notificationId}`);
+      });
+      toastInboxSeededRef.current = true;
+    },
+    [rememberReminderToastShown, shownReminderToastStorageKey],
+  );
+
+  useEffect(() => {
+    shownReminderToastKeysRef.current = {
+      ...readShownReminderToastState(shownReminderToastStorageKey),
+      ...shownReminderToastKeysRef.current,
+    };
+  }, [shownReminderToastStorageKey]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      toastInboxSeededRef.current = false;
+      return;
+    }
+
+    const handleBootstrap = (event: Event) => {
+      const detail = (event as CustomEvent<{ notifications?: AppShellNotification[] }>).detail;
+      const list = Array.isArray(detail?.notifications) ? detail.notifications : [];
+      seedExistingNotificationToasts(list);
+    };
+
+    window.addEventListener('rapidgrow:app-bootstrap', handleBootstrap as EventListener);
+    return () => {
+      window.removeEventListener('rapidgrow:app-bootstrap', handleBootstrap as EventListener);
+    };
+  }, [isAuthenticated, seedExistingNotificationToasts]);
+
+  // Fallback when bootstrap already finished before this hook attached its listener.
+  useEffect(() => {
+    if (!isAuthenticated || toastInboxSeededRef.current) return;
+    if (notifications.length === 0) return;
+    seedExistingNotificationToasts(notifications);
+  }, [isAuthenticated, notifications, seedExistingNotificationToasts]);
 
   const dismissGlobalReminderToast = useCallback((toast: GlobalReminderToast | null) => {
+    if (toast?.key) {
+      rememberReminderToastShown(toast.key);
+    }
     if (toast?.notificationId) {
+      rememberReminderToastShown(`notification-id:${toast.notificationId}`);
       const notification = notifications.find((item) => item._id === toast.notificationId);
       if (isDailyReviewReminderNotification(notification)) {
         markDailyReviewReminderToastDismissed(String(notification?.dateKey || ''));
       }
     }
     setGlobalReminderToast(null);
-  }, [notifications]);
+  }, [notifications, rememberReminderToastShown]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -223,12 +298,13 @@ export function useAppNotificationToasts(
 
   useEffect(() => {
     if (!globalReminderToast) return undefined;
+    const toast = globalReminderToast;
     const timer = window.setTimeout(
-      () => setGlobalReminderToast(null),
-      globalReminderToast.autoHideMs ?? 8000,
+      () => dismissGlobalReminderToast(toast),
+      toast.autoHideMs ?? 8000,
     );
     return () => window.clearTimeout(timer);
-  }, [globalReminderToast]);
+  }, [dismissGlobalReminderToast, globalReminderToast]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -511,9 +587,11 @@ export function useAppNotificationToasts(
       if (!payload || String(payload.empId || '').trim() !== backendEmpId) return;
       if (!isNotificationEnabledForType(notificationPreferences, payload?.type)) return;
 
+      const notificationId = String(payload?._id || '').trim();
+
       if (isLeaveNotification(payload)) {
         const leaveStatus = String(payload?.metadata?.status || '').trim().toUpperCase();
-        const toastKey = `leave-notification:${String(payload?._id || '')}:${String(payload?.updatedAt || payload?.createdAt || '')}`;
+        const toastKey = `leave-notification:${notificationId}:${String(payload?.updatedAt || payload?.createdAt || '')}`;
 
         if (!shownLeaveToastKeysRef.current[toastKey]) {
           shownLeaveToastKeysRef.current[toastKey] = true;
@@ -529,6 +607,22 @@ export function useAppNotificationToasts(
                   : 'info',
           });
         }
+      } else if (
+        notificationPreferences.toastPreviews &&
+        notificationId &&
+        !hasReminderToastBeenShown(`notification-id:${notificationId}`)
+      ) {
+        const toastKey = `notification:${notificationId}`;
+        rememberReminderToastShown(toastKey);
+        rememberReminderToastShown(`notification-id:${notificationId}`);
+        setGlobalReminderToast({
+          key: toastKey,
+          notificationId,
+          title: String(payload?.title || 'Notification'),
+          message: String(payload?.message || 'You have a new notification.'),
+          route: String(payload?.route || '/review'),
+          autoHideMs: isDailyReviewReminderNotification(payload) ? 2000 : undefined,
+        });
       }
 
       setNotifications((prev) => {
@@ -583,7 +677,13 @@ export function useAppNotificationToasts(
       socket.off('notification:read', onNotificationRead);
       socket.off('notification:deleted', onNotificationDeleted);
     };
-  }, [isAuthenticated, notificationPreferences, setNotifications]);
+  }, [
+    hasReminderToastBeenShown,
+    isAuthenticated,
+    notificationPreferences,
+    rememberReminderToastShown,
+    setNotifications,
+  ]);
 
   const visibleNotifications = useMemo(
     () =>
@@ -654,10 +754,21 @@ export function useAppNotificationToasts(
 
   useEffect(() => {
     if (!notificationPreferences.toastPreviews) return;
+    // Wait until the initial inbox is seeded so refresh never re-toasts existing unread items.
+    if (!toastInboxSeededRef.current) {
+      if (notifications.length > 0) {
+        seedExistingNotificationToasts(notifications);
+      }
+      return;
+    }
 
     const unreadNotification = visibleNotifications.find((notification) => {
       if (notification.isRead) return false;
       if (isLeaveNotification(notification)) return false;
+      const notificationId = String(notification._id || '').trim();
+      if (notificationId && hasReminderToastBeenShown(`notification-id:${notificationId}`)) {
+        return false;
+      }
       if (isDailyReviewReminderNotification(notification)) {
         if (isDailyReviewReminderToastDismissed(notification)) return false;
       }
@@ -665,8 +776,9 @@ export function useAppNotificationToasts(
     });
     if (!unreadNotification) return;
 
-    const toastKey = `notification:${unreadNotification._id}:${unreadNotification.updatedAt || unreadNotification.createdAt}`;
-    if (shownReminderToastKeysRef.current[toastKey]) return;
+    const toastKey = `notification:${unreadNotification._id}`;
+    if (hasReminderToastBeenShown(toastKey)) return;
+    if (hasReminderToastBeenShown(`notification-id:${unreadNotification._id}`)) return;
 
     const reminderToast: GlobalReminderToast = {
       key: toastKey,
@@ -676,9 +788,18 @@ export function useAppNotificationToasts(
       route: unreadNotification.route || '/review',
       autoHideMs: isDailyReviewReminderNotification(unreadNotification) ? 2000 : undefined,
     };
-    shownReminderToastKeysRef.current[toastKey] = true;
+    rememberReminderToastShown(toastKey);
+    rememberReminderToastShown(`notification-id:${unreadNotification._id}`);
     setGlobalReminderToast(reminderToast);
-  }, [dailyReviewReminderSettings, notificationPreferences.toastPreviews, visibleNotifications]);
+  }, [
+    dailyReviewReminderSettings,
+    hasReminderToastBeenShown,
+    notificationPreferences.toastPreviews,
+    notifications,
+    rememberReminderToastShown,
+    seedExistingNotificationToasts,
+    visibleNotifications,
+  ]);
 
   useEffect(() => {
     if (!globalReminderToast?.notificationId) return;

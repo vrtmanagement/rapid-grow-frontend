@@ -133,7 +133,7 @@ const GlobalAppToasts: React.FC<GlobalAppToastsProps> = ({
         className={`fixed right-6 z-[102] max-w-sm rounded-[24px] border border-brand-red/20 bg-white px-5 py-4 text-left shadow-[0_22px_50px_rgba(15,23,42,0.16)] animate-in slide-in-from-top-2 fade-in duration-300 ${notificationToastTopClass}`}
       >
         <div className="flex items-start justify-between gap-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-red">
+          <p className="text-xs font-semibold tracking-wide text-brand-red">
             Reminder
           </p>
           <button

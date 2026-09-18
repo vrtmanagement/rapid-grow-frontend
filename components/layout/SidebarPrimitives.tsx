@@ -83,7 +83,7 @@ export const SidebarLink: React.FC<{ to: string; icon: any; label: string; colla
     : to === '/yearly'
     ? location.pathname.startsWith('/yearly') || location.pathname.startsWith('/quarterly') || location.pathname.startsWith('/monthly') || location.pathname.startsWith('/weekly') || location.pathname.startsWith('/daily')
     : to === '/'
-    ? location.pathname === to
+    ? location.pathname === to || location.pathname.startsWith('/execution-matrix')
     : location.pathname === to || location.pathname.startsWith(`${to}/`);
 
   useEffect(() => {

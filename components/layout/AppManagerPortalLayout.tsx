@@ -104,6 +104,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
   const isBillingAiRoute = routePath === '/billing-ai' || routePath.startsWith('/billing-ai/');
   const isSharedSubnavRoute =
     routePath === '/' ||
+    routePath.startsWith('/execution-matrix') ||
     isCommunicationRoute ||
     isReflectionRoute ||
     isBillingAiRoute ||
@@ -116,6 +117,7 @@ const AppManagerPortalLayout: React.FC<AppManagerPortalLayoutProps> = ({
     routePath.startsWith('/strategy-execution');
   const isFlushSharedSubnavRoute =
     routePath === '/' ||
+    routePath.startsWith('/execution-matrix') ||
     isCommunicationRoute ||
     isReflectionRoute ||
     isBillingAiRoute ||

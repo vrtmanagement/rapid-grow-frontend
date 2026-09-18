@@ -50,15 +50,21 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
 
   const socket = useMemo(() => getSocket(), []);
 
-  // Keep refs to avoid stale closures in socket event handlers
+  // Keep refs to avoid stale closures in socket event handlers.
+  // IMPORTANT: do NOT assign selectedConversationKeyRef from render body.
+  // Actions set it early before setState; a presence/typing re-render with the
+  // previous selected key was resetting the ref and dropping live messages.
   const selectedConversationKeyRef = useRef<string | null>(null);
-  selectedConversationKeyRef.current = selectedConversationKey;
   const usersRef = useRef<ChatUser[]>([]);
   usersRef.current = users;
   const conversationsRef = useRef<ChatConversationSummary[]>([]);
   conversationsRef.current = conversations;
   const currentUserRef = useRef<CommunicationContextValue['currentUser']>(null);
   currentUserRef.current = currentUser;
+
+  useEffect(() => {
+    selectedConversationKeyRef.current = selectedConversationKey;
+  }, [selectedConversationKey]);
 
   const typingStopTimer = useRef<number | null>(null);
   const lastMessageIdByConversationKeyRef = useRef<Record<string, string>>({});
@@ -403,6 +409,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     mergePollIntoMessages,
     markConversationSeen,
     scheduleNotificationAutoDismiss,
+    loadMessages,
     setUsers,
     setConversations,
     setTypingUserIds,
