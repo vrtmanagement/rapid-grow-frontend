@@ -43,42 +43,42 @@ export function normalizeStatusLabel(status?: string): string {
 export function getStatusStyles(status: TaskStatus) {
   if (status === 'done') {
     return {
-      dot: 'bg-emerald-400',
-      pill: 'border-emerald-400/25 bg-emerald-500/15 text-emerald-100',
+      dot: 'bg-emerald-500',
+      pill: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     };
   }
   if (status === 'doing') {
     return {
-      dot: 'bg-sky-400',
-      pill: 'border-sky-400/25 bg-sky-500/15 text-sky-100',
+      dot: 'bg-sky-500',
+      pill: 'border-sky-200 bg-sky-50 text-sky-700',
     };
   }
   if (status === 'review') {
     return {
-      dot: 'bg-violet-400',
-      pill: 'border-violet-400/25 bg-violet-500/15 text-violet-100',
+      dot: 'bg-amber-500',
+      pill: 'border-amber-200 bg-amber-50 text-amber-800',
     };
   }
   if (status === 'blocked') {
     return {
-      dot: 'bg-rose-400',
-      pill: 'border-rose-400/25 bg-rose-500/15 text-rose-100',
+      dot: 'bg-rose-500',
+      pill: 'border-rose-200 bg-rose-50 text-rose-700',
     };
   }
   return {
     dot: 'bg-slate-400',
-    pill: 'border-white/15 bg-white/10 text-slate-200',
+    pill: 'border-slate-200 bg-slate-50 text-slate-700',
   };
 }
 
 export function getPriorityStyles(priority: TaskPriority) {
   if (priority === 'high') {
-    return 'border-red-400/30 bg-gradient-to-r from-red-500/20 to-rose-500/10 text-red-100';
+    return 'border-red-200 bg-red-50 text-brand-red';
   }
   if (priority === 'low') {
-    return 'border-white/10 bg-white/5 text-slate-300';
+    return 'border-slate-200 bg-white text-slate-600';
   }
-  return 'border-amber-400/20 bg-amber-500/10 text-amber-100';
+  return 'border-amber-200 bg-amber-50 text-amber-800';
 }
 
 export function formatDueDate(value?: string) {
