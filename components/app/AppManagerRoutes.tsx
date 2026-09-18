@@ -25,6 +25,7 @@ const StrengthsDashboardView = lazy(() => import('../../views/StrengthsDashboard
 const SuperAdminView = lazy(() => import('../../views/SuperAdminView'));
 const BillingAiUsageView = lazy(() => import('../../views/BillingAiUsageView'));
 const CommunicationView = lazy(() => import('../../communication/views/CommunicationView'));
+const ExecutionMatrixEmployeeView = lazy(() => import('../../views/ExecutionMatrixEmployeeView'));
 
 const RouteFallback = () => (
   <div className="flex min-h-[40vh] items-center justify-center text-sm text-slate-500">Loading…</div>
@@ -65,6 +66,9 @@ const AppManagerRoutes: React.FC<AppManagerRoutesProps> = ({
     <Routes>
       {hasPower('DASHBOARD_VIEW') && (
         <Route path="/" element={<DashboardView state={state} loading={planningViewsLoading} />} />
+      )}
+      {(hasPower('DASHBOARD_VIEW') || hasPower('EXECUTION_MATRIX_VIEW')) && (
+        <Route path="/execution-matrix/:employeeId" element={<ExecutionMatrixEmployeeView />} />
       )}
       {hasPower('DASHBOARD_VIEW') && (
         <Route path="/analytics/tasks" element={<TaskAnalyticsView />} />

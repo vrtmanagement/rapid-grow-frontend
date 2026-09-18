@@ -43,6 +43,7 @@ export const REMINDER_TOAST_TIME_ZONE = 'Asia/Kolkata';
 export const DAILY_REVIEW_REMINDER_TYPE = 'daily_review_reminder';
 export const DISMISSED_DAILY_REVIEW_REMINDER_STORAGE_KEY = 'rapidgrow-dismissed-daily-review-reminder-date-keys';
 export const CLEARED_APP_NOTIFICATIONS_STORAGE_KEY_PREFIX = 'rapidgrow-cleared-app-notifications';
+export const SHOWN_REMINDER_TOAST_STORAGE_KEY_PREFIX = 'rapidgrow-shown-reminder-toasts';
 
 export function readClearedAppNotificationState(storageKey: string): Record<string, boolean> {
   if (!storageKey || typeof window === 'undefined') return {};
@@ -58,6 +59,62 @@ export function readClearedAppNotificationState(storageKey: string): Record<stri
   } catch {
     return {};
   }
+}
+
+export function getShownReminderToastStorageKey() {
+  if (typeof window === 'undefined') {
+    return `${SHOWN_REMINDER_TOAST_STORAGE_KEY_PREFIX}:anonymous`;
+  }
+  try {
+    const session = getStoredAuthSession();
+    const scopedUserId =
+      String(session?.employee?.empId || session?.employee?._id || 'anonymous').trim() || 'anonymous';
+    return `${SHOWN_REMINDER_TOAST_STORAGE_KEY_PREFIX}:${scopedUserId}`;
+  } catch {
+    return `${SHOWN_REMINDER_TOAST_STORAGE_KEY_PREFIX}:anonymous`;
+  }
+}
+
+export function readShownReminderToastState(storageKey?: string): Record<string, true> {
+  const key = storageKey || getShownReminderToastStorageKey();
+  if (!key || typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return Object.entries(parsed).reduce<Record<string, true>>((acc, [entryKey, value]) => {
+      if (value && entryKey) acc[entryKey] = true;
+      return acc;
+    }, {});
+  } catch {
+    return {};
+  }
+}
+
+export function markReminderToastShown(storageKey: string | undefined, toastKey: string) {
+  const key = storageKey || getShownReminderToastStorageKey();
+  const normalizedKey = String(toastKey || '').trim();
+  if (!key || !normalizedKey || typeof window === 'undefined') return;
+  try {
+    const current = readShownReminderToastState(key);
+    if (current[normalizedKey]) return;
+    const next = { ...current, [normalizedKey]: true as const };
+    // Keep the map bounded so localStorage does not grow forever.
+    const entries = Object.entries(next);
+    const trimmed =
+      entries.length > 200 ? Object.fromEntries(entries.slice(entries.length - 200)) : next;
+    window.localStorage.setItem(key, JSON.stringify(trimmed));
+  } catch {
+    // Ignore storage failures; in-memory guard still applies for the session.
+  }
+}
+
+export function wasReminderToastShown(toastKey: string, memory: Record<string, true> = {}) {
+  const normalizedKey = String(toastKey || '').trim();
+  if (!normalizedKey) return false;
+  if (memory[normalizedKey]) return true;
+  return Boolean(readShownReminderToastState()[normalizedKey]);
 }
 
 export function getDatePartMap(date: Date, timeZone: string) {

@@ -7,6 +7,17 @@ export type WeekBucket = {
   label: string;
 };
 
+export type MonthBucket = {
+  key: string;
+  start: string;
+  end: string;
+  label: string;
+};
+
+export type PeriodBucket = (WeekBucket | MonthBucket) & {
+  kind: 'week' | 'month';
+};
+
 function pad(value: number): string {
   return String(value).padStart(2, '0');
 }
@@ -88,8 +99,79 @@ export function buildDownloadWeekOptions(todayKey: string, count = 12): Array<{ 
         : index === 1
           ? `Last week · ${formatShortDate(bucket.start)} – ${formatShortDate(bucket.end)}`
           : `${formatShortDate(bucket.start)} – ${formatShortDate(bucket.end)}`;
-    return { value: bucket.key, label, bucket };
+    return { value: `week:${bucket.key}`, label, bucket };
   }).filter((option): option is { value: string; label: string; bucket: WeekBucket } => Boolean(option));
+}
+
+function formatMonthLabel(dateKey: string): string {
+  const date = parseDateKey(dateKey);
+  if (!date) return dateKey;
+  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+function formatMonthRangeLabel(month: MonthBucket): string {
+  return `${formatShortDate(month.start)} – ${formatShortDate(month.end)}`;
+}
+
+export function getMonthBucket(dateKey: string): MonthBucket | null {
+  const date = parseDateKey(dateKey);
+  if (!date) return null;
+  const startDate = new Date(date.getFullYear(), date.getMonth(), 1);
+  const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  const start = toDateKey(startDate);
+  const end = toDateKey(endDate);
+  return {
+    key: `month:${start}`,
+    start,
+    end,
+    label: `${formatLongDate(start)} – ${formatLongDate(end)}`,
+  };
+}
+
+export function buildDownloadMonthOptions(todayKey: string, count = 12): Array<{ value: string; label: string; bucket: MonthBucket }> {
+  const current = getMonthBucket(todayKey);
+  if (!current) return [];
+
+  return Array.from({ length: count }, (_, index) => {
+    const startDate = parseDateKey(current.start);
+    if (!startDate) return null;
+    startDate.setMonth(startDate.getMonth() - index);
+    const bucket = getMonthBucket(toDateKey(startDate));
+    if (!bucket) return null;
+    const label =
+      index === 0
+        ? `This month · ${formatMonthLabel(bucket.start)}`
+        : index === 1
+          ? `Last month · ${formatMonthLabel(bucket.start)}`
+          : formatMonthLabel(bucket.start);
+    return { value: bucket.key, label, bucket };
+  }).filter((option): option is { value: string; label: string; bucket: MonthBucket } => Boolean(option));
+}
+
+export type DownloadPeriodGranularity = 'weekly' | 'monthly';
+
+export type DownloadPeriodOption = {
+  value: string;
+  label: string;
+  buttonLabel: string;
+  bucket: PeriodBucket;
+};
+
+export function buildDownloadPeriodMenu(todayKey: string): Record<DownloadPeriodGranularity, DownloadPeriodOption[]> {
+  return {
+    weekly: buildDownloadWeekOptions(todayKey).map((option) => ({
+      value: option.value,
+      label: option.label,
+      buttonLabel: option.label,
+      bucket: { ...option.bucket, kind: 'week' as const },
+    })),
+    monthly: buildDownloadMonthOptions(todayKey).map((option) => ({
+      value: option.value,
+      label: option.label,
+      buttonLabel: option.label,
+      bucket: { ...option.bucket, kind: 'month' as const },
+    })),
+  };
 }
 
 function escapeHtml(value: string): string {
@@ -159,6 +241,31 @@ function personDivider(): string {
   `;
 }
 
+function personPeriodBlock(
+  name: string,
+  empId: string,
+  periodLabel: string,
+  records: ReflectionRecord[],
+  options?: { completedOnly?: boolean; emptyMessage?: string },
+): string {
+  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date));
+  const daysHtml = sorted.length
+    ? sorted.map((record) => dayWorkHtml(record, options)).join('')
+    : `<p class="empty">${escapeHtml(options?.emptyMessage || 'No work logged for this period.')}</p>`;
+
+  return `
+    <section class="person-block">
+      <div class="person-header">
+        <div class="person-name">${escapeHtml(name)}</div>
+        <div class="person-meta">ID ${escapeHtml(empId)} · ${escapeHtml(periodLabel)}</div>
+      </div>
+      <div class="days">
+        ${daysHtml}
+      </div>
+    </section>
+  `;
+}
+
 function personWeeklyBlock(
   name: string,
   empId: string,
@@ -166,22 +273,10 @@ function personWeeklyBlock(
   records: ReflectionRecord[],
   options?: { completedOnly?: boolean },
 ): string {
-  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date));
-  const daysHtml = sorted.length
-    ? sorted.map((record) => dayWorkHtml(record, options)).join('')
-    : '<p class="empty">No work logged for this week.</p>';
-
-  return `
-    <section class="person-block">
-      <div class="person-header">
-        <div class="person-name">${escapeHtml(name)}</div>
-        <div class="person-meta">ID ${escapeHtml(empId)} · Week ${escapeHtml(weekLabel)}</div>
-      </div>
-      <div class="days">
-        ${daysHtml}
-      </div>
-    </section>
-  `;
+  return personPeriodBlock(name, empId, `Week ${weekLabel}`, records, {
+    ...options,
+    emptyMessage: 'No work logged for this week.',
+  });
 }
 
 export function uniquePeopleFromRecords(records: ReflectionRecord[]): Array<{ empId: string; empName: string }> {
@@ -277,6 +372,52 @@ export function buildWeeklySheetsHtml(records: ReflectionRecord[]): string {
   `;
 }
 
+export function buildMonthlySheetsHtml(records: ReflectionRecord[]): string {
+  if (!records.length) return '<p class="empty">No monthly sheets match the current filters.</p>';
+
+  const months = new Map<string, { bucket: MonthBucket; people: Map<string, ReflectionRecord[]> }>();
+  records.forEach((record) => {
+    const bucket = getMonthBucket(record.date);
+    if (!bucket) return;
+    const month = months.get(bucket.key) || { bucket, people: new Map<string, ReflectionRecord[]>() };
+    const personKey = String(record.empId || record.empName || 'unknown');
+    const personRecords = month.people.get(personKey) || [];
+    personRecords.push(record);
+    month.people.set(personKey, personRecords);
+    months.set(bucket.key, month);
+  });
+
+  const monthBlocks = Array.from(months.values())
+    .sort((a, b) => b.bucket.start.localeCompare(a.bucket.start))
+    .map((month) => {
+      const peopleBlocks = Array.from(month.people.values())
+        .sort((a, b) => String(a[0]?.empName || '').localeCompare(String(b[0]?.empName || '')))
+        .map((personRecords) => {
+          const first = personRecords[0];
+          return personPeriodBlock(
+            first?.empName || 'Employee',
+            first?.empId || '',
+            `Month ${formatMonthRangeLabel(month.bucket)}`,
+            personRecords,
+            { emptyMessage: 'No work logged for this month.' },
+          );
+        })
+        .join(personDivider());
+
+      return `
+        <div class="week-banner">Month of ${escapeHtml(formatMonthLabel(month.bucket.start))}</div>
+        ${peopleBlocks}
+      `;
+    })
+    .join('<div class="week-gap"></div>');
+
+  return `
+    <div class="doc-title">Monthly Reflection Sheets</div>
+    <div class="doc-subtitle">Person · month · day-by-day work</div>
+    ${monthBlocks}
+  `;
+}
+
 export function buildPersonWeeklyCompletedHtml(
   records: ReflectionRecord[],
   empId: string,
@@ -291,6 +432,31 @@ export function buildPersonWeeklyCompletedHtml(
     <div class="doc-title">Weekly Completed Tasks</div>
     <div class="doc-subtitle">${escapeHtml(formatWeekRangeLabel(week))}</div>
     ${personWeeklyBlock(name, empId, formatWeekRangeLabel(week), personRecords, { completedOnly: true })}
+  `;
+}
+
+export function buildPersonPeriodCompletedHtml(
+  records: ReflectionRecord[],
+  empId: string,
+  period: PeriodBucket,
+): string {
+  const personRecords = records
+    .filter((record) => record.empId === empId && record.date >= period.start && record.date <= period.end)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const name = personRecords[0]?.empName || empId;
+  const rangeLabel =
+    period.kind === 'month' ? formatMonthRangeLabel(period) : formatWeekRangeLabel(period);
+  const title = period.kind === 'month' ? 'Monthly Completed Tasks' : 'Weekly Completed Tasks';
+  const metaLabel = period.kind === 'month' ? `Month ${rangeLabel}` : `Week ${rangeLabel}`;
+
+  return `
+    <div class="doc-title">${title}</div>
+    <div class="doc-subtitle">${escapeHtml(rangeLabel)}</div>
+    ${personPeriodBlock(name, empId, metaLabel, personRecords, {
+      completedOnly: true,
+      emptyMessage:
+        period.kind === 'month' ? 'No work logged for this month.' : 'No work logged for this week.',
+    })}
   `;
 }
 

@@ -89,6 +89,7 @@ const AppEmployeePortalLayout: React.FC<AppEmployeePortalLayoutProps> = ({
   const isReflectionRoute = routePath === '/reflection' || routePath === '/review';
   const isFlushSharedSubnavRoute =
     routePath === '/' ||
+    routePath.startsWith('/execution-matrix') ||
     isCommunicationRoute ||
     isReflectionRoute ||
     routePath === '/staff' ||

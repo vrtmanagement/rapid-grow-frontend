@@ -1,9 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Activity,
   ArrowDownRight,
   ArrowUpRight,
   ChevronDown,
+  ChevronRight,
   Minus,
   Radar,
   Target,
@@ -12,14 +14,18 @@ import {
 } from 'lucide-react';
 import { getSocket } from '../../realtime/socket';
 import { fetchTabEndpoint, hasTabEndpointCache, readHydratedTabEndpoint } from '../../services/tabSessionCache';
+import { getDisplayAvatarUrl } from '../../utils/avatar';
 import { STATIC_EXECUTION_ROWS } from './executionMatrixData';
 import {
   TARGET_SCORE,
   ALL_DEPARTMENTS_VALUE,
   ALL_DEPARTMENTS_LABEL,
   CURATED_DEPARTMENTS,
-  buildWeekOptions,
+  buildPeriodMenu,
   buildDepartmentOptions,
+  formatDepartmentDisplay,
+  type PeriodGranularity,
+  type PeriodOption,
 } from './executionMatrixUtils';
 
 type TrendDirection = 'up' | 'down' | 'stable';
@@ -57,14 +63,22 @@ interface PerformanceRow {
   daily: Record<DayLabel, number>;
   dailyBreakdown: Record<DayLabel, DailyBreakdown>;
   liveScoreDelta?: number;
+  avatar?: string;
 }
 
-interface EmployeeDepartment {
+interface EmployeeDirectoryRow {
   empId: string;
+  empName?: string;
   department?: string;
+  avatar?: string;
 }
 
 const HOME_TAB = 'home';
+const PERIOD_LABELS: Record<PeriodGranularity, string> = {
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+  yearly: 'Yearly',
+};
 
 function buildWeeklyPerformancePath(weekId: string, department: string) {
   const params = new URLSearchParams();
@@ -74,46 +88,48 @@ function buildWeeklyPerformancePath(weekId: string, department: string) {
   return `/performance/weekly${query ? `?${query}` : ''}`;
 }
 
-
 function getBarTone(score: number) {
   if (score >= TARGET_SCORE) {
     return {
-      fill: 'bg-emerald-500',
       track: 'from-emerald-500 via-emerald-400 to-emerald-300',
-      glow: 'shadow-[0_0_0_1px_rgba(16,185,129,0.12),0_10px_24px_rgba(16,185,129,0.16)]',
       badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      label: 'On Track',
+      label: 'On track',
     };
   }
 
   if (score >= 50) {
     return {
-      fill: 'bg-amber-400',
       track: 'from-amber-400 via-amber-300 to-yellow-200',
-      glow: 'shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_10px_24px_rgba(251,191,36,0.15)]',
       badge: 'bg-amber-50 text-amber-700 border-amber-200',
-      label: 'Mid Pace',
+      label: 'Mid pace',
     };
   }
 
   return {
-    fill: 'bg-rose-500',
     track: 'from-rose-500 via-rose-400 to-orange-300',
-    glow: 'shadow-[0_0_0_1px_rgba(244,63,94,0.12),0_10px_24px_rgba(244,63,94,0.14)]',
     badge: 'bg-rose-50 text-rose-700 border-rose-200',
-    label: 'At Risk',
+    label: 'At risk',
   };
 }
 
-function getRankIcon(rank: number) {
+function getRankMedal(rank: number) {
   if (rank === 1) return '🥇';
   if (rank === 2) return '🥈';
   if (rank === 3) return '🥉';
-  return `#${rank}`;
+  return null;
 }
 
 function formatPercentage(value: number) {
   return `${Math.round(value)}%`;
+}
+
+function formatPersonName(value?: string | null) {
+  const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return 'Unknown';
+  return normalized
+    .split(' ')
+    .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : part))
+    .join(' ');
 }
 
 function getTrendMeta(trend: TrendDirection) {
@@ -154,24 +170,28 @@ function getStaticExecutionRows(selectedDepartment: string) {
 }
 
 const ExecutionMatrix: React.FC = () => {
-  const weekOptions = buildWeekOptions();
-  const defaultWeek = weekOptions[0]?.value || '';
+  const navigate = useNavigate();
+  const periodMenu = useMemo(() => buildPeriodMenu(), []);
+  const defaultPeriod = periodMenu.weekly[0];
   const [rows, setRows] = useState<PerformanceRow[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
-  const [selectedWeek, setSelectedWeek] = useState(defaultWeek);
+  const [avatarByEmployeeId, setAvatarByEmployeeId] = useState<Record<string, string>>({});
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodOption>(defaultPeriod);
   const [selectedDepartment, setSelectedDepartment] = useState(ALL_DEPARTMENTS_VALUE);
   const [loading, setLoading] = useState(
-    () => !hasTabEndpointCache(HOME_TAB, buildWeeklyPerformancePath(defaultWeek, ALL_DEPARTMENTS_VALUE)),
+    () =>
+      !hasTabEndpointCache(
+        HOME_TAB,
+        buildWeeklyPerformancePath(defaultPeriod.weekId, ALL_DEPARTMENTS_VALUE),
+      ),
   );
   const [error, setError] = useState<string | null>(null);
   const refreshTimeout = useRef<number | null>(null);
-  const controlsRef = useRef<HTMLDivElement | null>(null);
-  const insightsPanelRef = useRef<HTMLDivElement | null>(null);
-  const weekDropdownRef = useRef<HTMLDivElement | null>(null);
+  const periodDropdownRef = useRef<HTMLDivElement | null>(null);
   const departmentDropdownRef = useRef<HTMLDivElement | null>(null);
-  const [weekMenuOpen, setWeekMenuOpen] = useState(false);
+  const [periodMenuOpen, setPeriodMenuOpen] = useState(false);
+  const [hoveredGranularity, setHoveredGranularity] = useState<PeriodGranularity>('weekly');
   const [departmentMenuOpen, setDepartmentMenuOpen] = useState(false);
-  const [listMaxHeight, setListMaxHeight] = useState<number | null>(null);
 
   const applyPerformanceRows = (incoming: PerformanceRow[]) => {
     setDepartments((previous) =>
@@ -192,16 +212,24 @@ const ExecutionMatrix: React.FC = () => {
         return {
           ...row,
           liveScoreDelta,
+          avatar: avatarByEmployeeId[String(row.employeeId)] || row.avatar,
         };
       });
     });
   };
 
   useEffect(() => {
-    const loadDepartments = async () => {
+    const loadDirectory = async () => {
       try {
-        const items = await fetchTabEndpoint<EmployeeDepartment[]>(HOME_TAB, '/employees');
+        const items = await fetchTabEndpoint<EmployeeDirectoryRow[]>(HOME_TAB, '/employees');
         const list = Array.isArray(items) ? items : [];
+        const nextAvatars: Record<string, string> = {};
+        list.forEach((employee) => {
+          const empId = String(employee.empId || '').trim();
+          if (!empId) return;
+          nextAvatars[empId] = getDisplayAvatarUrl(employee.avatar, employee.empName || empId);
+        });
+        setAvatarByEmployeeId(nextAvatars);
         setDepartments(
           buildDepartmentOptions([
             ...CURATED_DEPARTMENTS,
@@ -213,14 +241,25 @@ const ExecutionMatrix: React.FC = () => {
       }
     };
 
-    void loadDepartments();
+    void loadDirectory();
   }, []);
 
   useEffect(() => {
+    if (!Object.keys(avatarByEmployeeId).length) return;
+    setRows((previous) =>
+      previous.map((row) => ({
+        ...row,
+        avatar: avatarByEmployeeId[String(row.employeeId)] || row.avatar,
+      })),
+    );
+  }, [avatarByEmployeeId]);
+
+  useEffect(() => {
     let ignore = false;
+    const weekId = selectedPeriod.weekId;
 
     const loadPerformance = async (silent = false, force = false) => {
-      const path = buildWeeklyPerformancePath(selectedWeek, selectedDepartment);
+      const path = buildWeeklyPerformancePath(weekId, selectedDepartment);
       const hasCache = !force && hasTabEndpointCache(HOME_TAB, path);
 
       if (hasCache) {
@@ -239,7 +278,7 @@ const ExecutionMatrix: React.FC = () => {
         const incoming = await fetchTabEndpoint<PerformanceRow[]>(HOME_TAB, path, { force });
         if (ignore) return;
         applyPerformanceRows(Array.isArray(incoming) ? incoming : []);
-      } catch (loadError: any) {
+      } catch {
         if (!ignore) {
           setRows(getStaticExecutionRows(selectedDepartment));
           setDepartments((previous) =>
@@ -260,7 +299,7 @@ const ExecutionMatrix: React.FC = () => {
 
     const cached = readHydratedTabEndpoint<PerformanceRow[]>(
       HOME_TAB,
-      buildWeeklyPerformancePath(selectedWeek, selectedDepartment),
+      buildWeeklyPerformancePath(weekId, selectedDepartment),
     );
     void loadPerformance(Boolean(cached !== undefined));
 
@@ -285,15 +324,15 @@ const ExecutionMatrix: React.FC = () => {
         window.clearTimeout(refreshTimeout.current);
       }
     };
-  }, [selectedDepartment, selectedWeek]);
+  }, [selectedDepartment, selectedPeriod]);
 
   useEffect(() => {
-    if (!weekMenuOpen && !departmentMenuOpen) return;
+    if (!periodMenuOpen && !departmentMenuOpen) return;
 
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (!weekDropdownRef.current?.contains(target)) {
-        setWeekMenuOpen(false);
+      if (!periodDropdownRef.current?.contains(target)) {
+        setPeriodMenuOpen(false);
       }
       if (!departmentDropdownRef.current?.contains(target)) {
         setDepartmentMenuOpen(false);
@@ -302,7 +341,7 @@ const ExecutionMatrix: React.FC = () => {
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setWeekMenuOpen(false);
+        setPeriodMenuOpen(false);
         setDepartmentMenuOpen(false);
       }
     };
@@ -314,431 +353,419 @@ const ExecutionMatrix: React.FC = () => {
       document.removeEventListener('mousedown', handlePointerDown);
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [departmentMenuOpen, weekMenuOpen]);
-
-  useEffect(() => {
-    const panel = insightsPanelRef.current;
-    const controls = controlsRef.current;
-
-    if (!panel || !controls) {
-      return;
-    }
-
-    const updateHeight = () => {
-      const panelHeight = panel.getBoundingClientRect().height;
-      const controlsHeight = controls.getBoundingClientRect().height;
-      const verticalGap = 20;
-      setListMaxHeight(Math.max(panelHeight - controlsHeight - verticalGap, 0));
-    };
-
-    updateHeight();
-
-    if (typeof ResizeObserver === 'undefined') {
-      return;
-    }
-
-    const resizeObserver = new ResizeObserver(() => {
-      updateHeight();
-    });
-
-    resizeObserver.observe(panel);
-    resizeObserver.observe(controls);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [rows.length, loading, error]);
+  }, [departmentMenuOpen, periodMenuOpen]);
 
   const topPerformer = rows[0] || null;
   const needsAttention = rows[rows.length - 1] || null;
   const weeklyAverageScore = rows.length
     ? rows.reduce((sum, row) => sum + row.weeklyScore, 0) / rows.length
     : 0;
-  const selectedWeekLabel =
-    weekOptions.find((option) => option.value === selectedWeek)?.label || 'This Week';
+  const hoveredOptions = periodMenu[hoveredGranularity];
+  const selectedPeriodButtonLabel = `${PERIOD_LABELS[selectedPeriod.granularity]} · ${selectedPeriod.label}`;
+
+  const openEmployeeDetail = (employeeId: string) => {
+    const params = new URLSearchParams();
+    if (selectedPeriod.weekId) params.set('weekId', selectedPeriod.weekId);
+    if (selectedDepartment !== ALL_DEPARTMENTS_VALUE) params.set('department', selectedDepartment);
+    params.set('period', selectedPeriodButtonLabel);
+    navigate(`/execution-matrix/${encodeURIComponent(employeeId)}?${params.toString()}`);
+  };
 
   return (
-    <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_296px]">
-      <div className="flex min-h-0 flex-col gap-5">
-        <div
-          ref={controlsRef}
-          className="flex flex-col gap-4 rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4 md:flex-row md:items-center md:justify-between"
-        >
-          <div className="flex items-center gap-3 text-[13px] text-slate-500">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-sm">
-              <Radar className="text-brand-red" size={18} />
+    <div className="flex flex-col gap-6">
+      <div className="rounded-[1.5rem] border border-slate-200 bg-slate-900 p-5 text-white shadow-xl">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[13px] font-medium text-white/55">Insights</p>
+            <h4 className="mt-1 text-[1.25rem] font-semibold tracking-tight">Live employee pulse</h4>
+          </div>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+            <Activity size={15} className="text-brand-red" />
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <InsightCard
+            icon={<Trophy size={15} className="text-emerald-300" />}
+            label="Top performer"
+            value={topPerformer ? formatPersonName(topPerformer.name) : 'No data'}
+            meta={topPerformer ? `${Math.round(topPerformer.weeklyScore)} score` : 'Waiting for activity'}
+            avatar={topPerformer ? getDisplayAvatarUrl(topPerformer.avatar, topPerformer.name) : undefined}
+          />
+          <InsightCard
+            icon={<Target size={15} className="text-amber-300" />}
+            label="Needs attention"
+            value={needsAttention ? formatPersonName(needsAttention.name) : 'No data'}
+            meta={needsAttention ? `${Math.round(needsAttention.weeklyScore)} score` : 'Waiting for activity'}
+            avatar={needsAttention ? getDisplayAvatarUrl(needsAttention.avatar, needsAttention.name) : undefined}
+          />
+          <InsightCard
+            icon={<Users size={15} className="text-sky-300" />}
+            label="Weekly average"
+            value={rows.length ? `${Math.round(weeklyAverageScore)}%` : '0%'}
+            meta={`${rows.length} employees tracked`}
+          />
+          <div className="rounded-[1.2rem] border border-white/10 bg-white/[0.04] p-3.5">
+            <div className="mb-2 flex items-center justify-between text-[12px] text-white/55">
+              <span>Race rules</span>
+              <span>{TARGET_SCORE}% target</span>
             </div>
-            <div>
-              <p className="font-semibold text-slate-800">Weekly live race view</p>
-              <p>Real employee throughput pulled from live task activity.</p>
+            <div className="space-y-1.5 text-[12px] text-white/70">
+              <div className="flex items-center justify-between">
+                <span>Task completion</span>
+                <span className="font-semibold text-white/90">40%</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>On-time delivery</span>
+                <span className="font-semibold text-white/90">30%</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Consistency</span>
+                <span className="font-semibold text-white/90">20%</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Quality</span>
+                <span className="font-semibold text-white/90">10%</span>
+              </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div ref={weekDropdownRef} className="relative min-w-[190px]">
-              <button
-                type="button"
-                onClick={() => {
-                  setDepartmentMenuOpen(false);
-                  setWeekMenuOpen((previous) => !previous);
-                }}
-                className={`flex w-full items-center justify-between rounded-2xl border bg-white px-4 py-3 text-left text-[14px] outline-none transition-all ${
-                  weekMenuOpen
-                    ? 'border-brand-red shadow-[0_12px_32px_rgba(239,68,68,0.12)] ring-2 ring-brand-red/10'
-                    : 'border-slate-200 hover:border-slate-300'
+      <div className="flex flex-col gap-4 rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3 text-[13px] text-slate-500">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-sm">
+            <Radar className="text-brand-red" size={18} />
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800">Live race view</p>
+            <p>Real employee throughput pulled from live task activity.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div ref={periodDropdownRef} className="relative min-w-[230px]">
+            <button
+              type="button"
+              onClick={() => {
+                setDepartmentMenuOpen(false);
+                setPeriodMenuOpen((previous) => !previous);
+                setHoveredGranularity(selectedPeriod.granularity);
+              }}
+              className={`flex w-full items-center justify-between rounded-2xl border bg-white px-4 py-3 text-left text-[14px] outline-none transition-all ${
+                periodMenuOpen
+                  ? 'border-brand-red shadow-[0_12px_32px_rgba(239,68,68,0.12)] ring-2 ring-brand-red/10'
+                  : 'border-slate-200 hover:border-slate-300'
+              }`}
+              aria-haspopup="listbox"
+              aria-expanded={periodMenuOpen}
+            >
+              <span className="truncate text-slate-700">{selectedPeriodButtonLabel}</span>
+              <ChevronDown
+                size={16}
+                className={`ml-3 shrink-0 text-slate-400 transition-transform ${
+                  periodMenuOpen ? 'rotate-180 text-brand-red' : ''
                 }`}
-                aria-haspopup="listbox"
-                aria-expanded={weekMenuOpen}
-              >
-                <span className="truncate text-slate-700">{selectedWeekLabel}</span>
-                <ChevronDown
-                  size={16}
-                  className={`ml-3 shrink-0 text-slate-400 transition-transform ${
-                    weekMenuOpen ? 'rotate-180 text-brand-red' : ''
-                  }`}
-                />
-              </button>
+              />
+            </button>
 
-              {weekMenuOpen && (
-                <div className="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-[1.1rem] border border-slate-200 bg-white/95 shadow-[0_22px_48px_rgba(15,23,42,0.14)] backdrop-blur-sm">
-                  <div className="max-h-72 overflow-y-auto p-1.5">
-                    {weekOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => {
-                          setSelectedWeek(option.value);
-                          setWeekMenuOpen(false);
-                        }}
-                        className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-[13px] transition-colors ${
-                          selectedWeek === option.value
-                            ? 'bg-brand-red/6 text-brand-red'
-                            : 'text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="truncate">{option.label}</span>
-                        <span
-                          className={`h-2.5 w-2.5 rounded-full ${
-                            selectedWeek === option.value ? 'bg-brand-red' : 'bg-transparent'
-                          }`}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div ref={departmentDropdownRef} className="relative min-w-[206px]">
-              <button
-                type="button"
-                onClick={() => {
-                  setWeekMenuOpen(false);
-                  setDepartmentMenuOpen((previous) => !previous);
-                }}
-                className={`flex w-full items-center justify-between rounded-2xl border bg-white px-4 py-3 text-left text-[14px] outline-none transition-all ${
-                  departmentMenuOpen
-                    ? 'border-brand-red shadow-[0_12px_32px_rgba(239,68,68,0.12)] ring-2 ring-brand-red/10'
-                    : 'border-slate-200 hover:border-slate-300'
-                }`}
-                aria-haspopup="listbox"
-                aria-expanded={departmentMenuOpen}
-              >
-                <span className="truncate text-slate-700">
-                  {selectedDepartment === ALL_DEPARTMENTS_VALUE
-                    ? ALL_DEPARTMENTS_LABEL
-                    : selectedDepartment}
-                </span>
-                <ChevronDown
-                  size={16}
-                  className={`ml-3 shrink-0 text-slate-400 transition-transform ${
-                    departmentMenuOpen ? 'rotate-180 text-brand-red' : ''
-                  }`}
-                />
-              </button>
-
-              {departmentMenuOpen && (
-                <div className="absolute right-0 top-full z-20 mt-2 w-full overflow-hidden rounded-[1.1rem] border border-slate-200 bg-white/95 shadow-[0_22px_48px_rgba(15,23,42,0.14)] backdrop-blur-sm">
-                  <div className="max-h-72 overflow-y-auto p-1.5">
+            {periodMenuOpen && (
+              <div className="absolute left-0 top-full z-30 mt-2 flex overflow-hidden rounded-[1.1rem] border border-slate-200 bg-white/95 shadow-[0_22px_48px_rgba(15,23,42,0.14)] backdrop-blur-sm">
+                <div className="w-[140px] border-r border-slate-100 p-1.5">
+                  {(Object.keys(PERIOD_LABELS) as PeriodGranularity[]).map((granularity) => (
                     <button
+                      key={granularity}
                       type="button"
-                      onClick={() => {
-                        setSelectedDepartment(ALL_DEPARTMENTS_VALUE);
-                        setDepartmentMenuOpen(false);
-                      }}
-                      className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-[13px] transition-colors ${
-                        selectedDepartment === ALL_DEPARTMENTS_VALUE
+                      onMouseEnter={() => setHoveredGranularity(granularity)}
+                      onFocus={() => setHoveredGranularity(granularity)}
+                      className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[13px] transition-colors ${
+                        hoveredGranularity === granularity
                           ? 'bg-brand-red/6 text-brand-red'
                           : 'text-slate-700 hover:bg-slate-50'
                       }`}
                     >
-                      <span>{ALL_DEPARTMENTS_LABEL}</span>
+                      <span>{PERIOD_LABELS[granularity]}</span>
+                      <ChevronRight size={14} className="opacity-60" />
+                    </button>
+                  ))}
+                </div>
+                <div className="max-h-72 w-[220px] overflow-y-auto p-1.5">
+                  {hoveredOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPeriod(option);
+                        setPeriodMenuOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-[13px] transition-colors ${
+                        selectedPeriod.value === option.value
+                          ? 'bg-brand-red/6 text-brand-red'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="truncate">{option.label}</span>
                       <span
                         className={`h-2.5 w-2.5 rounded-full ${
-                          selectedDepartment === ALL_DEPARTMENTS_VALUE
-                            ? 'bg-brand-red'
-                            : 'bg-transparent'
+                          selectedPeriod.value === option.value ? 'bg-brand-red' : 'bg-transparent'
                         }`}
                       />
                     </button>
-
-                    {departments.map((department) => (
-                      <button
-                        key={department}
-                        type="button"
-                        onClick={() => {
-                          setSelectedDepartment(department);
-                          setDepartmentMenuOpen(false);
-                        }}
-                        className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-[13px] transition-colors ${
-                          selectedDepartment === department
-                            ? 'bg-brand-red/6 text-brand-red'
-                            : 'text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="truncate">{department}</span>
-                        <span
-                          className={`h-2.5 w-2.5 rounded-full ${
-                            selectedDepartment === department ? 'bg-brand-red' : 'bg-transparent'
-                          }`}
-                        />
-                      </button>
-                    ))}
-                  </div>
+                  ))}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
+
+          <div ref={departmentDropdownRef} className="relative min-w-[206px]">
+            <button
+              type="button"
+              onClick={() => {
+                setPeriodMenuOpen(false);
+                setDepartmentMenuOpen((previous) => !previous);
+              }}
+              className={`flex w-full items-center justify-between rounded-2xl border bg-white px-4 py-3 text-left text-[14px] outline-none transition-all ${
+                departmentMenuOpen
+                  ? 'border-brand-red shadow-[0_12px_32px_rgba(239,68,68,0.12)] ring-2 ring-brand-red/10'
+                  : 'border-slate-200 hover:border-slate-300'
+              }`}
+              aria-haspopup="listbox"
+              aria-expanded={departmentMenuOpen}
+            >
+              <span className="truncate text-slate-700">
+                {selectedDepartment === ALL_DEPARTMENTS_VALUE
+                  ? ALL_DEPARTMENTS_LABEL
+                  : formatDepartmentDisplay(selectedDepartment)}
+              </span>
+              <ChevronDown
+                size={16}
+                className={`ml-3 shrink-0 text-slate-400 transition-transform ${
+                  departmentMenuOpen ? 'rotate-180 text-brand-red' : ''
+                }`}
+              />
+            </button>
+
+            {departmentMenuOpen && (
+              <div className="absolute right-0 top-full z-20 mt-2 w-full overflow-hidden rounded-[1.1rem] border border-slate-200 bg-white/95 shadow-[0_22px_48px_rgba(15,23,42,0.14)] backdrop-blur-sm">
+                <div className="max-h-72 overflow-y-auto p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDepartment(ALL_DEPARTMENTS_VALUE);
+                      setDepartmentMenuOpen(false);
+                    }}
+                    className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-[13px] transition-colors ${
+                      selectedDepartment === ALL_DEPARTMENTS_VALUE
+                        ? 'bg-brand-red/6 text-brand-red'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>{ALL_DEPARTMENTS_LABEL}</span>
+                    <span
+                      className={`h-2.5 w-2.5 rounded-full ${
+                        selectedDepartment === ALL_DEPARTMENTS_VALUE
+                          ? 'bg-brand-red'
+                          : 'bg-transparent'
+                      }`}
+                    />
+                  </button>
+
+                  {departments.map((department) => (
+                    <button
+                      key={department}
+                      type="button"
+                      onClick={() => {
+                        setSelectedDepartment(department);
+                        setDepartmentMenuOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-[13px] transition-colors ${
+                        selectedDepartment === department
+                          ? 'bg-brand-red/6 text-brand-red'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="truncate">{formatDepartmentDisplay(department)}</span>
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full ${
+                          selectedDepartment === department ? 'bg-brand-red' : 'bg-transparent'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
+      </div>
 
-        <div
-          className="min-h-0"
-          style={
-            listMaxHeight
-              ? ({ ['--execution-list-height' as string]: `${listMaxHeight}px` } as React.CSSProperties)
-              : undefined
-          }
-        >
-          {loading && rows.length === 0 ? (
-            <div className="space-y-4 xl:max-h-[var(--execution-list-height)] xl:overflow-y-auto xl:overscroll-contain xl:pr-2">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <div
-                  key={`execution-matrix-skeleton-${index}`}
-                  className="animate-pulse rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-2xl bg-slate-100" />
-                    <div className="w-44 space-y-2">
-                      <div className="h-4 w-32 rounded-full bg-slate-200" />
-                      <div className="h-3 w-20 rounded-full bg-slate-100" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="h-16 rounded-2xl bg-slate-100" />
-                    </div>
-                  </div>
+      {loading && rows.length === 0 ? (
+        <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white">
+          <div className="animate-pulse divide-y divide-slate-100">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={`execution-matrix-skeleton-${index}`} className="flex items-center gap-4 px-5 py-4">
+                <div className="h-10 w-10 rounded-full bg-slate-100" />
+                <div className="w-40 space-y-2">
+                  <div className="h-3.5 w-28 rounded-full bg-slate-200" />
+                  <div className="h-2.5 w-20 rounded-full bg-slate-100" />
                 </div>
-              ))}
-            </div>
-          ) : error ? (
-            <div className="rounded-[1.75rem] border border-rose-200 bg-rose-50 px-6 py-5 text-[15px] text-rose-700 xl:flex xl:h-full xl:items-center">
-              {error}
-            </div>
-          ) : rows.length === 0 ? (
-            <div className="rounded-[1.75rem] border border-slate-200 bg-white px-6 py-10 text-center text-[15px] text-slate-500 shadow-sm xl:flex xl:h-full xl:items-center xl:justify-center">
-              No employee performance data found for this week.
-            </div>
-          ) : (
-            <div className="space-y-4 xl:max-h-[var(--execution-list-height)] xl:overflow-y-auto xl:overscroll-contain xl:pr-2">
-              {rows.map((row) => {
-                const trendMeta = getTrendMeta(row.trend);
-                const TrendIcon = trendMeta.icon;
-                const barTone = getBarTone(row.weeklyScore);
-                const liveScoreDelta = row.liveScoreDelta || 0;
-                const showLiveDelta = Math.abs(liveScoreDelta) >= 0.1;
-                const showRankDelta = row.rankDelta !== 0;
-                const deltaValue = showLiveDelta ? liveScoreDelta : row.rankDelta;
-                const isStableDelta = !showLiveDelta && !showRankDelta;
-                const DeltaIcon = isStableDelta
-                  ? Minus
-                  : deltaValue >= 0
-                  ? ArrowUpRight
-                  : ArrowDownRight;
-                const deltaBadgeTone = isStableDelta
-                  ? 'border-amber-300/90 bg-[linear-gradient(180deg,#fffbeb_0%,#fef3c7_100%)] text-amber-800'
-                  : deltaValue > 0
-                  ? 'border-emerald-300/90 bg-[linear-gradient(180deg,#ecfdf5_0%,#d1fae5_100%)] text-emerald-800'
-                  : 'border-rose-300/90 bg-[linear-gradient(180deg,#fff1f2_0%,#ffe4e6_100%)] text-rose-800';
-                const deltaLabel = isStableDelta
-                  ? '0'
-                  : showLiveDelta
-                  ? `${liveScoreDelta > 0 ? '+' : ''}${liveScoreDelta}`
-                  : `${row.rankDelta > 0 ? '+' : ''}${row.rankDelta}`;
+                <div className="ml-auto h-3 w-48 rounded-full bg-slate-100" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : error ? (
+        <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-6 py-5 text-[15px] text-rose-700">
+          {error}
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="rounded-[1.5rem] border border-slate-200 bg-white px-6 py-10 text-center text-[15px] text-slate-500 shadow-sm">
+          No employee performance data found for this period.
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+          <div className="overflow-x-auto">
+            <table className="min-w-[920px] w-full border-collapse text-left">
+              <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm">
+                <tr className="border-b border-slate-200 text-[13px] font-medium text-slate-500">
+                  <th className="px-5 py-3.5 font-medium">Employee</th>
+                  <th className="px-4 py-3.5 font-medium">Department</th>
+                  <th className="px-4 py-3.5 font-medium">Trend</th>
+                  <th className="min-w-[220px] px-4 py-3.5 font-medium">Progress</th>
+                  <th className="px-4 py-3.5 font-medium text-right">Score</th>
+                  <th className="px-4 py-3.5 font-medium text-right">Change</th>
+                  <th className="px-4 py-3.5 font-medium text-right">On-time</th>
+                  <th className="min-w-[110px] px-5 py-3.5 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const trendMeta = getTrendMeta(row.trend);
+                  const TrendIcon = trendMeta.icon;
+                  const barTone = getBarTone(row.weeklyScore);
+                  const liveScoreDelta = row.liveScoreDelta || 0;
+                  const showLiveDelta = Math.abs(liveScoreDelta) >= 0.1;
+                  const showRankDelta = row.rankDelta !== 0;
+                  const deltaValue = showLiveDelta ? liveScoreDelta : row.rankDelta;
+                  const isStableDelta = !showLiveDelta && !showRankDelta;
+                  const DeltaIcon = isStableDelta
+                    ? Minus
+                    : deltaValue >= 0
+                      ? ArrowUpRight
+                      : ArrowDownRight;
+                  const deltaBadgeTone = isStableDelta
+                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                    : deltaValue > 0
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                      : 'border-rose-200 bg-rose-50 text-rose-800';
+                  const deltaLabel = isStableDelta
+                    ? '0'
+                    : showLiveDelta
+                      ? `${liveScoreDelta > 0 ? '+' : ''}${liveScoreDelta}`
+                      : `${row.rankDelta > 0 ? '+' : ''}${row.rankDelta}`;
+                  const medal = getRankMedal(row.rank);
+                  const avatarUrl = getDisplayAvatarUrl(row.avatar, row.name);
 
-                return (
-                  <div
-                    key={row.employeeId}
-                    className="rounded-[1.9rem] border border-slate-200/90 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(15,23,42,0.09)]"
-                  >
-                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="flex-1 space-y-4">
-                        <div className="flex items-center gap-4">
-                          <div className="flex h-16 w-16 items-center justify-center rounded-[1.35rem] bg-[linear-gradient(160deg,#0f172a_0%,#1e293b_100%)] text-sm font-semibold text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)]">
-                            {getRankIcon(row.rank)}
-                          </div>
-
+                  return (
+                    <tr
+                      key={row.employeeId}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openEmployeeDetail(row.employeeId)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          openEmployeeDetail(row.employeeId);
+                        }
+                      }}
+                      className="border-b border-slate-100 last:border-b-0 cursor-pointer transition-colors hover:bg-slate-50/80 focus-visible:bg-slate-50 focus-visible:outline-none"
+                    >
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={avatarUrl}
+                            alt=""
+                            className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+                          />
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <p className="truncate text-[17px] font-semibold tracking-tight text-slate-900">{row.name}</p>
-                              <span
-                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${trendMeta.className}`}
-                              >
-                                <TrendIcon size={12} />
-                                {trendMeta.label}
+                              <p className="truncate text-[14px] font-semibold text-slate-900">
+                                {formatPersonName(row.name)}
+                              </p>
+                              <span className="inline-flex items-center gap-1 text-[12px] font-medium text-slate-500">
+                                {medal ? <span aria-hidden="true">{medal}</span> : null}
+                                <span>#{row.rank}</span>
                               </span>
                             </div>
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-slate-500">
-                              <span>{row.department || 'Unassigned department'}</span>
-                              <span className="h-1 w-1 rounded-full bg-slate-300" />
-                              <span>{row.tasksCompleted}/{row.tasksAssigned} completed</span>
-                            </div>
+                            <p className="mt-0.5 text-[12px] text-slate-500">
+                              {row.tasksCompleted}/{row.tasksAssigned} completed
+                            </p>
                           </div>
                         </div>
-
-                        <div className="w-full max-w-[620px] ">
-                          <div className="relative overflow-hidden rounded-[1.6rem] border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-5 py-5">
-                            <div className="mb-4 flex items-center justify-between text-[12px] text-slate-900">
-                              <span>Weekly target progress</span>
-                              <span className="font-semibold text-slate-800">{formatPercentage(row.weeklyScore)}</span>
-                            </div>
-
-                            <div className="relative h-7 overflow-hidden rounded-full border border-white/70 bg-white shadow-inner shadow-slate-200/70">
-                              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(148,163,184,0.08)_1px,transparent_1px)] bg-[length:24px_100%]" />
-                              <div className="absolute inset-y-0 left-[75%] z-10 w-px bg-brand-red/70" />
-                              <div className="pointer-events-none absolute left-[75%] top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-brand-red/10 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-red shadow-sm">
-                                Target
-                              </div>
-                              <div
-                                className={`relative h-full rounded-full bg-gradient-to-r ${barTone.track} transition-all duration-700 ease-out ${barTone.glow}`}
-                                style={{ width: `${Math.max(4, row.weeklyScore)}%` }}
-                              >
-                                <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.28)_0%,rgba(255,255,255,0.06)_48%,rgba(255,255,255,0.2)_100%)]" />
-                              </div>
-                            </div>
-
-                            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[12px]">
-                              <span className={`inline-flex items-center rounded-full border px-3 py-1 font-semibold ${barTone.badge}`}>
-                                {barTone.label}
-                              </span>
-                              <div className="flex flex-wrap items-center gap-2 text-slate-500">
-                                <span>{row.tasksCompleted}/{row.tasksAssigned} completed</span>
-                                <span className="h-1 w-1 rounded-full bg-slate-300" />
-                                <span>{Math.round(row.onTimePercentage)}% on-time</span>
-                                {typeof row.qualityScore === 'number' && (
-                                  <>
-                                    <span className="h-1 w-1 rounded-full bg-slate-300" />
-                                    <span>{Math.round(row.qualityScore)} quality</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
+                      </td>
+                      <td className="px-4 py-4 text-[13px] text-slate-600">
+                        {formatDepartmentDisplay(row.department)}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[12px] font-medium ${trendMeta.className}`}
+                        >
+                          <TrendIcon size={12} />
+                          {trendMeta.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-3 text-[12px]">
+                            <span className="font-semibold text-slate-700">
+                              {formatPercentage(row.weeklyScore)}
+                            </span>
+                            <span className="text-slate-400">{TARGET_SCORE}% target</span>
+                          </div>
+                          <div className="relative h-2 overflow-hidden rounded-full bg-slate-100">
+                            <div className="absolute inset-y-0 left-[75%] z-10 w-px bg-brand-red/60" />
+                            <div
+                              className={`h-full rounded-full bg-gradient-to-r ${barTone.track} transition-all duration-700 ease-out`}
+                              style={{ width: `${Math.max(4, Math.min(100, row.weeklyScore))}%` }}
+                            />
                           </div>
                         </div>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-3 lg:w-[180px] lg:min-w-[180px] lg:flex-col lg:items-end lg:self-end lg:gap-12">
-                        <div className="text-right">
-                          <p className="text-[14px] uppercase tracking-[0.18em] text-slate-700">Weekly Score</p>
-                          <p className="text-[3rem] font-semibold tracking-tight text-slate-900 leading-none">
-                            {Math.round(row.weeklyScore)}
-                          </p>
-                        </div>
-
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[12px] font-semibold ${deltaBadgeTone}`}
-                          >
-                              {deltaLabel}
-                              <DeltaIcon size={12} />
-                          </span>
-                          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] font-semibold text-slate-600">
-                            {Math.round(row.onTimePercentage)}% on-time
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="self-start">
-        <div
-          ref={insightsPanelRef}
-          className="flex flex-col rounded-[1.75rem] border border-slate-200 bg-slate-900 p-3.5 text-white shadow-2xl"
-        >
-          <div className="mb-3.5 flex items-center justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-[12px] uppercase tracking-[0.24em] text-white/45">Insights</p>
-              <h4 className="mt-1.5 text-[1.35rem] font-semibold tracking-tight">Live employee pulse</h4>
-            </div>
-            <div className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
-              <Activity size={15} className="text-brand-red" />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-7">
-            <div className="space-y-6">
-              <InsightCard
-                icon={<Trophy size={15} className="text-emerald-300" />}
-                label="Top Performer"
-                value={topPerformer?.name || 'No data'}
-                meta={topPerformer ? `${Math.round(topPerformer.weeklyScore)} score` : 'Waiting for activity'}
-              />
-              <InsightCard
-                icon={<Target size={15} className="text-amber-300" />}
-                label="Needs Attention"
-                value={needsAttention?.name || 'No data'}
-                meta={needsAttention ? `${Math.round(needsAttention.weeklyScore)} score` : 'Waiting for activity'}
-              />
-              <InsightCard
-                icon={<Users size={15} className="text-sky-300" />}
-                label="Weekly Average"
-                value={rows.length ? `${Math.round(weeklyAverageScore)}%` : '0%'}
-                meta={`${rows.length} employees tracked`}
-              />
-            </div>
-
-            <div className="rounded-[1.2rem] border border-white/10 bg-white/[0.03] p-2.5">
-              <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-white/45">
-                <span>Race Rules</span>
-                <span>{TARGET_SCORE}% target</span>
-              </div>
-              <div className="space-y-2 text-[11px] text-white/70">
-                <div className="flex items-center justify-between">
-                  <span>Task completion</span>
-                  <span className="font-semibold text-white/90">40%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>On-time delivery</span>
-                  <span className="font-semibold text-white/90">30%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Consistency</span>
-                  <span className="font-semibold text-white/90">20%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Quality</span>
-                  <span className="font-semibold text-white/90">10%</span>
-                </div>
-              </div>
-            </div>
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <span className="text-[22px] font-semibold tracking-tight text-slate-900 leading-none">
+                          {Math.round(row.weeklyScore)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[12px] font-medium ${deltaBadgeTone}`}
+                        >
+                          {deltaLabel}
+                          <DeltaIcon size={12} />
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-right text-[13px] font-medium text-slate-700">
+                        {Math.round(row.onTimePercentage)}%
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center justify-center whitespace-nowrap rounded-full border px-3 py-1 text-[12px] font-semibold leading-none ${
+                            barTone.label === 'At risk'
+                              ? 'border-rose-300 bg-rose-100 text-rose-700'
+                              : barTone.badge
+                          }`}
+                        >
+                          {barTone.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
-
+      )}
     </div>
   );
 };
@@ -748,18 +775,25 @@ const InsightCard = ({
   label,
   value,
   meta,
+  avatar,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   meta: string;
+  avatar?: string;
 }) => (
   <div className="rounded-[1.2rem] border border-white/10 bg-white/[0.04] p-3.5">
-    <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-white/45">
+    <div className="flex items-center gap-2 text-[12px] text-white/55">
       {icon}
       <span>{label}</span>
     </div>
-    <p className="mt-2 text-[16px] font-semibold leading-snug text-white">{value}</p>
+    <div className="mt-2 flex items-center gap-2.5">
+      {avatar ? (
+        <img src={avatar} alt="" className="h-8 w-8 rounded-full object-cover ring-1 ring-white/20" />
+      ) : null}
+      <p className="text-[16px] font-semibold leading-snug text-white">{value}</p>
+    </div>
     <p className="mt-1.5 text-[12px] text-white/55">{meta}</p>
   </div>
 );

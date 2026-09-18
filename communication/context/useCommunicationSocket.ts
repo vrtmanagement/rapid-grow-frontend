@@ -1,6 +1,7 @@
-import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { ChatConversationSummary, ChatMessage, ChatNotification, ChatPinnedMessage, ChatUser } from '../types';
 import {
+  ensureSocketConnected,
   mapApiHistoryMessage,
   mapApiPinnedMessage,
   messagePreviewFromMessage,
@@ -24,6 +25,7 @@ type UseCommunicationSocketArgs = {
   mergePollIntoMessages: (conversationKey: string, poll: any) => void;
   markConversationSeen: (conversationKey: string, options?: { immediate?: boolean }) => Promise<void>;
   scheduleNotificationAutoDismiss: (notificationId: string, delayMs?: number) => void;
+  loadMessages: (conversationKey: string) => Promise<void>;
   setUsers: Dispatch<SetStateAction<ChatUser[]>>;
   setConversations: Dispatch<SetStateAction<ChatConversationSummary[]>>;
   setTypingUserIds: Dispatch<SetStateAction<Record<string, true>>>;
@@ -45,6 +47,7 @@ export function useCommunicationSocket({
   mergePollIntoMessages,
   markConversationSeen,
   scheduleNotificationAutoDismiss,
+  loadMessages,
   setUsers,
   setConversations,
   setTypingUserIds,
@@ -52,8 +55,36 @@ export function useCommunicationSocket({
   setPinnedMessage,
   setNotifications,
 }: UseCommunicationSocketArgs) {
+  // Keep volatile callbacks in refs so the socket subscription stays mounted.
+  // Rebinding listeners on every preference/callback identity change briefly
+  // drops events and is a common cause of "refresh to see message".
+  const mergePollIntoMessagesRef = useRef(mergePollIntoMessages);
+  mergePollIntoMessagesRef.current = mergePollIntoMessages;
+  const markConversationSeenRef = useRef(markConversationSeen);
+  markConversationSeenRef.current = markConversationSeen;
+  const scheduleNotificationAutoDismissRef = useRef(scheduleNotificationAutoDismiss);
+  scheduleNotificationAutoDismissRef.current = scheduleNotificationAutoDismiss;
+  const loadMessagesRef = useRef(loadMessages);
+  loadMessagesRef.current = loadMessages;
+  const notificationPreferencesRef = useRef(notificationPreferences);
+  notificationPreferencesRef.current = notificationPreferences;
+
   useEffect(() => {
     if (!socket) return;
+
+    let lastResyncAt = 0;
+    const resyncOpenConversation = (options?: { force?: boolean }) => {
+      const conversationKey = selectedConversationKeyRef.current;
+      if (!conversationKey) return;
+      const now = Date.now();
+      if (!options?.force && now - lastResyncAt < 1500) {
+        socket.emit('comm:join', { conversationKey });
+        return;
+      }
+      lastResyncAt = now;
+      socket.emit('comm:join', { conversationKey });
+      void loadMessagesRef.current(conversationKey);
+    };
 
     const handlePresence = (payload: any) => {
       const userId = String(payload?.userId);
@@ -102,18 +133,26 @@ export function useCommunicationSocket({
     const appendIncomingMessage = (mapped: ChatMessage, conversationKey: string) => {
       const messageId = String(mapped.id || '');
       if (!messageId || !conversationKey) return;
-      if (seenSocketMessageIdsRef.current[messageId]) return;
+      if (seenSocketMessageIdsRef.current[messageId]) {
+        // Duplicate event (newMessage + comm:message:created). Still upsert into
+        // the open thread in case the first event lost the UI append to a race.
+        if (selectedConversationKeyRef.current === conversationKey) {
+          setMessages((prev) => upsertChatMessage(prev, mapped));
+        }
+        return;
+      }
 
       seenSocketMessageIdsRef.current[messageId] = true;
       lastMessageIdByConversationKeyRef.current[conversationKey] = messageId;
 
       const isIncoming = mapped.senderId !== currentUserRef.current?.id;
       const isCurrentConversationOpen = selectedConversationKeyRef.current === conversationKey;
+      const prefs = notificationPreferencesRef.current;
       const shouldNotify =
         isIncoming &&
         !isCurrentConversationOpen &&
-        notificationPreferences.communicationMessages &&
-        notificationPreferences.toastPreviews;
+        prefs.communicationMessages &&
+        prefs.toastPreviews;
 
       if (shouldNotify) {
         const sender =
@@ -146,13 +185,14 @@ export function useCommunicationSocket({
           return next;
         });
 
-        scheduleNotificationAutoDismiss(nextNotification.id);
+        scheduleNotificationAutoDismissRef.current(nextNotification.id);
       }
 
-      // If the message is for the current conversation, append it.
-      if (selectedConversationKeyRef.current === conversationKey) {
-        setMessages((prev) => upsertChatMessage(prev, mapped));
-      }
+      // Always upsert for the open conversation (read ref at apply-time too).
+      setMessages((prev) => {
+        if (selectedConversationKeyRef.current !== conversationKey) return prev;
+        return upsertChatMessage(prev, mapped);
+      });
 
       // Update conversation ordering + preview
       setConversations((prev) => {
@@ -184,7 +224,7 @@ export function useCommunicationSocket({
       });
 
       if (isCurrentConversationOpen && isIncoming) {
-        void markConversationSeen(conversationKey);
+        void markConversationSeenRef.current(conversationKey);
       }
     };
 
@@ -290,14 +330,14 @@ export function useCommunicationSocket({
       const conversationKey = String(payload?.conversationKey || '');
       const poll = toChatPoll(payload?.poll);
       if (!conversationKey || !poll) return;
-      mergePollIntoMessages(conversationKey, poll);
+      mergePollIntoMessagesRef.current(conversationKey, poll);
     };
 
     const handlePollClosed = (payload: any) => {
       const conversationKey = String(payload?.conversationKey || '');
       const poll = toChatPoll(payload?.poll);
       if (!conversationKey || !poll) return;
-      mergePollIntoMessages(conversationKey, poll);
+      mergePollIntoMessagesRef.current(conversationKey, poll);
     };
 
     const handlePollDeleted = (payload: any) => {
@@ -352,13 +392,6 @@ export function useCommunicationSocket({
         )
       );
 
-      const updated = mapApiHistoryMessage({
-        ...msg,
-        conversationKey,
-        fileUrl: '',
-        attachment: null,
-      });
-
       setMessages((prev) =>
         selectedConversationKeyRef.current !== conversationKey
           ? prev
@@ -389,9 +422,18 @@ export function useCommunicationSocket({
     };
 
     const handleConnect = () => {
-      const conversationKey = selectedConversationKeyRef.current;
-      if (!conversationKey) return;
-      socket.emit('comm:join', { conversationKey });
+      resyncOpenConversation({ force: true });
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+      void ensureSocketConnected(socket)
+        .then(() => {
+          resyncOpenConversation();
+        })
+        .catch(() => {
+          // Keep silent; next reconnect handler will resync.
+        });
     };
 
     socket.on('connect', handleConnect);
@@ -410,6 +452,16 @@ export function useCommunicationSocket({
     socket.on('poll_voted', handlePollVoted);
     socket.on('poll_closed', handlePollClosed);
     socket.on('poll_deleted', handlePollDeleted);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // If already connected when listeners attach, rejoin the open chat.
+    // Do not force a history fetch here — that races with the normal open flow.
+    if (socket.connected) {
+      const conversationKey = selectedConversationKeyRef.current;
+      if (conversationKey) socket.emit('comm:join', { conversationKey });
+    } else {
+      void ensureSocketConnected(socket).catch(() => {});
+    }
 
     return () => {
       socket.off('connect', handleConnect);
@@ -428,14 +480,22 @@ export function useCommunicationSocket({
       socket.off('poll_voted', handlePollVoted);
       socket.off('poll_closed', handlePollClosed);
       socket.off('poll_deleted', handlePollDeleted);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-
   }, [
-    mergePollIntoMessages,
-    notificationPreferences.communicationMessages,
-    notificationPreferences.toastPreviews,
-    markConversationSeen,
-    scheduleNotificationAutoDismiss,
     socket,
+    selectedConversationKeyRef,
+    usersRef,
+    conversationsRef,
+    currentUserRef,
+    seenSocketMessageIdsRef,
+    lastMessageIdByConversationKeyRef,
+    notificationTimersRef,
+    setUsers,
+    setConversations,
+    setTypingUserIds,
+    setMessages,
+    setPinnedMessage,
+    setNotifications,
   ]);
 }

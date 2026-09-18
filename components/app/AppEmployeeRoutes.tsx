@@ -21,6 +21,7 @@ const CRMLeadDetailPage = lazy(() => import('../../views/CRMLeadDetailPage'));
 const StrategyExecutionView = lazy(() => import('../../views/StrategyExecutionView'));
 const ExpenseTravelView = lazy(() => import('../../views/ExpenseTravelView'));
 const CommunicationView = lazy(() => import('../../communication/views/CommunicationView'));
+const ExecutionMatrixEmployeeView = lazy(() => import('../../views/ExecutionMatrixEmployeeView'));
 
 const RouteFallback = () => (
   <div className="flex min-h-[40vh] items-center justify-center text-sm text-slate-500">Loading…</div>
@@ -45,6 +46,9 @@ const AppEmployeeRoutes: React.FC<AppEmployeeRoutesProps> = ({
     <Routes>
       {hasPower('DASHBOARD_VIEW') && (
         <Route path="/" element={<EmployeeDashboardView uiConfig={state.uiConfig} />} />
+      )}
+      {(hasPower('DASHBOARD_VIEW') || hasPower('EXECUTION_MATRIX_VIEW')) && (
+        <Route path="/execution-matrix/:employeeId" element={<ExecutionMatrixEmployeeView />} />
       )}
       {hasPower('SPACES_VIEW') && (
         <Route path="/spaces" element={<SpacesView mode="employee" state={state} updateState={updateState} />} />

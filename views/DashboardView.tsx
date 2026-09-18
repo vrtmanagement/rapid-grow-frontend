@@ -558,27 +558,27 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {showTaskHubSkeleton ? (
               Array.from({ length: 4 }).map((_, index) => (
                 <div
                   key={`dashboard-stat-skeleton-${index}`}
-                  className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200 flex items-start gap-8 animate-pulse"
+                  className="bg-white px-4 py-3.5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3 animate-pulse"
                 >
-                  <div className="w-16 h-16 rounded-2xl bg-slate-100 shrink-0" />
-                  <div className="space-y-3 flex-1">
-                    <div className="h-4 w-28 rounded-full bg-slate-100" />
-                    <div className="h-9 w-16 rounded-full bg-slate-200" />
-                    <div className="h-4 w-24 rounded-full bg-slate-100" />
+                  <div className="w-10 h-10 rounded-xl bg-slate-100 shrink-0" />
+                  <div className="space-y-2 flex-1 min-w-0">
+                    <div className="h-3 w-24 rounded-full bg-slate-100" />
+                    <div className="h-6 w-12 rounded-full bg-slate-200" />
+                    <div className="h-3 w-28 rounded-full bg-slate-100" />
                   </div>
                 </div>
               ))
             ) : (
               <>
-                <StatCard icon={<CheckCircle2 className="text-brand-red" />} label="Tasks completed" value={completedCount} sub="Marked done in TaskHub" color="bg-red-50" />
-                <StatCard icon={<TrendingUp className="text-slate-600" />} label="Open tasks" value={openCount} sub="Still in progress" color="bg-slate-100" />
-                <StatCard icon={<Award className="text-brand-red" />} label="High priority" value={highPriorityCount} sub="Open high-priority items" color="bg-red-50" />
-                <StatCard icon={<Zap className="text-amber-500" />} label="Completion rate" value={`${progressPercent}%`} sub="Done vs total" color="bg-amber-50" />
+                <StatCard icon={<CheckCircle2 size={18} className="text-brand-red" />} label="Tasks completed" value={completedCount} sub="Marked done in TaskHub" color="bg-red-50" />
+                <StatCard icon={<TrendingUp size={18} className="text-slate-600" />} label="Open tasks" value={openCount} sub="Still in progress" color="bg-slate-100" />
+                <StatCard icon={<Award size={18} className="text-brand-red" />} label="High priority" value={highPriorityCount} sub="Open high-priority items" color="bg-red-50" />
+                <StatCard icon={<Zap size={18} className="text-amber-500" />} label="Completion rate" value={`${progressPercent}%`} sub="Done vs total" color="bg-amber-50" />
               </>
             )}
           </div>
@@ -692,11 +692,11 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
                 <div className="flex items-center justify-between mb-12">
                   <div>
                      <h3 className="text-2xl text-slate-900">Execution Matrix</h3>
-                     <p className="text-[15px] text-slate-800 mt-1">Real-Time Performance Throughput</p>
+                     <p className="text-[15px] text-slate-800 mt-1">Real-time performance throughput</p>
                   </div>
                   <div className="flex items-center gap-2 bg-slate-50 px-5 py-2.5 rounded-xl border border-slate-100">
                      <div className="w-2 h-2 rounded-full bg-brand-red animate-pulse"></div>
-                     <span className="text-[15px] text-slate-600">Live Feed Active</span>
+                     <span className="text-[15px] text-slate-600">Live feed active</span>
                   </div>
                 </div>
                 <ExecutionMatrix />
@@ -711,12 +711,12 @@ const DashboardView: React.FC<Props> = ({ state, loading = false }) => {
 };
 
 const StatCard = ({ icon, label, value, sub, color }: any) => (
-      <div className={`bg-white p-10 rounded-3xl shadow-sm border border-slate-200 flex items-start gap-8 transition-all hover:shadow-2xl hover:border-brand-red group`}>
-    <div className={`p-5 ${color} rounded-2xl group-hover:scale-110 transition-transform`}>{icon}</div>
-      <div className="flex flex-col">
-      <p className="text-[15px] text-slate-800 mb-3">{label}</p>
-      <p className="text-3xl text-slate-900 leading-none">{value}</p>
-      <p className="text-[15px] font-bold text-slate-500 mt-3">{sub}</p>
+  <div className="bg-white px-4 py-3.5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3 transition-all hover:shadow-md hover:border-brand-red/40 group">
+    <div className={`p-2.5 ${color} rounded-xl shrink-0 group-hover:scale-105 transition-transform`}>{icon}</div>
+    <div className="min-w-0 flex flex-col">
+      <p className="text-[12px] text-slate-500 leading-tight truncate">{label}</p>
+      <p className="text-2xl font-semibold text-slate-900 leading-none mt-1">{value}</p>
+      <p className="text-[12px] text-slate-500 mt-1 truncate whitespace-nowrap">{sub}</p>
     </div>
   </div>
 );

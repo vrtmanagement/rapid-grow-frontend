@@ -342,6 +342,7 @@ export function useCommunicationActions({
     async (conversationKey: string) => {
       await apiDeleteTeam(conversationKey);
       if (selectedConversationKeyRef.current === conversationKey) {
+        selectedConversationKeyRef.current = null;
         setSelectedConversationKey(null);
         setMessages([]);
       }
