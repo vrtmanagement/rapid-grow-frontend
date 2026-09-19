@@ -193,7 +193,7 @@ const WorkspaceSignupView: React.FC<WorkspaceSignupViewProps> = ({ onSignupSucce
                   onChange={(event) => setOwnerName(event.target.value)}
                   required
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-[15px] outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
-                  placeholder="Kabir Khan"
+                  placeholder="Owner"
                 />
               </label>
 

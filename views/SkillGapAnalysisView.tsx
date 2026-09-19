@@ -145,7 +145,12 @@ function GapResult({ gap }: { gap: GapRow }) {
           <div className="rounded-lg bg-white px-3 py-2 text-sm shadow-sm">
             <p className="font-semibold text-slate-900">{gap.bestMatch.empName || gap.bestMatch.empId}</p>
             <p className="text-xs text-slate-500">
-              L{gap.bestMatch.level || 1} / {gap.bestMatch.designation || gap.bestMatch.department || gap.bestMatch.empId}
+              L{gap.bestMatch.level || 1}
+              {typeof gap.bestMatch.count === 'number' && gap.bestMatch.count > 0
+                ? ` · ${Math.round(gap.bestMatch.count)} pts`
+                : ''}
+              {' / '}
+              {gap.bestMatch.designation || gap.bestMatch.department || gap.bestMatch.empId}
             </p>
           </div>
         )}
