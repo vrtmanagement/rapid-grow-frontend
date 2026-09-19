@@ -8,9 +8,15 @@ export type StrengthsDashboardData = {
     department?: string;
     role?: string;
     avatar?: string;
+    evidencePoints?: number;
     topSkills?: Array<{ name: string; level?: number; count?: number; lastUsedAt?: string }>;
   }>;
-  teamStrengths?: Array<{ name: string; avgLevel: number; people: number }>;
+  teamStrengths?: Array<{ name: string; avgLevel: number; people: number; evidence?: number }>;
+  summary?: {
+    peopleWithSkills?: number;
+    uniqueSkills?: number;
+    totalEvidence?: number;
+  };
 };
 
 export async function fetchStrengthsDashboard(options?: { force?: boolean }) {
@@ -22,6 +28,11 @@ export async function fetchStrengthsDashboard(options?: { force?: boolean }) {
   return {
     byEmployee: Array.isArray(raw.byEmployee) ? raw.byEmployee : [],
     teamStrengths: Array.isArray(raw.teamStrengths) ? raw.teamStrengths : [],
+    summary: raw.summary || {
+      peopleWithSkills: 0,
+      uniqueSkills: 0,
+      totalEvidence: 0,
+    },
   };
 }
 

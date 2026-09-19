@@ -3,13 +3,14 @@ import { Eye, EyeOff } from 'lucide-react';
 import { API_BASE, AUTH_STORAGE_KEY } from '../config/api';
 import ErrorAlert from '../components/ui/ErrorAlert';
 import { getReadableError, parseApiResponse } from '../services/apiClient';
+import { getQueryParam } from '../utils/appNavigation';
 
 interface ResetPasswordViewProps {
   onResetSuccess: (token: string, employee: any) => void;
 }
 
 function getResetTokenFromUrl() {
-  return new URLSearchParams(window.location.search).get('token') || '';
+  return getQueryParam('token') || '';
 }
 
 const ResetPasswordView: React.FC<ResetPasswordViewProps> = ({ onResetSuccess }) => {

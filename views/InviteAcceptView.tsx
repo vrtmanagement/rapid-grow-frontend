@@ -3,6 +3,7 @@ import { CheckCircle2, Eye, EyeOff, Mail } from 'lucide-react';
 import { API_BASE, AUTH_STORAGE_KEY, getStoredAuthSession } from '../config/api';
 import ErrorAlert from '../components/ui/ErrorAlert';
 import { getReadableError, parseApiResponse } from '../services/apiClient';
+import { getQueryParam } from '../utils/appNavigation';
 
 interface InviteAcceptViewProps {
   onAcceptSuccess: (token: string, employee: any) => void;
@@ -23,11 +24,12 @@ type InvitePreview = {
 };
 
 function getInviteTokenFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const fromQuery = params.get('token');
+  const fromQuery = getQueryParam('token');
   if (fromQuery) return fromQuery;
   const segments = window.location.pathname.split('/').filter(Boolean);
-  return segments[segments.length - 1] || '';
+  const last = segments[segments.length - 1] || '';
+  if (last && last !== 'accept' && last !== 'invite') return last;
+  return '';
 }
 
 const readOnlyFieldClassName =
@@ -119,17 +121,38 @@ const InviteAcceptView: React.FC<InviteAcceptViewProps> = ({ onAcceptSuccess }) 
   };
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] px-4 py-8 sm:px-6">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-3xl items-center justify-center">
-        <div className="w-full rounded-3xl border border-slate-200 bg-white p-6 shadow-xl sm:p-10">
+    <div className="fixed inset-0 overflow-y-auto bg-[#f1f5f9]">
+      <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
+        <header className="mb-6 flex items-center justify-between">
+          <a href="/" className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-gradient text-white shadow-lg shadow-brand-red/20">
+              <span className="text-lg font-bold">RG</span>
+            </div>
+            <div>
+              <p className="text-lg font-bold tracking-tight text-slate-900">Rapid Grow</p>
+              <p className="text-xs text-slate-500">Performance Hub</p>
+            </div>
+          </a>
+          <a
+            href="/"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
+          >
+            Back to home
+          </a>
+        </header>
+
+        <div className="mb-8 w-full rounded-3xl border border-slate-200 bg-white p-6 shadow-xl sm:p-10">
           <div className="mb-8 flex items-start gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-red text-white">
               <Mail size={22} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Accept invitation</h1>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-red">Rapid Grow invite</p>
+              <h1 className="mt-1 text-2xl font-bold text-slate-900">Accept invitation</h1>
               <p className="mt-1 text-sm text-slate-500">
-                {invite?.company?.name ? `Join ${invite.company.name}` : 'Join your Rapid Grow workspace'}
+                {invite?.company?.name
+                  ? `Join ${invite.company.name} on Rapid Grow`
+                  : 'Join your Rapid Grow workspace'}
               </p>
             </div>
           </div>
@@ -261,6 +284,10 @@ const InviteAcceptView: React.FC<InviteAcceptViewProps> = ({ onAcceptSuccess }) 
             </>
           )}
         </div>
+
+        <p className="pb-6 text-center text-xs text-slate-400">
+          © {new Date().getFullYear()} Rapid Grow. All rights reserved.
+        </p>
       </div>
     </div>
   );

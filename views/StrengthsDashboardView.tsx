@@ -17,12 +17,18 @@ type EmployeeStrength = {
   designation?: string;
   department?: string;
   role?: string;
+  evidencePoints?: number;
   topSkills?: Skill[];
 };
 
 type StrengthsPayload = {
-  teamStrengths?: Array<{ name: string; avgLevel: number; people: number }>;
+  teamStrengths?: Array<{ name: string; avgLevel: number; people: number; evidence?: number }>;
   byEmployee?: EmployeeStrength[];
+  summary?: {
+    peopleWithSkills?: number;
+    uniqueSkills?: number;
+    totalEvidence?: number;
+  };
 };
 
 const StrengthsDashboardView: React.FC = () => {
@@ -49,10 +55,24 @@ const StrengthsDashboardView: React.FC = () => {
 
   const employees = data?.byEmployee || [];
   const teamStrengths = data?.teamStrengths || [];
-  const learnedSkillCount = useMemo(
-    () => employees.reduce((sum, row) => sum + (row.topSkills?.length || 0), 0),
-    [employees],
-  );
+  const uniqueSkillCount = useMemo(() => {
+    if (typeof data?.summary?.uniqueSkills === 'number' && data.summary.uniqueSkills > 0) {
+      return data.summary.uniqueSkills;
+    }
+    const names = new Set<string>();
+    employees.forEach((row) => {
+      (row.topSkills || []).forEach((skill) => {
+        const key = String(skill.name || '').trim().toLowerCase();
+        if (key) names.add(key);
+      });
+    });
+    teamStrengths.forEach((row) => {
+      const key = String(row.name || '').trim().toLowerCase();
+      if (key) names.add(key);
+    });
+    return names.size;
+  }, [data?.summary?.uniqueSkills, employees, teamStrengths]);
+  const peopleWithSkills = data?.summary?.peopleWithSkills ?? employees.length;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -61,7 +81,7 @@ const StrengthsDashboardView: React.FC = () => {
           <p className="text-sm font-semibold uppercase tracking-wide text-brand-red">People intelligence</p>
           <h1 className="mt-1 text-3xl font-bold text-slate-950">Strengths and skill gaps</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-            Skills learned from completed TaskHub work in your team, plus project-readiness gaps.
+            Skills learned from completed TaskHub work in your team, weighted by task size — plus project-readiness gaps.
           </p>
         </div>
         {activePanel === 'strengths' && (
@@ -105,8 +125,8 @@ const StrengthsDashboardView: React.FC = () => {
           <ErrorAlert message={error} />
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <Stat icon={<Users size={18} />} label="People with skills" value={employees.length} />
-            <Stat icon={<Sparkles size={18} />} label="Learned skills" value={learnedSkillCount} />
+            <Stat icon={<Users size={18} />} label="People with skills" value={peopleWithSkills} />
+            <Stat icon={<Sparkles size={18} />} label="Learned skills" value={uniqueSkillCount} />
             <Stat icon={<BrainCircuit size={18} />} label="Team strengths" value={teamStrengths.length} />
           </div>
 
@@ -114,7 +134,7 @@ const StrengthsDashboardView: React.FC = () => {
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-950">Team top skills</h2>
               <p className="mt-1 text-xs text-slate-500">
-                Real skills learned from completed tasks with skills tagged — not task titles or employee names.
+                Ranked from completed work — larger tasks contribute more evidence than small ones.
               </p>
               <div className="mt-4 space-y-3">
                 {loading && teamStrengths.length === 0 ? (
@@ -161,13 +181,23 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
   );
 }
 
-function TeamSkillBar({ row }: { row: { name: string; avgLevel: number; people: number } }) {
+function TeamSkillBar({
+  row,
+}: {
+  row: { name: string; avgLevel: number; people: number; evidence?: number };
+}) {
   const pct = Math.max(4, Math.min(100, (Number(row.avgLevel || 0) / 5) * 100));
+  const evidenceLabel =
+    typeof row.evidence === 'number' && row.evidence > 0
+      ? ` · ${Math.round(row.evidence)} pts`
+      : '';
   return (
     <div>
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="font-semibold text-slate-800">{row.name}</span>
-        <span className="text-slate-500">{row.avgLevel}/5 / {row.people} people</span>
+        <span className="text-slate-500">
+          {row.avgLevel}/5 / {row.people} people{evidenceLabel}
+        </span>
       </div>
       <div className="mt-2 h-2 rounded-full bg-slate-100">
         <div className="h-2 rounded-full bg-brand-red" style={{ width: `${pct}%` }} />
@@ -196,6 +226,7 @@ function EmployeeCard({ employee }: { employee: EmployeeStrength }) {
           skills.map((skill) => (
             <span key={skill.name} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
               {skill.name} / L{skill.level || 1}
+              {typeof skill.count === 'number' && skill.count > 0 ? ` · ${Math.round(skill.count)}pts` : ''}
             </span>
           ))
         ) : (
