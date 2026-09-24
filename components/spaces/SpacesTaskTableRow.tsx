@@ -211,7 +211,17 @@ const SpacesTaskTableRow: React.FC<SpacesTaskTableRowProps> = ({
       ? '2 Min Mail'
       : t.emailChecklist?.repeatCadence === 'hour'
         ? 'Hourly Mail'
-        : 'Weekly Mail';
+        : t.emailChecklist?.repeatCadence === 'month'
+          ? 'Monthly Mail'
+          : t.emailChecklist?.repeatCadence === '2_months'
+            ? '2-Month Mail'
+            : t.emailChecklist?.repeatCadence === '3_months'
+              ? '3-Month Mail'
+              : t.emailChecklist?.repeatCadence === '6_months'
+                ? '6-Month Mail'
+                : t.emailChecklist?.repeatCadence === 'year'
+                  ? 'Yearly Mail'
+                  : 'Weekly Mail';
 
   const isFocusedReturn = focusedTaskId && focusedTaskId === t.taskId;
 
@@ -302,7 +312,24 @@ const SpacesTaskTableRow: React.FC<SpacesTaskTableRowProps> = ({
                   title={
                     weeklyMailStopped
                       ? 'Automated repeat mail has been stopped'
-                      : `Automated mail repeats every ${t.emailChecklist?.repeatCadence === '2_minutes' || t.emailChecklist?.repeatCadence === '5_minutes' ? '2 minutes' : t.emailChecklist?.repeatCadence || 'week'}`
+                      : `Automated mail repeats ${
+                          t.emailChecklist?.repeatCadence === '2_minutes' ||
+                          t.emailChecklist?.repeatCadence === '5_minutes'
+                            ? 'every 2 minutes'
+                            : t.emailChecklist?.repeatCadence === 'hour'
+                              ? 'every hour'
+                              : t.emailChecklist?.repeatCadence === 'month'
+                                ? `every month on day ${Number(t.emailChecklist?.repeatMonthDay) || '—'}`
+                                : t.emailChecklist?.repeatCadence === '2_months'
+                                  ? `every 2 months on day ${Number(t.emailChecklist?.repeatMonthDay) || '—'}`
+                                  : t.emailChecklist?.repeatCadence === '3_months'
+                                    ? `every 3 months on day ${Number(t.emailChecklist?.repeatMonthDay) || '—'}`
+                                    : t.emailChecklist?.repeatCadence === '6_months'
+                                      ? `every 6 months on day ${Number(t.emailChecklist?.repeatMonthDay) || '—'}`
+                                      : t.emailChecklist?.repeatCadence === 'year'
+                                        ? `every year on day ${Number(t.emailChecklist?.repeatMonthDay) || '—'}`
+                                        : 'every week'
+                        }`
                   }
                 >
                   {weeklyMailStopped ? 'Mail Stopped' : repeatMailLabel}

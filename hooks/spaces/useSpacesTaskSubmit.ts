@@ -47,6 +47,7 @@ export interface UseSpacesTaskSubmitParams {
   repeatCadence: string;
   repeatWeekDays: string[];
   repeatWeekTime: string;
+  repeatMonthDay: number;
   repeatFromDate: string;
   repeatToDate: string;
   automationTimezone: string;
@@ -77,6 +78,7 @@ export interface UseSpacesTaskSubmitParams {
     repeatCadence?: string;
     repeatWeekDays?: number[];
     repeatWeekTime?: string;
+    repeatMonthDay?: number;
     repeatFromDate?: string;
     repeatToDate?: string;
     timezone?: string;
@@ -122,6 +124,7 @@ export const useSpacesTaskSubmit = ({
   repeatCadence,
   repeatWeekDays,
   repeatWeekTime,
+  repeatMonthDay,
   repeatFromDate,
   repeatToDate,
   automationTimezone,
@@ -278,6 +281,7 @@ export const useSpacesTaskSubmit = ({
           repeatCadence,
           repeatWeekDays: normalizedRepeatWeekDays,
           repeatWeekTime,
+          repeatMonthDay,
           repeatFromDate,
           repeatToDate,
           timezone: automationTimezone,
@@ -320,6 +324,7 @@ export const useSpacesTaskSubmit = ({
               repeatWeekDay: normalizedRepeatWeekDays[0],
               repeatWeekDays: normalizedRepeatWeekDays,
               repeatWeekTime,
+              repeatMonthDay,
               repeatFromDate,
               repeatToDate,
               timezone: automationTimezone,
@@ -412,6 +417,7 @@ export const useSpacesTaskSubmit = ({
     reminderIntervalHours,
     selectedProjectId,
     repeatWeekTime,
+    repeatMonthDay,
     automationTimezone,
     me.name,
     closeTaskCreateModal,

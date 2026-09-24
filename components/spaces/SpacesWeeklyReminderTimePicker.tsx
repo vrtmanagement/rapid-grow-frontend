@@ -1,5 +1,4 @@
 import React from 'react';
-import { ThemedSelect } from './SpacesFormControls';
 
 const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => {
   const value = String(index + 1).padStart(2, '0');
@@ -53,6 +52,41 @@ interface SpacesWeeklyReminderTimePickerProps {
   showLabels?: boolean;
 }
 
+const selectClassName =
+  'h-11 w-full min-w-0 appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-8 text-[14px] font-semibold text-slate-800 outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60';
+
+const NativeSelect: React.FC<{
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  showLabel?: boolean;
+  ariaLabel: string;
+}> = ({ label, value, options, onChange, disabled, showLabel, ariaLabel }) => (
+  <div className="min-w-0 flex-1">
+    {showLabel ? (
+      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500">{label}</div>
+    ) : null}
+    <div className="relative">
+      <select
+        value={value}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        onChange={(event) => onChange(event.target.value)}
+        className={selectClassName}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">▾</span>
+    </div>
+  </div>
+);
+
 export const SpacesWeeklyReminderTimePicker: React.FC<SpacesWeeklyReminderTimePickerProps> = ({
   value,
   onChange,
@@ -72,40 +106,40 @@ export const SpacesWeeklyReminderTimePicker: React.FC<SpacesWeeklyReminderTimePi
   };
 
   return (
-    <div className="grid grid-cols-3 gap-2">
-      <div>
-        {showLabels ? <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500">Hour</div> : null}
-        <ThemedSelect
+    <div className="space-y-2">
+      <div className="flex items-end gap-2 sm:gap-3">
+        <NativeSelect
+          label="Hour"
+          ariaLabel="Hour"
           value={selection.hour}
-          onChange={(nextHour) => updateTime({ hour: nextHour })}
           options={HOUR_OPTIONS}
-          compact={true}
-          fullWidthCompact={true}
+          onChange={(nextHour) => updateTime({ hour: nextHour })}
           disabled={disabled}
+          showLabel={showLabels}
         />
-      </div>
-      <div>
-        {showLabels ? <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500">5 Min</div> : null}
-        <ThemedSelect
+        <div className="hidden pb-3 text-lg font-semibold text-slate-300 sm:block">:</div>
+        <NativeSelect
+          label="Minute"
+          ariaLabel="Minute"
           value={selection.minute}
-          onChange={(nextMinute) => updateTime({ minute: nextMinute })}
           options={MINUTE_OPTIONS}
-          compact={true}
-          fullWidthCompact={true}
+          onChange={(nextMinute) => updateTime({ minute: nextMinute })}
           disabled={disabled}
+          showLabel={showLabels}
         />
-      </div>
-      <div>
-        {showLabels ? <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500">AM / PM</div> : null}
-        <ThemedSelect
+        <NativeSelect
+          label="AM / PM"
+          ariaLabel="AM or PM"
           value={selection.meridiem}
-          onChange={(nextMeridiem) => updateTime({ meridiem: nextMeridiem as 'AM' | 'PM' })}
           options={MERIDIEM_OPTIONS}
-          compact={true}
-          fullWidthCompact={true}
+          onChange={(nextMeridiem) => updateTime({ meridiem: nextMeridiem as 'AM' | 'PM' })}
           disabled={disabled}
+          showLabel={showLabels}
         />
       </div>
+      <p className="rounded-lg bg-white px-3 py-2 text-[13px] font-semibold text-slate-700 ring-1 ring-slate-200">
+        Selected time: <span className="text-brand-red">{formatWeeklyReminderTimeLabel(value)}</span>
+      </p>
     </div>
   );
 };

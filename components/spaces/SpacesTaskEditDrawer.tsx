@@ -76,6 +76,7 @@ const SpacesTaskEditDrawer: React.FC<SpacesTaskEditDrawerProps> = (props) => {
   const [editingRepeatCadence, setEditingRepeatCadence] = React.useState('week');
   const [editingRepeatWeekDays, setEditingRepeatWeekDays] = React.useState<string[]>(['1']);
   const [editingRepeatWeekTime, setEditingRepeatWeekTime] = React.useState('09:00');
+  const [editingRepeatMonthDay, setEditingRepeatMonthDay] = React.useState(() => new Date().getDate());
   const [editingRepeatFromDate, setEditingRepeatFromDate] = React.useState(() => new Date().toISOString().slice(0, 10));
   const [editingRepeatToDate, setEditingRepeatToDate] = React.useState(() => {
     const end = new Date();
@@ -263,6 +264,12 @@ const SpacesTaskEditDrawer: React.FC<SpacesTaskEditDrawerProps> = (props) => {
         : [String(editingTask.emailChecklist?.repeatWeekDay ?? new Date().getDay())],
     );
     setEditingRepeatWeekTime(String(editingTask.emailChecklist?.repeatWeekTime || '09:00'));
+    const existingMonthDay = Number(editingTask.emailChecklist?.repeatMonthDay);
+    setEditingRepeatMonthDay(
+      Number.isInteger(existingMonthDay) && existingMonthDay >= 1 && existingMonthDay <= 31
+        ? existingMonthDay
+        : new Date().getDate(),
+    );
     const today = new Date().toISOString().slice(0, 10);
     const defaultTo = (() => {
       const end = new Date();
@@ -408,6 +415,7 @@ const SpacesTaskEditDrawer: React.FC<SpacesTaskEditDrawerProps> = (props) => {
         repeatWeekDay: Number(editingRepeatWeekDays[0]),
         repeatWeekDays: editingRepeatWeekDays.map((day) => Number(day)).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6).slice(0, 6),
         repeatWeekTime: editingRepeatWeekTime,
+        repeatMonthDay: editingRepeatMonthDay,
         repeatFromDate: editingRepeatFromDate,
         repeatToDate: editingRepeatToDate,
         timezone: editingAutomationTimezone,
@@ -697,6 +705,8 @@ const SpacesTaskEditDrawer: React.FC<SpacesTaskEditDrawerProps> = (props) => {
                     setRepeatWeekDays={setEditingRepeatWeekDays}
                     repeatWeekTime={editingRepeatWeekTime}
                     setRepeatWeekTime={setEditingRepeatWeekTime}
+                    repeatMonthDay={editingRepeatMonthDay}
+                    setRepeatMonthDay={setEditingRepeatMonthDay}
                     repeatFromDate={editingRepeatFromDate}
                     setRepeatFromDate={setEditingRepeatFromDate}
                     repeatToDate={editingRepeatToDate}
