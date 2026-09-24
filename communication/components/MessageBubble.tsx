@@ -465,7 +465,7 @@ export function MessageBubble({
                       <span className="text-[10px] opacity-80">edited</span>
                     ) : null}
                     <span>{formatTime(message.createdAt)}</span>
-                    {isOwn && message.tick ? (
+                    {isOwn && !message.deleted && message.tick ? (
                       <span
                         className={
                           message.tick.state === 'seen'

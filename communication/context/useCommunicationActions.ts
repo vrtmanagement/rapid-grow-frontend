@@ -19,6 +19,7 @@ import {
   ensureSocketConnected,
   mapApiHistoryMessage,
   mapApiPinnedMessage,
+  messagePreviewFromMessage,
   resolveAvatarUrl,
   toChatPoll,
   upsertChatMessage,
@@ -180,57 +181,9 @@ export function useCommunicationActions({
 
   const selectChannel = useCallback(
     async (channelKey: string) => {
-      const conversationKey = `channel:${channelKey}`;
-      setTypingUserIds({});
-      const previousKey = selectedConversationKeyRef.current;
-      selectedConversationKeyRef.current = conversationKey;
-      setSelectedConversationKey(conversationKey);
-      if (previousKey !== conversationKey) {
-        setMessages([]);
-      }
-      return new Promise<void>((resolve, reject) => {
-        socket.emit(
-          'comm:join',
-          { type: 'channel', channelKey },
-          async (ack: any) => {
-            if (!ack?.ok) {
-              reject(new Error(ack?.error || 'Failed to join channel'));
-              return;
-            }
-            if (!conversations.some((c) => c.conversationKey === conversationKey)) {
-              setConversations((prev) => [
-                ...prev,
-                {
-                  conversationKey,
-                  type: 'channel',
-                  title: ack?.conversation?.title || 'Channel',
-                  channelKey: ack?.conversation?.channelKey || channelKey,
-                  unreadCount: 0,
-                  lastMessagePreview: '',
-                  lastMessageAt: null,
-                },
-              ]);
-            }
-            try {
-              await loadMessages(conversationKey);
-              setConversations((prev) =>
-                prev.map((c) => (c.conversationKey === conversationKey ? { ...c, unreadCount: 0 } : c))
-              );
-              await markConversationSeen(conversationKey, { immediate: true });
-              try {
-                await apiMarkAsRead({ conversationKey });
-              } catch (err) {
-                console.warn('apiMarkAsRead failed', err);
-              }
-              resolve();
-            } catch (e: any) {
-              reject(e);
-            }
-          }
-        );
-      });
+      await joinByConversationKey(`channel:${channelKey}`);
     },
-    [conversations, loadMessages, markConversationSeen, socket]
+    [joinByConversationKey]
   );
 
   const startDmWithUser = useCallback(
@@ -379,17 +332,52 @@ export function useCommunicationActions({
         replyTo: null,
       };
 
-      if (selectedConversationKeyRef.current === conversationKey) {
-        setMessages((prev) => [...prev, pendingMessage]);
-      }
+      // Always append optimistically for the open thread. Guard inside the
+      // updater so a stale ref cannot drop the bubble before paint.
+      setMessages((prev) => {
+        if (selectedConversationKeyRef.current !== conversationKey) return prev;
+        if (prev.some((message) => message.id === pendingMessage.id)) return prev;
+        return [...prev, pendingMessage];
+      });
+
+      // Keep sidebar preview in sync immediately (don't wait for socket echo).
+      setConversations((prev) => {
+        const preview = content.trim().slice(0, 120);
+        const at = pendingMessage.createdAt;
+        return prev
+          .map((c) =>
+            c.conversationKey === conversationKey
+              ? { ...c, lastMessagePreview: preview, lastMessageAt: at }
+              : c
+          )
+          .slice()
+          .sort((a, b) => {
+            const atA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+            const atB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+            return atB - atA;
+          });
+      });
 
       const applyAckMessage = (ack: any) => {
-        if (!ack?.message || selectedConversationKeyRef.current !== conversationKey) return;
-        setMessages((prev) => upsertChatMessage(prev, mapApiHistoryMessage(ack.message)));
+        if (!ack?.message) return;
+        const mapped = mapApiHistoryMessage(ack.message);
+        setMessages((prev) => {
+          if (selectedConversationKeyRef.current !== conversationKey) return prev;
+          return upsertChatMessage(prev, mapped);
+        });
       };
 
       try {
         await ensureSocketConnected(socket);
+        // Ensure we are in the room before send so we also receive our own echo
+        // if the ack is delayed/lost (common after reconnect).
+        await new Promise<void>((resolve) => {
+          const joinTimeout = window.setTimeout(() => resolve(), 2500);
+          socket.emit('comm:join', { conversationKey }, () => {
+            window.clearTimeout(joinTimeout);
+            resolve();
+          });
+        });
         await new Promise<void>((resolve, reject) => {
           const timeout = window.setTimeout(() => reject(new Error('Message send timeout')), 12000);
           socket.emit(
@@ -413,11 +401,13 @@ export function useCommunicationActions({
           );
         });
       } catch (error) {
-        setMessages((prev) => prev.filter((message) => message.id !== pendingMessage.id));
+        // Keep the optimistic bubble and resync — the server may have saved
+        // the message even if the ack/timeout failed (common after reconnect).
+        void loadMessages(conversationKey).catch(() => {});
         throw error;
       }
     },
-    [socket]
+    [loadMessages, socket]
   );
 
   const sendFile = useCallback(
@@ -466,15 +456,43 @@ export function useCommunicationActions({
         replyTo: null,
       };
 
-      if (selectedConversationKeyRef.current === conversationKey) {
-        setMessages((prev) => [...prev, pendingMessage]);
-      }
+      setMessages((prev) => {
+        if (selectedConversationKeyRef.current !== conversationKey) return prev;
+        if (prev.some((message) => message.id === pendingMessage.id)) return prev;
+        return [...prev, pendingMessage];
+      });
 
+      setConversations((prev) => {
+        const preview = messagePreviewFromMessage(pendingMessage).slice(0, 120);
+        const at = pendingMessage.createdAt;
+        return prev
+          .map((c) =>
+            c.conversationKey === conversationKey
+              ? { ...c, lastMessagePreview: preview, lastMessageAt: at }
+              : c
+          )
+          .slice()
+          .sort((a, b) => {
+            const atA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+            const atB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+            return atB - atA;
+          });
+      });
+
+      let submittedToSocket = false;
       try {
         const upload = await apiUploadFile(file);
         const fileUrl = upload.fileUrl || `${API_BASE}${upload.urlPath}`;
 
         await ensureSocketConnected(socket);
+        await new Promise<void>((resolve) => {
+          const joinTimeout = window.setTimeout(() => resolve(), 2500);
+          socket.emit('comm:join', { conversationKey }, () => {
+            window.clearTimeout(joinTimeout);
+            resolve();
+          });
+        });
+        submittedToSocket = true;
         await new Promise<void>((resolve, reject) => {
           const timeout = window.setTimeout(() => reject(new Error('Attachment send timeout')), 12000);
           socket.emit(
@@ -501,29 +519,38 @@ export function useCommunicationActions({
                 reject(new Error(String(ack?.error || 'Failed to send attachment')));
                 return;
               }
-              if (ack?.message && selectedConversationKeyRef.current === conversationKey) {
-                setMessages((prev) => upsertChatMessage(prev, mapApiHistoryMessage(ack.message)));
+              if (ack?.message) {
+                const mapped = mapApiHistoryMessage(ack.message);
+                setMessages((prev) => {
+                  if (selectedConversationKeyRef.current !== conversationKey) return prev;
+                  return upsertChatMessage(prev, mapped);
+                });
               }
               resolve();
             }
           );
         });
       } catch (error) {
-        setMessages((prev) => {
-          const next = prev.filter((message) => message.id !== pendingMessage.id);
-          if (localPreviewUrl) {
-            try {
-              URL.revokeObjectURL(localPreviewUrl);
-            } catch {
-              // ignore
+        if (submittedToSocket) {
+          // Server may have saved despite lost ack — keep bubble and resync.
+          void loadMessages(conversationKey).catch(() => {});
+        } else {
+          setMessages((prev) => {
+            const next = prev.filter((message) => message.id !== pendingMessage.id);
+            if (localPreviewUrl) {
+              try {
+                URL.revokeObjectURL(localPreviewUrl);
+              } catch {
+                // ignore
+              }
             }
-          }
-          return next;
-        });
+            return next;
+          });
+        }
         throw error;
       }
     },
-    [socket]
+    [loadMessages, socket]
   );
 
   const createPoll = useCallback(
@@ -573,18 +600,7 @@ export function useCommunicationActions({
   const deletePoll = useCallback(async (pollId: string) => {
     const result: any = await apiDeletePoll(pollId);
     const deletedPollId = String(result?.pollId || pollId);
-    setMessages((prev) =>
-      prev.map((message) =>
-        message.poll?.id === deletedPollId
-          ? {
-              ...message,
-              deleted: true,
-              content: 'Poll deleted',
-              poll: null,
-            }
-          : message
-      )
-    );
+    setMessages((prev) => prev.filter((message) => message.poll?.id !== deletedPollId));
   }, []);
 
   const editMessage = useCallback(
