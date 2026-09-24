@@ -271,7 +271,48 @@ export function mergeHistoryWithLiveMessages(
   );
 }
 
+/** Prefer fresher live preview/unread when merging a REST conversation list. */
+export function mergeConversationSummaries(
+  incoming: ChatConversationSummary[],
+  previous: ChatConversationSummary[],
+): ChatConversationSummary[] {
+  const prevByKey = new Map(previous.map((c) => [c.conversationKey, c]));
+  const merged = incoming.map((next) => {
+    const prev = prevByKey.get(next.conversationKey);
+    if (!prev) return next;
+
+    const prevAt = prev.lastMessageAt ? new Date(prev.lastMessageAt).getTime() : 0;
+    const nextAt = next.lastMessageAt ? new Date(next.lastMessageAt).getTime() : 0;
+    const preferLivePreview = prevAt > nextAt;
+
+    return {
+      ...next,
+      lastMessagePreview: preferLivePreview
+        ? prev.lastMessagePreview ?? next.lastMessagePreview
+        : next.lastMessagePreview ?? prev.lastMessagePreview,
+      lastMessageAt: preferLivePreview ? prev.lastMessageAt : next.lastMessageAt ?? prev.lastMessageAt,
+      unreadCount: Math.max(next.unreadCount || 0, preferLivePreview ? prev.unreadCount || 0 : 0),
+      otherUser: next.otherUser
+        ? {
+            ...next.otherUser,
+            online: prev.otherUser?.online ?? next.otherUser.online,
+            lastSeenAt: prev.otherUser?.lastSeenAt ?? next.otherUser.lastSeenAt,
+            avatar: next.otherUser.avatar || prev.otherUser?.avatar,
+          }
+        : next.otherUser,
+      avatar: next.avatar || prev.avatar,
+    };
+  });
+
+  return merged.slice().sort((a, b) => {
+    const atA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+    const atB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+    return atB - atA;
+  });
+}
+
 export function mapApiHistoryMessage(m: any): ChatMessage {
+  const deleted = !!m.deleted;
   return {
     id: String(m.id || m._id || ''),
     conversationKey: String(m.conversationKey),
@@ -279,7 +320,7 @@ export function mapApiHistoryMessage(m: any): ChatMessage {
     senderId: String(m.senderId),
     content: String(m.content || ''),
     fileUrl: String(m.fileUrl || m.attachment?.url || ''),
-    deleted: !!m.deleted,
+    deleted,
     editedAt: m.editedAt ? String(m.editedAt) : null,
     attachment: toChatAttachment(m.attachment),
     bundleId: m.bundleId ? String(m.bundleId) : null,
@@ -287,13 +328,16 @@ export function mapApiHistoryMessage(m: any): ChatMessage {
     pending: false,
     localPreviewUrl: null,
     createdAt: String(m.createdAt),
-    tick: m.tick
-      ? ({
-          state: m.tick.state as any,
-          deliveredAt: m.tick.deliveredAt ? String(m.tick.deliveredAt) : undefined,
-          seenAt: m.tick.seenAt ? String(m.tick.seenAt) : undefined,
-        } satisfies ChatMessage['tick'])
-      : null,
+    // Deleted placeholders never show delivery/seen ticks.
+    tick: deleted
+      ? null
+      : m.tick
+        ? ({
+            state: m.tick.state as any,
+            deliveredAt: m.tick.deliveredAt ? String(m.tick.deliveredAt) : undefined,
+            seenAt: m.tick.seenAt ? String(m.tick.seenAt) : undefined,
+          } satisfies ChatMessage['tick'])
+        : null,
     replyTo: toChatReplyRef(m.replyTo),
     forwarded: toChatForwardedMeta(m.forwarded),
     poll: toChatPoll(m.poll),

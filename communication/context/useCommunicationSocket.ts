@@ -286,14 +286,24 @@ export function useCommunicationSocket({
 
       const updated = mapApiHistoryMessage(msg);
 
-      // Update sidebar preview ordering even when the chat isn't currently open.
+      // Only bump sidebar preview when this edit is for the latest message.
       setConversations((prev) => {
+        const conversation = prev.find((c) => c.conversationKey === conversationKey);
+        if (!conversation) return prev;
+        const lastAt = conversation.lastMessageAt
+          ? new Date(conversation.lastMessageAt).getTime()
+          : 0;
+        const editedAt = updated.createdAt ? new Date(updated.createdAt).getTime() : 0;
+        // Treat as latest if timestamps are equal/newer within 1s, or preview matches prior content.
+        const isLikelyLatest =
+          !lastAt || Math.abs(lastAt - editedAt) < 1000 || lastAt <= editedAt;
+        if (!isLikelyLatest) return prev;
+
         const preview = messagePreviewFromMessage(updated).slice(0, 120);
-        const at = updated.createdAt;
         return prev
           .map((c) =>
             c.conversationKey === conversationKey
-              ? { ...c, lastMessagePreview: preview, lastMessageAt: at }
+              ? { ...c, lastMessagePreview: preview, lastMessageAt: updated.createdAt }
               : c
           )
           .slice()
@@ -316,6 +326,22 @@ export function useCommunicationSocket({
                   }
                 : m
             )
+      );
+    };
+
+    const handleChatCleared = (payload: any) => {
+      const conversationKey = String(payload?.conversationKey || '');
+      if (!conversationKey) return;
+      if (selectedConversationKeyRef.current === conversationKey) {
+        setMessages([]);
+        setPinnedMessage(null);
+      }
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.conversationKey === conversationKey
+            ? { ...c, lastMessagePreview: '', lastMessageAt: null, unreadCount: 0 }
+            : c
+        )
       );
     };
 
@@ -343,18 +369,7 @@ export function useCommunicationSocket({
     const handlePollDeleted = (payload: any) => {
       const pollId = String(payload?.pollId || '');
       if (!pollId) return;
-      setMessages((prev) =>
-        prev.map((message) =>
-          message.poll?.id === pollId
-            ? {
-                ...message,
-                deleted: true,
-                content: 'Poll deleted',
-                poll: null,
-              }
-            : message
-        )
-      );
+      setMessages((prev) => prev.filter((message) => message.poll?.id !== pollId));
     };
 
     const handleMessagePinned = (payload: any) => {
@@ -385,11 +400,16 @@ export function useCommunicationSocket({
       }
 
       setConversations((prev) =>
-        prev.map((c) =>
-          c.conversationKey === conversationKey
-            ? { ...c, lastMessagePreview: 'Message deleted', unreadCount: 0 }
-            : c
-        )
+        prev.map((c) => {
+          if (c.conversationKey !== conversationKey) return c;
+          const wasLatest =
+            !c.lastMessageAt ||
+            Math.abs(new Date(c.lastMessageAt).getTime() - new Date(String(msg.createdAt || '')).getTime()) <
+              1000;
+          return wasLatest
+            ? { ...c, lastMessagePreview: 'Message deleted' }
+            : c;
+        })
       );
 
       setMessages((prev) =>
@@ -399,9 +419,10 @@ export function useCommunicationSocket({
               m.id === String(msg.id)
                 ? {
                     ...m,
-                    deleted: !!msg.deleted,
+                    deleted: true,
                     content: String(msg.content || 'Message deleted'),
                     attachment: null,
+                    tick: null,
                     editedAt: msg.editedAt ? String(msg.editedAt) : null,
                   }
                 : m
@@ -448,6 +469,7 @@ export function useCommunicationSocket({
     socket.on('comm:message:deleted', handleMessageDeleted);
     socket.on('comm:message:pinned', handleMessagePinned);
     socket.on('comm:unread:cleared', handleUnreadCleared);
+    socket.on('comm:chat:cleared', handleChatCleared);
     socket.on('poll_created', handlePollCreated);
     socket.on('poll_voted', handlePollVoted);
     socket.on('poll_closed', handlePollClosed);
@@ -476,6 +498,7 @@ export function useCommunicationSocket({
       socket.off('comm:message:deleted', handleMessageDeleted);
       socket.off('comm:message:pinned', handleMessagePinned);
       socket.off('comm:unread:cleared', handleUnreadCleared);
+      socket.off('comm:chat:cleared', handleChatCleared);
       socket.off('poll_created', handlePollCreated);
       socket.off('poll_voted', handlePollVoted);
       socket.off('poll_closed', handlePollClosed);

@@ -200,7 +200,7 @@ export function ChatMessages({
   return (
     <div className="communication-messages flex-1 overflow-y-auto bg-[#f6f8fb] px-4 py-6">
       <div className="mx-auto w-full max-w-5xl">
-        {messagesLoading ? (
+        {messagesLoading && messages.length === 0 ? (
           <ChatMessagesSkeleton />
         ) : messages.length === 0 ? (
           <div className="communication-empty-state rounded-2xl border border-slate-200 bg-white p-10 text-center">

@@ -23,6 +23,7 @@ import {
   mapListConversationsApiRowToSummary,
   isDocumentVisible,
   mergeHistoryWithLiveMessages,
+  mergeConversationSummaries,
 } from './communicationContextHelpers';
 import { avatarFromDirectory, loadEmployeeAvatarDirectory } from './communicationAvatarDirectory';
 import { useCommunicationSocket } from './useCommunicationSocket';
@@ -62,8 +63,16 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   const currentUserRef = useRef<CommunicationContextValue['currentUser']>(null);
   currentUserRef.current = currentUser;
 
+  // Keep the ref as the single source of truth for live handlers.
+  // Actions set it immediately; only sync from state when state is non-null
+  // or when the conversation was intentionally cleared (state null + ref match).
   useEffect(() => {
-    selectedConversationKeyRef.current = selectedConversationKey;
+    if (selectedConversationKey) {
+      selectedConversationKeyRef.current = selectedConversationKey;
+      return;
+    }
+    // Allow clearing only when actions already cleared the ref, or both are null.
+    if (!selectedConversationKeyRef.current) return;
   }, [selectedConversationKey]);
 
   const typingStopTimer = useRef<number | null>(null);
@@ -243,7 +252,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
         };
       });
 
-      setConversations(mapped);
+      setConversations((prev) => mergeConversationSummaries(mapped, prev));
     } catch (e: any) {
       setError(e?.message || 'Failed to load conversations');
     } finally {
@@ -255,6 +264,8 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     const generation = ++messagesLoadGenerationRef.current;
     const keepVisible =
       selectedConversationKeyRef.current === conversationKey && messagesRef.current.length > 0;
+    // Never blank an open thread while refreshing history — that hides optimistic
+    // / just-sent messages behind a skeleton until the request finishes.
     if (!keepVisible) setMessagesLoading(true);
     setError(null);
     try {
