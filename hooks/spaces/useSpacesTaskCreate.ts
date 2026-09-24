@@ -117,6 +117,7 @@ export const useSpacesTaskCreate = ({
   const [repeatCadence, setRepeatCadence] = useState('week');
   const [repeatWeekDays, setRepeatWeekDays] = useState<string[]>([String(new Date().getDay())]);
   const [repeatWeekTime, setRepeatWeekTime] = useState('09:00');
+  const [repeatMonthDay, setRepeatMonthDay] = useState(() => new Date().getDate());
   const [repeatFromDate, setRepeatFromDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [repeatToDate, setRepeatToDate] = useState(() => {
     const end = new Date();
@@ -155,6 +156,7 @@ export const useSpacesTaskCreate = ({
       setRepeatCadence('week');
       setRepeatWeekDays([String(new Date().getDay())]);
       setRepeatWeekTime('09:00');
+      setRepeatMonthDay(new Date().getDate());
       {
         const today = new Date().toISOString().slice(0, 10);
         const end = new Date();
@@ -313,6 +315,7 @@ export const useSpacesTaskCreate = ({
     repeatCadence?: string;
     repeatWeekDays?: number[];
     repeatWeekTime?: string;
+    repeatMonthDay?: number;
     repeatFromDate?: string;
     repeatToDate?: string;
     timezone?: string;
@@ -427,6 +430,7 @@ export const useSpacesTaskCreate = ({
           : undefined,
         repeatWeekDays: params.repeatWeekDays,
         repeatWeekTime: params.repeatWeekTime,
+        repeatMonthDay: params.repeatMonthDay,
         repeatFromDate: params.repeatFromDate,
         repeatToDate: params.repeatToDate,
         timezone: params.timezone,
@@ -574,6 +578,8 @@ export const useSpacesTaskCreate = ({
     setRepeatWeekDays,
     repeatWeekTime,
     setRepeatWeekTime,
+    repeatMonthDay,
+    setRepeatMonthDay,
     repeatFromDate,
     setRepeatFromDate,
     repeatToDate,

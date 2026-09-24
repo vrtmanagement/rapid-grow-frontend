@@ -53,6 +53,8 @@ type SpacesTaskCreateModalProps = Pick<
   | 'setRepeatWeekDays'
   | 'repeatWeekTime'
   | 'setRepeatWeekTime'
+  | 'repeatMonthDay'
+  | 'setRepeatMonthDay'
   | 'repeatFromDate'
   | 'setRepeatFromDate'
   | 'repeatToDate'
@@ -129,6 +131,8 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
     setRepeatWeekDays,
     repeatWeekTime,
     setRepeatWeekTime,
+    repeatMonthDay,
+    setRepeatMonthDay,
     repeatFromDate,
     setRepeatFromDate,
     repeatToDate,
@@ -557,6 +561,8 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
                   setRepeatWeekDays={setRepeatWeekDays}
                   repeatWeekTime={repeatWeekTime}
                   setRepeatWeekTime={setRepeatWeekTime}
+                  repeatMonthDay={repeatMonthDay}
+                  setRepeatMonthDay={setRepeatMonthDay}
                   repeatFromDate={repeatFromDate}
                   setRepeatFromDate={setRepeatFromDate}
                   repeatToDate={repeatToDate}

@@ -33,6 +33,8 @@ type SpacesTaskAutomationSectionProps = {
   setRepeatWeekDays: (value: string[]) => void;
   repeatWeekTime: string;
   setRepeatWeekTime: (value: string) => void;
+  repeatMonthDay: number;
+  setRepeatMonthDay: (value: number) => void;
   repeatFromDate: string;
   setRepeatFromDate: (value: string) => void;
   repeatToDate: string;
@@ -120,6 +122,8 @@ const SpacesTaskAutomationSection: React.FC<SpacesTaskAutomationSectionProps> = 
   setRepeatWeekDays,
   repeatWeekTime,
   setRepeatWeekTime,
+  repeatMonthDay,
+  setRepeatMonthDay,
   repeatFromDate,
   setRepeatFromDate,
   repeatToDate,
@@ -333,8 +337,8 @@ const SpacesTaskAutomationSection: React.FC<SpacesTaskAutomationSectionProps> = 
 
           <div className="rounded-2xl border border-slate-200 bg-white p-3.5">
             <div className={sectionLabelClass}>{showExternalAssignee ? '3. ' : '2. '}Follow-up schedule</div>
-            <p className={sectionHintClass}>Choose how unfinished checklist items should be reminded.</p>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <p className={sectionHintClass}>Pick one simple reminder style for unfinished checklist items.</p>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <ChoicePill active={!repeatEveryWeek} disabled={disabled} onClick={() => setRepeatEveryWeek(false)}>
                 Remind until done
               </ChoicePill>
@@ -342,8 +346,13 @@ const SpacesTaskAutomationSection: React.FC<SpacesTaskAutomationSectionProps> = 
                 Repeat on schedule
               </ChoicePill>
             </div>
+            <p className="mt-2 text-[11px] leading-5 text-slate-500">
+              {repeatEveryWeek
+                ? 'Uses the schedule below (week, month, year, and more).'
+                : 'Keeps reminding on the interval until the task is marked done.'}
+            </p>
 
-            <div className="mt-3 border-t border-slate-100 pt-3">
+            <div className="mt-3">
               <SpacesWeeklyReminderFields
                 repeatCadence={repeatCadence}
                 setRepeatCadence={setRepeatCadence}
@@ -351,6 +360,8 @@ const SpacesTaskAutomationSection: React.FC<SpacesTaskAutomationSectionProps> = 
                 setRepeatWeekDays={setRepeatWeekDays}
                 repeatWeekTime={repeatWeekTime}
                 setRepeatWeekTime={setRepeatWeekTime}
+                repeatMonthDay={repeatMonthDay}
+                setRepeatMonthDay={setRepeatMonthDay}
                 repeatFromDate={repeatFromDate}
                 setRepeatFromDate={setRepeatFromDate}
                 repeatToDate={repeatToDate}
