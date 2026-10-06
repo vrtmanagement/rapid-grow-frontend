@@ -13,7 +13,7 @@ function CalendarTypeCounter({
   compact?: boolean;
   dense?: boolean;
 }) {
-  const meta = TYPE_ICON_META[type];
+  const meta = TYPE_ICON_META[type] || TYPE_ICON_META.general;
   const Icon = meta.icon;
 
   if (compact) {

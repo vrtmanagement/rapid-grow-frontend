@@ -68,8 +68,9 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
   const isExpanded = !!options?.expanded;
   const showTypeBadge = activeTab === 'calendar' || isReminderTab;
   const scheduleAccentType = activeTab === 'content-schedule' ? 'newsletter' : item.type;
-  const cardTypeLabel = isReminderTab ? reminderCategoryLabel : TYPE_LABEL[item.type];
-  const cardTypeBadgeClass = isReminderTab ? TYPE_ACCENT.general.badge : TYPE_ACCENT[scheduleAccentType].badge;
+  const typeAccent = TYPE_ACCENT[scheduleAccentType] || TYPE_ACCENT.general;
+  const cardTypeLabel = isReminderTab ? reminderCategoryLabel : (TYPE_LABEL[item.type] || TYPE_LABEL.general);
+  const cardTypeBadgeClass = isReminderTab ? TYPE_ACCENT.general.badge : typeAccent.badge;
   const comments: ContentComment[] = Array.isArray(item.comments) ? item.comments : [];
   const commentIds = new Set(comments.map((comment) => String(comment.id || '').trim()).filter(Boolean));
   const topLevelComments = comments.filter((comment) => {
@@ -123,11 +124,11 @@ const ContentCard: React.FC<ContentCardProps> = ({ item, options, ctx }) => {
       } : undefined}
       className={`relative flex ${isExpanded ? 'h-auto min-h-0' : 'h-[430px]'} flex-col overflow-hidden rounded-[1.9rem] border bg-white/95 p-5 shadow-[0_22px_56px_rgba(15,23,42,0.08)] transition-all duration-300 ${
         isHighlighted
-          ? TYPE_ACCENT[scheduleAccentType].highlight
+          ? typeAccent.highlight
           : 'border-white/80'
       } ${isClickable ? 'cursor-pointer hover:-translate-y-[2px] hover:border-slate-200 hover:shadow-[0_26px_60px_rgba(15,23,42,0.10)]' : ''}`}
     >
-      <div className={`pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r ${TYPE_ACCENT[scheduleAccentType].tone}`} />
+      <div className={`pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r ${typeAccent.tone}`} />
       <div className="relative flex items-start justify-between gap-4">
         <div className={`min-w-0 flex-1 pr-3 ${showTypeBadge ? 'space-y-3' : 'space-y-0'}`}>
           {showTypeBadge ? (

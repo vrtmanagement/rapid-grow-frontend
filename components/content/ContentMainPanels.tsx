@@ -255,7 +255,7 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
                 </button>
               </div>
             </div>
-            {loading && items.length === 0 ? (
+            {loading && selectedDayItems.length === 0 ? (
               <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 text-slate-500 shadow-sm">Loading...</div>
             ) : isTypeDetailPage ? (
               isItemDetailPage ? (
@@ -305,7 +305,9 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
             ) : selectedDayItems.length > 0 ? (
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {selectedDayGroups.map((group: any) => {
-                  const meta = TYPE_ICON_META[group.type];
+                  const meta = TYPE_ICON_META[group.type] || TYPE_ICON_META.general;
+                  const accent = TYPE_ACCENT[group.type] || TYPE_ACCENT.general;
+                  const typeLabel = TYPE_LABEL[group.type] || TYPE_LABEL.general;
                   const Icon = meta.icon;
                   return (
                     <div
@@ -321,16 +323,16 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
                       }}
                       className="group relative aspect-[1.16/1] w-full overflow-hidden rounded-[2rem] border border-white/80 bg-white/95 p-3.5 text-left shadow-[0_22px_56px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_28px_64px_rgba(15,23,42,0.12)]"
                     >
-                      <div className={`pointer-events-none absolute inset-x-0 top-0 h-[70px] bg-gradient-to-r ${TYPE_ACCENT[group.type].tone}`} />
+                      <div className={`pointer-events-none absolute inset-x-0 top-0 h-[70px] bg-gradient-to-r ${accent.tone}`} />
                       <div className="relative flex h-full flex-col">
                         <div className="flex items-start justify-between gap-4">
                           <div className="inline-flex items-center gap-2">
                             <div className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/90 ${meta.className} shadow-[0_10px_24px_rgba(255,255,255,0.45)]`}>
                               <Icon size={17} />
                             </div>
-                            <span className={`inline-flex rounded-full px-3.5 py-1.5 text-[15px] font-semibold ${TYPE_ACCENT[group.type].badge}`}>{TYPE_LABEL[group.type]}</span>
+                            <span className={`inline-flex rounded-full px-3.5 py-1.5 text-[15px] font-semibold ${accent.badge}`}>{typeLabel}</span>
                           </div>
-                          <span className={`inline-flex h-10 min-w-[46px] items-center justify-center rounded-[1rem] border bg-white px-2.5 text-[1.1rem] font-semibold ${TYPE_ACCENT[group.type].counter}`}>
+                          <span className={`inline-flex h-10 min-w-[46px] items-center justify-center rounded-[1rem] border bg-white px-2.5 text-[1.1rem] font-semibold ${accent.counter}`}>
                             {group.count}
                           </span>
                         </div>
@@ -343,9 +345,9 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
                                 event.stopPropagation();
                                 navigate(`/content/day/${selectedDate}/type/${group.type}/item/${encodeURIComponent(item.contentId)}`);
                               }}
-                              className={`flex w-full items-center gap-3 rounded-[1.1rem] border border-white/80 bg-gradient-to-r px-3.5 py-3 text-left shadow-[0_10px_24px_rgba(15,23,42,0.05)] ring-1 transition hover:-translate-y-[1px] hover:border-slate-200 hover:shadow-[0_14px_28px_rgba(15,23,42,0.08)] ${TYPE_ACCENT[group.type].previewRow}`}
+                              className={`flex w-full items-center gap-3 rounded-[1.1rem] border border-white/80 bg-gradient-to-r px-3.5 py-3 text-left shadow-[0_10px_24px_rgba(15,23,42,0.05)] ring-1 transition hover:-translate-y-[1px] hover:border-slate-200 hover:shadow-[0_14px_28px_rgba(15,23,42,0.08)] ${accent.previewRow}`}
                             >
-                              <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold ${TYPE_ACCENT[group.type].previewIndex}`}>
+                              <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold ${accent.previewIndex}`}>
                                 {index + 1}
                               </span>
                               <div className="min-w-0 flex-1">
@@ -356,7 +358,7 @@ const ContentMainPanels: React.FC<ContentMainPanelsProps> = ({ ctx }) => {
                                   {formatContentCreatedStamp(item.createdAt) || 'Scheduled item'}
                                 </div>
                               </div>
-                              <span className={`h-2 w-2 rounded-full ${TYPE_ACCENT[group.type].previewDot}`} />
+                              <span className={`h-2 w-2 rounded-full ${accent.previewDot}`} />
                             </button>
                           ))}
                         </div>

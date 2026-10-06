@@ -378,8 +378,9 @@ const ContentView: React.FC = () => {
     for (const item of calendarItems) {
       const key = item.contentDate || (item.createdAt ? item.createdAt.slice(0, 10) : '');
       if (!key) continue;
+      const itemType = isContentType(String(item.type || '')) ? item.type : 'general';
       const row = map.get(key) || { linkedin: 0, youtube: 0, general: 0, newsletter: 0, website: 0 };
-      row[item.type] = (row[item.type] || 0) + 1;
+      row[itemType] = (row[itemType] || 0) + 1;
       map.set(key, row);
     }
     return map;
