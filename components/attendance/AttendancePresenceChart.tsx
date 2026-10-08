@@ -7,6 +7,7 @@ import {
 } from './attendanceUtils';
 import { Skeleton, SkeletonBlock } from '../ui/Skeleton';
 import { fetchHolidays, CompanyHoliday } from './attendanceOpsApi';
+import { fetchLeaveBalanceOverview } from './leaveBalanceApi';
 import { getUserTimeZone } from '../../utils/timezone';
 
 interface Props {
@@ -16,14 +17,23 @@ interface Props {
   range?: Range;
   variant?: 'employee' | 'manager';
   todayMinutes?: number;
+  /** Monthly paid-leave allowance (first N absences). Defaults to company policy (usually 1). */
+  monthlyPaidLeaves?: number;
 }
 
 const SUNDAY_BAR_COLOR = '#a5b4fc';
 const HOLIDAY_BAR_COLOR = '#7c3aed';
 const ABSENT_BAR_COLOR = '#e11d48';
+const PAID_LEAVE_BAR_COLOR = '#0ea5e9';
 const SHORT_DAY_BAR_COLOR = '#fb923c'; // mid orange for < 7.5h
 const ACTIVE_SESSION_BAR_COLOR = '#fdba74'; // light orange while session is running
 const SPECIAL_BAR_HOURS = 9;
+
+function normalizePaidLeaveAllowance(value: unknown, fallback = 1) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return Math.min(31, Math.max(0, Math.round(parsed)));
+}
 
 function getPresenceHoursColor(hours: number): string {
   if (hours >= 8) return '#22c55e';
@@ -38,10 +48,35 @@ const AttendancePresenceChart: React.FC<Props> = ({
   range = 'month',
   variant = 'manager',
   todayMinutes = 0,
+  monthlyPaidLeaves,
 }) => {
   const isEmployeeVariant = variant === 'employee';
   const breakBarColor = '#fbbf24';
   const [holidays, setHolidays] = React.useState<CompanyHoliday[]>([]);
+  const [paidLeaveAllowance, setPaidLeaveAllowance] = React.useState(() =>
+    normalizePaidLeaveAllowance(monthlyPaidLeaves, 1),
+  );
+
+  React.useEffect(() => {
+    if (monthlyPaidLeaves != null) {
+      setPaidLeaveAllowance(normalizePaidLeaveAllowance(monthlyPaidLeaves, 1));
+      return;
+    }
+
+    let cancelled = false;
+    fetchLeaveBalanceOverview()
+      .then((overview) => {
+        if (cancelled) return;
+        setPaidLeaveAllowance(normalizePaidLeaveAllowance(overview?.policy?.monthlyPaidLeaves, 1));
+      })
+      .catch(() => {
+        if (!cancelled) setPaidLeaveAllowance(1);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [monthlyPaidLeaves]);
 
   const getDatePartsInAttendanceTimezone = (value: Date | string) => {
     const parsed = value instanceof Date ? value : new Date(value);
@@ -352,6 +387,36 @@ const AttendancePresenceChart: React.FC<Props> = ({
     ? Array.from(new Set([...datesToShowBase, todayDateKey])).sort()
     : datesToShowBase;
 
+  const buildAbsentOrPaidLeaveEntry = (dateKey: string, dayLabel: string) => {
+    const isPaidLeave = paidLeaveDateKeys.has(dateKey);
+    return {
+      date: formatFullDate(dateKey),
+      dayLabel,
+      hours: SPECIAL_BAR_HOURS,
+      actualHours: 0,
+      color: isPaidLeave ? PAID_LEAVE_BAR_COLOR : ABSENT_BAR_COLOR,
+      loginTime: isPaidLeave ? 'Paid Leave' : 'Absent',
+      logoutTime: isPaidLeave ? 'Paid Leave' : 'Absent',
+      statusLabel: 'Status',
+      attendanceState: isPaidLeave ? 'Paid Leave' : 'Absent',
+      barLabel: isPaidLeave ? '-- paid leave --' : '-- absent --',
+      isSpecialDay: true,
+    };
+  };
+
+  // First N no-shows in the month (excluding Sunday/holiday) count as paid leave.
+  const monthDatesForPaidLeave = getMonthElapsedDates();
+  const paidLeaveCandidateKeys = (monthDatesForPaidLeave.length ? monthDatesForPaidLeave : datesToShow)
+    .filter((dateKey) => {
+      if (resolveSpecialDay(dateKey)) return false;
+      const day = recordedDays.get(dateKey);
+      const liveMinutes =
+        dateKey === todayDateKey ? Math.max(day?.minutes || 0, todayMinutes) : day?.minutes || 0;
+      return liveMinutes <= 0;
+    })
+    .sort();
+  const paidLeaveDateKeys = new Set(paidLeaveCandidateKeys.slice(0, paidLeaveAllowance));
+
   const chartData =
     datesToShow.map((dateKey) => {
       const dayLabel = formatChartDayLabel(dateKey);
@@ -395,36 +460,12 @@ const AttendancePresenceChart: React.FC<Props> = ({
           };
         }
 
-        return {
-          date: formatFullDate(dateKey),
-          dayLabel,
-          hours: SPECIAL_BAR_HOURS,
-          actualHours: 0,
-          color: ABSENT_BAR_COLOR,
-          loginTime: 'Absent',
-          logoutTime: 'Absent',
-          statusLabel: 'Status',
-          attendanceState: 'Absent',
-          barLabel: '-- absent --',
-          isSpecialDay: true,
-        };
+        return buildAbsentOrPaidLeaveEntry(dateKey, dayLabel);
       }
 
       const hours = liveMinutes / 60;
       if (liveMinutes <= 0) {
-        return {
-          date: formatFullDate(d.date),
-          dayLabel,
-          hours: SPECIAL_BAR_HOURS,
-          actualHours: 0,
-          color: ABSENT_BAR_COLOR,
-          loginTime: 'Absent',
-          logoutTime: 'Absent',
-          statusLabel: 'Status',
-          attendanceState: 'Absent',
-          barLabel: '-- absent --',
-          isSpecialDay: true,
-        };
+        return buildAbsentOrPaidLeaveEntry(d.date, dayLabel);
       }
 
       const sortedSessions = [...(d.sessions || [])].sort((a, b) => (
@@ -465,6 +506,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
   const fullDays = recordedEntries.filter((entry) => (entry.actualHours ?? 0) >= 8).length;
   const shortDays = recordedEntries.filter((entry) => (entry.actualHours ?? 0) > 0 && (entry.actualHours ?? 0) < 8).length;
   const absentDays = chartData.filter((entry) => entry.attendanceState === 'Absent').length;
+  const paidLeaveDays = chartData.filter((entry) => entry.attendanceState === 'Paid Leave').length;
   const totalHours = recordedEntries.reduce((total, entry) => total + (entry.actualHours ?? 0), 0);
   const averageHours = recordedEntries.length ? totalHours / recordedEntries.length : 0;
   const chartHoursCeiling = React.useMemo(() => {
@@ -605,7 +647,12 @@ const AttendancePresenceChart: React.FC<Props> = ({
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: HOLIDAY_BAR_COLOR }} /> Holiday
             </span>
             <span className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: PAID_LEAVE_BAR_COLOR }} /> Paid leave
+              {paidLeaveDays > 0 ? ` (${paidLeaveDays})` : ''}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ABSENT_BAR_COLOR }} /> Absent
+              {absentDays > 0 ? ` (${absentDays})` : ''}
             </span>
           </div>
 
@@ -637,7 +684,7 @@ const AttendancePresenceChart: React.FC<Props> = ({
             {getShownMonthLabel()}
           </p>
         </div>
-        <div className="flex items-center gap-2 text-[11px] text-slate-500">
+        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
           <span className="inline-flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-emerald-500" /> ≥ 8h
           </span>
@@ -649,6 +696,12 @@ const AttendancePresenceChart: React.FC<Props> = ({
           </span>
           <span className="inline-flex items-center gap-1">
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ACTIVE_SESSION_BAR_COLOR }} /> Active
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: PAID_LEAVE_BAR_COLOR }} /> Paid leave
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ABSENT_BAR_COLOR }} /> Absent
           </span>
         </div>
       </div>

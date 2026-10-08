@@ -30,7 +30,7 @@ interface TeamAttendanceSectionProps {
   currentViewerEmpId?: string;
   onRefreshTeamActivity: () => void;
   selectedEmployeeTodayInfo: { minutes: number; color: string };
-  selectedEmployeeMonthlyAttendance: { present: number; absent: number; total: number };
+  selectedEmployeeMonthlyAttendance: { present: number; absent: number; paidLeave?: number; total: number };
   setSelectedEmployeeEmpId: (value: string) => void;
   setSelectedEmployeeMonth: (value: string) => void;
   onApproveLateLogin: (empId: string, reason: string) => Promise<{ ok: boolean; message: string }>;
@@ -666,16 +666,21 @@ const TeamAttendanceSection: React.FC<TeamAttendanceSectionProps> = ({
                       Shows the selected employee&apos;s monthly attendance with Sundays excluded from total working days.
                     </p>
                     {employeeAttendanceLoading ? (
-                      <div className="mt-5 grid grid-cols-3 gap-3">
+                      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div className="rounded-xl bg-white/5 px-3 py-4 text-center text-sm text-slate-400">...</div>
                         <div className="rounded-xl bg-white/5 px-3 py-4 text-center text-sm text-slate-400">...</div>
                         <div className="rounded-xl bg-white/5 px-3 py-4 text-center text-sm text-slate-400">...</div>
                         <div className="rounded-xl bg-white/5 px-3 py-4 text-center text-sm text-slate-400">...</div>
                       </div>
                     ) : (
-                      <div className="mt-5 grid grid-cols-3 gap-3">
+                      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
                         <div className="rounded-xl bg-emerald-500/10 px-3 py-4 text-center">
                           <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-200">Present</p>
                           <p className="mt-2 text-2xl font-semibold text-white">{selectedEmployeeMonthlyAttendance.present}</p>
+                        </div>
+                        <div className="rounded-xl bg-sky-500/10 px-3 py-4 text-center">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-200">Paid leave</p>
+                          <p className="mt-2 text-2xl font-semibold text-white">{selectedEmployeeMonthlyAttendance.paidLeave ?? 0}</p>
                         </div>
                         <div className="rounded-xl bg-rose-500/10 px-3 py-4 text-center">
                           <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-200">Absent</p>
