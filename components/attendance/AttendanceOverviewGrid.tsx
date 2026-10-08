@@ -407,6 +407,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
               range={range}
               variant="employee"
               todayMinutes={todayMinutes}
+              monthlyPaidLeaves={leaveBalanceOverview?.policy?.monthlyPaidLeaves}
             />
 
             <AttendanceWeekGlanceCard lastSevenDays={lastSevenDays} weeklyTotals={weeklyTotals} />
@@ -523,6 +524,7 @@ const AttendanceOverviewGrid: React.FC<AttendanceOverviewGridProps> = ({
           selectedMonth={selectedMonth}
           range={range}
           todayMinutes={todayMinutes}
+          monthlyPaidLeaves={leaveBalanceOverview?.policy?.monthlyPaidLeaves}
         />
       </div>
 

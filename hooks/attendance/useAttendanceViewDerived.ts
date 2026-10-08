@@ -31,7 +31,7 @@ export function useAttendanceViewDerived(
     setClearedLeaveNotificationIds, leaveInitialLoaded, leaveLoading, loading, employeeOptions,
     selectedEmployeeEmpId, selectedEmployeeMonth, isEmployeePortal, isHistoryRoute, activeView,
     isTeamAttendanceRoute, leaveSection, handleLeaveSectionChange, lateLoginSettings,
-    activeSession, isBackendAdminRole, isBackendApproverRole,
+    activeSession, isBackendAdminRole, isBackendApproverRole, leaveBalanceOverview,
   } = state;
   const { loadLeaves } = loaders;
 
@@ -376,12 +376,19 @@ export function useAttendanceViewDerived(
     }
   
     const presentDays = liveEmployeeSummary?.days.length ?? 0;
+    const rawAbsent = Math.max(0, totalWorkingDays - presentDays);
+    const paidLeaveAllowance = Math.max(
+      0,
+      Math.min(31, Math.round(Number(leaveBalanceOverview?.policy?.monthlyPaidLeaves ?? 1) || 1)),
+    );
+    const paidLeaveUsed = Math.min(rawAbsent, paidLeaveAllowance);
     return {
       present: presentDays,
-      absent: Math.max(0, totalWorkingDays - presentDays),
+      absent: Math.max(0, rawAbsent - paidLeaveUsed),
+      paidLeave: paidLeaveUsed,
       total: totalWorkingDays,
     };
-  }, [liveEmployeeSummary?.days.length, selectedEmployeeMonth]);
+  }, [leaveBalanceOverview?.policy?.monthlyPaidLeaves, liveEmployeeSummary?.days.length, selectedEmployeeMonth]);
   const selectedEmployeeLabel = selectedEmployee
     ? `${selectedEmployee.empName} (${selectedEmployee.empId})`
     : 'Select employee';

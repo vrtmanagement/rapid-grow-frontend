@@ -114,7 +114,7 @@ const AttendanceLeavePolicySetup: React.FC<Props> = ({ canManage, onToast }) => 
           </p>
           <h3 className="mt-1 text-xl font-semibold text-slate-950 tracking-tight">Monthly paid leaves</h3>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Set how many paid leave days employees get each month. Leave is tracked in Leave management — the presence graph only shows Sunday, holiday, and absent.
+            Set how many paid leave days each employee gets per month (default 1). The first N absences on the presence graph show as Paid Leave; any extra days stay Absent.
           </p>
         </div>
 
@@ -162,7 +162,7 @@ const AttendanceLeavePolicySetup: React.FC<Props> = ({ canManage, onToast }) => 
                     className="inline-flex items-center gap-2 rounded-lg bg-brand-red px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-600 disabled:opacity-60"
                   >
                     {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
-                    {saving ? 'Saving…' : 'Save leave policy'}
+                    {saving ? 'Saving…' : 'Add paid leave'}
                   </button>
                 ) : null}
               </div>
