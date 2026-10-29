@@ -14,7 +14,10 @@ export function NotificationStack({
   if (!notifications.length) return null;
 
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-[100] flex flex-col-reverse gap-3">
+    <div
+      className="pointer-events-none fixed bottom-4 right-4 z-[99999] flex flex-col-reverse gap-3"
+      data-testid="communication-notification-stack"
+    >
       {notifications.map((notification) => (
         <NotificationCard
           key={notification.id}

@@ -6,6 +6,7 @@ import {
   getDefaultNotificationPreferences,
   saveNotificationPreferences,
 } from '../../services/notificationPreferences';
+import { ensureDesktopNotificationPermission } from '../../communication/browserNotifications';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -38,7 +39,8 @@ const preferenceRows: PreferenceRowConfig[] = [
   {
     key: 'communicationMessages',
     title: 'Communication messages',
-    description: 'Show communication message popups and new-message reminders from the chat module.',
+    description:
+      'Show in-app message cards and desktop/OS notifications (like WhatsApp) even when you are on another tab or app.',
     icon: MessageSquareMore,
   },
   {
@@ -130,6 +132,10 @@ const NotificationPreferencesPanel: React.FC = () => {
     setError(null);
 
     try {
+      // User gesture: request desktop notification permission when enabling chat alerts.
+      if (nextValue && (key === 'communicationMessages' || key === 'toastPreviews')) {
+        void ensureDesktopNotificationPermission();
+      }
       const savedPreferences = await saveNotificationPreferences({ [key]: nextValue });
       setPreferences(savedPreferences);
       setSaveState('saved');

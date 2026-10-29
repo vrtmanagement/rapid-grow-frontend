@@ -3,6 +3,7 @@ import './spacesTaskSurfaces.css';
 import { createPortal } from 'react-dom';
 import { Paperclip, Plus, X } from 'lucide-react';
 import { FileDropZone } from '../ui/FileDropZone';
+import { VoiceToTextField } from '../ui/VoiceToTextField';
 import { CREATE_INPUT_CLASS, ThemedDatePicker, ThemedSelect } from './SpacesFormControls';
 import type { SpacesViewController } from '../../hooks/spaces/useSpacesViewController';
 import SpacesTaskAutomationSection from './SpacesTaskAutomationSection';
@@ -368,14 +369,22 @@ const SpacesTaskCreateModal: React.FC<SpacesTaskCreateModalProps> = (props) => {
               <div className="space-y-5">
                 <div>
                   <label className="mb-2 block text-xs font-semibold tracking-normal text-slate-600">Task Name *</label>
-                  <input value={title} onChange={(e) => setTitle(e.target.value)} className={CREATE_INPUT_CLASS} placeholder="Enter task name" />
+                  <VoiceToTextField
+                    as="input"
+                    value={title}
+                    onChange={setTitle}
+                    className={CREATE_INPUT_CLASS}
+                    placeholder="Enter task name"
+                  />
                 </div>
 
                 <div>
                   <label className="mb-2 block text-xs font-semibold tracking-normal text-slate-600">Description</label>
-                  <textarea
+                  <VoiceToTextField
+                    as="textarea"
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    onChange={setDescription}
+                    rows={5}
                     className="min-h-[132px] w-full resize-y rounded-lg border border-slate-200 bg-white px-3.5 py-3 text-sm leading-6 text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-brand-red focus:ring-2 focus:ring-brand-red/10"
                     placeholder="Add task description..."
                   />

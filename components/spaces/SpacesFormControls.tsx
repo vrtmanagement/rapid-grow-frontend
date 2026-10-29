@@ -131,9 +131,11 @@ export const ThemedDatePicker: React.FC<{
   active = false,
 }) => {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState<Date>(() => parseDateValue(value) || new Date());
   const [openAbove, setOpenAbove] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 270 });
   const useCompactCalendar = compact || pill;
   const startOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
   const monthLabel = viewDate.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: getUserTimeZone() });
@@ -159,7 +161,8 @@ export const ThemedDatePicker: React.FC<{
   useEffect(() => {
     if (!open) return;
     const handleOutsideClick = (event: MouseEvent) => {
-      if (!wrapperRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (!wrapperRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
     };
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
@@ -171,9 +174,19 @@ export const ThemedDatePicker: React.FC<{
       if (!wrapperRef.current) return;
       const rect = wrapperRef.current.getBoundingClientRect();
       const estimatedHeight = useCompactCalendar ? 240 : 290;
+      const menuWidth = useCompactCalendar ? 248 : 270;
+      const gap = useCompactCalendar ? 6 : 8;
       const spaceBelow = window.innerHeight - rect.bottom;
       const spaceAbove = rect.top;
-      setOpenAbove(forceOpenDown ? false : spaceBelow < estimatedHeight && spaceAbove > spaceBelow);
+      const shouldOpenAbove = forceOpenDown ? false : spaceBelow < estimatedHeight + gap && spaceAbove > spaceBelow;
+      setOpenAbove(shouldOpenAbove);
+      setMenuPosition({
+        left: Math.min(rect.left, Math.max(8, window.innerWidth - menuWidth - 8)),
+        top: shouldOpenAbove
+          ? Math.max(8, rect.top - estimatedHeight - gap)
+          : rect.bottom + gap,
+        width: menuWidth,
+      });
     };
     updatePlacement();
     window.addEventListener('resize', updatePlacement);
@@ -218,47 +231,56 @@ export const ThemedDatePicker: React.FC<{
         ) : null}
       </button>
 
-      {open && !disabled && (
-        <div
-          className={`themed-control-menu themed-date-picker absolute left-0 z-50 border border-slate-200 bg-white shadow-lg ${
-            useCompactCalendar
-              ? `w-[248px] rounded-[18px] p-2 ${openAbove ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}`
-              : `w-[270px] rounded-[22px] p-2.5 ${openAbove ? 'bottom-full mb-2' : 'top-full mt-2'}`
-          }`}
-        >
-          <div className={`flex items-center justify-between ${useCompactCalendar ? 'mb-1.5' : 'mb-2'}`}>
-            <div className={`${useCompactCalendar ? 'text-[13px]' : 'text-[14px]'} font-semibold text-slate-900`}>{monthLabel}</div>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))} className={`inline-flex items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:border-brand-red/20 hover:bg-red-50 hover:text-brand-red ${useCompactCalendar ? 'h-7 w-7' : 'h-8 w-8'}`}><ChevronLeft size={useCompactCalendar ? 14 : 15} /></button>
-              <button type="button" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))} className={`inline-flex items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:border-brand-red/20 hover:bg-red-50 hover:text-brand-red ${useCompactCalendar ? 'h-7 w-7' : 'h-8 w-8'}`}><ChevronRight size={useCompactCalendar ? 14 : 15} /></button>
-            </div>
-          </div>
+      {open && !disabled
+        ? createPortal(
+            <div
+              ref={menuRef}
+              className={`themed-control-menu themed-date-picker fixed z-[240] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.16)] ${
+                useCompactCalendar ? 'rounded-[18px] p-2' : 'rounded-[22px] p-2.5'
+              }`}
+              style={{
+                top: `${menuPosition.top}px`,
+                left: `${menuPosition.left}px`,
+                width: `${menuPosition.width}px`,
+                margin: 0,
+              }}
+              data-open-above={openAbove ? 'true' : 'false'}
+            >
+              <div className={`flex items-center justify-between ${useCompactCalendar ? 'mb-1.5' : 'mb-2'}`}>
+                <div className={`${useCompactCalendar ? 'text-[13px]' : 'text-[14px]'} font-semibold text-slate-900`}>{monthLabel}</div>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))} className={`inline-flex items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:border-brand-red/20 hover:bg-red-50 hover:text-brand-red ${useCompactCalendar ? 'h-7 w-7' : 'h-8 w-8'}`}><ChevronLeft size={useCompactCalendar ? 14 : 15} /></button>
+                  <button type="button" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))} className={`inline-flex items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:border-brand-red/20 hover:bg-red-50 hover:text-brand-red ${useCompactCalendar ? 'h-7 w-7' : 'h-8 w-8'}`}><ChevronRight size={useCompactCalendar ? 14 : 15} /></button>
+                </div>
+              </div>
 
-          <div className={`grid grid-cols-7 ${useCompactCalendar ? 'mb-1 gap-0.5' : 'mb-1.5 gap-1'}`}>
-            {CALENDAR_WEEKDAYS.map((day) => (
-              <div key={day} className={`themed-date-weekday text-center font-semibold uppercase tracking-[0.08em] text-slate-400 ${useCompactCalendar ? 'text-[10px]' : 'text-[11px]'}`}>{day}</div>
-            ))}
-          </div>
+              <div className={`grid grid-cols-7 ${useCompactCalendar ? 'mb-1 gap-0.5' : 'mb-1.5 gap-1'}`}>
+                {CALENDAR_WEEKDAYS.map((day) => (
+                  <div key={day} className={`themed-date-weekday text-center font-semibold uppercase tracking-[0.08em] text-slate-400 ${useCompactCalendar ? 'text-[10px]' : 'text-[11px]'}`}>{day}</div>
+                ))}
+              </div>
 
-          <div className={`grid grid-cols-7 ${useCompactCalendar ? 'gap-0.5' : 'gap-1'}`}>
-            {calendarDays.map((day) => {
-              const inCurrentMonth = day.getMonth() === viewDate.getMonth();
-              const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
-              const isTodayValue = isSameDay(day, today);
-              return (
-                <button key={day.toISOString()} type="button" onClick={() => handleSelect(day)} className={`themed-day-cell ${useCompactCalendar ? 'h-7 rounded-lg text-[12px]' : 'h-8 rounded-xl text-[13px]'} transition-colors ${isSelected ? 'is-selected bg-brand-red text-white shadow-md' : inCurrentMonth ? 'text-slate-700 hover:bg-slate-100' : 'is-outside text-slate-300 hover:bg-slate-50'} ${isTodayValue && !isSelected ? 'is-today border border-brand-red/20 bg-red-50 text-brand-red' : ''}`}>
-                  {day.getDate()}
-                </button>
-              );
-            })}
-          </div>
+              <div className={`grid grid-cols-7 ${useCompactCalendar ? 'gap-0.5' : 'gap-1'}`}>
+                {calendarDays.map((day) => {
+                  const inCurrentMonth = day.getMonth() === viewDate.getMonth();
+                  const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
+                  const isTodayValue = isSameDay(day, today);
+                  return (
+                    <button key={day.toISOString()} type="button" onClick={() => handleSelect(day)} className={`themed-day-cell ${useCompactCalendar ? 'h-7 rounded-lg text-[12px]' : 'h-8 rounded-xl text-[13px]'} transition-colors ${isSelected ? 'is-selected bg-brand-red text-white shadow-md' : inCurrentMonth ? 'text-slate-700 hover:bg-slate-100' : 'is-outside text-slate-300 hover:bg-slate-50'} ${isTodayValue && !isSelected ? 'is-today border border-brand-red/20 bg-red-50 text-brand-red' : ''}`}>
+                      {day.getDate()}
+                    </button>
+                  );
+                })}
+              </div>
 
-          <div className={`themed-date-picker-footer flex items-center justify-between border-t border-slate-100 ${useCompactCalendar ? 'mt-1.5 pt-1.5' : 'mt-2 pt-2'}`}>
-            <button type="button" onClick={() => { onChange(''); setOpen(false); }} className={`${useCompactCalendar ? 'text-[11px]' : 'text-[12px]'} font-semibold text-slate-500 hover:text-brand-red`}>Clear</button>
-            <button type="button" onClick={() => handleSelect(new Date())} className={`rounded-full bg-brand-red font-semibold text-white hover:bg-brand-navy ${useCompactCalendar ? 'px-3 py-1 text-[11px]' : 'px-3.5 py-1.5 text-[12px]'}`}>Today</button>
-          </div>
-        </div>
-      )}
+              <div className={`themed-date-picker-footer flex items-center justify-between border-t border-slate-100 ${useCompactCalendar ? 'mt-1.5 pt-1.5' : 'mt-2 pt-2'}`}>
+                <button type="button" onClick={() => { onChange(''); setOpen(false); }} className={`${useCompactCalendar ? 'text-[11px]' : 'text-[12px]'} font-semibold text-slate-500 hover:text-brand-red`}>Clear</button>
+                <button type="button" onClick={() => handleSelect(new Date())} className={`rounded-full bg-brand-red font-semibold text-white hover:bg-brand-navy ${useCompactCalendar ? 'px-3 py-1 text-[11px]' : 'px-3.5 py-1.5 text-[12px]'}`}>Today</button>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 };

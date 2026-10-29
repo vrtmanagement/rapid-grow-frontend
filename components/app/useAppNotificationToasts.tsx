@@ -12,6 +12,7 @@ import {
   type DailyReviewReminderSettings,
 } from '../../services/dailyReviewReminderSettings';
 import {
+  broadcastNotificationPreferences,
   fetchNotificationPreferences,
   filterNotificationsByPreferences,
   getDefaultNotificationPreferences,
@@ -226,6 +227,8 @@ export function useAppNotificationToasts(
         const preferences = await fetchNotificationPreferences();
         if (active) {
           setNotificationPreferences(preferences);
+          // Keep CommunicationProvider in sync for live chat alert cards / desktop notifs.
+          broadcastNotificationPreferences(preferences);
         }
       } catch (err) {
         console.warn('Failed to load notification preferences', err);

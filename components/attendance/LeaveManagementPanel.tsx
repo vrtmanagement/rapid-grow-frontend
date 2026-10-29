@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, Info } from 'lucide-react';
 import {
   LeaveBalanceOverviewResponse,
   LeaveRequest,
@@ -170,7 +169,7 @@ const LeaveManagementPanel: React.FC<Props> = ({
       .slice(0, 4);
   }, [baseLeaves]);
 
-  const { toast, showToast } = useLeaveToast();
+  const { showToast } = useLeaveToast();
 
   const adminFilters = useLeaveAdminOverviewFilters({ baseLeaves, viewerRole, employeeDirectory });
 
@@ -251,17 +250,6 @@ const LeaveManagementPanel: React.FC<Props> = ({
 
   return (
     <div className="space-y-8">
-      {toast ? (
-        <div className={`fixed right-6 top-6 z-50 inline-flex items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold shadow-sm ${
-          toast.tone === 'success'
-            ? 'border-emerald-200 bg-white text-emerald-700'
-            : 'border-slate-200 bg-white text-slate-700'
-        }`}>
-          {toast.tone === 'success' ? <CheckCircle2 size={18} /> : <Info size={18} />}
-          {toast.message}
-        </div>
-      ) : null}
-
       {showWorkspaceSection && viewerRole === 'team_lead' ? (
         <PendingApprovalsPanel
           pendingLeaves={pendingLeaves}

@@ -11,7 +11,7 @@ import {
   Zap,
 } from 'lucide-react';
 import ReflectionHabitsCard from '../components/reflection/ReflectionHabitsCard';
-import { ReflectionField } from './ReflectionField';
+import { ReflectionField, ReflectionVoiceTextarea } from './ReflectionField';
 import type { PlanningState } from '../types';
 import type { ReflectionRecord } from './reflectionViewHelpers';
 import { getUserTimeZone } from '../utils/timezone';
@@ -27,9 +27,7 @@ export type ReflectionFormPanelProps = {
   importedTaskCount: number;
   syncLoading: boolean;
   tomorrowPreviewTasks: string[];
-  error: string | null;
-  successMessage: string | null;
-  handleSave: () => void;
+  handleSave: (override?: Partial<PlanningState['reflection']>) => void;
   saving: boolean;
 };
 
@@ -44,11 +42,17 @@ export const ReflectionFormPanel: React.FC<ReflectionFormPanelProps> = ({
   importedTaskCount,
   syncLoading,
   tomorrowPreviewTasks,
-  error,
-  successMessage,
   handleSave,
   saving,
-}) => (
+}) => {
+  const formLocked = !!myTodayRecord && !editingId;
+  const voiceSave =
+    (key: keyof PlanningState['reflection']) =>
+    (nextValue: string) => {
+      handleSave({ [key]: nextValue });
+    };
+
+  return (
   <div className="mx-auto max-w-6xl scroll-mt-24 pt-2">
     <div className="grid gap-8 lg:grid-cols-12">
       <aside className="lg:col-span-4">
@@ -103,6 +107,8 @@ export const ReflectionFormPanel: React.FC<ReflectionFormPanelProps> = ({
               icon={<Zap className="text-brand-red" size={20} />}
               placeholder="Summarize wins, deliveries, and momentum you created today..."
               helper={taskSyncHint}
+              disabled={formLocked}
+              onVoiceSave={voiceSave('accomplishments')}
               footer={
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700">
@@ -123,6 +129,8 @@ export const ReflectionFormPanel: React.FC<ReflectionFormPanelProps> = ({
               onChange={(v) => handleChange('mistakes', v)}
               icon={<AlertCircle className="text-brand-red" size={20} />}
               placeholder="Capture setbacks honestly and what you will do differently..."
+              disabled={formLocked}
+              onVoiceSave={voiceSave('mistakes')}
             />
 
             <ReflectionField
@@ -132,6 +140,8 @@ export const ReflectionFormPanel: React.FC<ReflectionFormPanelProps> = ({
               onChange={(v) => handleChange('forgotten', v)}
               icon={<ShieldCheck className="text-slate-700" size={20} />}
               placeholder="Note open loops so they do not get lost overnight..."
+              disabled={formLocked}
+              onVoiceSave={voiceSave('forgotten')}
             />
 
             <ReflectionField
@@ -141,6 +151,8 @@ export const ReflectionFormPanel: React.FC<ReflectionFormPanelProps> = ({
               onChange={(v) => handleChange('energyPeaks', v)}
               icon={<BrainCircuit className="text-brand-red" size={20} />}
               placeholder="Morning focus block, collaboration, deep work — what gave you energy?"
+              disabled={formLocked}
+              onVoiceSave={voiceSave('energyPeaks')}
             />
 
             <div className="relative overflow-hidden rounded-2xl border border-brand-red/20 bg-gradient-to-br from-red-50 via-white to-white p-5 sm:p-6">
@@ -151,17 +163,24 @@ export const ReflectionFormPanel: React.FC<ReflectionFormPanelProps> = ({
                     <Target size={18} />
                   </span>
                   <div>
-                    <label className="text-base font-semibold text-slate-900">Top priorities for tomorrow</label>
+                    <label className="text-base font-semibold text-slate-900">
+                      Top priorities for tomorrow
+                      <span className="ml-1 text-brand-red" aria-hidden="true">
+                        *
+                      </span>
+                    </label>
                     <p className="mt-1 text-sm text-slate-500">
                       Tasks added here will automatically appear in your TaskHub for tomorrow.
                     </p>
                   </div>
                 </div>
-                <textarea
+                <ReflectionVoiceTextarea
                   value={state.reflection.bigRocksTomorrow}
-                  onChange={(e) => handleChange('bigRocksTomorrow', e.target.value)}
+                  onChange={(v) => handleChange('bigRocksTomorrow', v)}
                   rows={4}
-                  className="w-full resize-none overflow-y-auto rounded-xl border border-brand-red/15 bg-white px-4 py-3 text-[15px] leading-relaxed text-slate-800 shadow-sm outline-none transition-all placeholder:text-slate-400 focus:border-brand-red focus:ring-4 focus:ring-brand-red/10"
+                  disabled={formLocked}
+                  onVoiceSave={voiceSave('bigRocksTomorrow')}
+                  className="w-full resize-none overflow-y-auto rounded-xl border border-brand-red/15 bg-white px-4 py-3 pr-12 text-[15px] leading-relaxed text-slate-800 shadow-sm outline-none transition-all placeholder:text-slate-400 focus:border-brand-red focus:ring-4 focus:ring-brand-red/10"
                   placeholder="List the 1–3 most important tasks to start tomorrow with clarity."
                 />
                 <div className="rounded-xl border border-brand-red/10 bg-white/80 px-4 py-3">
@@ -188,14 +207,6 @@ export const ReflectionFormPanel: React.FC<ReflectionFormPanelProps> = ({
           </div>
 
           <div className="border-t border-slate-100 bg-slate-50/80 px-6 py-5 sm:px-8">
-            {error ? (
-              <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
-            ) : null}
-            {successMessage ? (
-              <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {successMessage}
-              </p>
-            ) : null}
             {!editingId && myTodayRecord ? (
               <p className="mb-4 text-sm text-slate-600">
                 You already submitted today&apos;s report. Use <span className="font-semibold">All Logs</span> to edit if needed.
@@ -203,8 +214,8 @@ export const ReflectionFormPanel: React.FC<ReflectionFormPanelProps> = ({
             ) : null}
             <button
               type="button"
-              onClick={handleSave}
-              disabled={saving || (!!myTodayRecord && !editingId)}
+              onClick={() => handleSave()}
+              disabled={saving || formLocked}
               className="flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-brand-red to-[#c41e24] px-6 py-4 text-[15px] font-semibold text-white shadow-[0_14px_30px_rgba(230,28,33,0.28)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(230,28,33,0.32)] hover:from-brand-navy hover:to-slate-900 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
             >
               <Send size={20} className="-rotate-45" />
@@ -215,4 +226,5 @@ export const ReflectionFormPanel: React.FC<ReflectionFormPanelProps> = ({
       </div>
     </div>
   </div>
-);
+  );
+};

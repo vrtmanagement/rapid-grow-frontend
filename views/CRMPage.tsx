@@ -5,6 +5,7 @@ import { API_BASE, getStoredAuthSession } from '../config/api';
 import { peekApiCache } from '../services/apiCache';
 import { crmJson } from '../services/crmApi';
 import CRMPagePanels from '../components/crm/CRMPagePanels';
+import { appToast } from '../components/ui/Toast';
 
 const baseTabs = ['HOT', 'WARM', 'COLD'];
 const RESERVED_TAB_NAMES = new Set(baseTabs);
@@ -22,7 +23,6 @@ type ConfirmAction =
   | null;
 type TabInfo = { id: string; name: string };
 type ToastTone = 'success' | 'error';
-type ToastItem = { id: number; tone: ToastTone; message: string };
 type StaffOption = { id: string; empId: string; name: string; role: string };
 type ScopedPerson = { id: string; role: string; name: string };
 type LeadActionItem = { id: string; title: string; description: string };
@@ -103,7 +103,6 @@ const CRMPage: React.FC = () => {
   const [renamingTabName, setRenamingTabName] = useState('');
   const [openLeftTabMenu, setOpenLeftTabMenu] = useState('');
   const [pageLoading, setPageLoading] = useState(false);
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [cardFilter, setCardFilter] = useState<CardFilter>({ type: 'none' });
   const latestLoadRequestRef = useRef(0);
   const roleFilterDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -177,11 +176,8 @@ const CRMPage: React.FC = () => {
   }, [customTabs]);
 
   const pushToast = (message: string, tone: ToastTone = 'success') => {
-    const id = Date.now() + Math.floor(Math.random() * 1000);
-    setToasts((prev) => [...prev, { id, tone, message }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((toast) => toast.id !== id));
-    }, 3200);
+    if (tone === 'error') appToast.error(message);
+    else appToast.success(message);
   };
 
   useEffect(() => {
@@ -429,7 +425,7 @@ const CRMPage: React.FC = () => {
   }, []);
 
 
-  return <CRMPagePanels ctx={{CRM_ACTIVE_TAB_STORAGE_KEY, CRM_ROLE_FILTER_STORAGE_KEY, PAGE_SIZE, PAGE_SIZE_OPTIONS, RESERVED_TAB_NAMES, actionLoading, activeTab, baseTabs, buildListQuery, canUseRoleFilters, cardFilter, closeDeleteConfirm, confirmAction, confirmDeleteTab, confirmTargetLead, createTabOpen, currentCustomTab, currentUserId, currentUserRoleLabel, customTabMap, customTabs, debouncedSearch, deletingHiddenCustomLeads, deletingId, editingLead, filteredPeopleOptions, getStoredRoleFilter, hiddenCustomLeadsCount, importOpen, isSearchPending, latestLoadRequestRef, leadFormOpen, leads, leftTabsMenuRef, loadAll, loadLeads, loadMeta, moveDestination, moveDropdownOpen, moveModalOpen, navigate, newTabName, openLeftTabMenu, page, pageLoading, pageNumbers, pageSize, pageWindowEnd, pageWindowStart, peopleOptions, personDropdownOpen, personFilterId, personFilterInitialized, personParams, personSearch, pushToast, renamingTab, renamingTabName, role, roleFilterDropdownRef, search, selectedIds, selectedPerson, selectedPersonLabel, selectedScopePerson, sessionEmployee, setActionLoading, setActiveTab, setCardFilter, setConfirmAction, setConfirmDeleteTab, setConfirmTargetLead, setCreateTabOpen, setCustomTabs, setDeletingHiddenCustomLeads, setDeletingId, setEditingLead, setImportOpen, setLeadFormOpen, setLeads, setMoveDestination, setMoveDropdownOpen, setMoveModalOpen, setNewTabName, setOpenLeftTabMenu, setPage, setPageLoading, setPageSize, setPersonDropdownOpen, setPersonFilterId, setPersonFilterInitialized, setPersonSearch, setRenamingTab, setRenamingTabName, setSearch, setSelectedIds, setStaffOptions, setStats, setTabsHydrated, setToasts, setTotal, staffOptions, stats, storedRoleFilter, syncActiveTabCount, tabs, tabsHydrated, toasts, total, totalPages, visibleCustomCount}} />;
+  return <CRMPagePanels ctx={{CRM_ACTIVE_TAB_STORAGE_KEY, CRM_ROLE_FILTER_STORAGE_KEY, PAGE_SIZE, PAGE_SIZE_OPTIONS, RESERVED_TAB_NAMES, actionLoading, activeTab, baseTabs, buildListQuery, canUseRoleFilters, cardFilter, closeDeleteConfirm, confirmAction, confirmDeleteTab, confirmTargetLead, createTabOpen, currentCustomTab, currentUserId, currentUserRoleLabel, customTabMap, customTabs, debouncedSearch, deletingHiddenCustomLeads, deletingId, editingLead, filteredPeopleOptions, getStoredRoleFilter, hiddenCustomLeadsCount, importOpen, isSearchPending, latestLoadRequestRef, leadFormOpen, leads, leftTabsMenuRef, loadAll, loadLeads, loadMeta, moveDestination, moveDropdownOpen, moveModalOpen, navigate, newTabName, openLeftTabMenu, page, pageLoading, pageNumbers, pageSize, pageWindowEnd, pageWindowStart, peopleOptions, personDropdownOpen, personFilterId, personFilterInitialized, personParams, personSearch, pushToast, renamingTab, renamingTabName, role, roleFilterDropdownRef, search, selectedIds, selectedPerson, selectedPersonLabel, selectedScopePerson, sessionEmployee, setActionLoading, setActiveTab, setCardFilter, setConfirmAction, setConfirmDeleteTab, setConfirmTargetLead, setCreateTabOpen, setCustomTabs, setDeletingHiddenCustomLeads, setDeletingId, setEditingLead, setImportOpen, setLeadFormOpen, setLeads, setMoveDestination, setMoveDropdownOpen, setMoveModalOpen, setNewTabName, setOpenLeftTabMenu, setPage, setPageLoading, setPageSize, setPersonDropdownOpen, setPersonFilterId, setPersonFilterInitialized, setPersonSearch, setRenamingTab, setRenamingTabName, setSearch, setSelectedIds, setStaffOptions, setStats, setTabsHydrated, setTotal, staffOptions, stats, storedRoleFilter, syncActiveTabCount, tabs, tabsHydrated, total, totalPages, visibleCustomCount}} />;
 };
 
 export default CRMPage;
