@@ -26,6 +26,12 @@ import {
   mergeConversationSummaries,
 } from './communicationContextHelpers';
 import { avatarFromDirectory, loadEmployeeAvatarDirectory } from './communicationAvatarDirectory';
+import {
+  ensureDesktopNotificationPermission,
+  getDesktopNotificationPermission,
+  registerCommunicationNotificationServiceWorker,
+  subscribeDesktopChatNotificationOpen,
+} from '../browserNotifications';
 import { useCommunicationSocket } from './useCommunicationSocket';
 import { useCommunicationActions } from './useCommunicationActions';
 
@@ -56,6 +62,8 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   // Actions set it early before setState; a presence/typing re-render with the
   // previous selected key was resetting the ref and dropping live messages.
   const selectedConversationKeyRef = useRef<string | null>(null);
+  const isCommunicationRouteRef = useRef(isCommunicationRoute);
+  isCommunicationRouteRef.current = isCommunicationRoute;
   const usersRef = useRef<ChatUser[]>([]);
   usersRef.current = users;
   const conversationsRef = useRef<ChatConversationSummary[]>([]);
@@ -177,12 +185,30 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   }, []);
 
   useEffect(() => {
-    if (notificationPreferences.communicationMessages && notificationPreferences.toastPreviews) return;
+    if (notificationPreferences.communicationMessages !== false) return;
 
     Object.values(notificationTimersRef.current).forEach((timer) => window.clearTimeout(timer as number));
     notificationTimersRef.current = {};
     setNotifications([]);
-  }, [notificationPreferences.communicationMessages, notificationPreferences.toastPreviews]);
+  }, [notificationPreferences.communicationMessages]);
+
+  // Register SW early so background-tab OS notifications work (WhatsApp-style).
+  useEffect(() => {
+    void registerCommunicationNotificationServiceWorker();
+  }, []);
+
+  // Ask for browser/OS notification permission once chat alerts are enabled.
+  // Many browsers require a user gesture, so bind to the first pointer interaction.
+  useEffect(() => {
+    if (notificationPreferences.communicationMessages === false) return;
+    if (getDesktopNotificationPermission() !== 'default') return;
+
+    const requestOnce = () => {
+      void ensureDesktopNotificationPermission();
+    };
+    window.addEventListener('pointerdown', requestOnce, { once: true });
+    return () => window.removeEventListener('pointerdown', requestOnce);
+  }, [notificationPreferences.communicationMessages]);
 
   const loadUsers = useCallback(async (options?: { force?: boolean }) => {
     const hasCache = !options?.force && hasTabEndpointCache('communication', '/communication/users');
@@ -302,20 +328,31 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
 
   const directoryLoadedRef = useRef(false);
 
-  // Load chat directory only when the Communication tab is opened.
+  // Prefetch chat directory once authenticated so live alerts have sender names
+  // and unread badges update even before the Communication tab is opened.
   useEffect(() => {
-    if (!isCommunicationRoute) return;
+    if (!currentUser?.id) return;
     if (directoryLoadedRef.current) return;
     directoryLoadedRef.current = true;
     loadUsers();
     loadConversations();
-  }, [isCommunicationRoute, loadUsers, loadConversations]);
+  }, [currentUser?.id, loadUsers, loadConversations]);
 
   // Keep server read-state aligned while a conversation stays open on screen.
   useEffect(() => {
-    if (!selectedConversationKey) return;
+    if (!isCommunicationRoute || !selectedConversationKey || !socket) return;
+    socket.emit('comm:join', { conversationKey: selectedConversationKey });
     void markConversationSeen(selectedConversationKey, { immediate: true });
-  }, [selectedConversationKey, markConversationSeen]);
+  }, [isCommunicationRoute, selectedConversationKey, markConversationSeen, socket]);
+
+  // Leaving Communication must clear server "open conversation" so new messages
+  // are not auto-marked seen (eye icon) while the user is on another tab/page.
+  useEffect(() => {
+    if (isCommunicationRoute) return;
+    const key = selectedConversationKeyRef.current;
+    if (!key || !socket) return;
+    socket.emit('comm:conversation:close', { conversationKey: key });
+  }, [isCommunicationRoute, socket]);
 
   useEffect(() => {
     const handleProfileAvatarUpdated = (event: Event) => {
@@ -410,6 +447,7 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
   useCommunicationSocket({
     socket,
     selectedConversationKeyRef,
+    isCommunicationRouteRef,
     usersRef,
     conversationsRef,
     currentUserRef,
@@ -470,6 +508,16 @@ export function CommunicationProvider({ children }: { children: React.ReactNode 
     setMessages,
     setPinnedMessage,
   });
+
+  // Clicking an OS/desktop notification focuses the app and opens that chat.
+  useEffect(() => {
+    return subscribeDesktopChatNotificationOpen((conversationKey) => {
+      if (!location.pathname.startsWith('/communication')) {
+        navigate('/communication');
+      }
+      void joinByConversationKey(conversationKey);
+    });
+  }, [joinByConversationKey, location.pathname, navigate]);
 
   const selectedConversation = useMemo(() => {
     if (!selectedConversationKey) return null;

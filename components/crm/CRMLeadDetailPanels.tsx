@@ -81,11 +81,9 @@ const CRMLeadDetailPanels: React.FC<CRMLeadDetailPanelsProps> = ({ ctx }) => {
     setNotesDraft,
     setSavingDetails,
     setSavingMeta,
-    setToasts,
     statusTone,
     tabOptions,
-    toasts,
-  } = ctx;
+    } = ctx;
 
   return (
   <div className="space-y-5">

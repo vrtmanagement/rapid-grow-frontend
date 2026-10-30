@@ -4,9 +4,9 @@ import { crmJson } from '../services/crmApi';
 import { getStoredAuthSession } from '../config/api';
 import { getUserTimeZone } from '../utils/timezone';
 import CRMLeadDetailPanels from '../components/crm/CRMLeadDetailPanels';
+import { appToast } from '../components/ui/Toast';
 
 type ToastTone = 'success' | 'error';
-type ToastItem = { id: number; tone: ToastTone; message: string };
 type LeadActionItem = {
   id: string;
   title: string;
@@ -31,7 +31,6 @@ const CRMLeadDetailPage: React.FC = () => {
   const { leadId = '' } = useParams();
   const [lead, setLead] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [customTabs, setCustomTabs] = useState<TabInfo[]>([]);
   const [editingSection, setEditingSection] = useState<'none' | 'lead' | 'company'>('none');
   const [savingDetails, setSavingDetails] = useState(false);
@@ -101,9 +100,8 @@ const CRMLeadDetailPage: React.FC = () => {
   };
 
   const pushToast = (message: string, tone: ToastTone = 'success') => {
-    const id = Date.now() + Math.floor(Math.random() * 1000);
-    setToasts((prev) => [...prev, { id, tone, message }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3200);
+    if (tone === 'error') appToast.error(message);
+    else appToast.success(message);
   };
   const getStoredActionsFromLead = (leadSource: any): LeadActionItem[] => {
     const customFields = leadSource?.customFields || {};
@@ -460,7 +458,7 @@ const CRMLeadDetailPage: React.FC = () => {
   };
 
 
-  return <CRMLeadDetailPanels ctx={{actionDescription, actionModalOpen, actionTitle, actions, actorAvatarUrl, actorInitials, actorName, canEditLeadType, canUseAllPeopleScope, companyLinkedIn, currentTabLabel, customFieldEntries, customFieldsDraft, customTabs, deleteLeadConfirmOpen, deleteTarget, deletingLead, editForm, editingAction, editingCustomFields, editingNotes, editingSection, fixedCustomFieldKeys, formActiveTab, formatActionDateTime, fullName, fullViewAction, getStoredActionsFromLead, handleSaveDetails, hasCustomFieldsCard, hasNotesCard, initializeEditForm, initializeMetaDrafts, initials, lead, leadFormOpen, leadTypeTone, linkedInProfile, loading, navigate, normalizeCustomFieldKey, notesDraft, notesValue, openLeadFormModal, persistActions, persistMeta, pushToast, readCustomField, readCustomFieldByAliases, renderClickableValue, role, savingDetails, savingMeta, sessionEmployee, setActionDescription, setActionModalOpen, setActionTitle, setActions, setCustomFieldsDraft, setCustomTabs, setDeleteLeadConfirmOpen, setDeleteTarget, setDeletingLead, setEditForm, setEditingAction, setEditingCustomFields, setEditingNotes, setEditingSection, setFullViewAction, setLead, setLeadFormOpen, setLoading, setNotesDraft, setSavingDetails, setSavingMeta, setToasts, statusTone, tabOptions, toasts}} />;
+  return <CRMLeadDetailPanels ctx={{actionDescription, actionModalOpen, actionTitle, actions, actorAvatarUrl, actorInitials, actorName, canEditLeadType, canUseAllPeopleScope, companyLinkedIn, currentTabLabel, customFieldEntries, customFieldsDraft, customTabs, deleteLeadConfirmOpen, deleteTarget, deletingLead, editForm, editingAction, editingCustomFields, editingNotes, editingSection, fixedCustomFieldKeys, formActiveTab, formatActionDateTime, fullName, fullViewAction, getStoredActionsFromLead, handleSaveDetails, hasCustomFieldsCard, hasNotesCard, initializeEditForm, initializeMetaDrafts, initials, lead, leadFormOpen, leadTypeTone, linkedInProfile, loading, navigate, normalizeCustomFieldKey, notesDraft, notesValue, openLeadFormModal, persistActions, persistMeta, pushToast, readCustomField, readCustomFieldByAliases, renderClickableValue, role, savingDetails, savingMeta, sessionEmployee, setActionDescription, setActionModalOpen, setActionTitle, setActions, setCustomFieldsDraft, setCustomTabs, setDeleteLeadConfirmOpen, setDeleteTarget, setDeletingLead, setEditForm, setEditingAction, setEditingCustomFields, setEditingNotes, setEditingSection, setFullViewAction, setLead, setLeadFormOpen, setLoading, setNotesDraft, setSavingDetails, setSavingMeta, statusTone, tabOptions}} />;
 };
 
 export default CRMLeadDetailPage;

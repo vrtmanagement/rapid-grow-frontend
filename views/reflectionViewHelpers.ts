@@ -2,7 +2,7 @@ import type { PlanningState } from '../types';
 import type { DailyCompletedTaskSyncItem } from '../services/reviewMatrixAccomplishmentSync';
 import { getUserTimeZone } from '../utils/timezone';
 
-export type ReflectionPanel = 'form' | 'logs';
+export type ReflectionPanel = 'form' | 'logs' | 'hourly';
 
 export interface ReflectionViewProps {
   state: PlanningState;

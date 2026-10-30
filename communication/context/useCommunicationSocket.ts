@@ -1,5 +1,11 @@
 import { useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
-import { ChatConversationSummary, ChatMessage, ChatNotification, ChatPinnedMessage, ChatUser } from '../types';
+import type {
+  ChatConversationSummary,
+  ChatMessage,
+  ChatNotification,
+  ChatPinnedMessage,
+  ChatUser,
+} from '../types';
 import {
   ensureSocketConnected,
   mapApiHistoryMessage,
@@ -15,6 +21,7 @@ type CurrentUser = { id: string; name: string; role: string; empId?: string; ava
 type UseCommunicationSocketArgs = {
   socket: any;
   selectedConversationKeyRef: MutableRefObject<string | null>;
+  isCommunicationRouteRef: MutableRefObject<boolean>;
   usersRef: MutableRefObject<ChatUser[]>;
   conversationsRef: MutableRefObject<ChatConversationSummary[]>;
   currentUserRef: MutableRefObject<CurrentUser>;
@@ -37,6 +44,7 @@ type UseCommunicationSocketArgs = {
 export function useCommunicationSocket({
   socket,
   selectedConversationKeyRef,
+  isCommunicationRouteRef,
   usersRef,
   conversationsRef,
   currentUserRef,
@@ -130,7 +138,11 @@ export function useCommunicationSocket({
       }
     };
 
-    const appendIncomingMessage = (mapped: ChatMessage, conversationKey: string) => {
+    const appendIncomingMessage = (
+      mapped: ChatMessage,
+      conversationKey: string,
+      senderHint?: { id?: string; name?: string; avatar?: string } | null,
+    ) => {
       const messageId = String(mapped.id || '');
       if (!messageId || !conversationKey) return;
       if (seenSocketMessageIdsRef.current[messageId]) {
@@ -146,47 +158,25 @@ export function useCommunicationSocket({
       lastMessageIdByConversationKeyRef.current[conversationKey] = messageId;
 
       const isIncoming = mapped.senderId !== currentUserRef.current?.id;
-      const isCurrentConversationOpen = selectedConversationKeyRef.current === conversationKey;
-      const prefs = notificationPreferencesRef.current;
-      const shouldNotify =
-        isIncoming &&
-        !isCurrentConversationOpen &&
-        prefs.communicationMessages &&
-        prefs.toastPreviews;
+      // Only treat as "open/viewing" while Communication tab is actually on screen.
+      const isCurrentConversationOpen =
+        isCommunicationRouteRef.current && selectedConversationKeyRef.current === conversationKey;
 
-      if (shouldNotify) {
-        const sender =
-          usersRef.current.find((user) => user.id === mapped.senderId) ||
-          conversationsRef.current.find((conversation) => conversation.conversationKey === conversationKey)?.otherUser ||
-          null;
-        const senderName = sender?.name || 'New message';
-        const avatar =
-          sender?.avatar ||
-          conversationsRef.current.find((conversation) => conversation.conversationKey === conversationKey)?.avatar;
-        const nextNotification: ChatNotification = {
-          id: `notif_${mapped.id}`,
-          conversationKey,
-          senderName,
-          messagePreview: messagePreviewFromMessage(mapped),
-          avatar,
-          createdAt: Date.now(),
-        };
+      // In-app/desktop alerts are owned exclusively by useGlobalChatAlerts.
 
-        setNotifications((prev) => {
-          const existing = prev.filter((item) => item.id !== nextNotification.id);
-          const next = [...existing, nextNotification].slice(-3);
-          const nextIds = new Set(next.map((item) => item.id));
-          Object.keys(notificationTimersRef.current).forEach((id) => {
-            if (!nextIds.has(id)) {
-              window.clearTimeout(notificationTimersRef.current[id]);
-              delete notificationTimersRef.current[id];
-            }
-          });
-          return next;
-        });
-
-        scheduleNotificationAutoDismissRef.current(nextNotification.id);
-      }
+      const senderFromDirectory =
+        usersRef.current.find((user) => user.id === mapped.senderId) ||
+        conversationsRef.current.find((conversation) => conversation.conversationKey === conversationKey)
+          ?.otherUser ||
+        null;
+      const senderName =
+        String(senderHint?.name || '').trim() || senderFromDirectory?.name || 'New message';
+      const avatar =
+        String(senderHint?.avatar || '').trim() ||
+        senderFromDirectory?.avatar ||
+        conversationsRef.current.find((conversation) => conversation.conversationKey === conversationKey)
+          ?.avatar;
+      const messagePreview = messagePreviewFromMessage(mapped);
 
       // Always upsert for the open conversation (read ref at apply-time too).
       setMessages((prev) => {
@@ -196,26 +186,51 @@ export function useCommunicationSocket({
 
       // Update conversation ordering + preview
       setConversations((prev) => {
-        const preview = messagePreviewFromMessage(mapped).slice(0, 120);
+        const preview = messagePreview.slice(0, 120);
         const at = mapped.createdAt;
+        const isOpen =
+          isCommunicationRouteRef.current && selectedConversationKeyRef.current === conversationKey;
+        const shouldIncrementUnread = !isOpen && isIncoming;
+
+        const existing = prev.find((c) => c.conversationKey === conversationKey);
+        if (!existing) {
+          const isChannel = conversationKey.startsWith('channel:');
+          const stubOtherUser =
+            !isChannel && mapped.senderId
+              ? ({
+                  id: String(mapped.senderId),
+                  empId: '',
+                  name: senderName,
+                  role: '',
+                  roleGroup: 'employees' as const,
+                  avatar,
+                  online: true,
+                  lastSeenAt: null,
+                } satisfies ChatUser)
+              : null;
+          const stub = {
+            conversationKey,
+            type: (isChannel ? 'channel' : 'dm') as ChatConversationSummary['type'],
+            title: isChannel ? conversationKey.replace(/^channel:/, '') : senderName,
+            avatar,
+            otherUser: stubOtherUser,
+            lastMessagePreview: preview,
+            lastMessageAt: at,
+            unreadCount: shouldIncrementUnread ? 1 : 0,
+          } satisfies ChatConversationSummary;
+          return [stub, ...prev];
+        }
 
         const updated = prev.map((c) => {
           if (c.conversationKey !== conversationKey) return c;
-
-          // If this conversation isn't open and the message isn't mine, mark unread.
-          const isOpen = selectedConversationKeyRef.current === conversationKey;
-          const shouldIncrementUnread = !isOpen && mapped.senderId !== currentUserRef.current?.id;
-          const unreadCount = shouldIncrementUnread ? (c.unreadCount || 0) + 1 : c.unreadCount || 0;
-
           return {
             ...c,
             lastMessagePreview: preview,
             lastMessageAt: at,
-            unreadCount,
+            unreadCount: shouldIncrementUnread ? (c.unreadCount || 0) + 1 : c.unreadCount || 0,
           };
         });
 
-        // If conversation isn't in our list yet (rare), ignore for now.
         return updated.slice().sort((a, b) => {
           const atA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
           const atB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
@@ -232,14 +247,30 @@ export function useCommunicationSocket({
       const conversationKey = String(payload?.conversationKey || payload?.message?.conversationKey || '');
       const msg = payload?.message;
       if (!conversationKey || !msg) return;
-      appendIncomingMessage(mapApiHistoryMessage(msg), conversationKey);
+      const senderHint = payload?.sender
+        ? {
+            id: payload.sender.id ? String(payload.sender.id) : undefined,
+            name: payload.sender.name ? String(payload.sender.name) : undefined,
+            avatar: payload.sender.avatar ? String(payload.sender.avatar) : undefined,
+          }
+        : null;
+      appendIncomingMessage(mapApiHistoryMessage(msg), conversationKey, senderHint);
     };
 
     const handleMessagesForwarded = (payload: any) => {
       const conversationKey = String(payload?.conversationKey || payload?.conversationId || '');
       const messages = Array.isArray(payload?.messages) ? payload.messages : [];
       if (!conversationKey || messages.length === 0) return;
-      messages.forEach((message) => appendIncomingMessage(mapApiHistoryMessage(message), conversationKey));
+      const senderHint = payload?.sender
+        ? {
+            id: payload.sender.id ? String(payload.sender.id) : undefined,
+            name: payload.sender.name ? String(payload.sender.name) : undefined,
+            avatar: payload.sender.avatar ? String(payload.sender.avatar) : undefined,
+          }
+        : null;
+      messages.forEach((message) =>
+        appendIncomingMessage(mapApiHistoryMessage(message), conversationKey, senderHint),
+      );
     };
 
     const handleMessageDelivery = (payload: any) => {
@@ -508,6 +539,7 @@ export function useCommunicationSocket({
   }, [
     socket,
     selectedConversationKeyRef,
+    isCommunicationRouteRef,
     usersRef,
     conversationsRef,
     currentUserRef,

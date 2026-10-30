@@ -27,6 +27,7 @@ import AttendanceReportsEmployees from './AttendanceReportsEmployees';
 import AttendanceReportsRequests, { RegularizationFormState } from './AttendanceReportsRequests';
 import AttendanceReportsSetupSection from './AttendanceReportsSetupSection';
 import { API_BASE, getAuthHeaders } from '../../config/api';
+import { appToast } from '../ui/Toast';
 
 type ReportSection = 'overview' | 'employees' | 'requests' | 'setup';
 
@@ -62,8 +63,6 @@ const AttendanceReportsPanel: React.FC<Props> = ({
   const [report, setReport] = useState<OrgAttendanceReport | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
-  const [toast, setToast] = useState<{ tone: 'success' | 'info'; message: string } | null>(null);
-
   const [holidays, setHolidays] = useState<CompanyHoliday[]>([]);
   const [holidayName, setHolidayName] = useState('');
   const [holidayDate, setHolidayDate] = useState('');
@@ -94,8 +93,8 @@ const AttendanceReportsPanel: React.FC<Props> = ({
   const [regSaving, setRegSaving] = useState(false);
 
   const showToast = useCallback((tone: 'success' | 'info', message: string) => {
-    setToast({ tone, message });
-    window.setTimeout(() => setToast(null), 3500);
+    if (tone === 'success') appToast.success(message);
+    else appToast.info(message);
   }, []);
 
   const loadReport = useCallback(async () => {
@@ -530,18 +529,6 @@ const AttendanceReportsPanel: React.FC<Props> = ({
           </div>
         ) : null}
       </div>
-
-      {toast ? (
-        <div
-          className={`rounded-xl border px-4 py-3 text-sm font-medium ${
-            toast.tone === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-              : 'border-slate-200 bg-slate-50 text-slate-700'
-          }`}
-        >
-          {toast.message}
-        </div>
-      ) : null}
 
       {section === 'overview' ? (
         <AttendanceReportsOverview

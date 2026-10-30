@@ -32,24 +32,18 @@ import {
   getMonthInputValue,
 } from './leaveManagementPanelUtils';
 import type { AttendanceEmployeeOption } from './attendanceViewUtils';
+import { appToast } from '../ui/Toast';
 
 type ViewerRole = 'employee' | 'team_lead' | 'admin';
 type ToastTone = 'success' | 'info';
 
 export function useLeaveToast() {
-  const [toast, setToast] = useState<{ tone: ToastTone; message: string } | null>(null);
-
-  useEffect(() => {
-    if (!toast) return undefined;
-    const timer = window.setTimeout(() => setToast(null), 2600);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
   const showToast = useCallback((tone: ToastTone, message: string) => {
-    setToast({ tone, message });
+    if (tone === 'success') appToast.success(message);
+    else appToast.info(message);
   }, []);
 
-  return { toast, showToast };
+  return { toast: null as { tone: ToastTone; message: string } | null, showToast };
 }
 
 export function useLeaveOverviewData({

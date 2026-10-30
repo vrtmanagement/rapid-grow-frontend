@@ -81,11 +81,9 @@ const CRMLeadDetailModals: React.FC<CRMLeadDetailModalsProps> = ({ ctx }) => {
     setNotesDraft,
     setSavingDetails,
     setSavingMeta,
-    setToasts,
     statusTone,
     tabOptions,
-    toasts,
-  } = ctx;
+    } = ctx;
 
   return (
     <>
@@ -294,21 +292,6 @@ const CRMLeadDetailModals: React.FC<CRMLeadDetailModalsProps> = ({ ctx }) => {
       </div>
     )}
 
-    <div className="fixed top-6 right-6 space-y-3 z-[130]">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className={`max-w-sm rounded-[24px] border bg-white px-5 py-4 shadow-[0_22px_50px_rgba(15,23,42,0.16)] animate-in slide-in-from-top-2 fade-in duration-300 ${
-            toast.tone === 'success' ? 'border-emerald-200' : 'border-rose-200'
-          }`}
-        >
-          <p className={`text-xs font-semibold uppercase tracking-[0.14em] ${toast.tone === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
-            {toast.tone === 'success' ? 'Success' : 'Error'}
-          </p>
-          <p className="mt-2 text-sm leading-6 text-slate-700">{toast.message}</p>
-        </div>
-      ))}
-    </div>
     </>
   );
 };

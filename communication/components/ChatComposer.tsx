@@ -1,8 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, FileUp, Image as ImageIcon, ListChecks, Loader2, Plus, Send, X } from 'lucide-react';
+import { FileText, FileUp, Image as ImageIcon, ListChecks, Loader2, Mic, MicOff, Plus, Send, X } from 'lucide-react';
 import { ChatMessage } from '../types';
 import { CreatePollModal } from './CreatePollModal';
 import { usePollStore } from '../stores/usePollStore';
+import {
+  getSpeechRecognitionConstructor,
+  insertSpokenAtCaret,
+} from '../../views/hourlyTrackingHelpers';
 
 const MAX_MESSAGE_WORDS = 800;
 
@@ -172,6 +176,17 @@ export function ChatComposer({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const baseTextareaHeightRef = useRef(0);
   const attachmentMenuRef = useRef<HTMLDivElement | null>(null);
+  const recognitionRef = useRef<{ stop: () => void; abort: () => void } | null>(null);
+  const voiceSessionRef = useRef(0);
+  const voiceInsertRef = useRef({
+    before: '',
+    after: '',
+    startResultIndex: 0,
+    lastResultsLength: 0,
+    ignoreSelect: false,
+  });
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const [listening, setListening] = useState(false);
 
   const resizeComposerTextarea = (target: HTMLTextAreaElement) => {
     baseTextareaHeightRef.current = MIN_TEXTAREA_HEIGHT;
@@ -197,6 +212,17 @@ export function ChatComposer({
     if (!textareaRef.current) return;
     resizeComposerTextarea(textareaRef.current);
   }, [content]);
+
+  useEffect(() => {
+    setVoiceSupported(!!getSpeechRecognitionConstructor());
+    return () => {
+      try {
+        recognitionRef.current?.abort();
+      } catch {
+        // ignore
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!attachmentMenuOpen) return;
@@ -269,6 +295,130 @@ export function ChatComposer({
     }
   };
 
+  const captureVoiceCaret = (options?: { reanchorSpeech?: boolean }) => {
+    const el = textareaRef.current;
+    const text = el ? el.value : content;
+    const start = el && typeof el.selectionStart === 'number' ? el.selectionStart : text.length;
+    const end = el && typeof el.selectionEnd === 'number' ? el.selectionEnd : start;
+    const prev = voiceInsertRef.current;
+    voiceInsertRef.current = {
+      before: text.slice(0, Math.max(0, start)),
+      after: text.slice(Math.max(start, end)),
+      startResultIndex: options?.reanchorSpeech ? prev.lastResultsLength : prev.startResultIndex,
+      lastResultsLength: prev.lastResultsLength,
+      ignoreSelect: prev.ignoreSelect,
+    };
+  };
+
+  const stopVoiceListening = () => {
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      // ignore
+    }
+    recognitionRef.current = null;
+    setListening(false);
+  };
+
+  const startVoiceListening = () => {
+    if (disabled || sending) return;
+    const SpeechRecognitionCtor = getSpeechRecognitionConstructor();
+    if (!SpeechRecognitionCtor) return;
+
+    if (listening) {
+      stopVoiceListening();
+      return;
+    }
+
+    const previousRecognition = recognitionRef.current;
+    recognitionRef.current = null;
+    try {
+      previousRecognition?.stop();
+    } catch {
+      // ignore
+    }
+    setListening(false);
+
+    captureVoiceCaret();
+    const insertBefore = voiceInsertRef.current.before;
+    const insertAfter = voiceInsertRef.current.after;
+    voiceInsertRef.current = {
+      before: insertBefore,
+      after: insertAfter,
+      startResultIndex: 0,
+      lastResultsLength: 0,
+      ignoreSelect: false,
+    };
+    const sessionId = ++voiceSessionRef.current;
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event: {
+      results: ArrayLike<{ 0?: { transcript?: string } }>;
+    }) => {
+      if (voiceSessionRef.current !== sessionId) return;
+
+      const anchor = voiceInsertRef.current;
+      anchor.lastResultsLength = event.results.length;
+
+      let transcript = '';
+      for (let i = anchor.startResultIndex; i < event.results.length; i += 1) {
+        const piece = event.results[i][0]?.transcript || '';
+        if (transcript && piece && !/\s$/.test(transcript) && !/^\s/.test(piece)) {
+          transcript += ' ';
+        }
+        transcript += piece;
+      }
+
+      const { text: next, cursor } = insertSpokenAtCaret(anchor.before, transcript, anchor.after);
+      if (sendError) setSendError(null);
+      setContent(next);
+      notifyTyping();
+
+      anchor.ignoreSelect = true;
+      requestAnimationFrame(() => {
+        if (voiceSessionRef.current !== sessionId) return;
+        const el = textareaRef.current;
+        if (!el) {
+          anchor.ignoreSelect = false;
+          return;
+        }
+        el.focus();
+        el.setSelectionRange(cursor, cursor);
+        resizeComposerTextarea(el);
+        requestAnimationFrame(() => {
+          anchor.ignoreSelect = false;
+        });
+      });
+    };
+
+    recognition.onerror = (event: { error?: string }) => {
+      if (voiceSessionRef.current !== sessionId) return;
+      if (event.error === 'aborted' || event.error === 'no-speech') return;
+      setListening(false);
+    };
+
+    recognition.onend = () => {
+      if (voiceSessionRef.current !== sessionId) return;
+      setListening(false);
+      if (recognitionRef.current === recognition) {
+        recognitionRef.current = null;
+      }
+      captureVoiceCaret();
+    };
+
+    recognitionRef.current = recognition;
+    setListening(true);
+    try {
+      recognition.start();
+    } catch {
+      setListening(false);
+    }
+  };
+
   const triggerFileInput = (input: HTMLInputElement | null) => {
     if (!input || input.disabled) return;
     // Reset so picking the same file again still fires onChange.
@@ -321,6 +471,8 @@ export function ChatComposer({
       setSendError(`Message cannot exceed ${MAX_MESSAGE_WORDS} words.`);
       return;
     }
+
+    if (listening) stopVoiceListening();
 
     const rawContent = content;
     const contentToSend = hasVisibleText(rawContent) ? rawContent : '';
@@ -563,11 +715,46 @@ export function ChatComposer({
               ref={textareaRef}
               value={content}
               onChange={(e) => {
+                const el = e.currentTarget;
                 if (sendError) {
                   setSendError(null);
                 }
-                setContent(e.target.value);
+                setContent(el.value);
                 notifyTyping();
+                if (listening) {
+                  const start = el.selectionStart ?? el.value.length;
+                  const end = el.selectionEnd ?? start;
+                  const prev = voiceInsertRef.current;
+                  voiceInsertRef.current = {
+                    before: el.value.slice(0, start),
+                    after: el.value.slice(end),
+                    startResultIndex: prev.lastResultsLength,
+                    lastResultsLength: prev.lastResultsLength,
+                    ignoreSelect: prev.ignoreSelect,
+                  };
+                }
+              }}
+              onClick={() => {
+                if (voiceInsertRef.current.ignoreSelect) return;
+                captureVoiceCaret({ reanchorSpeech: listening });
+              }}
+              onKeyUp={(e) => {
+                if (voiceInsertRef.current.ignoreSelect) return;
+                if (
+                  listening ||
+                  e.key === 'Enter' ||
+                  e.key.startsWith('Arrow') ||
+                  e.key === 'Home' ||
+                  e.key === 'End'
+                ) {
+                  captureVoiceCaret({ reanchorSpeech: listening });
+                } else if (!listening) {
+                  captureVoiceCaret();
+                }
+              }}
+              onSelect={() => {
+                if (voiceInsertRef.current.ignoreSelect) return;
+                captureVoiceCaret({ reanchorSpeech: listening });
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -602,6 +789,31 @@ export function ChatComposer({
               </div>
             ) : null}
           </div>
+
+          {voiceSupported ? (
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                captureVoiceCaret();
+              }}
+              onClick={() => startVoiceListening()}
+              disabled={disabled || sending}
+              className={`inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition ${
+                listening
+                  ? 'bg-brand-red text-white shadow-lg shadow-red-500/35 animate-pulse'
+                  : 'bg-red-100 text-brand-red hover:bg-red-200/80 disabled:cursor-not-allowed disabled:opacity-50'
+              }`}
+              aria-label={listening ? 'Stop voice input' : 'Start voice to text'}
+              title={listening ? 'Stop voice input' : 'Voice to text'}
+            >
+              {listening ? (
+                <MicOff size={14} strokeWidth={2.5} />
+              ) : (
+                <Mic size={14} strokeWidth={2.5} className="text-brand-red" />
+              )}
+            </button>
+          ) : null}
 
           {!editingMessage ? (
             <button

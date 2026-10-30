@@ -1,5 +1,6 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { PlanningState } from '../types';
 import { API_BASE, getAuthHeaders } from '../config/api';
 import {
@@ -13,6 +14,8 @@ import {
   CheckCircle2,
   PenLine,
   Target,
+  Clock3,
+  ClipboardList,
 } from 'lucide-react';
 import { getSocket } from '../realtime/socket';
 import { ReflectionLogSkeleton, Skeleton, SkeletonBlock } from '../components/ui/Skeleton';
@@ -37,14 +40,26 @@ import {
 } from './reflectionViewHelpers';
 import { ReflectionFormPanel } from './ReflectionFormPanel';
 import { ReflectionLogsPanel } from './ReflectionLogsPanel';
+import { HourlyTrackingPanel } from './HourlyTrackingPanel';
+import { appToast } from '../components/ui/Toast';
+
+const REFLECTION_PANEL_PARAM = 'tab';
+
+function parseReflectionPanel(value: string | null): ReflectionPanel {
+  if (value === 'logs' || value === 'hourly' || value === 'form') return value;
+  if (value === 'report' || value === 'daily') return 'form';
+  return 'form';
+}
 
 const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loading = false }) => {
   const LOGS_PER_PAGE = 5;
+  const [searchParams, setSearchParams] = useSearchParams();
   const [saving, setSaving] = useState(false);
   const [records, setRecords] = useState<ReflectionRecord[]>([]);
   const [loadingList, setLoadingList] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [activePanel, setActivePanel] = useState<ReflectionPanel>('form');
+  const [activePanel, setActivePanel] = useState<ReflectionPanel>(() =>
+    parseReflectionPanel(searchParams.get(REFLECTION_PANEL_PARAM)),
+  );
   const [scope, setScope] = useState<'me' | 'all' | 'team'>('me');
   const [logsLoaded, setLogsLoaded] = useState(false);
   const [myRecordsBootstrapped, setMyRecordsBootstrapped] = useState(false);
@@ -55,7 +70,6 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
   const [employeeOptions, setEmployeeOptions] = useState<Array<{ empId: string; empName: string; role: string }>>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ReflectionRecord | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const [taskHubCompletedTasks, setTaskHubCompletedTasks] = useState<DailyCompletedTaskSyncItem[]>([]);
   const [dismissedSyncedTaskIds, setDismissedSyncedTaskIds] = useState<string[]>([]);
@@ -67,6 +81,25 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
 
   const todayKey = getIndiaDateKey();
   const yesterdayKey = getIndiaDateKey(-1);
+
+  const setReflectionPanel = (panel: ReflectionPanel) => {
+    setActivePanel(panel);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (panel === 'form') next.delete(REFLECTION_PANEL_PARAM);
+        else next.set(REFLECTION_PANEL_PARAM, panel);
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  useEffect(() => {
+    const fromUrl = parseReflectionPanel(searchParams.get(REFLECTION_PANEL_PARAM));
+    setActivePanel((prev) => (prev === fromUrl ? prev : fromUrl));
+  }, [searchParams]);
+
   const currentEmpId = (() => {
     const raw = typeof window !== 'undefined' ? localStorage.getItem('rapidgrow-admin') : null;
     if (!raw) return null;
@@ -124,12 +157,6 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
-
-  useEffect(() => {
-    if (!successMessage) return undefined;
-    const timer = window.setTimeout(() => setSuccessMessage(null), 5000);
-    return () => window.clearTimeout(timer);
-  }, [successMessage]);
 
   const handleChange = (key: keyof typeof state.reflection, val: string) => {
     updateState(prev => ({
@@ -222,7 +249,6 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
   const loadReflections = async (scopeOverride?: 'me' | 'all' | 'team') => {
     try {
       setLoadingList(true);
-      setError(null);
       const scopeToUse = scopeOverride || scope;
       const params = new URLSearchParams();
       params.set('scope', scopeToUse);
@@ -238,27 +264,41 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
       setLogsLoaded(true);
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Failed to load reflections');
+      appToast.error(e.message || 'Failed to load reflections');
     } finally {
       setLoadingList(false);
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (override?: Partial<PlanningState['reflection']>) => {
     try {
       setSaving(true);
-      setError(null);
-      setSuccessMessage(null);
       if (!editingId && myTodayRecord) {
-        setError('You already submitted today’s report. Use Edit to update it.');
+        appToast.warning('You already submitted today’s report. Use Edit to update it.');
+        return;
+      }
+      const reflection = { ...state.reflection, ...override };
+      const requiredFields: Array<{ key: keyof PlanningState['reflection']; label: string }> = [
+        { key: 'accomplishments', label: 'What did you accomplish today?' },
+        { key: 'mistakes', label: 'What didn’t go well? What did you learn?' },
+        { key: 'forgotten', label: 'What was left unfinished or deferred?' },
+        { key: 'energyPeaks', label: 'When did you feel most energized?' },
+        { key: 'bigRocksTomorrow', label: 'Top priorities for tomorrow' },
+      ];
+      const missing = requiredFields.find(({ key }) => !String(reflection[key] ?? '').trim());
+      if (missing) {
+        appToast.error(
+          `All fields are required. Please fill “${missing.label}” with at least one character.`,
+          'Missing required field',
+        );
         return;
       }
       const body = {
-        accomplishments: state.reflection.accomplishments,
-        mistakes: state.reflection.mistakes,
-        forgotten: state.reflection.forgotten,
-        energyPeaks: state.reflection.energyPeaks,
-        bigRocksTomorrow: state.reflection.bigRocksTomorrow,
+        accomplishments: reflection.accomplishments,
+        mistakes: reflection.mistakes,
+        forgotten: reflection.forgotten,
+        energyPeaks: reflection.energyPeaks,
+        bigRocksTomorrow: reflection.bigRocksTomorrow,
         taskSync: {
           importedTaskIds,
           dismissedTaskIds: dismissedSyncedTaskIds,
@@ -279,7 +319,7 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
       }
       const data = await res.json().catch(() => ({}));
       const carryForwardMessage = String(data?.taskCarryForward?.message || '').trim();
-      setSuccessMessage(carryForwardMessage || 'Daily report saved successfully.');
+      appToast.success(carryForwardMessage || 'Daily report saved successfully.');
       // Clear form after save and reload list
       updateState(prev => ({
         ...prev,
@@ -298,7 +338,7 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
       await loadReflections();
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Failed to save reflection');
+      appToast.error(e.message || 'Failed to save reflection');
     } finally {
       setSaving(false);
     }
@@ -334,7 +374,7 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
         bigRocksTomorrow: record.bigRocksTomorrow || '',
       },
     }));
-    setActivePanel('form');
+    setReflectionPanel('form');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     void loadDailyTaskSync({
       reflectionId: record._id,
@@ -346,7 +386,6 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
   const handleDeleteClick = async (record: ReflectionRecord) => {
     if (!canEditOrDelete(record)) return;
     try {
-      setError(null);
       const res = await fetch(`${API_BASE}/reflections/${record._id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
@@ -358,10 +397,11 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
       if (editingId === record._id) {
         setEditingId(null);
       }
+      appToast.success('Daily report deleted.');
       await loadReflections();
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Failed to delete reflection');
+      appToast.error(e.message || 'Failed to delete reflection');
     }
   };
 
@@ -593,18 +633,34 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
         }
         center={
           <>
-            <button type="button" onClick={() => setActivePanel('form')} className={subnavTabClass('form')}>
-              Daily Report
+            <button type="button" onClick={() => setReflectionPanel('form')} className={subnavTabClass('form')}>
+              <span className="inline-flex items-center gap-1.5">
+                <ClipboardList size={12} className="opacity-80" />
+                Daily Report
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setReflectionPanel('hourly')}
+              className={subnavTabClass('hourly')}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <Clock3 size={12} className="opacity-80" />
+                Hourly Tracking
+              </span>
             </button>
             <button
               type="button"
               onClick={() => {
-                setActivePanel('logs');
+                setReflectionPanel('logs');
                 if (!logsLoaded) void loadReflections();
               }}
               className={subnavTabClass('logs')}
             >
-              All Logs
+              <span className="inline-flex items-center gap-1.5">
+                <ScrollText size={12} className="opacity-80" />
+                All Logs
+              </span>
             </button>
           </>
         }
@@ -622,10 +678,19 @@ const ReflectionView: React.FC<ReflectionViewProps> = ({ state, updateState, loa
           importedTaskCount={importedTaskCount}
           syncLoading={syncLoading}
           tomorrowPreviewTasks={tomorrowPreviewTasks}
-          error={error}
-          successMessage={successMessage}
           handleSave={handleSave}
           saving={saving}
+        />
+      )}
+
+      {activePanel === 'hourly' && currentEmpId && (
+        <HourlyTrackingPanel
+          todayKey={todayKey}
+          currentEmpId={currentEmpId}
+          currentUserName={String(state.currentUser?.name || '').trim()}
+          isAdmin={isAdmin}
+          isLeader={isLeader}
+          employeeOptions={employeeOptions}
         />
       )}
 
