@@ -292,9 +292,8 @@ export const HourlyTrackingPanel: React.FC<HourlyTrackingPanelProps> = ({
     void loadEntries();
   }, [loadEntries]);
 
-  const toggleShowAllToOthers = async () => {
-    if (!isAdmin || savingSetting) return;
-    const next = !showAllToOthers;
+  const setShowAllToOthersValue = async (next: boolean) => {
+    if (!isAdmin || savingSetting || next === showAllToOthers) return;
     setSavingSetting(true);
     try {
       const res = await fetch(`${API_BASE}/hourly-tracking/settings`, {
@@ -933,33 +932,42 @@ export const HourlyTrackingPanel: React.FC<HourlyTrackingPanelProps> = ({
             )}
 
             {isAdmin && (
-              <button
-                type="button"
-                onClick={() => void toggleShowAllToOthers()}
-                disabled={savingSetting}
-                className="inline-flex h-10 items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+              <div
+                className={`inline-flex h-10 items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm ${
+                  savingSetting ? 'opacity-60' : ''
+                }`}
                 title="When enabled, all people (including admins) can view everyone’s hourly tracking"
               >
                 {savingSetting ? <Loader2 size={15} className="animate-spin text-slate-500" /> : <Users size={15} className="text-slate-500" />}
                 <span>Show all data to others</span>
                 <span className="inline-flex h-7 overflow-hidden rounded-lg border border-slate-200">
-                  <span
-                    className={`inline-flex items-center px-2 text-[11px] font-bold uppercase tracking-wide ${
-                      showAllToOthers ? 'bg-emerald-600 text-white' : 'bg-transparent text-slate-400'
+                  <button
+                    type="button"
+                    onClick={() => void setShowAllToOthersValue(true)}
+                    disabled={savingSetting || showAllToOthers}
+                    className={`inline-flex cursor-pointer items-center px-2 text-[11px] font-bold uppercase tracking-wide transition disabled:cursor-default ${
+                      showAllToOthers ? 'bg-emerald-600 text-white' : 'bg-transparent text-slate-400 hover:bg-slate-50'
                     }`}
+                    aria-pressed={showAllToOthers}
+                    aria-label="Turn show all data on"
                   >
                     On
-                  </span>
+                  </button>
                   <span className="w-px self-stretch bg-slate-200" aria-hidden />
-                  <span
-                    className={`inline-flex items-center px-2 text-[11px] font-bold uppercase tracking-wide ${
-                      !showAllToOthers ? 'bg-brand-red text-white' : 'bg-transparent text-slate-400'
+                  <button
+                    type="button"
+                    onClick={() => void setShowAllToOthersValue(false)}
+                    disabled={savingSetting || !showAllToOthers}
+                    className={`inline-flex cursor-pointer items-center px-2 text-[11px] font-bold uppercase tracking-wide transition disabled:cursor-default ${
+                      !showAllToOthers ? 'bg-brand-red text-white' : 'bg-transparent text-slate-400 hover:bg-slate-50'
                     }`}
+                    aria-pressed={!showAllToOthers}
+                    aria-label="Turn show all data off"
                   >
                     Off
-                  </span>
+                  </button>
                 </span>
-              </button>
+              </div>
             )}
           </div>
 
