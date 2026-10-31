@@ -3,7 +3,9 @@ import { getSocket } from '../../realtime/socket';
 import { ensureSocketConnected, getStoredAuth, messagePreviewFromMessage, mapApiHistoryMessage } from '../context/communicationContextHelpers';
 import { readStoredNotificationPreferences } from '../../services/notificationPreferences';
 import {
+  isPortalTabActivelyFocused,
   registerCommunicationNotificationServiceWorker,
+  shouldShowDesktopChatNotification,
   showDesktopChatNotification,
 } from '../browserNotifications';
 import { useChatAlertStore } from '../stores/useChatAlertStore';
@@ -12,7 +14,8 @@ import type { ChatNotification } from '../types';
 function resolveCurrentUserId(): string {
   const employee = getStoredAuth()?.employee;
   if (!employee) return '';
-  return String(employee._id || employee.empId || '').trim();
+  // Prefer Mongo _id (matches JWT sub / socket user rooms / message.senderId).
+  return String(employee._id || '').trim() || String(employee.empId || '').trim();
 }
 
 function previewFromPayload(message: any): string {
@@ -106,11 +109,15 @@ export function useGlobalChatAlerts() {
           return;
         }
 
-        const viewingThisChat =
+        // Only suppress when the user is actively looking at this exact chat.
+        // If they left Communication open then switched to another tab/app/browser,
+        // still show in-app cards (when visible) + OS notifications.
+        const activelyViewingThisChat =
+          isPortalTabActivelyFocused() &&
           store.isCommunicationRoute &&
           !!store.viewingConversationKey &&
           store.viewingConversationKey === conversationKey;
-        if (viewingThisChat) {
+        if (activelyViewingThisChat) {
           store.markMessageSeen(messageId);
           return;
         }
@@ -137,6 +144,8 @@ export function useGlobalChatAlerts() {
         scheduleDismiss(notification.id);
         playIncomingMessageSound();
 
+        // Always attempt OS notification when the portal tab is in the background /
+        // another app. Also attempt when focused on a different page (Chrome may hide it).
         void showDesktopChatNotification({
           conversationKey,
           title: senderName,
@@ -145,7 +154,7 @@ export function useGlobalChatAlerts() {
           tag: `comm:${conversationKey}`,
         });
 
-        if (typeof document !== 'undefined') {
+        if (typeof document !== 'undefined' && shouldShowDesktopChatNotification()) {
           const previousTitle = document.title;
           document.title = `(New) ${senderName}`;
           window.setTimeout(() => {
@@ -159,15 +168,27 @@ export function useGlobalChatAlerts() {
       }
     };
 
-    // Only the dedicated notify event — do NOT share newMessage/comm:message:created
-    // with the live chat UI listeners (a throw would block them).
+    // Dedicated inbox event (WhatsApp-style). Also accept `newMessage` as a
+    // fallback for DMs — hasSeenMessage dedupes if both arrive.
     socket.on('comm:inbox:notify', handleIncoming);
+    socket.on('newMessage', handleIncoming);
 
     void ensureSocketConnected(socket).catch(() => {});
+
+    // Keep the socket warm when the tab is backgrounded so inbox events still arrive.
+    const onVisibility = () => {
+      if (typeof document === 'undefined') return;
+      if (document.visibilityState === 'hidden' || document.visibilityState === 'visible') {
+        void ensureSocketConnected(socket).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       cancelled = true;
       socket.off('comm:inbox:notify', handleIncoming);
+      socket.off('newMessage', handleIncoming);
+      document.removeEventListener('visibilitychange', onVisibility);
       Object.keys(dismissTimersRef.current).forEach(clearTimer);
     };
   }, []);

@@ -34,12 +34,28 @@ export async function ensureDesktopNotificationPermission(): Promise<Notificatio
   }
 }
 
+/** True when this portal tab is visible and focused (user is actively looking at it). */
+export function isPortalTabActivelyFocused(): boolean {
+  if (typeof document === 'undefined') return false;
+  if (document.visibilityState !== 'visible') return false;
+  if (typeof document.hasFocus === 'function' && !document.hasFocus()) return false;
+  return true;
+}
+
 /** True when the user is on another browser tab or another app (page not focused). */
 export function shouldShowDesktopChatNotification(): boolean {
-  if (typeof document === 'undefined') return false;
-  if (document.visibilityState !== 'visible') return true;
-  if (typeof document.hasFocus === 'function' && !document.hasFocus()) return true;
-  return false;
+  return !isPortalTabActivelyFocused();
+}
+
+/** Event: re-open the "Allow notifications" banner (permission still default). */
+export const DESKTOP_NOTIFICATION_PERMISSION_NUDGE_EVENT =
+  'rapidgrow:desktop-notification-permission-nudge';
+
+export function nudgeDesktopNotificationPermissionBanner(): void {
+  if (typeof window === 'undefined') return;
+  if (!isDesktopNotificationSupported()) return;
+  if (Notification.permission !== 'default') return;
+  window.dispatchEvent(new CustomEvent(DESKTOP_NOTIFICATION_PERMISSION_NUDGE_EVENT));
 }
 
 export async function registerCommunicationNotificationServiceWorker(): Promise<ServiceWorkerRegistration | null> {
@@ -149,25 +165,30 @@ function showViaPageNotification(payload: DesktopChatNotificationPayload): boole
 /**
  * Show an OS/browser notification (service worker preferred when the tab is in the background).
  * Safe to call even if permission is not granted — it no-ops.
+ * Does NOT call requestPermission() here (that needs a user gesture); only displays if already granted.
  */
 export async function showDesktopChatNotification(
   payload: DesktopChatNotificationPayload,
 ): Promise<boolean> {
   if (!isDesktopNotificationSupported()) return false;
+  if (Notification.permission !== 'granted') {
+    nudgeDesktopNotificationPermissionBanner();
+    return false;
+  }
 
-  const permission = await ensureDesktopNotificationPermission();
-  if (permission !== 'granted') return false;
-
-  // Prefer SW when backgrounded; always fall back to page Notification API.
+  // Prefer SW when backgrounded (more reliable for hidden tabs); fall back to page API.
   if (shouldShowDesktopChatNotification()) {
     const viaSw = await showViaServiceWorker(payload);
     if (viaSw) return true;
+
+    const viaPage = showViaPageNotification(payload);
+    if (viaPage) return true;
+    return false;
   }
 
+  // Focused tab: in-app cards cover this; still attempt a quiet page notification as backup.
   const viaPage = showViaPageNotification(payload);
   if (viaPage) return true;
-
-  // Last resort: try SW even while focused (some browsers still surface it).
   return showViaServiceWorker(payload);
 }
 
