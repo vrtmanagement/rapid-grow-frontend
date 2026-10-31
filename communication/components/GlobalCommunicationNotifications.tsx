@@ -18,14 +18,27 @@ export function GlobalCommunicationNotifications() {
   // Independent socket → alert pipeline (does not depend on CommunicationContext message handlers).
   useGlobalChatAlerts();
 
-  // Keep "currently viewing chat" in sync so we don't notify for the open thread.
+  // Keep "currently viewing chat" in sync so we don't notify for the open thread
+  // while the user is actively looking at it (background tabs still notify).
   useEffect(() => {
-    const isCommunicationRoute =
-      location.pathname === '/communication' || location.pathname.startsWith('/communication/');
-    setViewingState({
-      isCommunicationRoute,
-      viewingConversationKey: isCommunicationRoute ? ctx.selectedConversationKey : null,
-    });
+    const syncViewingState = () => {
+      const isCommunicationRoute =
+        location.pathname === '/communication' || location.pathname.startsWith('/communication/');
+      setViewingState({
+        isCommunicationRoute,
+        viewingConversationKey: isCommunicationRoute ? ctx.selectedConversationKey : null,
+      });
+    };
+
+    syncViewingState();
+    document.addEventListener('visibilitychange', syncViewingState);
+    window.addEventListener('focus', syncViewingState);
+    window.addEventListener('blur', syncViewingState);
+    return () => {
+      document.removeEventListener('visibilitychange', syncViewingState);
+      window.removeEventListener('focus', syncViewingState);
+      window.removeEventListener('blur', syncViewingState);
+    };
   }, [ctx.selectedConversationKey, location.pathname, setViewingState]);
 
   // OS notification click → open that conversation.
